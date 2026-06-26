@@ -41,6 +41,10 @@ The deployment expects the model backends documented in this directory:
 - vLLM OpenAI-compatible LLM backend: `remote-vllm-backend.md`
 - Ollama OpenAI-compatible embedding backend: `model-hub-ollama-embedding.md`
 
+If a deployment uses Ollama for all model roles, including chat, image
+understanding, embedding, and optional rerank, follow the all-Ollama model
+configuration section in `model-hub-ollama-embedding.md`.
+
 The app points to Ollama through the Docker host gateway:
 
 ```bash

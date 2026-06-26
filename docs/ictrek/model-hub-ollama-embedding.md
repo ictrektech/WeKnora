@@ -152,6 +152,140 @@ dimensions: 1024
 
 If WeKnora runs on the same remote host outside Docker, use `http://127.0.0.1:21434`. If it runs in Docker on the same Docker network, use `http://weknora-model-hub-ollama:11434`. For callers outside the remote machine, replace `127.0.0.1:21434` or `127.0.0.1:21535` with the external endpoint created by the operator.
 
+## All-Ollama Model Configuration
+
+WeKnora can use one Ollama-backed service for chat, image understanding, and
+embedding when the Ollama container also exposes the OpenAI-compatible gateway.
+Keep the two endpoint types separate:
+
+```text
+Ollama native API, used by OLLAMA_BASE_URL and the Ollama status page:
+http://host.docker.internal:21434
+
+OpenAI-compatible gateway, used by built-in model records:
+http://host.docker.internal:11535/v1
+```
+
+For a Docker deployment, set the app environment to the native endpoint so the
+Ollama status page can detect the service:
+
+```yaml
+services:
+  app:
+    environment:
+      OLLAMA_BASE_URL: http://host.docker.internal:21434
+```
+
+Then declare the model records through `config/builtin_models.yaml` and mount
+that file into the app container. Example:
+
+```yaml
+builtin_models:
+  - id: ictrek-qwen35-2b
+    type: KnowledgeQA
+    source: remote
+    is_default: true
+    name: qwen3.5:2b
+    display_name: Qwen3.5 2B Ollama
+    parameters:
+      base_url: http://host.docker.internal:11535/v1
+      api_key: EMPTY
+      provider: generic
+      supports_vision: true
+
+  - id: ictrek-qwen35-2b-vlm
+    type: VLLM
+    source: remote
+    is_default: true
+    name: qwen3.5:2b
+    display_name: Qwen3.5 2B Ollama Vision
+    parameters:
+      base_url: http://host.docker.internal:11535/v1
+      api_key: EMPTY
+      provider: generic
+      supports_vision: true
+
+  - id: ictrek-bge-m3-embedding
+    type: Embedding
+    source: remote
+    is_default: true
+    name: bge-m3:latest
+    display_name: BGE-M3 Ollama Embedding
+    parameters:
+      base_url: http://host.docker.internal:11535/v1
+      api_key: EMPTY
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false
+```
+
+The Ollama service must have these models prepared before WeKnora can use this
+configuration:
+
+```bash
+ollama pull qwen3.5:2b
+ollama pull bge-m3
+```
+
+`qwen3.5:2b` is used for both chat and VLM/image understanding, so it must show
+vision and completion capability in `GET /api/tags`. `bge-m3:latest` is a
+multilingual embedding model and should report `embedding_length=1024`.
+
+Rerank needs a separate rerank-capable endpoint. WeKnora's generic rerank client
+calls:
+
+```text
+POST <base_url>/rerank
+```
+
+with a request body containing `model`, `query`, and `documents`. Plain Ollama
+native APIs do not provide that endpoint. To make rerank also "Ollama-backed",
+prepare both of the following:
+
+- a rerank model in Ollama or a rerank sidecar that can score query/document
+  pairs, such as a BGE reranker family model;
+- an OpenAI-style gateway endpoint that exposes `/v1/rerank` and returns
+  `results[].index` plus `results[].relevance_score`.
+
+Only after that endpoint exists should a WeKnora `Rerank` built-in be declared:
+
+```yaml
+  - id: ictrek-bge-reranker
+    type: Rerank
+    source: remote
+    is_default: true
+    name: bge-reranker-v2-m3
+    display_name: BGE Reranker
+    parameters:
+      base_url: http://host.docker.internal:11535/v1
+      api_key: EMPTY
+      provider: generic
+```
+
+If the Ollama gateway only exposes `/v1/models`, `/v1/chat/completions`, and
+`/v1/embeddings`, leave rerank unconfigured or use an external rerank provider.
+Configuring a `Rerank` row without a working `/v1/rerank` endpoint will let the
+service start, but rerank calls will fail during retrieval.
+
+After changing `config/builtin_models.yaml`, restart only the app service:
+
+```bash
+docker compose restart app
+```
+
+Verify the effective state:
+
+```bash
+curl -fsS http://127.0.0.1:21434/api/tags
+curl -fsS http://127.0.0.1:11535/v1/models
+curl -fsS http://127.0.0.1:11535/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge-m3:latest","input":"中文知识库检索测试"}'
+docker compose logs app | grep -i builtin-models
+```
+
 ## Runtime Notes
 
 - `model-hub:amd_20260625` was found and can be pulled, but the persistent runtime does not need a separate model-hub container for WeKnora embedding.
