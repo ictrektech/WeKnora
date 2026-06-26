@@ -1,0 +1,219 @@
+# Remote WeKnora Deployment
+
+This note records the ictrek deployment path used on `ssh tc232`.
+
+`tc232` is an SSH config alias, not a public service hostname. The ports below are remote host bindings only. Add an external port mapping or reverse proxy separately when the service needs to be reached from outside that host.
+
+## Scope
+
+Use the default, non-lite WeKnora stack:
+
+- `frontend`
+- `app`
+- `docreader`
+- `postgres` (`paradedb/paradedb:v0.22.2-pg17`)
+- `redis` (`redis:7.0-alpine`)
+
+For the baseline RAG deployment, no extra vector database or object storage sidecar is required:
+
+- `RETRIEVE_DRIVER=postgres`
+- `STORAGE_TYPE=local`
+- `STREAM_MANAGER_TYPE=redis`
+
+Optional profiles such as `qdrant`, `milvus`, `weaviate`, `minio`, `searxng`, `neo4j`, and `langfuse` should only be started when that feature is intentionally enabled.
+
+## Existing Model Backends
+
+The deployment expects the model backends documented in this directory:
+
+- vLLM OpenAI-compatible LLM backend: `remote-vllm-backend.md`
+- Ollama OpenAI-compatible embedding backend: `model-hub-ollama-embedding.md`
+
+The app points to Ollama through the Docker host gateway:
+
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:21434
+```
+
+## Remote Source Copy
+
+Do not run `git` commands on the remote deployment host. Sync the local working tree to the remote deploy directory:
+
+```bash
+rsync -az --delete \
+  --exclude '.git' \
+  --exclude 'frontend/node_modules' \
+  --exclude 'frontend/dist' \
+  --exclude 'data' \
+  --exclude '.cache' \
+  apps/WeKnora/ tc232:/data/jhu/deploy/weknora/
+```
+
+## Base Images
+
+If Docker Hub access is slow or unavailable, pull missing base images through a reachable mirror and retag them to the names expected by the Dockerfiles and compose file:
+
+```bash
+ssh tc232 'bash -s' <<'EOF'
+set -euo pipefail
+
+pull_retag() {
+  src="$1"
+  dst="$2"
+  docker image inspect "$dst" >/dev/null 2>&1 || {
+    docker pull "$src"
+    docker tag "$src" "$dst"
+  }
+}
+
+pull_retag docker.m.daocloud.io/library/golang:1.26-bookworm golang:1.26-bookworm
+pull_retag docker.m.daocloud.io/library/debian:12.12-slim debian:12.12-slim
+pull_retag docker.m.daocloud.io/library/python:3.10.18-bookworm python:3.10.18-bookworm
+pull_retag docker.m.daocloud.io/library/nginx:stable-alpine nginx:stable-alpine
+pull_retag docker.m.daocloud.io/library/node:22-alpine node:22-alpine
+pull_retag docker.m.daocloud.io/paradedb/paradedb:v0.22.2-pg17 paradedb/paradedb:v0.22.2-pg17
+pull_retag docker.m.daocloud.io/library/redis:7.0-alpine redis:7.0-alpine
+EOF
+```
+
+## Build Images
+
+Build the frontend assets first, then build the three runtime images. The docreader image is intentionally large in the non-lite deployment because it includes LibreOffice, Java, Playwright WebKit, fonts, and document parsing libraries.
+
+```bash
+ssh tc232 'bash -s' <<'EOF'
+set -euo pipefail
+cd /data/jhu/deploy/weknora
+
+docker run --rm \
+  -v "$PWD/frontend:/app" \
+  -w /app \
+  -e VITE_IS_DOCKER=true \
+  node:22-alpine \
+  sh -lc 'npm config set registry https://registry.npmmirror.com && npm ci && npm run build'
+
+export DOCKER_BUILDKIT=1
+BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+COMMIT_ID=$(cat .git-commit 2>/dev/null || echo local-sync)
+VERSION=ictrek-tc232
+
+docker build -f frontend/Dockerfile \
+  -t wechatopenai/weknora-ui:${VERSION} \
+  frontend
+
+docker build \
+  --build-arg GOPROXY_ARG=https://goproxy.cn,direct \
+  --build-arg GOSUMDB_ARG=sum.golang.google.cn \
+  --build-arg APK_MIRROR_ARG=mirrors.tuna.tsinghua.edu.cn \
+  --build-arg VERSION_ARG="$VERSION" \
+  --build-arg COMMIT_ID_ARG="$COMMIT_ID" \
+  --build-arg BUILD_TIME_ARG="$BUILD_DATE" \
+  --build-arg GO_VERSION_ARG=1.26 \
+  -f docker/Dockerfile.app \
+  -t wechatopenai/weknora-app:${VERSION} \
+  .
+
+docker build \
+  --build-arg APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn \
+  -f docker/Dockerfile.docreader \
+  -t wechatopenai/weknora-docreader:${VERSION} \
+  .
+EOF
+```
+
+The tested image set on `tc232` was:
+
+```text
+wechatopenai/weknora-ui:ictrek-tc232
+wechatopenai/weknora-app:ictrek-tc232
+wechatopenai/weknora-docreader:ictrek-tc232
+paradedb/paradedb:v0.22.2-pg17
+redis:7.0-alpine
+```
+
+## Runtime Environment
+
+Create `/data/jhu/deploy/weknora/.env` on `tc232`. Keep this file out of git.
+
+```bash
+WEKNORA_VERSION=ictrek-tc232
+GIN_MODE=release
+LOG_LEVEL=info
+TZ=Asia/Shanghai
+WEKNORA_LANGUAGE=zh-CN
+DISABLE_REGISTRATION=false
+
+FRONTEND_PORT=18080
+APP_PORT=18081
+APP_BACKEND_PORT=8080
+APP_HOST=app
+APP_SCHEME=http
+
+DB_DRIVER=postgres
+RETRIEVE_DRIVER=postgres
+STORAGE_TYPE=local
+STREAM_MANAGER_TYPE=redis
+OLLAMA_BASE_URL=http://host.docker.internal:21434
+
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres123!@#
+DB_NAME=WeKnora
+REDIS_PASSWORD=redis123!@#
+REDIS_DB=0
+REDIS_PREFIX=stream:
+LOCAL_STORAGE_BASE_DIR=/data/files
+AUTO_RECOVER_DIRTY=true
+
+TENANT_AES_KEY=weknorarag-api-key-secret-secret
+SYSTEM_AES_KEY=weknora-system-aes-key-32bytes!!
+JWT_SECRET=weknora-jwt-secret
+
+LANGFUSE_ENABLED=false
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_HOST=
+
+CONCURRENCY_POOL_SIZE=5
+WEKNORA_ASYNQ_CONCURRENCY=4
+MAX_FILE_SIZE_MB=50
+```
+
+## Start
+
+```bash
+ssh tc232 'bash -s' <<'EOF'
+set -euo pipefail
+cd /data/jhu/deploy/weknora
+mkdir -p skills/preloaded
+docker compose up -d postgres redis docreader app frontend
+EOF
+```
+
+On a fresh ParadeDB volume, `postgres` may briefly become healthy and then restart after `/docker-entrypoint-initdb.d/10_bootstrap_paradedb.sh` finishes. If `app` starts during that window and becomes unhealthy with `connection refused`, start `app` and `frontend` again after Postgres settles:
+
+```bash
+ssh tc232 'cd /data/jhu/deploy/weknora && docker compose up -d app frontend'
+```
+
+## Verify
+
+```bash
+ssh tc232 'bash -s' <<'EOF'
+set -euo pipefail
+cd /data/jhu/deploy/weknora
+docker compose ps
+curl -i --max-time 10 http://127.0.0.1:18081/health
+curl -I --max-time 10 http://127.0.0.1:18080/
+EOF
+```
+
+Expected baseline:
+
+- `WeKnora-app` is `healthy` and bound to `0.0.0.0:18081->8080/tcp`
+- `WeKnora-docreader` is `healthy`
+- `WeKnora-postgres` is `healthy`
+- `WeKnora-frontend` is bound to `0.0.0.0:18080->80/tcp`
+- `GET http://127.0.0.1:18081/health` returns `{"status":"ok"}`
+- `HEAD http://127.0.0.1:18080/` returns `HTTP/1.1 200 OK`
