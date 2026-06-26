@@ -19,13 +19,16 @@ This note records the Qwen3.5 9B AWQ vLLM backend prepared on the remote machine
 - Max model length: `32768`
 - GPU memory utilization: `0.50`
 - Max concurrent sequences: `4`
-- WeKnora model rows:
-  - `ictrek-qwen35-9b-awq` (`KnowledgeQA`)
-  - `ictrek-qwen35-9b-awq-vlm` (`VLLM`)
+- Optional WeKnora model rows, if the operator chooses to register this backend:
+  - `KnowledgeQA` row with `source=remote`, `name=qwen3.5-9b-awq`,
+    `base_url=http://host.docker.internal:18118/v1`
+  - `VLLM` row with the same model name and base URL when this backend is used
+    for vision-language calls
 
-Both WeKnora rows point at this same OpenAI-compatible backend. The separate
-rows let WeKnora's model type filters route normal chat and vision-language
-features independently without starting a second vLLM container.
+These rows are not shipped by default in the WeKnora image or ictrek compose
+files. Add them through the Web UI or an operator-created
+`config/builtin_models.yaml` only for deployments that intentionally use this
+vLLM backend.
 
 ## Download Model
 

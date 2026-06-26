@@ -34,48 +34,141 @@ state, and Redis append-only data outside anonymous Docker volumes.
 
 Optional profiles such as `qdrant`, `milvus`, `weaviate`, `minio`, `searxng`, `neo4j`, and `langfuse` should only be started when that feature is intentionally enabled.
 
-## Existing Model Backends
+## Model Configuration
 
-The deployment expects the model backends documented in this directory:
+The WeKnora app image and ictrek compose files do not ship deployment-specific
+model records by default. A new deployment starts without built-in LLM, VLM,
+embedding, or rerank rows. Add models after startup in the Web UI, or mount an
+operator-created `config/builtin_models.yaml` generated from environment
+variables.
+
+Optional model backend notes are documented in this directory:
 
 - vLLM OpenAI-compatible LLM backend: `remote-vllm-backend.md`
-- Ollama OpenAI-compatible embedding backend: `model-hub-ollama-embedding.md`
+- Ollama backend for chat, image understanding, embedding, and optional rerank:
+  `model-hub-ollama-embedding.md`
 
-If a deployment uses Ollama for all model roles, including chat, image
-understanding, embedding, and optional rerank, follow the all-Ollama model
-configuration section in `model-hub-ollama-embedding.md`.
-
-The app points to Ollama through the Docker host gateway:
+For Ollama-based deployments, set the app environment to the native Ollama API
+endpoint so the initialization page and local model clients can detect it:
 
 ```bash
 OLLAMA_BASE_URL=http://host.docker.internal:21434
 ```
 
-`docker-compose.override.yml` also adds `host.docker.internal` to
-`SSRF_WHITELIST_EXTRA`. The YAML-managed LLM and embedding records use the same
-Docker host gateway, so the app must allow this hostname before model calls can
-pass the SSRF guard.
+If the Ollama service runs on a different mapped port, change only the port:
 
-The default ictrek model records are declared in `config/builtin_models.yaml`
-and mounted by `docker-compose.override.yml`. On every `app` startup WeKnora
-upserts these records into the `models` table as YAML-managed built-ins:
-
-```text
-ictrek-qwen35-9b-awq       KnowledgeQA  qwen3.5-9b-awq  http://host.docker.internal:18118/v1
-ictrek-qwen35-9b-awq-vlm   VLLM         qwen3.5-9b-awq  http://host.docker.internal:18118/v1
-ictrek-bge-m3-embedding    Embedding    bge-m3:latest   http://host.docker.internal:21535/v1
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:<ollama-host-port>
 ```
 
-All are marked `is_default: true` and are visible to all tenants. The
-KnowledgeQA and VLLM rows intentionally point to the same OpenAI-compatible
-vLLM backend because the prepared Qwen3.5 model is used for both text QA and
-vision-language calls.
+`docker-compose.override.yml` also adds `host.docker.internal` to
+`SSRF_WHITELIST_EXTRA`; keep that when any model base URL uses the Docker host
+gateway.
 
-The built-in quick-answer and smart-reasoning agents declare image upload
-enabled by default and use `ictrek-qwen35-9b-awq-vlm` as their `vlm_model_id`.
-Existing customized built-in agent rows in the database are not overwritten by
-this YAML default; update those rows through the UI or a deliberate migration if
-an already-created tenant must inherit the new identity or VLM defaults.
+### Add Models In The Web UI
+
+For an all-Ollama deployment, create these model rows in the system model page:
+
+```text
+KnowledgeQA  source=local  name=<ollama chat model tag>
+VLLM         source=local  name=<ollama vision model tag>
+Embedding    source=local  name=<ollama embedding model tag>  dimension=<embedding dimension>
+```
+
+Leave `base_url` and `api_key` empty for `source=local`; WeKnora uses
+`OLLAMA_BASE_URL` for local Ollama calls. Mark the intended row in each model
+type as the default.
+
+For an OpenAI-compatible remote endpoint such as vLLM or a gateway, use
+`source=remote`, set `base_url` to the endpoint ending in `/v1`, and provide the
+API key if required.
+
+### Add Models Through Environment Variables
+
+To declare model rows at deployment time, create a local
+`config/builtin_models.yaml` from environment variables and mount it explicitly.
+This file is not mounted by default because shipping concrete model IDs and
+host ports in the image caused deployments to call stale backends.
+
+Example `.env` for local Ollama:
+
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:21434
+WEKNORA_CHAT_MODEL_ID=local-ollama-chat
+WEKNORA_CHAT_MODEL_NAME=qwen3.5:2b
+WEKNORA_VLM_MODEL_ID=local-ollama-vlm
+WEKNORA_VLM_MODEL_NAME=qwen3.5:2b
+WEKNORA_EMBEDDING_MODEL_ID=local-ollama-embedding
+WEKNORA_EMBEDDING_MODEL_NAME=bge-m3:latest
+WEKNORA_EMBEDDING_DIMENSION=1024
+```
+
+Example `config/builtin_models.yaml`:
+
+```yaml
+builtin_models:
+  - id: ${WEKNORA_CHAT_MODEL_ID}
+    type: KnowledgeQA
+    source: local
+    is_default: true
+    name: ${WEKNORA_CHAT_MODEL_NAME}
+    display_name: Local Ollama Chat
+    parameters:
+      base_url: ""
+      api_key: ""
+      provider: generic
+      supports_vision: true
+
+  - id: ${WEKNORA_VLM_MODEL_ID}
+    type: VLLM
+    source: local
+    is_default: true
+    name: ${WEKNORA_VLM_MODEL_NAME}
+    display_name: Local Ollama Vision
+    parameters:
+      base_url: ""
+      api_key: ""
+      provider: generic
+      supports_vision: true
+
+  - id: ${WEKNORA_EMBEDDING_MODEL_ID}
+    type: Embedding
+    source: local
+    is_default: true
+    name: ${WEKNORA_EMBEDDING_MODEL_NAME}
+    display_name: Local Ollama Embedding
+    parameters:
+      base_url: ""
+      api_key: ""
+      provider: generic
+      embedding_parameters:
+        dimension: ${WEKNORA_EMBEDDING_DIMENSION}
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false
+```
+
+Then enable the mount in the deployment compose override:
+
+```yaml
+services:
+  app:
+    volumes:
+      - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
+```
+
+Restart only the app after changing this file:
+
+```bash
+docker compose restart app
+```
+
+Rows declared in `builtin_models.yaml` are upserted on every app startup. Rows
+removed from the YAML are not automatically deleted; remove stale model rows in
+the Web UI or with a deliberate database maintenance step.
+
+The built-in quick-answer and smart-reasoning agents do not hard-code a VLM
+model id. Select the image model in the agent settings after creating the VLM
+model row.
 
 The default assistant identity is defined in `config/prompt_templates/*.yaml`.
 For the ictrek deployment, the relevant system prompt templates identify the
@@ -309,8 +402,8 @@ Expected baseline:
 - `WeKnora-frontend` is bound to `0.0.0.0:18080->80/tcp`
 - `GET http://127.0.0.1:18081/health` returns `{"status":"ok"}`
 - `HEAD http://127.0.0.1:18080/` returns `HTTP/1.1 200 OK`
-- `models` contains the YAML-managed built-ins `ictrek-qwen35-9b-awq` and
-  `ictrek-bge-m3-embedding`
+- `models` may be empty on a fresh deployment until the operator adds model
+  rows through the Web UI or a mounted `config/builtin_models.yaml`
 
 ## External Access
 
@@ -332,7 +425,7 @@ Expose these only when there is a separate operational need:
 
 ```text
 public API port -> tc232:18081    # direct app API access, optional
-public LLM port -> tc232:18118    # direct vLLM OpenAI-compatible access, optional
+public model port -> <model-host>:<model-port>  # direct model backend access, optional
 ```
 
 Keep these internal by default:
@@ -341,8 +434,7 @@ Keep these internal by default:
 5432   # postgres
 6379   # redis
 50051  # docreader gRPC
-21434  # Ollama native API
-21535  # Ollama OpenAI-compatible embedding gateway
+21434  # Ollama native API, only when an Ollama backend is running
 ```
 
 If the external proxy terminates TLS, forward plain HTTP to `tc232:18080`.

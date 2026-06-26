@@ -1,43 +1,9 @@
-# ictrek deployment defaults. Loaded by the app on startup.
-builtin_models:
-  - id: ictrek-qwen35-9b-awq
-    type: KnowledgeQA
-    source: remote
-    is_default: true
-    name: qwen3.5-9b-awq
-    display_name: Qwen3.5 9B AWQ vLLM
-    description: OpenAI-compatible vLLM backend on tc232.
-    parameters:
-      base_url: http://host.docker.internal:18118/v1
-      api_key: EMPTY
-      provider: generic
-      supports_vision: true
-
-  - id: ictrek-qwen35-9b-awq-vlm
-    type: VLLM
-    source: remote
-    is_default: true
-    name: qwen3.5-9b-awq
-    display_name: Qwen3.5 9B AWQ vLLM Vision
-    description: OpenAI-compatible vLLM vision backend on tc232.
-    parameters:
-      base_url: http://host.docker.internal:18118/v1
-      api_key: EMPTY
-      provider: generic
-      supports_vision: true
-
-  - id: ictrek-bge-m3-embedding
-    type: Embedding
-    source: remote
-    is_default: true
-    name: bge-m3:latest
-    display_name: BGE-M3 Ollama Embedding
-    description: Multilingual bge-m3 embedding served by the ictrek Ollama gateway.
-    parameters:
-      base_url: http://host.docker.internal:21535/v1
-      api_key: EMPTY
-      provider: generic
-      embedding_parameters:
-        dimension: 1024
-        truncate_prompt_tokens: 8192
-        supports_dimension_override: false
+# No deployment-specific model records are shipped by default.
+#
+# Operators should either:
+# - add models later in the Web UI, or
+# - mount a generated config/builtin_models.yaml that references deployment
+#   environment variables.
+#
+# See docs/ictrek/remote-weknora-deployment.md and docs/BUILTIN_MODELS.md.
+builtin_models: []

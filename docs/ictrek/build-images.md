@@ -182,7 +182,14 @@ docker compose \
 use that override file, add equivalent host mappings before starting the
 service.
 
-`config/builtin_models.yaml` is optional. If it is not mounted, WeKnora should
-still start without built-in model records. If it is mounted but the referenced
-LLM, VLM, or embedding endpoints are not reachable, service startup should
-still succeed; those endpoints are only required when model calls are made.
+The released WeKnora images do not contain deployment-specific model defaults.
+`config/builtin_models.yaml` in the image is intentionally empty, and
+`docker-compose.override.yml` does not mount a model file by default. Operators
+must add models later in the Web UI or explicitly mount an operator-created
+`config/builtin_models.yaml` that reads model names and endpoints from `.env`.
+
+For Ollama-only deployments, set `OLLAMA_BASE_URL` in `.env` and create local
+model rows (`source: local`) for chat, VLM, and embedding. For OpenAI-compatible
+remote backends, create remote rows (`source: remote`) with a `/v1` base URL.
+See `remote-weknora-deployment.md` and `model-hub-ollama-embedding.md` for the
+full variable-driven examples.

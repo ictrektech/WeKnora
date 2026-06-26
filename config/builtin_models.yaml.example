@@ -27,12 +27,53 @@
 
 builtin_models: []
 
-# ----- Example: env-driven entries — uncomment and adapt --------------------
+# ----- Example: local Ollama entries — uncomment and adapt ------------------
+#
+# Set OLLAMA_BASE_URL in .env, then leave base_url/api_key empty on local
+# model rows. The app uses OLLAMA_BASE_URL for local Ollama calls.
+#
+# builtin_models:
+#   - id: builtin-ollama-chat
+#     type: KnowledgeQA          # KnowledgeQA | Embedding | Rerank | VLLM | ASR
+#     source: local
+#     is_default: true
+#     name: ${OLLAMA_CHAT_MODEL_NAME}
+#     parameters:
+#       base_url: ""
+#       api_key: ""
+#       provider: generic
+#       supports_vision: true
+#
+#   - id: builtin-ollama-vlm
+#     type: VLLM
+#     source: local
+#     is_default: true
+#     name: ${OLLAMA_VLM_MODEL_NAME}
+#     parameters:
+#       base_url: ""
+#       api_key: ""
+#       provider: generic
+#       supports_vision: true
+#
+#   - id: builtin-ollama-embedding
+#     type: Embedding
+#     source: local
+#     is_default: true
+#     name: ${OLLAMA_EMBEDDING_MODEL_NAME}
+#     parameters:
+#       base_url: ""
+#       api_key: ""
+#       provider: generic
+#       embedding_parameters:
+#         dimension: 1024
+#         truncate_prompt_tokens: 8192
+#
+# ----- Example: remote API entries — uncomment and adapt --------------------
 #
 # builtin_models:
 #   - id: builtin-llm-default
 #     type: KnowledgeQA          # KnowledgeQA | Embedding | Rerank | VLLM | ASR
-#     source: remote             # remote (default) | local | ...
+#     source: remote
 #     is_default: true
 #     name: ${LLM_MODEL_NAME}
 #     parameters:

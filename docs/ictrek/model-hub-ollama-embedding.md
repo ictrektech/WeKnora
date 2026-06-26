@@ -155,19 +155,15 @@ If WeKnora runs on the same remote host outside Docker, use `http://127.0.0.1:21
 ## All-Ollama Model Configuration
 
 WeKnora can use one Ollama-backed service for chat, image understanding, and
-embedding when the Ollama container also exposes the OpenAI-compatible gateway.
-Keep the two endpoint types separate:
+embedding. The preferred deployment mode uses WeKnora's local Ollama model
+source and the native Ollama API:
 
 ```text
 Ollama native API, used by OLLAMA_BASE_URL and the Ollama status page:
 http://host.docker.internal:21434
-
-OpenAI-compatible gateway, used by built-in model records:
-http://host.docker.internal:11535/v1
 ```
 
-For a Docker deployment, set the app environment to the native endpoint so the
-Ollama status page can detect the service:
+For a Docker deployment, set the app environment to the native endpoint:
 
 ```yaml
 services:
@@ -176,49 +172,81 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:21434
 ```
 
-Then declare the model records through `config/builtin_models.yaml` and mount
-that file into the app container. Example:
+No concrete model rows are shipped in the WeKnora image or default compose
+files. Add the model rows in the Web UI, or mount an operator-created
+`config/builtin_models.yaml` that is driven by environment variables.
+
+For local Ollama rows:
+
+- `source` must be `local`;
+- `name` is the Ollama tag, for example `qwen3.5:2b`;
+- `parameters.base_url` and `parameters.api_key` stay empty;
+- WeKnora uses `OLLAMA_BASE_URL` for chat, VLM, and embedding calls.
+
+Example `.env`:
+
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:21434
+WEKNORA_CHAT_MODEL_ID=local-ollama-chat
+WEKNORA_CHAT_MODEL_NAME=qwen3.5:2b
+WEKNORA_VLM_MODEL_ID=local-ollama-vlm
+WEKNORA_VLM_MODEL_NAME=qwen3.5:2b
+WEKNORA_EMBEDDING_MODEL_ID=local-ollama-embedding
+WEKNORA_EMBEDDING_MODEL_NAME=bge-m3:latest
+WEKNORA_EMBEDDING_DIMENSION=1024
+```
+
+Example `config/builtin_models.yaml`:
 
 ```yaml
 builtin_models:
-  - id: ictrek-qwen35-2b
+  - id: ${WEKNORA_CHAT_MODEL_ID}
     type: KnowledgeQA
-    source: remote
+    source: local
     is_default: true
-    name: qwen3.5:2b
-    display_name: Qwen3.5 2B Ollama
+    name: ${WEKNORA_CHAT_MODEL_NAME}
+    display_name: Local Ollama Chat
     parameters:
-      base_url: http://host.docker.internal:11535/v1
-      api_key: EMPTY
+      base_url: ""
+      api_key: ""
       provider: generic
       supports_vision: true
 
-  - id: ictrek-qwen35-2b-vlm
+  - id: ${WEKNORA_VLM_MODEL_ID}
     type: VLLM
-    source: remote
+    source: local
     is_default: true
-    name: qwen3.5:2b
-    display_name: Qwen3.5 2B Ollama Vision
+    name: ${WEKNORA_VLM_MODEL_NAME}
+    display_name: Local Ollama Vision
     parameters:
-      base_url: http://host.docker.internal:11535/v1
-      api_key: EMPTY
+      base_url: ""
+      api_key: ""
       provider: generic
       supports_vision: true
 
-  - id: ictrek-bge-m3-embedding
+  - id: ${WEKNORA_EMBEDDING_MODEL_ID}
     type: Embedding
-    source: remote
+    source: local
     is_default: true
-    name: bge-m3:latest
-    display_name: BGE-M3 Ollama Embedding
+    name: ${WEKNORA_EMBEDDING_MODEL_NAME}
+    display_name: Local Ollama Embedding
     parameters:
-      base_url: http://host.docker.internal:11535/v1
-      api_key: EMPTY
+      base_url: ""
+      api_key: ""
       provider: generic
       embedding_parameters:
-        dimension: 1024
+        dimension: ${WEKNORA_EMBEDDING_DIMENSION}
         truncate_prompt_tokens: 8192
         supports_dimension_override: false
+```
+
+Mount this file explicitly only when you want YAML-managed model rows:
+
+```yaml
+services:
+  app:
+    volumes:
+      - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
 ```
 
 The Ollama service must have these models prepared before WeKnora can use this
@@ -249,7 +277,8 @@ prepare both of the following:
 - an OpenAI-style gateway endpoint that exposes `/v1/rerank` and returns
   `results[].index` plus `results[].relevance_score`.
 
-Only after that endpoint exists should a WeKnora `Rerank` built-in be declared:
+Only after that endpoint exists should a WeKnora `Rerank` model be added in the
+UI or declared in a mounted `builtin_models.yaml`:
 
 ```yaml
   - id: ictrek-bge-reranker
@@ -279,10 +308,9 @@ Verify the effective state:
 
 ```bash
 curl -fsS http://127.0.0.1:21434/api/tags
-curl -fsS http://127.0.0.1:11535/v1/models
-curl -fsS http://127.0.0.1:11535/v1/embeddings \
+curl -fsS http://127.0.0.1:21434/api/embed \
   -H 'Content-Type: application/json' \
-  -d '{"model":"bge-m3:latest","input":"中文知识库检索测试"}'
+  -d '{"model":"bge-m3:latest","input":["中文知识库检索测试"]}'
 docker compose logs app | grep -i builtin-models
 ```
 

@@ -33,7 +33,7 @@ builtin_agents:
       multi_turn_enabled: true
       history_turns: 5
       image_upload_enabled: true
-      vlm_model_id: "ictrek-qwen35-9b-awq-vlm"
+      vlm_model_id: ""
       kb_selection_mode: "all"
       retrieve_kb_only_when_mentioned: false
       faq_priority_enabled: true
@@ -88,7 +88,7 @@ builtin_agents:
       multi_turn_enabled: true
       history_turns: 5
       image_upload_enabled: true
-      vlm_model_id: "ictrek-qwen35-9b-awq-vlm"
+      vlm_model_id: ""
       faq_priority_enabled: true
       faq_direct_answer_threshold: 0.9
       faq_score_boost: 1.2

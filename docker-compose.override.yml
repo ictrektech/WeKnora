@@ -4,7 +4,9 @@ services:
       SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-host.docker.internal,searxng,qdrant,milvus,weaviate,doris-fe}
     volumes:
       - ./data/files:/data/files
-      - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
+      # Mount an operator-created model file only when this deployment wants
+      # YAML-managed model records. The default image ships no model records.
+      # - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
   postgres:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
