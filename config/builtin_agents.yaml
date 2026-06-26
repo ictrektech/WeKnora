@@ -32,6 +32,8 @@ builtin_agents:
       web_search_max_results: 5
       multi_turn_enabled: true
       history_turns: 5
+      image_upload_enabled: true
+      vlm_model_id: "ictrek-qwen35-9b-awq-vlm"
       kb_selection_mode: "all"
       retrieve_kb_only_when_mentioned: false
       faq_priority_enabled: true
@@ -85,6 +87,8 @@ builtin_agents:
       reflection_enabled: false
       multi_turn_enabled: true
       history_turns: 5
+      image_upload_enabled: true
+      vlm_model_id: "ictrek-qwen35-9b-awq-vlm"
       faq_priority_enabled: true
       faq_direct_answer_threshold: 0.9
       faq_score_boost: 1.2
@@ -232,4 +236,3 @@ builtin_agents:
       vector_threshold: 0.5
       rerank_top_k: 10
       rerank_threshold: 0.3
-

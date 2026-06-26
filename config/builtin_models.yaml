@@ -11,6 +11,20 @@ builtin_models:
       base_url: http://host.docker.internal:18118/v1
       api_key: EMPTY
       provider: generic
+      supports_vision: true
+
+  - id: ictrek-qwen35-9b-awq-vlm
+    type: VLLM
+    source: remote
+    is_default: true
+    name: qwen3.5-9b-awq
+    display_name: Qwen3.5 9B AWQ vLLM Vision
+    description: OpenAI-compatible vLLM vision backend on tc232.
+    parameters:
+      base_url: http://host.docker.internal:18118/v1
+      api_key: EMPTY
+      provider: generic
+      supports_vision: true
 
   - id: ictrek-bge-m3-embedding
     type: Embedding

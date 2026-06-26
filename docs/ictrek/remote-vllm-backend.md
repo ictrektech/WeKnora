@@ -19,6 +19,13 @@ This note records the Qwen3.5 9B AWQ vLLM backend prepared on the remote machine
 - Max model length: `32768`
 - GPU memory utilization: `0.50`
 - Max concurrent sequences: `4`
+- WeKnora model rows:
+  - `ictrek-qwen35-9b-awq` (`KnowledgeQA`)
+  - `ictrek-qwen35-9b-awq-vlm` (`VLLM`)
+
+Both WeKnora rows point at this same OpenAI-compatible backend. The separate
+rows let WeKnora's model type filters route normal chat and vision-language
+features independently without starting a second vLLM container.
 
 ## Download Model
 

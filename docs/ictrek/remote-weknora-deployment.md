@@ -57,11 +57,25 @@ and mounted by `docker-compose.override.yml`. On every `app` startup WeKnora
 upserts these records into the `models` table as YAML-managed built-ins:
 
 ```text
-ictrek-qwen35-9b-awq      KnowledgeQA  qwen3.5-9b-awq  http://host.docker.internal:18118/v1
-ictrek-bge-m3-embedding   Embedding    bge-m3:latest   http://host.docker.internal:21535/v1
+ictrek-qwen35-9b-awq       KnowledgeQA  qwen3.5-9b-awq  http://host.docker.internal:18118/v1
+ictrek-qwen35-9b-awq-vlm   VLLM         qwen3.5-9b-awq  http://host.docker.internal:18118/v1
+ictrek-bge-m3-embedding    Embedding    bge-m3:latest   http://host.docker.internal:21535/v1
 ```
 
-Both are marked `is_default: true` and are visible to all tenants.
+All are marked `is_default: true` and are visible to all tenants. The
+KnowledgeQA and VLLM rows intentionally point to the same OpenAI-compatible
+vLLM backend because the prepared Qwen3.5 model is used for both text QA and
+vision-language calls.
+
+The built-in quick-answer and smart-reasoning agents declare image upload
+enabled by default and use `ictrek-qwen35-9b-awq-vlm` as their `vlm_model_id`.
+Existing customized built-in agent rows in the database are not overwritten by
+this YAML default; update those rows through the UI or a deliberate migration if
+an already-created tenant must inherit the new identity or VLM defaults.
+
+The default assistant identity is defined in `config/prompt_templates/*.yaml`.
+For the ictrek deployment, the relevant system prompt templates identify the
+assistant as `Vivibit AI小助手` instead of the upstream WeKnora/Tencent persona.
 
 ## Remote Source Copy
 
