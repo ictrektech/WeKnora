@@ -17,6 +17,8 @@ This note records the Qwen3.5 9B AWQ vLLM backend prepared on the remote machine
 - Served model name: `qwen3.5-9b-awq`
 - Quantization: `awq_marlin`
 - Max model length: `32768`
+- GPU memory utilization: `0.50`
+- Max concurrent sequences: `4`
 
 ## Download Model
 
@@ -71,12 +73,16 @@ docker run -d \
   --port 8000 \
   --trust-remote-code \
   --quantization awq_marlin \
-  --gpu-memory-utilization 0.80 \
+  --gpu-memory-utilization 0.50 \
+  --max-num-seqs 4 \
+  --enforce-eager \
   --max-model-len 32768
 EOF
 ```
 
-`--gpu-memory-utilization 0.80` was chosen because `0.85` failed on the prepared host when other GPU memory was already in use.
+`--gpu-memory-utilization 0.50` keeps vLLM around half of the prepared GPU. `--max-num-seqs 4`
+caps request concurrency so the reduced KV cache budget stays predictable. `--enforce-eager`
+avoids the heavier startup warmup observed with graph compilation on this host.
 
 ## Verify On Remote Host
 
@@ -107,4 +113,4 @@ For callers outside the remote machine, replace `127.0.0.1:18118` with the exter
 
 - The current AWQ model may emit `Thinking Process:` text directly in `content`; this is model/template behavior, not an API compatibility failure.
 - `GET /v1/models` and `POST /v1/chat/completions` were verified successfully after the container initialized.
-- On the prepared RTX 5880 Ada host, vLLM used about 46 GiB GPU memory after startup.
+- On the prepared RTX 5880 Ada host, the 50% / 4-sequence configuration keeps vLLM far below the previous roughly 46 GiB startup footprint.

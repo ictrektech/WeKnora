@@ -47,6 +47,11 @@ The app points to Ollama through the Docker host gateway:
 OLLAMA_BASE_URL=http://host.docker.internal:21434
 ```
 
+`docker-compose.override.yml` also adds `host.docker.internal` to
+`SSRF_WHITELIST_EXTRA`. The YAML-managed LLM and embedding records use the same
+Docker host gateway, so the app must allow this hostname before model calls can
+pass the SSRF guard.
+
 The default ictrek model records are declared in `config/builtin_models.yaml`
 and mounted by `docker-compose.override.yml`. On every `app` startup WeKnora
 upserts these records into the `models` table as YAML-managed built-ins:

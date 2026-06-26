@@ -1,5 +1,7 @@
 services:
   app:
+    environment:
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-host.docker.internal,searxng,qdrant,milvus,weaviate,doris-fe}
     volumes:
       - ./data/files:/data/files
       - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
