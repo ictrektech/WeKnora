@@ -1,0 +1,29 @@
+# ictrek deployment defaults. Loaded by the app on startup.
+builtin_models:
+  - id: ictrek-qwen35-9b-awq
+    type: KnowledgeQA
+    source: remote
+    is_default: true
+    name: qwen3.5-9b-awq
+    display_name: Qwen3.5 9B AWQ vLLM
+    description: OpenAI-compatible vLLM backend on tc232.
+    parameters:
+      base_url: http://host.docker.internal:18118/v1
+      api_key: EMPTY
+      provider: generic
+
+  - id: ictrek-bge-m3-embedding
+    type: Embedding
+    source: remote
+    is_default: true
+    name: bge-m3:latest
+    display_name: BGE-M3 Ollama Embedding
+    description: Multilingual bge-m3 embedding served by the ictrek Ollama gateway.
+    parameters:
+      base_url: http://host.docker.internal:21535/v1
+      api_key: EMPTY
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false

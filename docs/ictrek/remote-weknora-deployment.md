@@ -20,6 +20,18 @@ For the baseline RAG deployment, no extra vector database or object storage side
 - `STORAGE_TYPE=local`
 - `STREAM_MANAGER_TYPE=redis`
 
+The ictrek compose override maps runtime state to host directories under the
+remote deployment tree:
+
+```text
+/data/jhu/deploy/weknora/data/files     -> app:/data/files
+/data/jhu/deploy/weknora/data/postgres  -> postgres:/var/lib/postgresql/data
+/data/jhu/deploy/weknora/data/redis     -> redis:/data
+```
+
+This keeps uploaded source documents, local knowledge-base files, database
+state, and Redis append-only data outside anonymous Docker volumes.
+
 Optional profiles such as `qdrant`, `milvus`, `weaviate`, `minio`, `searxng`, `neo4j`, and `langfuse` should only be started when that feature is intentionally enabled.
 
 ## Existing Model Backends
@@ -35,6 +47,17 @@ The app points to Ollama through the Docker host gateway:
 OLLAMA_BASE_URL=http://host.docker.internal:21434
 ```
 
+The default ictrek model records are declared in `config/builtin_models.yaml`
+and mounted by `docker-compose.override.yml`. On every `app` startup WeKnora
+upserts these records into the `models` table as YAML-managed built-ins:
+
+```text
+ictrek-qwen35-9b-awq      KnowledgeQA  qwen3.5-9b-awq  http://host.docker.internal:18118/v1
+ictrek-bge-m3-embedding   Embedding    bge-m3:latest   http://host.docker.internal:21535/v1
+```
+
+Both are marked `is_default: true` and are visible to all tenants.
+
 ## Remote Source Copy
 
 Do not run `git` commands on the remote deployment host. Sync the local working tree to the remote deploy directory:
@@ -46,6 +69,7 @@ rsync -az --delete \
   --exclude 'frontend/dist' \
   --exclude 'data' \
   --exclude '.cache' \
+  --exclude '.env' \
   apps/WeKnora/ tc232:/data/jhu/deploy/weknora/
 ```
 
@@ -186,7 +210,32 @@ MAX_FILE_SIZE_MB=50
 ssh tc232 'bash -s' <<'EOF'
 set -euo pipefail
 cd /data/jhu/deploy/weknora
-mkdir -p skills/preloaded
+mkdir -p skills/preloaded data/files data/postgres data/redis
+docker compose up -d postgres redis docreader app frontend
+EOF
+```
+
+For an existing deployment that was already using Docker named volumes, migrate
+the named-volume data to the host bind paths before applying the override:
+
+```bash
+ssh tc232 'bash -s' <<'EOF'
+set -euo pipefail
+cd /data/jhu/deploy/weknora
+
+docker compose stop frontend app postgres redis
+mkdir -p data/files data/postgres data/redis
+
+docker run --rm \
+  -v weknora_data-files:/from:ro \
+  -v "$PWD/data/files:/to" \
+  redis:7.0-alpine sh -lc 'rm -rf /to/* /to/.[!.]* /to/..?* 2>/dev/null || true; cp -a /from/. /to/'
+
+docker run --rm \
+  -v weknora_postgres-data:/from:ro \
+  -v "$PWD/data/postgres:/to" \
+  redis:7.0-alpine sh -lc 'rm -rf /to/* /to/.[!.]* /to/..?* 2>/dev/null || true; cp -a /from/. /to/'
+
 docker compose up -d postgres redis docreader app frontend
 EOF
 ```
@@ -195,6 +244,20 @@ On a fresh ParadeDB volume, `postgres` may briefly become healthy and then resta
 
 ```bash
 ssh tc232 'cd /data/jhu/deploy/weknora && docker compose up -d app frontend'
+```
+
+If `config/builtin_models.yaml` is changed after the stack is already running,
+restart `app` so the startup loader applies the model records:
+
+```bash
+ssh tc232 'cd /data/jhu/deploy/weknora && docker compose restart app'
+```
+
+When enabling `docker-compose.override.yml` for the first time on an already
+running stack, force-recreate `app` once so Compose applies the new bind mount:
+
+```bash
+ssh tc232 'cd /data/jhu/deploy/weknora && docker compose up -d --force-recreate app'
 ```
 
 ## Verify
@@ -217,6 +280,8 @@ Expected baseline:
 - `WeKnora-frontend` is bound to `0.0.0.0:18080->80/tcp`
 - `GET http://127.0.0.1:18081/health` returns `{"status":"ok"}`
 - `HEAD http://127.0.0.1:18080/` returns `HTTP/1.1 200 OK`
+- `models` contains the YAML-managed built-ins `ictrek-qwen35-9b-awq` and
+  `ictrek-bge-m3-embedding`
 
 ## External Access
 
