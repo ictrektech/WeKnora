@@ -217,3 +217,79 @@ Expected baseline:
 - `WeKnora-frontend` is bound to `0.0.0.0:18080->80/tcp`
 - `GET http://127.0.0.1:18081/health` returns `{"status":"ok"}`
 - `HEAD http://127.0.0.1:18080/` returns `HTTP/1.1 200 OK`
+
+## External Access
+
+`tc232` is only the local SSH config alias. The deployment is verified on the
+remote host, but outside access still needs a public port mapping or reverse
+proxy in front of that host.
+
+The minimum external mapping is:
+
+```text
+public HTTPS/HTTP port -> tc232:18080
+```
+
+The frontend nginx container serves the UI and proxies application API traffic
+to the `app` service inside the Docker network, so normal browser usage only
+needs `18080` exposed externally.
+
+Expose these only when there is a separate operational need:
+
+```text
+public API port -> tc232:18081    # direct app API access, optional
+public LLM port -> tc232:18118    # direct vLLM OpenAI-compatible access, optional
+```
+
+Keep these internal by default:
+
+```text
+5432   # postgres
+6379   # redis
+50051  # docreader gRPC
+21434  # Ollama native API
+21535  # Ollama OpenAI-compatible embedding gateway
+```
+
+If the external proxy terminates TLS, forward plain HTTP to `tc232:18080`.
+
+For an operator-only check without public exposure, use an SSH tunnel:
+
+```bash
+ssh -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 tc232
+```
+
+Then open `http://127.0.0.1:18080/` locally.
+
+## Login and Registration
+
+This deployment uses the standard WeKnora stack, not Lite. There is no built-in
+default username or password.
+
+The current `.env` keeps public registration enabled:
+
+```bash
+DISABLE_REGISTRATION=false
+```
+
+With the default `self_serve` registration mode, a newly registered user gets a
+new tenant and an Owner membership for that tenant. The cloud image notes also
+warn that the first registration should be done immediately because the first
+registered account becomes the initial administrator for the deployment.
+
+After creating the first account, close public registration unless self-service
+signup is intentional:
+
+```bash
+ssh tc232 'bash -s' <<'EOF'
+set -euo pipefail
+cd /data/jhu/deploy/weknora
+perl -0pi -e 's/^DISABLE_REGISTRATION=false$/DISABLE_REGISTRATION=true/m' .env
+docker compose up -d app frontend
+EOF
+```
+
+For platform-level SystemAdmin bootstrap, set
+`WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL` to an email that has already registered,
+then restart the app. The setting only promotes; it does not demote existing
+SystemAdmin users.
