@@ -1,0 +1,23 @@
+# Dockerfile-specific ignore for docker/Dockerfile.frontend.
+# Keep frontend sources in this context; root .dockerignore excludes them for
+# app/docreader builds.
+.git/
+.github/
+.cursor/
+.claude/
+.codebuddy/
+.vscode/
+.idea/
+**/.DS_Store
+
+**/node_modules/
+frontend/dist/
+data/
+.cache/
+.env
+.env.*
+models/
+logs/
+tmp/
+temp/
+*.log

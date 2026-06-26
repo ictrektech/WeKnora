@@ -121,6 +121,12 @@ EOF
 
 ## Build Images
 
+For release image builds and Feishu release-table updates, use
+`build_image.sh`. The current image-build flow is documented in
+`docs/ictrek/build-images.md`.
+
+The manual commands below are kept as deployment/debugging reference only.
+
 Build the frontend assets first, then build the three runtime images. The docreader image is intentionally large in the non-lite deployment because it includes LibreOffice, Java, Playwright WebKit, fonts, and document parsing libraries.
 
 ```bash

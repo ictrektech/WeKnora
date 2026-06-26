@@ -6,4 +6,5 @@ Keep these notes separate from upstream-facing docs so routine upstream syncs ar
 
 - [Remote vLLM backend](remote-vllm-backend.md)
 - [Ollama embedding backend](model-hub-ollama-embedding.md)
+- [WeKnora image build](build-images.md)
 - [Remote WeKnora deployment](remote-weknora-deployment.md)
