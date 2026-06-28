@@ -14,3 +14,4 @@ Repository sources:
 - [Ollama embedding backend](model-hub-ollama-embedding.md)
 - [WeKnora image build](build-images.md)
 - [Remote WeKnora deployment](remote-weknora-deployment.md)
+- [Upstream sync](upstream-sync.md)
