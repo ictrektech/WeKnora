@@ -10,6 +10,7 @@ Repository sources:
 - upstream source: `git@github.com:Tencent/WeKnora.git`
 - recommended upstream remote name: `upstream`
 
+- [Fresh host deployment](fresh-host-deployment.md)
 - [Remote vLLM backend](remote-vllm-backend.md)
 - [Ollama embedding backend](model-hub-ollama-embedding.md)
 - [WeKnora image build](build-images.md)
