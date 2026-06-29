@@ -14,4 +14,5 @@ Repository sources:
 - [Ollama embedding backend](model-hub-ollama-embedding.md)
 - [WeKnora image build](build-images.md)
 - [Remote WeKnora deployment](remote-weknora-deployment.md)
+- [Neo4j env example](neo4j.env.example)
 - [Upstream sync](upstream-sync.md)
