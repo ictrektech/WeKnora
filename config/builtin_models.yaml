@@ -5,5 +5,13 @@
 # - mount a generated config/builtin_models.yaml that references deployment
 #   environment variables.
 #
+# Rows created from this file are tagged managed_by="yaml". On app startup,
+# yaml-managed rows that are no longer present in this file are soft-deleted.
+# Rows created through the Web UI, API, or manual SQL should keep managed_by=""
+# and are not touched by this file. If you change from YAML-managed model rows
+# to UI/SQL-managed rows, convert or recreate those rows first; otherwise
+# knowledge bases, agents, or GraphRAG jobs that still reference the old model
+# ids can fail with "model not found".
+#
 # See docs/ictrek/remote-weknora-deployment.md and docs/BUILTIN_MODELS.md.
 builtin_models: []

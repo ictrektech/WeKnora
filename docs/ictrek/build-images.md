@@ -188,6 +188,12 @@ The released WeKnora images do not contain deployment-specific model defaults.
 must add models later in the Web UI or explicitly mount an operator-created
 `config/builtin_models.yaml` that reads model names and endpoints from `.env`.
 
+When deploying an image whose `config/builtin_models.yaml` is empty over an
+older deployment, check existing model rows first. Any row still marked
+`managed_by='yaml'` but absent from the current YAML is soft-deleted when the
+app starts. Persistent runtime model rows should either remain in the mounted
+YAML or be recreated/converted to manual rows with `managed_by=''`.
+
 For Ollama-only deployments, set `OLLAMA_BASE_URL` in `.env` and create local
 model rows (`source: local`) for chat, VLM, and embedding. For OpenAI-compatible
 remote backends, create remote rows (`source: remote`) with a `/v1` base URL.

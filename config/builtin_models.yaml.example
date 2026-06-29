@@ -22,8 +22,15 @@
 # need to list each var separately under `environment:`.
 #
 # Re-applied on every application startup — editing the file and restarting is
-# enough for changes to take effect. Entries removed from the file are NOT
-# auto-deleted from the database; clean them up manually if you need to.
+# enough for changes to take effect. Entries written from this file are tagged
+# managed_by="yaml". On startup, yaml-managed rows that are no longer present
+# in this file are soft-deleted. Rows created through the Web UI, API, or
+# manual SQL should keep managed_by="" and are not touched by this file.
+#
+# If you change a deployment from YAML-managed models to UI/SQL-managed models,
+# convert or recreate the required rows before switching this file to
+# builtin_models: []. Otherwise existing knowledge bases, agents, or GraphRAG
+# jobs that still reference those model ids can fail with "model not found".
 
 builtin_models: []
 

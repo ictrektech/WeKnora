@@ -42,6 +42,14 @@ embedding, or rerank rows. Add models after startup in the Web UI, or mount an
 operator-created `config/builtin_models.yaml` generated from environment
 variables.
 
+Model rows created from `config/builtin_models.yaml` are YAML-managed. On app
+startup, rows still marked `managed_by='yaml'` but missing from the current YAML
+are soft-deleted. Rows created through the Web UI, API, or deliberate SQL
+maintenance should keep `managed_by=''` and are not touched by the YAML loader.
+Do not switch an existing deployment to an empty `builtin_models: []` file
+until the model rows referenced by knowledge bases, agents, and GraphRAG have
+been recreated in the Web UI/API or converted to `managed_by=''`.
+
 Optional model backend notes are documented in this directory:
 
 - vLLM OpenAI-compatible LLM backend: `remote-vllm-backend.md`
@@ -162,9 +170,10 @@ Restart only the app after changing this file:
 docker compose restart app
 ```
 
-Rows declared in `builtin_models.yaml` are upserted on every app startup. Rows
-removed from the YAML are not automatically deleted; remove stale model rows in
-the Web UI or with a deliberate database maintenance step.
+Rows declared in `builtin_models.yaml` are upserted on every app startup and
+tagged `managed_by='yaml'`. Rows removed from the YAML are soft-deleted on the
+next app startup if they are still YAML-managed. Manual rows with
+`managed_by=''` are left alone.
 
 The built-in quick-answer and smart-reasoning agents do not hard-code a VLM
 model id. Select the image model in the agent settings after creating the VLM
@@ -173,6 +182,37 @@ model row.
 The default assistant identity is defined in `config/prompt_templates/*.yaml`.
 For the ictrek deployment, the relevant system prompt templates identify the
 assistant as `Vivibit AI小助手` instead of the upstream WeKnora/Tencent persona.
+
+### Model Row Troubleshooting
+
+If GraphRAG entity/relation extraction shows “实体关系提取失败” and app logs
+contain `model not found`, first check that the selected chat model row still
+exists and is not soft-deleted:
+
+```bash
+docker compose exec postgres psql -U postgres -d WeKnora -c "
+select id,type,source,name,is_default,is_builtin,managed_by,deleted_at
+from models
+where id in ('<chat-model-id>','<vlm-model-id>','<embedding-model-id>')
+order by type,id;"
+```
+
+If a required row was only soft-deleted during a YAML lifecycle change, either
+add it back to the mounted YAML and restart `app`, or convert it to a manual row
+with a deliberate maintenance update:
+
+```bash
+docker compose exec postgres psql -U postgres -d WeKnora -c "
+update models
+set deleted_at = null,
+    managed_by = '',
+    updated_at = now()
+where id in ('<chat-model-id>','<vlm-model-id>','<embedding-model-id>');"
+```
+
+Only use the SQL recovery for rows whose endpoint, model name, provider, and
+embedding dimension are still correct. Otherwise recreate them in the Web UI or
+through the mounted YAML.
 
 ## Remote Source Copy
 
