@@ -1,3 +1,90 @@
+# WeKnora 镜像构建
+
+本文件记录 ictrek 的 WeKnora 镜像构建流程。中文说明在上方，英文原文在下方。
+
+构建范围只包含 WeKnora 自有镜像：
+
+```text
+swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
+swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
+swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+```
+
+vLLM、Ollama、model_hub 等模型后端不在这个构建流程里。它们使用官方镜像或各自组件的镜像流程。
+
+WeKnora 这三个镜像本身不包含 CUDA 运行时依赖，所以 tag 不应带 `cu130` 之类 CUDA 标记。当前推荐 tag：
+
+```text
+amd_YYYYMMDD
+arm_YYYYMMDD
+```
+
+构建前不要在远程构建机上跑 git。先把本地工作树同步过去：
+
+```bash
+rsync -az --delete \
+  --exclude '.git' \
+  --exclude 'frontend/node_modules' \
+  --exclude 'frontend/dist' \
+  --exclude 'data' \
+  --exclude '.cache' \
+  --exclude '.env' \
+  apps/WeKnora/ <build-host>:/data/jhu/build/weknora/
+```
+
+然后在构建机执行：
+
+```bash
+ssh <build-host> 'bash -s' <<'EOF'
+set -euo pipefail
+cd /data/jhu/build/weknora
+chmod +x build_image.sh
+./build_image.sh --target amd
+EOF
+```
+
+只构建单个服务镜像时使用：
+
+```bash
+./build_image.sh --app-only
+./build_image.sh --frontend-only
+./build_image.sh --docreader-only
+```
+
+`--no-push` 用于只做本机构建检查；`--no-feishu` 用于不更新飞书发布表。
+
+飞书发布表规则：
+
+- 凭证在构建机 `~/.feishu.json`，不要提交或打印；
+- 表格 token：`Htotsn3oahO1zxt73YMcaB1zn8e`；
+- amd 目标默认更新 `AMD_with_cuda`、`AMD_with_mxn100`；
+- arm 目标默认更新 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`；
+- 每个服务镜像一列：`weknora`、`weknora-ui`、`weknora-docreader`；
+- 第 1 行是服务名，第 2 行是镜像仓库地址，日期行写 tag，完整镜像是 `<row-2-repository>:<date-row-tag>`；
+- 脚本先复用已有服务列，不存在才追加下一空列；构建脚本不能删除或整理飞书列。
+
+如果镜像已经在 SWR 和飞书表中存在，部署时走“使用已有镜像”路径：在对应平台 sheet 中找到三个服务列，组合第 2 行仓库和日期行 tag，生成 `docker-compose.images.yml`，然后用：
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.override.yml \
+  -f docker-compose.images.yml \
+  pull frontend app docreader
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.override.yml \
+  -f docker-compose.images.yml \
+  up -d postgres redis docreader app frontend
+```
+
+发布镜像不包含部署专用模型默认值。`config/builtin_models.yaml` 在镜像内默认是空的，`docker-compose.override.yml` 也不会默认挂载模型文件。模型应在 Web UI 后配，或由运维人员显式挂载基于 `.env` 的 `config/builtin_models.yaml`。
+
+注意：如果用空 `builtin_models.yaml` 覆盖旧部署，先检查数据库里模型行的 `managed_by`。仍为 `managed_by='yaml'` 且不在当前 YAML 中的模型行，会在 app 启动时被软删除。需要长期保留的运行时模型，要么继续写在挂载 YAML 中，要么改成 `managed_by=''` 的手工行。
+
+---
+
 # WeKnora Image Build
 
 This note records the ictrek image build flow for WeKnora service images.

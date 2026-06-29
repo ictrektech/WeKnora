@@ -1,3 +1,226 @@
+# 远程 WeKnora 部署
+
+本文件记录 ictrek 的远程 WeKnora 部署方式。中文说明在上方，英文原文在下方。
+
+`tc232` 是操作员本机 SSH config alias，不是公网服务 hostname。本文端口都是远程宿主机本地绑定；如果要从外部访问，需要另外配置公网映射、反向代理、VPN 或 tunnel。
+
+## 部署范围
+
+默认使用非 lite WeKnora 栈：
+
+```text
+frontend
+app
+docreader
+postgres  paradedb/paradedb:v0.22.2-pg17
+redis     redis:7.0-alpine
+```
+
+基础 RAG 不需要额外 vector database 或对象存储 sidecar：
+
+```env
+RETRIEVE_DRIVER=postgres
+STORAGE_TYPE=local
+STREAM_MANAGER_TYPE=redis
+```
+
+ictrek 的 compose override 会把运行时状态映射到部署目录下：
+
+```text
+data/files     -> app:/data/files
+data/postgres  -> postgres:/var/lib/postgresql/data
+data/redis     -> redis:/data
+```
+
+这样上传原文、本地知识库文件、数据库状态和 Redis AOF 都不会落在匿名 Docker volume 中。
+
+`qdrant`、`milvus`、`weaviate`、`minio`、`searxng`、`neo4j`、`langfuse` 等 profile 只在明确启用对应功能时启动。
+
+## 模型配置
+
+WeKnora app 镜像和 ictrek compose 默认不携带部署专用模型记录。新部署启动后没有内置 LLM、VLM、embedding、rerank 行。模型可在 Web UI 添加，或显式挂载由环境变量生成的 `config/builtin_models.yaml`。
+
+`config/builtin_models.yaml` 创建的模型行属于 YAML 托管。app 启动时，如果数据库里某行仍是 `managed_by='yaml'`，但当前 YAML 中已经没有它，该行会被软删除。Web UI、API、手工 SQL 创建的模型行应保持 `managed_by=''`，不会被 YAML loader 清理。
+
+不要在已有部署上直接切到空 `builtin_models: []`，除非确认知识库、智能体和 GraphRAG 不再引用那些 YAML 托管模型行。否则会出现 `model not found`，前端可能显示“实体关系提取失败”。
+
+模型后端参考：
+
+- vLLM OpenAI-compatible LLM/VLM 后端：[remote-vllm-backend.md](remote-vllm-backend.md)
+- Ollama 聊天、图片理解、embedding、可选 rerank：[model-hub-ollama-embedding.md](model-hub-ollama-embedding.md)
+
+Ollama 部署中，app 环境变量指向容器可访问的 Ollama 原生 API：
+
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:21434
+```
+
+如果 Ollama 映射端口不同，只改端口：
+
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:<ollama-host-port>
+```
+
+只要模型 base URL 使用 Docker host gateway，就要在 `SSRF_WHITELIST_EXTRA` 中保留 `host.docker.internal`。
+
+## 在 Web UI 中添加模型
+
+全 Ollama 方案：
+
+```text
+KnowledgeQA  source=local  name=<ollama chat model tag>
+VLLM         source=local  name=<ollama vision model tag>
+Embedding    source=local  name=<ollama embedding model tag>  dimension=<embedding dimension>
+```
+
+`source=local` 时 `base_url` 和 `api_key` 留空；WeKnora 使用 `OLLAMA_BASE_URL`。每个模型类型选择一个默认行。
+
+OpenAI-compatible 远程 endpoint，例如 vLLM 或 gateway：
+
+```text
+source=remote
+base_url=<endpoint ending in /v1>
+api_key=<required only if backend checks it>
+```
+
+## 通过环境变量和 YAML 添加模型
+
+只有需要声明式模型行时才挂载 `config/builtin_models.yaml`。示例 `.env`：
+
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:21434
+WEKNORA_CHAT_MODEL_ID=local-ollama-chat
+WEKNORA_CHAT_MODEL_NAME=qwen3.5:2b
+WEKNORA_VLM_MODEL_ID=local-ollama-vlm
+WEKNORA_VLM_MODEL_NAME=qwen3.5:2b
+WEKNORA_EMBEDDING_MODEL_ID=local-ollama-embedding
+WEKNORA_EMBEDDING_MODEL_NAME=bge-m3:latest
+WEKNORA_EMBEDDING_DIMENSION=1024
+```
+
+示例 `config/builtin_models.yaml`：
+
+```yaml
+builtin_models:
+  - id: ${WEKNORA_CHAT_MODEL_ID}
+    type: KnowledgeQA
+    source: local
+    is_default: true
+    name: ${WEKNORA_CHAT_MODEL_NAME}
+    parameters:
+      base_url: ""
+      api_key: ""
+      provider: generic
+      supports_vision: true
+
+  - id: ${WEKNORA_VLM_MODEL_ID}
+    type: VLLM
+    source: local
+    is_default: true
+    name: ${WEKNORA_VLM_MODEL_NAME}
+    parameters:
+      base_url: ""
+      api_key: ""
+      provider: generic
+      supports_vision: true
+
+  - id: ${WEKNORA_EMBEDDING_MODEL_ID}
+    type: Embedding
+    source: local
+    is_default: true
+    name: ${WEKNORA_EMBEDDING_MODEL_NAME}
+    parameters:
+      base_url: ""
+      api_key: ""
+      provider: generic
+      embedding_parameters:
+        dimension: ${WEKNORA_EMBEDDING_DIMENSION}
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false
+```
+
+挂载方式：
+
+```yaml
+services:
+  app:
+    volumes:
+      - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
+```
+
+改完 YAML 后只需重启 app：
+
+```bash
+docker compose restart app
+```
+
+## 模型行排障
+
+GraphRAG 实体关系抽取显示“实体关系提取失败”，且 app 日志有 `model not found` 时，先查模型行是否还存在、是否被软删除：
+
+```bash
+docker compose exec postgres psql -U postgres -d WeKnora -c "
+select id,type,source,name,is_default,is_builtin,managed_by,deleted_at
+from models
+where id in ('<chat-model-id>','<vlm-model-id>','<embedding-model-id>')
+order by type,id;"
+```
+
+如果确认只是 YAML 生命周期变化导致软删除，可以把模型放回 YAML 后重启 app，或谨慎转为手工行：
+
+```bash
+docker compose exec postgres psql -U postgres -d WeKnora -c "
+update models
+set deleted_at = null,
+    managed_by = '',
+    updated_at = now()
+where id in ('<chat-model-id>','<vlm-model-id>','<embedding-model-id>');"
+```
+
+只在 endpoint、模型名、provider、embedding dimension 都仍然正确时使用 SQL 恢复。否则应在 Web UI 或 YAML 中重新创建。
+
+## 远程源码同步
+
+不要在远程部署机上跑 git。将本地工作树同步到远程部署目录：
+
+```bash
+rsync -az --delete \
+  --exclude '.git' \
+  --exclude 'frontend/node_modules' \
+  --exclude 'frontend/dist' \
+  --exclude 'data' \
+  --exclude '.cache' \
+  --exclude '.env' \
+  apps/WeKnora/ tc232:/data/jhu/deploy/weknora/
+```
+
+## 镜像和启动
+
+正式部署优先使用已构建镜像，按 [build-images.md](build-images.md#start-from-existing-images) 生成 `docker-compose.images.yml` 后启动：
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.override.yml \
+  -f docker-compose.images.yml \
+  up -d postgres redis docreader app frontend
+```
+
+构建和飞书更新使用 `build_image.sh`，流程见 [build-images.md](build-images.md)。
+
+## 常用检查
+
+```bash
+docker compose ps
+docker compose logs --tail=300 app
+docker compose logs --tail=200 docreader
+curl -fsS http://127.0.0.1:<app-port>/health
+```
+
+需要从空机器完整部署时，优先看 [fresh-host-deployment.md](fresh-host-deployment.md)。
+
+---
+
 # Remote WeKnora Deployment
 
 This note records the ictrek deployment path used on `ssh tc232`.

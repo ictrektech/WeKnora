@@ -1,3 +1,84 @@
+# 上游同步
+
+本文件记录 ictrek fork 从 Tencent/WeKnora 上游拉取并合并功能更新的流程。中文说明在上方，英文原文在下方。
+
+## remote 设置
+
+在 WeKnora submodule 中保留两个 remote：
+
+```bash
+git remote -v
+```
+
+期望：
+
+```text
+origin    git@github.com:ictrektech/WeKnora.git
+upstream  git@github.com:Tencent/WeKnora.git
+```
+
+如果缺少 upstream：
+
+```bash
+git remote add upstream git@github.com:Tencent/WeKnora.git
+```
+
+## 合并流程
+
+```bash
+cd apps/WeKnora
+git status --short
+git fetch upstream
+git checkout main
+git merge upstream/main
+```
+
+冲突处理原则：
+
+- 保留 ictrek 本地部署文档：`docs/ictrek/`；
+- 保留本地品牌和链接定制；
+- 保留空的 `config/builtin_models.yaml` 默认行为，不把某台机器的模型后端写进镜像；
+- 保留 `docker-compose.override.yml` 中持久化和 `host.docker.internal` 相关配置；
+- 上游功能代码尽量合入，不做无关重构。
+
+## 合并后检查
+
+重点查这些本地定制是否还在：
+
+```bash
+rg -n "Vivibit|www.vivibit.com|ictrektech/WeKnora|host.docker.internal|builtin_models: \\[\\]" \
+  frontend config docs/ictrek docker-compose.override.yml
+```
+
+再看状态：
+
+```bash
+git status --short
+```
+
+如需构建镜像，按 [build-images.md](build-images.md) 走构建和飞书更新流程。部署时按 [remote-weknora-deployment.md](remote-weknora-deployment.md) 或 [fresh-host-deployment.md](fresh-host-deployment.md)。
+
+## 提交顺序
+
+先提交并推送 WeKnora submodule：
+
+```bash
+git add <changed-files>
+git commit -m "..."
+git push origin main
+```
+
+然后回到总仓库更新 submodule 指针：
+
+```bash
+cd ../..
+git add apps/WeKnora
+git commit -m "Update WeKnora"
+git push origin main
+```
+
+---
+
 # Upstream Sync
 
 This note records how to pull functional updates from the upstream WeKnora

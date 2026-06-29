@@ -1,3 +1,143 @@
+# Ollama Embedding 后端
+
+本文件记录 WeKnora 使用 Ollama 提供 embedding，以及在 Ollama 为主方案中同时提供聊天、图片理解、embedding 的方式。中文说明在上方，英文原文在下方。
+
+`tc232` 只是操作员本机 SSH config alias，不是网络 hostname。外部访问需要单独的公网映射、反向代理、VPN 或 SSH tunnel。
+
+## 当前准备过的后端形态
+
+- Ollama engine 镜像：`swr.cn-southwest-2.myhuaweicloud.com/ictrek/ollama_server:amd_0.30.6`
+- Docker network：`weknora-model-net`
+- 容器名：`weknora-model-hub-ollama`
+- Ollama 原生 API 远程宿主机端口：`21434` -> 容器 `11434`
+- OpenAI-compatible gateway 远程宿主机端口：`21535` -> 容器 `11535`
+- 宿主机模型目录：`/data/jhu/models/ollama`
+- 容器模型目录：`/root/.ollama`
+- embedding 模型：`bge-m3:latest`
+- embedding 维度：`1024`
+- 常驻模型：`OLLAMA_KEEP_ALIVE=-1`
+
+## 启动 Ollama 后端
+
+在远程目标上执行：
+
+```bash
+ssh tc232 'bash -s' <<'EOF'
+set -euo pipefail
+
+OLLAMA_SERVER_IMAGE='swr.cn-southwest-2.myhuaweicloud.com/ictrek/ollama_server:amd_0.30.6'
+NETWORK='weknora-model-net'
+OLLAMA_ROOT='/data/jhu/models/ollama'
+
+mkdir -p "$OLLAMA_ROOT"
+docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NETWORK" >/dev/null
+
+docker rm -f weknora-model-hub-ollama >/dev/null 2>&1 || true
+docker pull "$OLLAMA_SERVER_IMAGE"
+
+docker run -d \
+  --name weknora-model-hub-ollama \
+  --restart unless-stopped \
+  --network "$NETWORK" \
+  --gpus all \
+  --entrypoint /bin/sh \
+  -p 21434:11434 \
+  -p 21535:11535 \
+  -v "$OLLAMA_ROOT:/root/.ollama" \
+  "$OLLAMA_SERVER_IMAGE" \
+  -lc 'export OLLAMA_HOST=0.0.0.0:11434 OLLAMA_KEEP_ALIVE=-1; ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535'
+EOF
+```
+
+使用显式 `/bin/sh -lc ...` 是为了覆盖某些镜像默认 entrypoint 中只监听 `127.0.0.1` 的行为，让 Ollama 原生 API 能被宿主机端口和同网络容器访问。
+
+## 拉取并常驻 embedding 模型
+
+```bash
+ssh tc232 'bash -s' <<'EOF'
+set -euo pipefail
+
+MODEL_NAME='bge-m3:latest'
+
+for i in $(seq 1 60); do
+  if curl -fsS http://127.0.0.1:21434/api/tags >/dev/null; then
+    break
+  fi
+  [ "$i" = 60 ] && exit 1
+  sleep 2
+done
+
+if ! curl -fsS http://127.0.0.1:21434/api/tags |
+  python3 -c 'import json,sys; target=sys.argv[1]; d=json.load(sys.stdin); raise SystemExit(0 if any(m.get("name")==target or m.get("model")==target for m in d.get("models", [])) else 1)' "$MODEL_NAME"; then
+  curl -fsS -X POST http://127.0.0.1:21434/api/pull \
+    -H 'Content-Type: application/json' \
+    -d "{\"model\":\"${MODEL_NAME}\",\"stream\":false}"
+fi
+
+curl -fsS http://127.0.0.1:21434/api/embed \
+  -H 'Content-Type: application/json' \
+  -d "{\"model\":\"${MODEL_NAME}\",\"input\":\"resident warmup\"}" >/dev/null
+
+curl -fsS http://127.0.0.1:21434/api/ps
+EOF
+```
+
+`bge-m3` 是多语言文本 embedding 模型，适合 WeKnora 的 Ollama embedding 路径，不需要多模态 embedding。`OLLAMA_KEEP_ALIVE=-1` 会让 warmup 后的模型保持常驻。
+
+## 验证
+
+```bash
+ssh tc232 'bash -s' <<'EOF'
+set -euo pipefail
+
+curl -fsS http://127.0.0.1:21434/api/tags
+curl -fsS http://127.0.0.1:21535/v1/models
+
+curl -fsS http://127.0.0.1:21434/api/embed \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge-m3:latest","input":["hello world","中文知识库检索测试"]}' \
+  > /tmp/ollama_embed.json
+
+python3 -c 'import json; d=json.load(open("/tmp/ollama_embed.json")); e=d["embeddings"]; print(len(e), len(e[0]))'
+
+curl -fsS http://127.0.0.1:21535/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge-m3:latest","input":["hello world","中文知识库检索测试"]}' \
+  > /tmp/openai_embed.json
+
+python3 -c 'import json; d=json.load(open("/tmp/openai_embed.json")); e=d["data"]; print(len(e), len(e[0]["embedding"]))'
+EOF
+```
+
+期望 shape：
+
+```text
+2 1024
+2 1024
+```
+
+## WeKnora 配置
+
+如果 WeKnora 使用本地 Ollama provider，`.env` 中设置：
+
+```env
+OLLAMA_BASE_URL=http://host.docker.internal:21434
+```
+
+然后在 Web UI 或挂载的 `config/builtin_models.yaml` 中创建模型行：
+
+```text
+KnowledgeQA  source=local  name=qwen3.5:2b
+VLLM         source=local  name=qwen3.5:2b
+Embedding    source=local  name=bge-m3:latest  dimension=1024
+```
+
+`source=local` 时不要填 `base_url` 和 `api_key`。WeKnora 会通过 `OLLAMA_BASE_URL` 调用 Ollama。
+
+Rerank 需要单独的 rerank endpoint。原生 Ollama 不提供 `/v1/rerank`；如果 gateway 只提供 `/v1/models`、`/v1/chat/completions`、`/v1/embeddings`，就不要配置 rerank，或改用外部 rerank provider。
+
+---
+
 # Ollama Embedding Backend
 
 This note records the Ollama embedding backend prepared on the remote machine reached from this workstation with `ssh tc232`.
