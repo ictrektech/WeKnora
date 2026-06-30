@@ -43,6 +43,8 @@ chmod +x build_image.sh
 EOF
 ```
 
+构建同步目录只用于构建镜像，不是部署目录。不要在 `/data/jhu/build/weknora` 里执行 `docker compose pull`、`docker compose up` 或重启运行服务，除非已经确认该目录就是当前运行容器的 compose project。源码默认 compose 里仍可能保留上游默认 image/build 配置；在构建目录误跑 compose 会拉取或启动上游镜像，而不是 ictrek 的 SWR 发布镜像。
+
 只构建单个服务镜像时使用：
 
 ```bash
@@ -63,31 +65,26 @@ EOF
 - 第 1 行是服务名，第 2 行是镜像仓库地址，日期行写 tag，完整镜像是 `<row-2-repository>:<date-row-tag>`；
 - 脚本先复用已有服务列，不存在才追加下一空列；构建脚本不能删除或整理飞书列。
 
-如果镜像已经在 SWR 和飞书表中存在，部署时走“使用已有镜像”路径：在对应平台 sheet 中找到三个服务列，组合第 2 行仓库和日期行 tag，生成 `docker-compose.images.yml`，然后用：
-
-```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.override.yml \
-  -f docker-compose.images.yml \
-  pull frontend app docreader
-
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.override.yml \
-  -f docker-compose.images.yml \
-  up -d postgres redis docreader app frontend
-```
-
-真实部署时不要只复制上面的 `-f` 示例。新机建议在 `.env` 固定：
+如果镜像已经在 SWR 和飞书表中存在，部署时不要从源码根目录临时拼 compose 文件。到对应平台 sheet 中找到三个服务列，组合第 2 行仓库和日期行 tag，然后写入部署目录 `.env`：
 
 ```env
-COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker-compose.images.yml
+WEKNORA_APP_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
+WEKNORA_UI_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
+WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
 ```
 
-已有部署如果一直使用 named volume，则保持原来的 `COMPOSE_FILE`，不要为了换镜像临时加减 `docker-compose.override.yml`。启动后必须按 [remote-weknora-deployment.md](remote-weknora-deployment.md#升级后的强制冒烟检查) 做“你是谁”、文档问答、SSRF 白名单检查。
+实际部署使用 [deploy-template](deploy-template/) 复制出来的单文件 compose。构建文档只记录镜像构建、推送和飞书写入，不维护运行时 compose 示例。启动后必须按 [remote-weknora-deployment.md](remote-weknora-deployment.md#升级后的强制冒烟检查) 做“你是谁”、文档问答、SSRF 白名单检查。
 
-发布镜像不包含部署专用模型默认值。`config/builtin_models.yaml` 在镜像内默认是空的，`docker-compose.override.yml` 也不会默认挂载模型文件。模型应在 Web UI 后配，或由运维人员显式挂载基于 `.env` 的 `config/builtin_models.yaml`。
+升级已有部署前，先用正在运行的 app 容器确认真实部署目录和 compose 文件集合：
+
+```bash
+docker inspect <app-container> --format \
+  'project={{index .Config.Labels "com.docker.compose.project"}} workdir={{index .Config.Labels "com.docker.compose.project.working_dir"}} config={{index .Config.Labels "com.docker.compose.project.config_files"}}'
+```
+
+只在输出的 `workdir` 目录中执行 `docker compose pull/up/restart`。如果 compose 文件没有指向 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/...`，先修正 image override，不要继续执行。
+
+发布镜像不包含部署专用模型默认值。`config/builtin_models.yaml` 在镜像内默认是空的，部署模板也不会默认挂载模型文件。模型应在 Web UI 后配，或由运维人员显式挂载基于 `.env` 的 `config/builtin_models.yaml`。
 
 注意：如果用空 `builtin_models.yaml` 覆盖旧部署，先检查数据库里模型行的 `managed_by`。仍为 `managed_by='yaml'` 且不在当前 YAML 中的模型行，会在 app 启动时被软删除。需要长期保留的运行时模型，要么继续写在挂载 YAML 中，要么改成 `managed_by=''` 的手工行。
 
@@ -148,6 +145,13 @@ chmod +x build_image.sh
 ./build_image.sh --target amd
 EOF
 ```
+
+The synced build directory is only for building images. Do not run
+`docker compose pull`, `docker compose up`, or runtime restarts from
+`/data/jhu/build/weknora` unless that directory has been confirmed as the
+actual running compose project. The source compose files may still contain
+upstream default image/build settings; running compose from the build directory
+can pull or start upstream images instead of ictrek SWR release images.
 
 To build only one service image:
 
@@ -241,59 +245,42 @@ swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:arm_20260626
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:arm_20260626
 ```
 
-Create a local image override file such as `docker-compose.images.yml`:
-
-```yaml
-services:
-  frontend:
-    image: swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:arm_20260626
-    build: null
-  app:
-    image: swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:arm_20260626
-    build: null
-  docreader:
-    image: swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:arm_20260626
-    build: null
-```
-
-Start with the existing-image override:
-
-```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.override.yml \
-  -f docker-compose.images.yml \
-  pull frontend app docreader
-
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.override.yml \
-  -f docker-compose.images.yml \
-  up -d postgres redis docreader app frontend
-```
-
-For real deployments, do not blindly copy the `-f` example above. On a fresh
-host, pin this in `.env`:
+Write those three full image names into the deployment `.env`:
 
 ```env
-COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker-compose.images.yml
+WEKNORA_APP_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
+WEKNORA_UI_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
+WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
 ```
 
-If an existing deployment has always used named volumes, keep its original
-`COMPOSE_FILE` and do not add or remove `docker-compose.override.yml` just to
-upgrade images. After startup, run the mandatory smoke checks in
-`remote-weknora-deployment.md`: ask "你是谁", test document QA, and confirm the
-SSRF allowlist still permits the configured model backends.
+Runtime deployment uses the single compose file copied from
+[`deploy-template`](deploy-template/). This build document only records image
+builds, pushes, and Feishu release table updates. After startup, run the
+mandatory smoke checks in `remote-weknora-deployment.md`: ask "你是谁", test
+document QA, and confirm the SSRF allowlist still permits the configured model
+backends.
 
-`docker-compose.override.yml` keeps local persistent mappings such as
-`./data/files`, `./data/postgres`, and `./data/redis`. If a deployment does not
-use that override file, add equivalent host mappings before starting the
-service.
+Before upgrading an existing deployment, identify the real deployment directory
+and compose file set from the running app container:
+
+```bash
+docker inspect <app-container> --format \
+  'project={{index .Config.Labels "com.docker.compose.project"}} workdir={{index .Config.Labels "com.docker.compose.project.working_dir"}} config={{index .Config.Labels "com.docker.compose.project.config_files"}}'
+```
+
+Run `docker compose pull/up/restart` only from the reported `workdir`. If the
+compose file does not point to `swr.cn-southwest-2.myhuaweicloud.com/ictrek/...`,
+fix the image override before continuing.
+
+The ictrek deployment template already includes local persistent mappings such
+as `./data/files`, `./data/postgres`, and `./data/redis`. Keep using the same
+deployment directory for upgrades so the app keeps seeing the same database and
+file storage.
 
 The released WeKnora images do not contain deployment-specific model defaults.
-`config/builtin_models.yaml` in the image is intentionally empty, and
-`docker-compose.override.yml` does not mount a model file by default. Operators
-must add models later in the Web UI or explicitly mount an operator-created
+`config/builtin_models.yaml` in the image is intentionally empty, and the
+deployment template does not mount a model file by default. Operators must add
+models later in the Web UI or explicitly mount an operator-created
 `config/builtin_models.yaml` that reads model names and endpoints from `.env`.
 
 When deploying an image whose `config/builtin_models.yaml` is empty over an

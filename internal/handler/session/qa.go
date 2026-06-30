@@ -13,7 +13,6 @@ import (
 	"github.com/Tencent/WeKnora/internal/event"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/types"
-	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	secutils "github.com/Tencent/WeKnora/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -454,6 +453,8 @@ func (h *Handler) setupSSEStream(reqCtx *qaRequestContext, generateTitle bool) *
 	// connection-independent context derived from baseCtx so it survives the
 	// client disconnect.
 	h.startStopWatcher(logger.CloneContext(baseCtx), reqCtx.sessionID, reqCtx.assistantMessage.ID, eventBus)
+	h.startIncompleteMessageWatchdog(logger.CloneContext(baseCtx), reqCtx.sessionID, reqCtx.assistantMessage.ID,
+		reqCtx.session.TenantID, reqCtx.query)
 
 	// Setup stream handler
 	h.setupStreamHandler(asyncCtx, reqCtx.sessionID, reqCtx.assistantMessage.ID,
@@ -706,11 +707,6 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 		completionHandled = true
 		return true
 	}
-	isCompletionHandled := func() bool {
-		completionMu.Lock()
-		defer completionMu.Unlock()
-		return completionHandled
-	}
 
 	// Normal mode: register completion handler on EventAgentFinalAnswer
 	// (Agent mode handles completion in the defer block instead)
@@ -768,34 +764,6 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 				logger.ErrorWithFields(streamCtx.asyncCtx,
 					errors.NewInternalServerError(fmt.Sprintf("%s service panicked: %v\n%s", stageName, r, string(buf))),
 					map[string]interface{}{"session_id": sessionID})
-			}
-			if mode == qaModeNormal && !isCompletionHandled() {
-				updateCtx := context.WithValue(
-					context.WithoutCancel(streamCtx.asyncCtx),
-					types.TenantIDContextKey,
-					reqCtx.session.TenantID,
-				)
-				if streamCtx.assistantMessage.Content == "" {
-					streamCtx.assistantMessage.Content = "（本次生成未正常完成，请重新提问。）"
-					streamCtx.assistantMessage.IsFallback = true
-				}
-				h.completeAssistantMessage(updateCtx, streamCtx.assistantMessage, reqCtx.query)
-				if err := h.streamManager.AppendEvent(updateCtx, reqCtx.sessionID, streamCtx.assistantMessage.ID, interfaces.StreamEvent{
-					ID:        fmt.Sprintf("complete-fallback-%d", time.Now().UnixNano()),
-					Type:      types.ResponseTypeComplete,
-					Content:   "",
-					Done:      true,
-					Timestamp: time.Now(),
-					Data: map[string]interface{}{
-						"fallback":   true,
-						"session_id": reqCtx.sessionID,
-					},
-				}); err != nil {
-					logger.Warnf(updateCtx, "append fallback completion event failed for session=%s message=%s: %v",
-						reqCtx.sessionID, streamCtx.assistantMessage.ID, err)
-				}
-				logger.Warnf(updateCtx, "Knowledge QA exited without completion event; finalized assistant message session=%s message=%s",
-					reqCtx.sessionID, streamCtx.assistantMessage.ID)
 			}
 			// Agent mode: complete the assistant message in defer (normal mode does it via event handler)
 			if mode == qaModeAgent {

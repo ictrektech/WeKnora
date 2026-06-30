@@ -396,6 +396,83 @@ func (h *Handler) startStopWatcher(
 	}()
 }
 
+// startIncompleteMessageWatchdog is a last-resort cleanup for stale quick-answer
+// messages that never receive a terminal stream event. KnowledgeQA may return
+// before token streaming finishes, so this must not run off the service-call
+// lifetime or the client SSE connection lifetime.
+func (h *Handler) startIncompleteMessageWatchdog(
+	ctx context.Context,
+	sessionID, assistantMessageID string,
+	tenantID uint64,
+	userQuery string,
+) {
+	go func() {
+		const staleAfter = 30 * time.Minute
+
+		watchCtx, cancel := context.WithTimeout(ctx, staleAfter)
+		defer cancel()
+
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		offset := 0
+		for {
+			select {
+			case <-watchCtx.Done():
+				updateCtx := context.WithValue(
+					context.WithoutCancel(ctx),
+					types.TenantIDContextKey,
+					tenantID,
+				)
+				msg, err := h.messageService.GetMessage(updateCtx, sessionID, assistantMessageID)
+				if err != nil {
+					logger.Warnf(updateCtx, "incomplete-message watchdog failed to load message session=%s message=%s: %v",
+						sessionID, assistantMessageID, err)
+					return
+				}
+				if msg.IsCompleted {
+					return
+				}
+				if strings.TrimSpace(msg.Content) == "" {
+					msg.Content = "（本次生成未正常完成，请重新提问。）"
+					msg.IsFallback = true
+				}
+				h.completeAssistantMessage(updateCtx, msg, userQuery)
+				if err := h.streamManager.AppendEvent(updateCtx, sessionID, assistantMessageID, interfaces.StreamEvent{
+					ID:        fmt.Sprintf("complete-watchdog-%d", time.Now().UnixNano()),
+					Type:      types.ResponseTypeComplete,
+					Content:   "",
+					Done:      true,
+					Timestamp: time.Now(),
+					Data: map[string]interface{}{
+						"watchdog":   true,
+						"session_id": sessionID,
+					},
+				}); err != nil {
+					logger.Warnf(updateCtx, "incomplete-message watchdog append complete failed session=%s message=%s: %v",
+						sessionID, assistantMessageID, err)
+				}
+				logger.Warnf(updateCtx, "incomplete-message watchdog finalized stale assistant message session=%s message=%s",
+					sessionID, assistantMessageID)
+				return
+			case <-ticker.C:
+				events, newOffset, err := h.streamManager.GetEvents(watchCtx, sessionID, assistantMessageID, offset)
+				if err != nil {
+					continue
+				}
+				offset = newOffset
+				for _, evt := range events {
+					if evt.Type == types.ResponseTypeComplete ||
+						evt.Type == types.ResponseType(event.EventStop) ||
+						(evt.Type == types.ResponseTypeError && evt.Done) {
+						return
+					}
+				}
+			}
+		}
+	}()
+}
+
 // writeAgentQueryEvent writes an agent query event to the stream manager
 func (h *Handler) writeAgentQueryEvent(ctx context.Context, sessionID, assistantMessageID string) {
 	agentQueryEvent := createAgentQueryEvent(sessionID, assistantMessageID)

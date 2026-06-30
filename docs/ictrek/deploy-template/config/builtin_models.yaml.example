@@ -1,0 +1,123 @@
+# config/builtin_models.yaml — declarative built-in models.
+#
+# Copy to config/builtin_models.yaml (or point BUILTIN_MODELS_CONFIG at a custom
+# path) to enable. Each entry below is inserted into the `models` table with
+# is_builtin=true and becomes visible to every tenant.
+#
+# How values reach the file
+# -------------------------
+# Any string field can reference an env var with ${NAME}. Unset env vars are
+# left as the literal ${NAME} so misconfiguration surfaces clearly in upstream
+# API calls instead of producing a silent empty token. Non-string fields
+# (type, source, is_default, dimension, truncate_prompt_tokens) must stay
+# literal because YAML parses them as their target type.
+#
+# How env vars reach the container
+# --------------------------------
+# By default the app service in docker-compose.yml loads .env via
+#   env_file:
+#     - path: .env
+#       required: false
+# so anything you put in .env is auto-passed to the container. There is no
+# need to list each var separately under `environment:`.
+#
+# Re-applied on every application startup — editing the file and restarting is
+# enough for changes to take effect. Entries written from this file are tagged
+# managed_by="yaml". On startup, yaml-managed rows that are no longer present
+# in this file are soft-deleted. Rows created through the Web UI, API, or
+# manual SQL should keep managed_by="" and are not touched by this file.
+#
+# If you change a deployment from YAML-managed models to UI/SQL-managed models,
+# convert or recreate the required rows before switching this file to
+# builtin_models: []. Otherwise existing knowledge bases, agents, or GraphRAG
+# jobs that still reference those model ids can fail with "model not found".
+
+builtin_models: []
+
+# ----- Example: local Ollama entries — uncomment and adapt ------------------
+#
+# Set OLLAMA_BASE_URL in .env, then leave base_url/api_key empty on local
+# model rows. The app uses OLLAMA_BASE_URL for local Ollama calls.
+#
+# builtin_models:
+#   - id: builtin-ollama-chat
+#     type: KnowledgeQA          # KnowledgeQA | Embedding | Rerank | VLLM | ASR
+#     source: local
+#     is_default: true
+#     name: ${OLLAMA_CHAT_MODEL_NAME}
+#     parameters:
+#       base_url: ""
+#       api_key: ""
+#       provider: generic
+#       supports_vision: true
+#
+#   - id: builtin-ollama-vlm
+#     type: VLLM
+#     source: local
+#     is_default: true
+#     name: ${OLLAMA_VLM_MODEL_NAME}
+#     parameters:
+#       base_url: ""
+#       api_key: ""
+#       provider: generic
+#       supports_vision: true
+#
+#   - id: builtin-ollama-embedding
+#     type: Embedding
+#     source: local
+#     is_default: true
+#     name: ${OLLAMA_EMBEDDING_MODEL_NAME}
+#     parameters:
+#       base_url: ""
+#       api_key: ""
+#       provider: generic
+#       embedding_parameters:
+#         dimension: 1024
+#         truncate_prompt_tokens: 8192
+#
+# ----- Example: remote API entries — uncomment and adapt --------------------
+#
+# builtin_models:
+#   - id: builtin-llm-default
+#     type: KnowledgeQA          # KnowledgeQA | Embedding | Rerank | VLLM | ASR
+#     source: remote
+#     is_default: true
+#     name: ${LLM_MODEL_NAME}
+#     parameters:
+#       base_url: ${LLM_BASE_URL}
+#       api_key: ${LLM_API_KEY}
+#       provider: ${LLM_PROVIDER}  # openai | generic | aliyun | moonshot | ...
+#
+#   - id: builtin-embedding-default
+#     type: Embedding
+#     source: remote
+#     is_default: true
+#     name: ${EMBEDDING_MODEL_NAME}
+#     parameters:
+#       base_url: ${EMBEDDING_BASE_URL}
+#       api_key: ${EMBEDDING_API_KEY}
+#       provider: ${EMBEDDING_PROVIDER}
+#       embedding_parameters:
+#         dimension: 1536
+#         truncate_prompt_tokens: 0
+#
+#   - id: builtin-rerank-default
+#     type: Rerank
+#     source: remote
+#     parameters:
+#       base_url: ${RERANK_BASE_URL}
+#       api_key: ${RERANK_API_KEY}
+#       provider: ${RERANK_PROVIDER}
+#
+# ----- Example: literal values (no env indirection) -------------------------
+#
+# builtin_models:
+#   - id: builtin-openai-chat
+#     name: gpt-4o-mini
+#     type: KnowledgeQA
+#     source: remote
+#     is_default: false
+#     parameters:
+#       base_url: https://api.openai.com/v1
+#       api_key: ${OPENAI_API_KEY}
+#       provider: openai
