@@ -79,6 +79,14 @@ docker compose \
   up -d postgres redis docreader app frontend
 ```
 
+真实部署时不要只复制上面的 `-f` 示例。新机建议在 `.env` 固定：
+
+```env
+COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker-compose.images.yml
+```
+
+已有部署如果一直使用 named volume，则保持原来的 `COMPOSE_FILE`，不要为了换镜像临时加减 `docker-compose.override.yml`。启动后必须按 [remote-weknora-deployment.md](remote-weknora-deployment.md#升级后的强制冒烟检查) 做“你是谁”、文档问答、SSRF 白名单检查。
+
 发布镜像不包含部署专用模型默认值。`config/builtin_models.yaml` 在镜像内默认是空的，`docker-compose.override.yml` 也不会默认挂载模型文件。模型应在 Web UI 后配，或由运维人员显式挂载基于 `.env` 的 `config/builtin_models.yaml`。
 
 注意：如果用空 `builtin_models.yaml` 覆盖旧部署，先检查数据库里模型行的 `managed_by`。仍为 `managed_by='yaml'` 且不在当前 YAML 中的模型行，会在 app 启动时被软删除。需要长期保留的运行时模型，要么继续写在挂载 YAML 中，要么改成 `managed_by=''` 的手工行。
@@ -263,6 +271,19 @@ docker compose \
   -f docker-compose.images.yml \
   up -d postgres redis docreader app frontend
 ```
+
+For real deployments, do not blindly copy the `-f` example above. On a fresh
+host, pin this in `.env`:
+
+```env
+COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker-compose.images.yml
+```
+
+If an existing deployment has always used named volumes, keep its original
+`COMPOSE_FILE` and do not add or remove `docker-compose.override.yml` just to
+upgrade images. After startup, run the mandatory smoke checks in
+`remote-weknora-deployment.md`: ask "你是谁", test document QA, and confirm the
+SSRF allowlist still permits the configured model backends.
 
 `docker-compose.override.yml` keeps local persistent mappings such as
 `./data/files`, `./data/postgres`, and `./data/redis`. If a deployment does not

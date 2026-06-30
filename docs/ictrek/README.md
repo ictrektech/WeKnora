@@ -10,6 +10,7 @@
 
 文档入口：
 
+- 第一次在空机器部署时，先看 [空机器部署总指南](fresh-host-deployment.md)，不要直接从零散命令启动服务。
 - [空机器部署总指南](fresh-host-deployment.md)
 - [远程 vLLM 后端](remote-vllm-backend.md)
 - [Ollama embedding 后端](model-hub-ollama-embedding.md)
@@ -32,6 +33,8 @@ Repository sources:
 - upstream source: `git@github.com:Tencent/WeKnora.git`
 - recommended upstream remote name: `upstream`
 
+- Start with [Fresh host deployment](fresh-host-deployment.md) when bringing up
+  a new host. Do not start from isolated commands.
 - [Fresh host deployment](fresh-host-deployment.md)
 - [Remote vLLM backend](remote-vllm-backend.md)
 - [Ollama embedding backend](model-hub-ollama-embedding.md)

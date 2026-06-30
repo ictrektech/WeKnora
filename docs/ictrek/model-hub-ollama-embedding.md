@@ -134,6 +134,14 @@ Embedding    source=local  name=bge-m3:latest  dimension=1024
 
 `source=local` 时不要填 `base_url` 和 `api_key`。WeKnora 会通过 `OLLAMA_BASE_URL` 调用 Ollama。
 
+如果 `OLLAMA_BASE_URL` 使用 `http://host.docker.internal:<port>`，app 容器必须能解析 Docker host gateway，且 `SSRF_WHITELIST_EXTRA` 要保留 `host.docker.internal`。基础 `docker-compose.yml` 已默认包含它；自定义该变量时不要漏掉：
+
+```env
+SSRF_WHITELIST_EXTRA=host.docker.internal,searxng,qdrant,milvus,weaviate,doris-fe
+```
+
+端口要和正在运行的容器一致。比如 `weknora-model-hub-ollama` 同时暴露 `21434` 原生 Ollama API 和 `21535` OpenAI-compatible gateway，WeKnora 的 `source=local` Ollama 行走 `OLLAMA_BASE_URL=http://host.docker.internal:21434`；`source=remote` embedding gateway 行才使用 `http://host.docker.internal:21535/v1`。
+
 Rerank 需要单独的 rerank endpoint。原生 Ollama 不提供 `/v1/rerank`；如果 gateway 只提供 `/v1/models`、`/v1/chat/completions`、`/v1/embeddings`，就不要配置 rerank，或改用外部 rerank provider。
 
 ---
@@ -291,6 +299,21 @@ dimensions: 1024
 ```
 
 If WeKnora runs on the same remote host outside Docker, use `http://127.0.0.1:21434`. If it runs in Docker on the same Docker network, use `http://weknora-model-hub-ollama:11434`. For callers outside the remote machine, replace `127.0.0.1:21434` or `127.0.0.1:21535` with the external endpoint created by the operator.
+
+If `OLLAMA_BASE_URL` uses `http://host.docker.internal:<port>`, the app
+container must resolve the Docker host gateway and `SSRF_WHITELIST_EXTRA` must
+keep `host.docker.internal`. The base `docker-compose.yml` includes it by
+default; if you override the variable, include it explicitly:
+
+```env
+SSRF_WHITELIST_EXTRA=host.docker.internal,searxng,qdrant,milvus,weaviate,doris-fe
+```
+
+Make sure the port matches the running container. For
+`weknora-model-hub-ollama`, `21434` is the native Ollama API and `21535` is the
+OpenAI-compatible gateway. WeKnora `source=local` Ollama rows use
+`OLLAMA_BASE_URL=http://host.docker.internal:21434`; only `source=remote`
+embedding-gateway rows should use `http://host.docker.internal:21535/v1`.
 
 ## All-Ollama Model Configuration
 

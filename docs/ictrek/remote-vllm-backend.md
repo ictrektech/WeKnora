@@ -26,6 +26,14 @@ KnowledgeQA  source=remote  name=qwen3.5-9b-awq  base_url=http://host.docker.int
 VLLM         source=remote  name=qwen3.5-9b-awq  base_url=http://host.docker.internal:18118/v1
 ```
 
+如果 app 容器通过 `host.docker.internal` 访问这个宿主机端口，`SSRF_WHITELIST_EXTRA` 必须保留 `host.docker.internal`。基础 `docker-compose.yml` 已默认包含；如果部署覆盖了该变量，要显式写回：
+
+```env
+SSRF_WHITELIST_EXTRA=host.docker.internal,searxng,qdrant,milvus,weaviate,doris-fe
+```
+
+验证时不要只测 `curl 127.0.0.1:18118/v1/models`。还要在 WeKnora 中用该模型问“你是谁”和一个知识库问题，确认没有 `baseURL SSRF check failed`、`model not found` 或旧 prompt 文本。
+
 ## 下载模型
 
 ```bash
@@ -140,6 +148,20 @@ These rows are not shipped by default in the WeKnora image or ictrek compose
 files. Add them through the Web UI or an operator-created
 `config/builtin_models.yaml` only for deployments that intentionally use this
 vLLM backend.
+
+When the app container reaches this backend through `host.docker.internal`,
+`SSRF_WHITELIST_EXTRA` must keep `host.docker.internal`. The base
+`docker-compose.yml` includes it by default; if the deployment overrides that
+variable, add it back explicitly:
+
+```env
+SSRF_WHITELIST_EXTRA=host.docker.internal,searxng,qdrant,milvus,weaviate,doris-fe
+```
+
+Do not stop at `curl 127.0.0.1:18118/v1/models`. Also test through WeKnora by
+asking "你是谁" and a knowledge-base question with this model selected, and
+confirm there is no `baseURL SSRF check failed`, `model not found`, or old
+prompt text.
 
 ## Download Model
 

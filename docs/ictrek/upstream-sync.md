@@ -38,7 +38,7 @@ git merge upstream/main
 - 保留 ictrek 本地部署文档：`docs/ictrek/`；
 - 保留本地品牌和链接定制；
 - 保留空的 `config/builtin_models.yaml` 默认行为，不把某台机器的模型后端写进镜像；
-- 保留 `docker-compose.override.yml` 中持久化和 `host.docker.internal` 相关配置；
+- 保留 compose 中持久化配置，并确认基础 `docker-compose.yml` 的 `SSRF_WHITELIST_EXTRA` 仍包含 `host.docker.internal`；
 - 上游功能代码尽量合入，不做无关重构。
 
 ## 合并后检查
@@ -47,7 +47,7 @@ git merge upstream/main
 
 ```bash
 rg -n "Vivibit|www.vivibit.com|ictrektech/WeKnora|host.docker.internal|builtin_models: \\[\\]" \
-  frontend config docs/ictrek docker-compose.override.yml
+  frontend config docs/ictrek docker-compose.yml docker-compose.override.yml
 ```
 
 再看状态：
@@ -167,8 +167,11 @@ Preserve these ictrek decisions unless the operator explicitly changes them:
   default.
 - prompt templates identify the assistant as `Vivibit AI小助手`.
 - login and user menu links point to ictrek/Vivibit destinations.
-- `docker-compose.override.yml` keeps local persistence and the required SSRF
-  whitelist additions for model backends.
+- local persistence behavior stays documented and stable. The base
+  `docker-compose.yml` must keep `host.docker.internal` in
+  `SSRF_WHITELIST_EXTRA` so model rows that call host-mapped vLLM/Ollama
+  backends do not fail when a deployment intentionally omits
+  `docker-compose.override.yml`.
 
 Useful conflict commands:
 
@@ -197,7 +200,7 @@ After the merge, re-check the ictrek invariants:
 ```bash
 rg -n "Vivibit|www.vivibit.com|ictrektech/WeKnora|host.docker.internal|builtin_models: \\[\\]" \
   config frontend/src/views/auth frontend/src/components/UserMenu.vue \
-  docker-compose.override.yml docs/ictrek
+  docker-compose.yml docker-compose.override.yml docs/ictrek
 ```
 
 For code-level verification, use the build path documented in

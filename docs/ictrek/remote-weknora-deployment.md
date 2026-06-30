@@ -288,6 +288,89 @@ union all select 'messages', count(*) from messages
 union all select 'knowledge_bases', count(*) from knowledge_bases;"
 ```
 
+## 升级后的强制冒烟检查
+
+`/health` 只能说明 app 进程活着，不能说明模型、SSRF 白名单、prompt 和 RAG 链路可用。每次升级或重启后至少检查：
+
+```bash
+curl -fsS http://127.0.0.1:<app-port>/health
+curl -fsS http://127.0.0.1:<vllm-port>/v1/models
+curl -fsS http://127.0.0.1:<embedding-openai-port>/v1/models
+curl -fsS http://127.0.0.1:<embedding-openai-port>/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge-m3:latest","input":["中文 embedding 测试"]}'
+```
+
+再从前端或 API 问一次“你是谁”。如果回答出现以下任一情况，说明部署仍有问题，不能算完成：
+
+```text
+baseURL SSRF check failed
+hostname host.docker.internal is restricted
+You are WeKnora
+developed by Tencent
+CRITICAL: Language Rule
+{{language}}
+Sorry, I could not find content directly related...
+```
+
+对应排查：
+
+```bash
+docker compose exec app env | grep SSRF
+docker compose logs --tail=300 app | grep -E 'SSRF|model not found|fallback|CRITICAL|host.docker.internal'
+docker compose exec postgres psql -U "$DB_USER" -d "$DB_NAME" -c "
+select id,type,source,name,parameters->>'base_url' as base_url,deleted_at
+from models
+order by type,id;
+select id,position('Vivibit' in config->>'system_prompt') as vivibit_pos,
+          position('WeKnora' in config->>'system_prompt') as weknora_pos
+from custom_agents
+where is_builtin = true;"
+```
+
+## Mandatory Smoke Check After Upgrades
+
+`/health` only proves the app process is alive. It does not prove that model
+backends, SSRF whitelist, prompts, and the RAG path work. After every upgrade or
+restart, check at least:
+
+```bash
+curl -fsS http://127.0.0.1:<app-port>/health
+curl -fsS http://127.0.0.1:<vllm-port>/v1/models
+curl -fsS http://127.0.0.1:<embedding-openai-port>/v1/models
+curl -fsS http://127.0.0.1:<embedding-openai-port>/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge-m3:latest","input":["中文 embedding 测试"]}'
+```
+
+Then ask “你是谁” from the frontend or API. The deployment is not complete if
+the answer contains any of:
+
+```text
+baseURL SSRF check failed
+hostname host.docker.internal is restricted
+You are WeKnora
+developed by Tencent
+CRITICAL: Language Rule
+{{language}}
+Sorry, I could not find content directly related...
+```
+
+Use these checks to narrow it down:
+
+```bash
+docker compose exec app env | grep SSRF
+docker compose logs --tail=300 app | grep -E 'SSRF|model not found|fallback|CRITICAL|host.docker.internal'
+docker compose exec postgres psql -U "$DB_USER" -d "$DB_NAME" -c "
+select id,type,source,name,parameters->>'base_url' as base_url,deleted_at
+from models
+order by type,id;
+select id,position('Vivibit' in config->>'system_prompt') as vivibit_pos,
+          position('WeKnora' in config->>'system_prompt') as weknora_pos
+from custom_agents
+where is_builtin = true;"
+```
+
 需要从空机器完整部署时，优先看 [fresh-host-deployment.md](fresh-host-deployment.md)。
 
 ---
@@ -404,9 +487,9 @@ If the Ollama service runs on a different mapped port, change only the port:
 OLLAMA_BASE_URL=http://host.docker.internal:<ollama-host-port>
 ```
 
-`docker-compose.override.yml` also adds `host.docker.internal` to
-`SSRF_WHITELIST_EXTRA`; keep that when any model base URL uses the Docker host
-gateway.
+The base `docker-compose.yml` keeps `host.docker.internal` in
+`SSRF_WHITELIST_EXTRA` by default. Keep that entry when any model base URL uses
+the Docker host gateway.
 
 ### Add Models In The Web UI
 
