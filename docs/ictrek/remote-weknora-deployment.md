@@ -328,6 +328,22 @@ from custom_agents
 where is_builtin = true;"
 ```
 
+如果新问题被旧的“生成中”状态卡住，先查是否有未完成 assistant 消息：
+
+```bash
+docker compose exec postgres psql -U "$DB_USER" -d "$DB_NAME" -c "
+select m.id,m.session_id,s.title,m.created_at,m.updated_at
+from messages m
+join sessions s on s.id=m.session_id
+where m.role='assistant'
+  and m.is_completed=false
+  and m.deleted_at is null
+  and s.deleted_at is null
+order by m.created_at desc;"
+```
+
+这通常不是 vLLM 并发数问题，而是前端看到旧 assistant 未完成后进入 `continue-stream` 续接旧消息。正常代码会在 QA goroutine 退出时写 terminal complete event 并把 assistant 标完成；如果仍出现，继续查 app 日志和对应 Redis stream key。
+
 ## Mandatory Smoke Check After Upgrades
 
 `/health` only proves the app process is alive. It does not prove that model
@@ -370,6 +386,27 @@ select id,position('Vivibit' in config->>'system_prompt') as vivibit_pos,
 from custom_agents
 where is_builtin = true;"
 ```
+
+If a new question is blocked by an old "generating" state, first check for
+incomplete assistant messages:
+
+```bash
+docker compose exec postgres psql -U "$DB_USER" -d "$DB_NAME" -c "
+select m.id,m.session_id,s.title,m.created_at,m.updated_at
+from messages m
+join sessions s on s.id=m.session_id
+where m.role='assistant'
+  and m.is_completed=false
+  and m.deleted_at is null
+  and s.deleted_at is null
+order by m.created_at desc;"
+```
+
+This is usually not a vLLM concurrency issue. It means the frontend saw an old
+incomplete assistant message and entered `continue-stream` for that message.
+Normal code should now write a terminal complete event and mark the assistant
+message complete when the QA goroutine exits. If it still happens, inspect the
+app logs and the matching Redis stream key.
 
 需要从空机器完整部署时，优先看 [fresh-host-deployment.md](fresh-host-deployment.md)。
 
