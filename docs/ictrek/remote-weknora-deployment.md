@@ -745,19 +745,19 @@ ssh tc232 'bash -s' <<'EOF'
 set -euo pipefail
 cd /data/jhu/deploy/weknora
 docker compose ps
-curl -i --max-time 10 http://127.0.0.1:18081/health
-curl -I --max-time 10 http://127.0.0.1:18080/
+curl -i --max-time 10 http://127.0.0.1:19081/health
+curl -I --max-time 10 http://127.0.0.1:19080/
 EOF
 ```
 
 Expected baseline:
 
-- `WeKnora-app` is `healthy` and bound to `0.0.0.0:18081->8080/tcp`
+- `WeKnora-app` is `healthy` and bound to `0.0.0.0:19081->8080/tcp`
 - `WeKnora-docreader` is `healthy`
 - `WeKnora-postgres` is `healthy`
-- `WeKnora-frontend` is bound to `0.0.0.0:18080->80/tcp`
-- `GET http://127.0.0.1:18081/health` returns `{"status":"ok"}`
-- `HEAD http://127.0.0.1:18080/` returns `HTTP/1.1 200 OK`
+- `WeKnora-frontend` is bound to `0.0.0.0:19080->80/tcp`
+- `GET http://127.0.0.1:19081/health` returns `{"status":"ok"}`
+- `HEAD http://127.0.0.1:19080/` returns `HTTP/1.1 200 OK`
 - `models` may be empty on a fresh deployment until the operator adds model
   rows through the Web UI or a mounted `config/builtin_models.yaml`
 
@@ -770,17 +770,17 @@ proxy in front of that host.
 The minimum external mapping is:
 
 ```text
-public HTTPS/HTTP port -> tc232:18080
+public HTTPS/HTTP port -> tc232:19080
 ```
 
 The frontend nginx container serves the UI and proxies application API traffic
 to the `app` service inside the Docker network, so normal browser usage only
-needs `18080` exposed externally.
+needs `19080` exposed externally.
 
 Expose these only when there is a separate operational need:
 
 ```text
-public API port -> tc232:18081    # direct app API access, optional
+public API port -> tc232:19081    # direct app API access, optional
 public model port -> <model-host>:<model-port>  # direct model backend access, optional
 ```
 
@@ -793,15 +793,15 @@ Keep these internal by default:
 21434  # Ollama native API, only when an Ollama backend is running
 ```
 
-If the external proxy terminates TLS, forward plain HTTP to `tc232:18080`.
+If the external proxy terminates TLS, forward plain HTTP to `tc232:19080`.
 
 For an operator-only check without public exposure, use an SSH tunnel:
 
 ```bash
-ssh -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 tc232
+ssh -L 19080:127.0.0.1:19080 -L 19081:127.0.0.1:19081 tc232
 ```
 
-Then open `http://127.0.0.1:18080/` locally.
+Then open `http://127.0.0.1:19080/` locally.
 
 ## Login and Registration
 
