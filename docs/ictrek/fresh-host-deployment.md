@@ -253,6 +253,28 @@ docker compose \
   up -d postgres redis docreader app frontend
 ```
 
+### 持久化和 compose 文件必须固定
+
+同一套部署从第一次启动开始，就必须一直使用同一组 compose 文件。不要一会儿只用 `docker compose up`，一会儿又显式指定 `-f docker-compose.yml -f docker-compose.images.yml`。
+
+原因是：一旦显式传入 `-f`，Docker Compose 不会自动加载 `docker-compose.override.yml`。如果本地持久化目录写在 override 中，漏掉这个文件就会让 Postgres、Redis 或文件存储改用 `docker-compose.yml` 里的 named volume，看起来就像模型配置、对话记录、上传文件“丢了”。
+
+推荐把固定命令写成变量或脚本：
+
+```bash
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.yml -f docker-compose.images.yml"
+docker compose $COMPOSE_FILES ps
+docker compose $COMPOSE_FILES up -d postgres redis docreader app frontend
+docker compose $COMPOSE_FILES logs --tail=200 app
+```
+
+升级镜像也使用同一组文件：
+
+```bash
+docker compose $COMPOSE_FILES pull docreader app frontend
+docker compose $COMPOSE_FILES up -d docreader app frontend
+```
+
 `docker-compose.override.yml` 负责本地持久化：
 
 ```text
@@ -260,6 +282,24 @@ docker compose \
 ./data/postgres  -> postgres:/var/lib/postgresql/data
 ./data/redis     -> redis:/data
 ```
+
+启动或升级后先确认实际挂载：
+
+```bash
+docker compose $COMPOSE_FILES exec postgres sh -lc 'echo "$PGDATA"'
+docker inspect <postgres-container-name> --format '{{json .Mounts}}'
+docker inspect <app-container-name> --format '{{json .Mounts}}'
+```
+
+确认输出中包含预期宿主机路径，例如：
+
+```text
+./data/postgres  -> /var/lib/postgresql/data
+./data/files     -> /data/files
+./data/redis     -> /data
+```
+
+如果发现服务连到了 named volume，不要直接删容器或卷。先停止 app，确认旧数据目录和当前卷的数据量，再决定是切回原 compose 文件集合，还是做数据库 dump/restore。
 
 没有 `docker-compose.images.yml` 时，Compose 会使用 `docker-compose.yml` 中的默认 image/build 配置。生产类环境应尽量使用已有镜像，避免启动时本机构建。
 
@@ -368,6 +408,23 @@ from models
 order by type,id;"
 ```
 
+持久化挂载：
+
+```bash
+docker inspect <postgres-container-name> --format '{{json .Mounts}}'
+docker inspect <app-container-name> --format '{{json .Mounts}}'
+```
+
+如果模型列表、对话记录或知识库突然变少，先检查 Postgres 挂载是否仍是预期目录/卷，再检查 `models`、`sessions`、`messages` 表：
+
+```bash
+docker compose $COMPOSE_FILES exec postgres psql -U "$DB_USER" -d "$DB_NAME" -c "
+select 'models' as table_name, count(*) from models
+union all select 'sessions', count(*) from sessions
+union all select 'messages', count(*) from messages
+union all select 'knowledge_bases', count(*) from knowledge_bases;"
+```
+
 ## 功能测试
 
 在 Web UI 中完成：
@@ -419,6 +476,10 @@ GraphRAG 显示“实体关系提取失败”
 YAML 模型行重启后消失
   该行是 managed_by='yaml'，但不在当前 builtin_models.yaml 中。
   把它放回 YAML，或重建/转换为 managed_by=''。
+
+模型、对话记录、知识库突然变少
+  优先查 compose 文件集合是否变了，特别是是否漏掉 docker-compose.override.yml。
+  再查 Postgres 实际 Mounts，确认没有从 ./data/postgres 切到 named volume，或从原 named volume 切到新卷。
 ```
 
 详细参考：
@@ -715,6 +776,34 @@ docker compose \
   up -d postgres redis docreader app frontend
 ```
 
+### Keep Persistence And Compose Files Stable
+
+Use the same compose file set from the first startup onward. Do not alternate
+between plain `docker compose up` and explicit commands such as
+`-f docker-compose.yml -f docker-compose.images.yml`.
+
+When any `-f` flag is provided, Docker Compose does not auto-load
+`docker-compose.override.yml`. If the local persistence mounts live in that
+override file, omitting it makes Postgres, Redis, or file storage fall back to
+the named volumes from `docker-compose.yml`. The UI can then look as if model
+configuration, chat history, or uploaded files disappeared.
+
+Prefer a variable or wrapper script:
+
+```bash
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.yml -f docker-compose.images.yml"
+docker compose $COMPOSE_FILES ps
+docker compose $COMPOSE_FILES up -d postgres redis docreader app frontend
+docker compose $COMPOSE_FILES logs --tail=200 app
+```
+
+Use the same file set for image upgrades:
+
+```bash
+docker compose $COMPOSE_FILES pull docreader app frontend
+docker compose $COMPOSE_FILES up -d docreader app frontend
+```
+
 `docker-compose.override.yml` is important for local persistence:
 
 ```text
@@ -722,6 +811,27 @@ docker compose \
 ./data/postgres  -> postgres:/var/lib/postgresql/data
 ./data/redis     -> redis:/data
 ```
+
+After startup or upgrade, verify the real mounts:
+
+```bash
+docker compose $COMPOSE_FILES exec postgres sh -lc 'echo "$PGDATA"'
+docker inspect <postgres-container-name> --format '{{json .Mounts}}'
+docker inspect <app-container-name> --format '{{json .Mounts}}'
+```
+
+The output should include the intended host paths:
+
+```text
+./data/postgres  -> /var/lib/postgresql/data
+./data/files     -> /data/files
+./data/redis     -> /data
+```
+
+If a service is attached to an unexpected named volume, do not delete
+containers or volumes first. Stop the app, compare the old data directory and
+current volume, then either restart with the original compose file set or do an
+explicit dump/restore.
 
 If no `docker-compose.images.yml` is used, Compose falls back to the image names
 and build sections in `docker-compose.yml`. On a production-like empty host,
@@ -836,6 +946,24 @@ from models
 order by type,id;"
 ```
 
+Check persistence mounts:
+
+```bash
+docker inspect <postgres-container-name> --format '{{json .Mounts}}'
+docker inspect <app-container-name> --format '{{json .Mounts}}'
+```
+
+If models, chat history, or knowledge bases suddenly look much smaller, check
+the Postgres mount first, then inspect the core table counts:
+
+```bash
+docker compose $COMPOSE_FILES exec postgres psql -U "$DB_USER" -d "$DB_NAME" -c "
+select 'models' as table_name, count(*) from models
+union all select 'sessions', count(*) from sessions
+union all select 'messages', count(*) from messages
+union all select 'knowledge_bases', count(*) from knowledge_bases;"
+```
+
 ## Functional Checks
 
 Use the Web UI for the final checks:
@@ -891,6 +1019,13 @@ GraphRAG shows “实体关系提取失败”
 YAML model rows disappear after restart
   The row was managed_by='yaml' and absent from the current builtin_models.yaml.
   Put it back in YAML, or recreate/convert it to managed_by=''.
+
+Models, chat history, or knowledge bases suddenly look smaller
+  First check whether the compose file set changed, especially whether
+  docker-compose.override.yml was omitted.
+  Then inspect the real Postgres mounts and confirm the service did not switch
+  from ./data/postgres to a named volume, or from the original named volume to a
+  new one.
 ```
 
 Detailed references:

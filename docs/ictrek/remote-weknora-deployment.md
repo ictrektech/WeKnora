@@ -34,6 +34,38 @@ data/redis     -> redis:/data
 
 这样上传原文、本地知识库文件、数据库状态和 Redis AOF 都不会落在匿名 Docker volume 中。
 
+同一套部署必须固定使用同一组 compose 文件。使用发布镜像时建议写成：
+
+```bash
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.yml -f docker-compose.images.yml"
+docker compose $COMPOSE_FILES ps
+docker compose $COMPOSE_FILES up -d postgres redis docreader app frontend
+```
+
+不要混用不同文件集合，例如一次使用 `docker compose up -d`，另一次使用 `docker compose -f docker-compose.yml -f docker-compose.images.yml up -d`。只要显式传入 `-f`，Docker Compose 就不会自动加载 `docker-compose.override.yml`。如果持久化挂载写在 override 中，漏掉它会让 Postgres、Redis 或文件存储切到 `docker-compose.yml` 里的 named volume；如果现有数据本来就在 named volume 中，误带 override 又会切到本地空目录。
+
+已有部署先以当前真实挂载为准，不要为了“统一文档”直接切换。先查：
+
+```bash
+docker inspect WeKnora-postgres --format '{{json .Mounts}}'
+docker inspect WeKnora-app --format '{{json .Mounts}}'
+docker inspect WeKnora-redis --format '{{json .Mounts}}'
+```
+
+如果某台机器已经稳定使用 named volume，可以在该机器 `.env` 中固定：
+
+```env
+COMPOSE_FILE=docker-compose.yml:docker-compose.images.yml
+```
+
+如果某台机器稳定使用本地目录挂载，则固定：
+
+```env
+COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker-compose.images.yml
+```
+
+无论选哪一种，升级、重启、查日志都必须使用同一组文件。
+
 `qdrant`、`milvus`、`weaviate`、`minio`、`searxng`、`neo4j`、`langfuse` 等 profile 只在明确启用对应功能时启动。
 
 ## 模型配置
@@ -74,6 +106,26 @@ Embedding    source=local  name=<ollama embedding model tag>  dimension=<embeddi
 ```
 
 `source=local` 时 `base_url` 和 `api_key` 留空；WeKnora 使用 `OLLAMA_BASE_URL`。每个模型类型选择一个默认行。
+
+Ollama 主方案常用配置：
+
+```text
+KnowledgeQA  source=local  name=qwen3.5:2b
+VLLM         source=local  name=qwen3.5:2b
+Embedding    source=local  name=bge-m3:latest  dimension=1024
+```
+
+原生 Ollama 不提供 WeKnora 通用 rerank API。除非另有 rerank sidecar/gateway 暴露 `/v1/rerank`，否则不要配置默认 rerank。
+
+添加 UI 行前先确认模型服务可用：
+
+```bash
+curl -fsS http://127.0.0.1:<ollama-host-port>/api/tags
+curl -fsS http://127.0.0.1:<ollama-openai-port>/v1/models
+curl -fsS http://127.0.0.1:<ollama-openai-port>/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge-m3:latest","input":["中文 embedding 测试"]}'
+```
 
 OpenAI-compatible 远程 endpoint，例如 vLLM 或 gateway：
 
@@ -151,7 +203,7 @@ services:
 改完 YAML 后只需重启 app：
 
 ```bash
-docker compose restart app
+docker compose $COMPOSE_FILES restart app
 ```
 
 ## 模型行排障
@@ -199,11 +251,19 @@ rsync -az --delete \
 正式部署优先使用已构建镜像，按 [build-images.md](build-images.md#start-from-existing-images) 生成 `docker-compose.images.yml` 后启动：
 
 ```bash
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.yml -f docker-compose.images.yml"
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.override.yml \
   -f docker-compose.images.yml \
   up -d postgres redis docreader app frontend
+```
+
+后续升级镜像必须使用同一组文件：
+
+```bash
+docker compose $COMPOSE_FILES pull docreader app frontend
+docker compose $COMPOSE_FILES up -d docreader app frontend
 ```
 
 构建和飞书更新使用 `build_image.sh`，流程见 [build-images.md](build-images.md)。
@@ -215,6 +275,17 @@ docker compose ps
 docker compose logs --tail=300 app
 docker compose logs --tail=200 docreader
 curl -fsS http://127.0.0.1:<app-port>/health
+```
+
+如果模型、session、知识库突然变少，先查是否切了挂载：
+
+```bash
+docker inspect WeKnora-postgres --format '{{json .Mounts}}'
+docker compose $COMPOSE_FILES exec postgres psql -U "$DB_USER" -d "$DB_NAME" -c "
+select 'models' as table_name, count(*) from models
+union all select 'sessions', count(*) from sessions
+union all select 'messages', count(*) from messages
+union all select 'knowledge_bases', count(*) from knowledge_bases;"
 ```
 
 需要从空机器完整部署时，优先看 [fresh-host-deployment.md](fresh-host-deployment.md)。
@@ -254,6 +325,47 @@ remote deployment tree:
 
 This keeps uploaded source documents, local knowledge-base files, database
 state, and Redis append-only data outside anonymous Docker volumes.
+
+Keep one stable compose file set for each deployment. For released images, a
+directory-mount deployment should use:
+
+```bash
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.yml -f docker-compose.images.yml"
+docker compose $COMPOSE_FILES ps
+docker compose $COMPOSE_FILES up -d postgres redis docreader app frontend
+```
+
+Do not mix file sets, such as plain `docker compose up -d` in one operation and
+`docker compose -f docker-compose.yml -f docker-compose.images.yml up -d` in
+the next. Once any `-f` flag is provided, Docker Compose does not auto-load
+`docker-compose.override.yml`. Omitting the override can switch Postgres,
+Redis, or file storage to the named volumes from `docker-compose.yml`; adding
+the override to a deployment whose data already lives in named volumes can
+switch it to empty local directories.
+
+For an existing deployment, trust the current real mounts first:
+
+```bash
+docker inspect WeKnora-postgres --format '{{json .Mounts}}'
+docker inspect WeKnora-app --format '{{json .Mounts}}'
+docker inspect WeKnora-redis --format '{{json .Mounts}}'
+```
+
+If a machine intentionally uses named volumes, pin this in that machine's
+`.env`:
+
+```env
+COMPOSE_FILE=docker-compose.yml:docker-compose.images.yml
+```
+
+If a machine intentionally uses local directory mounts, pin:
+
+```env
+COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker-compose.images.yml
+```
+
+Whichever option is selected, use it consistently for upgrades, restarts, and
+logs.
 
 Optional profiles such as `qdrant`, `milvus`, `weaviate`, `minio`, `searxng`, `neo4j`, and `langfuse` should only be started when that feature is intentionally enabled.
 
@@ -309,6 +421,28 @@ Embedding    source=local  name=<ollama embedding model tag>  dimension=<embeddi
 Leave `base_url` and `api_key` empty for `source=local`; WeKnora uses
 `OLLAMA_BASE_URL` for local Ollama calls. Mark the intended row in each model
 type as the default.
+
+Common Ollama-first rows:
+
+```text
+KnowledgeQA  source=local  name=qwen3.5:2b
+VLLM         source=local  name=qwen3.5:2b
+Embedding    source=local  name=bge-m3:latest  dimension=1024
+```
+
+Plain Ollama does not expose WeKnora's generic rerank API. Do not configure a
+default rerank row unless a separate rerank sidecar/gateway exposes
+`/v1/rerank`.
+
+Verify the model service before adding UI rows:
+
+```bash
+curl -fsS http://127.0.0.1:<ollama-host-port>/api/tags
+curl -fsS http://127.0.0.1:<ollama-openai-port>/v1/models
+curl -fsS http://127.0.0.1:<ollama-openai-port>/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge-m3:latest","input":["中文 embedding 测试"]}'
+```
 
 For an OpenAI-compatible remote endpoint such as vLLM or a gateway, use
 `source=remote`, set `base_url` to the endpoint ending in `/v1`, and provide the
@@ -390,7 +524,7 @@ services:
 Restart only the app after changing this file:
 
 ```bash
-docker compose restart app
+docker compose $COMPOSE_FILES restart app
 ```
 
 Rows declared in `builtin_models.yaml` are upserted on every app startup and
