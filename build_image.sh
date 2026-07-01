@@ -204,23 +204,22 @@ find_or_create_component_column() {
   local sheet_id="$2"
   local component_name="$3"
   local repo_uri="$4"
-  local resp_file
+  local resp result status value meta_resp column_count resp2
 
-  resp_file="$(mktemp)"
-  get_range_values "$token" "${sheet_id}!A1:ZZ2" > "$resp_file"
+  resp=$(get_range_values "$token" "${sheet_id}!A1:ZZ2")
 
-  python3 - "$component_name" "$resp_file" <<'PY'
+  result=$(python3 - "$component_name" "$resp" <<'PYFIND'
 import json, sys
+
 target = sys.argv[1]
-with open(sys.argv[2], "r", encoding="utf-8") as f:
-    data = json.load(f)
+data = json.loads(sys.argv[2])
 if data.get("code") != 0:
     raise SystemExit(f"read header failed: {data}")
 values = data.get("data", {}).get("valueRange", {}).get("values", [])
-row = values[0] if values else []
-repo_row = values[1] if len(values) > 1 else []
+header = values[0] if values else []
+repo = values[1] if len(values) > 1 else []
 
-def cell_text(v):
+def text(v):
     if v is None:
         return ""
     if isinstance(v, str):
@@ -228,31 +227,72 @@ def cell_text(v):
     if isinstance(v, dict):
         return str(v.get("text") or v.get("link") or "").strip()
     if isinstance(v, list):
-        return "".join(cell_text(x) for x in v).strip()
+        return "".join(text(x) for x in v).strip()
     return str(v).strip()
 
-last_component_col = 0
-max_len = max(len(row), len(repo_row))
-for i in range(2, max_len + 1):
-    header = cell_text(row[i - 1]) if i <= len(row) else ""
-    repo = cell_text(repo_row[i - 1]) if i <= len(repo_row) else ""
-    if header == target:
-        print(i)
+for i, value in enumerate(header, start=1):
+    if text(value) == target:
+        print(f"FOUND\t{i}")
         raise SystemExit(0)
-    if header or "swr.cn-southwest-2.myhuaweicloud.com/" in repo:
-        last_component_col = i
-# Do not bind new services to fixed column letters. Keep the sheet compact by
-# appending after the current component block, and leave column deletion to
-# manual maintenance outside this build script.
-for i in range(last_component_col + 1, min(last_component_col + 33, 703)):
-    header = cell_text(row[i - 1]) if i <= len(row) else ""
-    repo = cell_text(repo_row[i - 1]) if i <= len(repo_row) else ""
-    if not header and not repo:
-        print(i)
+
+last = 1
+for row in (header, repo):
+    for i, value in enumerate(row, start=1):
+        if text(value):
+            last = max(last, i)
+print(f"MISSING\t{last}")
+PYFIND
+  )
+
+  status="${result%%$'\t'*}"
+  value="${result#*$'\t'}"
+  if [[ "$status" == "FOUND" ]]; then
+    echo "$value"
+    return 0
+  fi
+  if [[ "$status" != "MISSING" ]]; then
+    err "find_or_create_component_column: unexpected result: $result"
+    return 1
+  fi
+
+  meta_resp=$(feishu_api_json "GET" \
+    "https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${FEISHU_SPREADSHEET_TOKEN}/sheets/query" \
+    "$token")
+
+  column_count=$(python3 - "$sheet_id" "$meta_resp" <<'PYSHEET'
+import json, sys
+sheet_id, resp = sys.argv[1], sys.argv[2]
+data = json.loads(resp)
+if data.get("code") != 0:
+    raise SystemExit(f"query sheets failed: {data}")
+for sheet in data.get("data", {}).get("sheets", []):
+    if sheet.get("sheet_id") == sheet_id:
+        print(sheet.get("grid_properties", {}).get("column_count", 0))
         raise SystemExit(0)
-print(last_component_col + 1)
-PY
-  rm -f "$resp_file"
+raise SystemExit(f"sheet id not found: {sheet_id}")
+PYSHEET
+  )
+
+  if (( value >= column_count )); then
+    resp2=$(feishu_api_json "POST" \
+      "https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${FEISHU_SPREADSHEET_TOKEN}/dimension_range" \
+      "$token" \
+      "{\"dimension\":{\"sheetId\":\"${sheet_id}\",\"majorDimension\":\"COLUMNS\",\"length\":1}}")
+  else
+    resp2=$(feishu_api_json "POST" \
+      "https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${FEISHU_SPREADSHEET_TOKEN}/insert_dimension_range" \
+      "$token" \
+      "{\"dimension\":{\"sheetId\":\"${sheet_id}\",\"majorDimension\":\"COLUMNS\",\"startIndex\":${value},\"endIndex\":$((value + 1))},\"inheritStyle\":\"BEFORE\"}")
+  fi
+
+  python3 - "$resp2" <<'PYCHECK'
+import json, sys
+data = json.loads(sys.argv[1])
+if data.get("code") != 0:
+    raise SystemExit(f"add component column failed: {data}")
+PYCHECK
+
+  echo $((value + 1))
 }
 
 find_date_row() {
