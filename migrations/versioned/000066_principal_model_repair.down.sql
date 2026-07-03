@@ -1,0 +1,2 @@
+-- Repair-only migration. Do not drop principal model columns here; they belong
+-- to upstream migration 000064_principal_model and may be in active use.
