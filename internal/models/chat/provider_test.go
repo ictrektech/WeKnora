@@ -82,7 +82,27 @@ func TestBuildOutbound_Thinking(t *testing.T) {
 		body, _, useRaw, err := c.buildOutbound(msgs, &ChatOptions{Thinking: ptrBool(false)}, true)
 		require.NoError(t, err)
 		require.True(t, useRaw)
-		assert.Contains(t, mustJSON(t, body), "chat_template_kwargs")
+		js := mustJSON(t, body)
+		assert.Contains(t, js, "chat_template_kwargs")
+		assert.Contains(t, js, `"enable_thinking":false`)
+	})
+
+	t.Run("ollama openai-compatible think field", func(t *testing.T) {
+		c := newOutboundChat(t, string(provider.ProviderGeneric), "qwen",
+			map[string]string{ExtraConfigThinkingControl: "think"})
+		body, _, useRaw, err := c.buildOutbound(msgs, &ChatOptions{Thinking: ptrBool(false)}, true)
+		require.NoError(t, err)
+		require.True(t, useRaw)
+		assert.Contains(t, mustJSON(t, body), `"think":false`)
+	})
+
+	t.Run("ollama openai-compatible reasoning effort", func(t *testing.T) {
+		c := newOutboundChat(t, string(provider.ProviderGeneric), "qwen",
+			map[string]string{ExtraConfigThinkingControl: "reasoning_effort"})
+		body, _, useRaw, err := c.buildOutbound(msgs, &ChatOptions{Thinking: ptrBool(false)}, true)
+		require.NoError(t, err)
+		require.True(t, useRaw)
+		assert.Contains(t, mustJSON(t, body), `"reasoning_effort":"none"`)
 	})
 
 	t.Run("none keeps the standard SDK request", func(t *testing.T) {

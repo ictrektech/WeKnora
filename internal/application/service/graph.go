@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +54,23 @@ const (
 	// WeightScaleFactor Weight scaling factor to normalize weights to 1-10 range
 	WeightScaleFactor = 9.0
 )
+
+func graphLLMConcurrency(defaultValue int) int {
+	value := envPositiveInt("WEKNORA_GRAPH_LLM_CONCURRENCY", defaultValue)
+	mainQAConcurrency := envPositiveInt("WEKNORA_MAIN_QA_MODEL_CONCURRENCY", 0)
+	if mainQAConcurrency > 0 {
+		value = min(value, max(1, mainQAConcurrency/2))
+	}
+	return value
+}
+
+func envPositiveInt(key string, fallback int) int {
+	value, err := strconv.Atoi(strings.TrimSpace(os.Getenv(key)))
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
+}
 
 // ChunkRelation represents a relationship between two Chunks
 type ChunkRelation struct {
@@ -361,7 +380,7 @@ func (b *graphBuilder) BuildGraph(ctx context.Context, chunks []*types.Chunk) er
 	// Concurrently extract entities from each document chunk
 	chunkEntities := make([][]*types.Entity, len(chunks))
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(MaxConcurrentEntityExtractions) // Limit concurrency
+	g.SetLimit(graphLLMConcurrency(MaxConcurrentEntityExtractions)) // Limit concurrency
 
 	for i, chunk := range chunks {
 		i, chunk := i, chunk // Create local variables to avoid closure issues
@@ -435,7 +454,7 @@ func (b *graphBuilder) BuildGraph(ctx context.Context, chunks []*types.Chunk) er
 
 	// extract relationships concurrently
 	relG, relGctx := errgroup.WithContext(ctx)
-	relG.SetLimit(MaxConcurrentRelationExtractions) // use dedicated relationship extraction concurrency limit
+	relG.SetLimit(graphLLMConcurrency(MaxConcurrentRelationExtractions)) // use dedicated relationship extraction concurrency limit
 
 	for _, batch := range relationBatches {
 		relG.Go(func() error {

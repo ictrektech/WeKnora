@@ -35,7 +35,7 @@
                 </div>
             </div>
             <!-- Streaming indicator (non-Agent mode) -->
-            <div v-if="hasActualContent && !session.is_completed" class="loading-indicator">
+            <div v-if="!session.is_completed" class="loading-indicator">
                 <div class="loading-typing">
                     <span></span>
                     <span></span>

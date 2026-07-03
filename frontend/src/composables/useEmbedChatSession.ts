@@ -330,14 +330,17 @@ export function useEmbedChatSession(options: {
   })
 
   onChunk((data) => {
+    const chunkSessionId = data.__stream_session_id || options.sessionId.value
+    if (chunkSessionId !== options.sessionId.value) return false
     if (data.response_type === 'session_title') {
       const title = String(data.content || (data.data as { title?: string })?.title || '').trim()
       if (title) {
         options.onSessionTitle?.(title)
       }
-      return
+      return true
     }
     processStreamChunk(data)
+    return true
   })
 
   const resetAndLoad = (sid: string) => {

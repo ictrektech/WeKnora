@@ -279,8 +279,8 @@
             <div v-else-if="event.type === 'answer' && (event.done || (event.content && event.content.trim()))"
               class="answer-event">
               <div v-if="event.content && event.content.trim()" class="answer-content markdown-content">
-                <div v-stable-html="renderAnswerContent(event === activeAnswerEventRef ? typedAnswer : event.content)">
-                </div>
+                <pre v-if="!event.done" class="streaming-answer-text">{{ event.content }}</pre>
+                <div v-else v-html="renderAnswerContent(event.content)" />
               </div>
               <div v-if="event.done && event.content && event.content.trim() && !embeddedMode" class="answer-toolbar">
                 <t-button size="small" variant="outline" shape="round" @click.stop="handleCopyAnswer(event)"
@@ -478,7 +478,6 @@ import {
 } from '@/utils/mermaidShared';
 import { attachMarkdownEnhancementListeners, refreshMarkdownEnhancements } from '@/utils/markdownEnhancements';
 import { useTypewriter } from '@/composables/useTypewriter';
-import { vStableHtml } from '@/directives/stableHtml';
 
 const getToolIconName = getAgentToolIconName;
 
@@ -2410,6 +2409,14 @@ const handleAddToKnowledge = (answerEvent: any) => {
       :deep(img) {
         background-color: var(--td-bg-color-secondarycontainer);
         /* 加载时的占位背景色 */
+      }
+
+      .streaming-answer-text {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font: inherit;
+        color: inherit;
       }
     }
   }

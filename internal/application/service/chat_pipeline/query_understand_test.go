@@ -85,3 +85,28 @@ func TestApplyIntentPromptOverride_GlobalOnly(t *testing.T) {
 		t.Errorf("override: got %q, want %q", cm.SystemPromptOverride, "hi there")
 	}
 }
+
+func TestShouldUseOriginalQueryWithoutModel(t *testing.T) {
+	cm := &types.ChatManage{
+		PipelineRequest: types.PipelineRequest{
+			EnableRewrite: true,
+			Query:         "刑法的适用范围是什么？",
+		},
+		PipelineState: types.PipelineState{RewriteQuery: "刑法的适用范围是什么？"},
+	}
+
+	if !shouldUseOriginalQueryWithoutModel(cm, nil) {
+		t.Fatal("expected simple RAG query to skip query-understand model call")
+	}
+
+	cm.History = []*types.History{{Query: "前面的问题", Answer: "前面的回答"}}
+	if shouldUseOriginalQueryWithoutModel(cm, cm.History) {
+		t.Fatal("expected history query to keep query-understand model call")
+	}
+
+	cm.History = nil
+	cm.Images = []string{"data:image/png;base64,abc"}
+	if shouldUseOriginalQueryWithoutModel(cm, nil) {
+		t.Fatal("expected image query to keep query-understand model call")
+	}
+}

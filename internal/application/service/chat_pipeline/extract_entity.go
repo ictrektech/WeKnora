@@ -64,6 +64,11 @@ func (p *PluginExtractEntity) OnEvent(ctx context.Context,
 
 	query := chatManage.Query
 
+	if shouldUseOriginalQueryWithoutModel(chatManage, chatManage.History) {
+		logger.Infof(ctx, "skipping extract entity for simple RAG query, session_id: %s", chatManage.SessionID)
+		return next()
+	}
+
 	model, err := p.modelService.GetChatModel(ctx, chatManage.ChatModelID)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get model, session_id: %s, error: %v", chatManage.SessionID, err)

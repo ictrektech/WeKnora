@@ -8,7 +8,34 @@ import {
   type StreamRequestMeta,
 } from '@/utils/chatRequestDebug';
 
+type StreamChunkHandler = (data: any) => boolean | void
 
+const output = ref('')              // 显示内容
+const isStreaming = ref(false)      // 流状态
+const isLoading = ref(false)        // 初始加载
+const error = ref<string | null>(null)// 错误信息
+const lastStreamRequest = ref<StreamRequestMeta | null>(null)
+const controllers = new Map<string, AbortController>()
+const streamSessions = new Map<string, string>()
+const pendingChunks = new Map<string, any[]>()
+const chunkHandlers = new Set<StreamChunkHandler>()
+
+const dispatchChunk = (chunk: any) => {
+  let handled = false
+  chunkHandlers.forEach((handler) => {
+    try {
+      if (handler(chunk) === true) handled = true
+    } catch (err) {
+      console.error('[Stream] chunk handler failed:', err, chunk);
+    }
+  })
+  if (handled) return
+  const sessionId = String(chunk.__stream_session_id || chunk.session_id || '')
+  if (!sessionId) return
+  const chunks = pendingChunks.get(sessionId) || []
+  chunks.push(chunk)
+  pendingChunks.set(sessionId, chunks)
+}
 
 interface StreamOptions {
   // 请求方法 (默认POST)
@@ -22,22 +49,17 @@ interface StreamOptions {
 }
 
 export function useStream() {
-  // 响应式状态
-  const output = ref('')              // 显示内容
-  const isStreaming = ref(false)      // 流状态
-  const isLoading = ref(false)        // 初始加载
-  const error = ref<string | null>(null)// 错误信息
-  const lastStreamRequest = ref<StreamRequestMeta | null>(null)
-  let controller = new AbortController()
-  let streamGeneration = 0
-
   // 流式渲染缓冲
   let buffer: string[] = []
   let renderTimer: number | null = null
 
   // 启动流式请求
   const startStream = async (params: { session_id: any; query: any; knowledge_base_ids?: string[]; knowledge_ids?: string[]; tag_ids?: string[]; agent_enabled?: boolean; agent_id?: string; web_search_enabled?: boolean; enable_memory?: boolean; summary_model_id?: string; mcp_service_ids?: string[]; skill_names?: string[]; mentioned_items?: Array<{id: string; name: string; type: string; kb_type?: string; kb_id?: string; kb_name?: string; service_id?: string; skill_name?: string}>; images?: Array<{data: string}>; attachment_uploads?: Array<{data: string; file_name: string; file_size: number}>; method: string; url: string; embed_token?: string; embed_session_sig?: string; embed_visitor_id?: string }) => {
-    const myGeneration = ++streamGeneration
+    const streamKey = `${params.method}:${params.url}:${params.session_id}:${params.query}`
+    controllers.get(streamKey)?.abort()
+    const currentController = new AbortController()
+    controllers.set(streamKey, currentController)
+    streamSessions.set(streamKey, String(params.session_id))
     // 重置状态
     output.value = '';
     error.value = null;
@@ -158,7 +180,7 @@ export function useStream() {
           params.method == "POST"
             ? JSON.stringify(postBody)
             : null,
-        signal: controller.signal,
+        signal: currentController.signal,
         openWhenHidden: true,
 
         onopen: async (res) => {
@@ -168,8 +190,10 @@ export function useStream() {
         },
 
         onmessage: (ev) => {
-          if (myGeneration !== streamGeneration) return
+          if (controllers.get(streamKey) !== currentController) return
           const parsed = JSON.parse(ev.data);
+          parsed.__stream_session_id = params.session_id;
+          parsed.__stream_message_id = params.query;
           // Log first answer chunk for end-to-end TTFB measurement.
           // Filter by event type so non-answer events (references, tool
           // calls, etc.) don't count as the "first token" arrival.
@@ -178,10 +202,7 @@ export function useStream() {
             console.log(`[TTFB] response:first_answer request_id=${requestID} elapsed_ms=${(performance.now() - sentAt).toFixed(1)}`);
           }
           buffer.push(parsed); // 数据存入缓冲
-          // 执行自定义处理
-          if (chunkHandler) {
-            chunkHandler(parsed);
-          }
+          dispatchChunk(parsed);
         },
 
         onerror: (err) => {
@@ -189,33 +210,68 @@ export function useStream() {
         },
 
         onclose: () => {
-          stopStream();
+          if (controllers.get(streamKey) !== currentController) return
+          controllers.delete(streamKey)
+          streamSessions.delete(streamKey)
+          isStreaming.value = controllers.size > 0;
+          isLoading.value = false;
         },
       });
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err)
-      stopStream()
+      if (controllers.get(streamKey) === currentController) {
+        controllers.delete(streamKey)
+        streamSessions.delete(streamKey)
+        error.value = err instanceof Error ? err.message : String(err)
+        currentController.abort()
+        isStreaming.value = controllers.size > 0
+        isLoading.value = false
+      }
     }
   }
 
-  let chunkHandler: ((data: any) => void) | null = null
   // 注册块处理器
-  const onChunk = (handler: (data: any) => void) => {
-    chunkHandler = handler
+  const onChunk = (handler: StreamChunkHandler) => {
+    chunkHandlers.add(handler)
+    onUnmounted(() => chunkHandlers.delete(handler))
+    return () => chunkHandlers.delete(handler)
   }
 
 
   // 停止流
-  const stopStream = () => {
-    streamGeneration++
-    controller.abort();
-    controller = new AbortController(); // 重置控制器（如需重新发起）
-    isStreaming.value = false;
+  const stopStream = (sessionId?: string) => {
+    if (sessionId) {
+      const targetSessionId = String(sessionId)
+      for (const [streamKey, controller] of controllers.entries()) {
+        if (streamSessions.get(streamKey) !== targetSessionId) continue
+        controller.abort()
+        controllers.delete(streamKey)
+        streamSessions.delete(streamKey)
+      }
+      pendingChunks.delete(targetSessionId)
+    } else {
+      controllers.forEach((controller) => controller.abort())
+      controllers.clear()
+      streamSessions.clear()
+      pendingChunks.clear()
+    }
+    isStreaming.value = controllers.size > 0;
     isLoading.value = false;
   }
 
-  // 组件卸载时自动清理
-  onUnmounted(stopStream)
+  const hasActiveStream = (sessionId?: string) => {
+    if (!sessionId) return controllers.size > 0
+    for (const activeSessionId of streamSessions.values()) {
+      if (activeSessionId === String(sessionId)) return true
+    }
+    return false
+  }
+
+  const drainSessionChunks = (sessionId: string) => {
+    const targetSessionId = String(sessionId)
+    const chunks = pendingChunks.get(targetSessionId) || []
+    pendingChunks.delete(targetSessionId)
+    return chunks
+  }
 
   return {
     output,          // 显示内容
@@ -225,6 +281,8 @@ export function useStream() {
     lastStreamRequest,
     onChunk,
     startStream,     // 启动流
-    stopStream       // 手动停止
+    stopStream,      // 手动停止
+    hasActiveStream,
+    drainSessionChunks
   }
 }

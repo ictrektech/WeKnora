@@ -837,6 +837,12 @@ const loadKBData = async () => {
   }
 }
 
+const resolvedWikiSynthesisModelId = () => (
+  formData.value.modelConfig?.wikiSynthesisModelId ||
+  formData.value.modelConfig?.llmModelId ||
+  ''
+)
+
 // 处理配置更新
 const handleModelConfigUpdate = (config: any) => {
   if (formData.value) {
@@ -1133,7 +1139,7 @@ const buildSubmitData = () => {
   // wiki_config only holds wiki-specific tunables.
   if (formData.value.type !== 'faq') {
     data.wiki_config = {
-      synthesis_model_id: formData.value.modelConfig?.wikiSynthesisModelId || '',
+      synthesis_model_id: resolvedWikiSynthesisModelId(),
       max_pages_per_ingest: formData.value.wikiConfig?.maxPagesPerIngest || 0,
       extraction_granularity: formData.value.wikiConfig?.extractionGranularity || 'standard',
     }
@@ -1230,7 +1236,7 @@ const doSubmit = async () => {
       }
       if (formData.value.wikiConfig && formData.value.type !== 'faq') {
         updateConfig.wiki_config = {
-          synthesis_model_id: formData.value.modelConfig?.wikiSynthesisModelId || '',
+          synthesis_model_id: resolvedWikiSynthesisModelId(),
           max_pages_per_ingest: formData.value.wikiConfig.maxPagesPerIngest || 0,
           extraction_granularity: formData.value.wikiConfig.extractionGranularity || 'standard',
         }

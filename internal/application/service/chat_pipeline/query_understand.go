@@ -90,6 +90,14 @@ func (p *PluginQueryUnderstand) OnEvent(ctx context.Context,
 		historyList = p.loadHistory(ctx, chatManage)
 	}
 
+	if shouldUseOriginalQueryWithoutModel(chatManage, historyList) {
+		pipelineInfo(ctx, "QueryUnderstand", "use_original_query", map[string]interface{}{
+			"session_id": chatManage.SessionID,
+			"reason":     "simple_rag_no_history_no_media",
+		})
+		return next()
+	}
+
 	// --- Select the appropriate model ---
 	rewriteModel, useImages := p.selectModel(ctx, chatManage, hasImages)
 	if rewriteModel == nil {
@@ -158,6 +166,16 @@ func (p *PluginQueryUnderstand) OnEvent(ctx context.Context,
 		"original_output":     response.Content,
 	})
 	return next()
+}
+
+func shouldUseOriginalQueryWithoutModel(chatManage *types.ChatManage, historyList []*types.History) bool {
+	if chatManage == nil {
+		return false
+	}
+	return chatManage.EnableRewrite &&
+		len(historyList) == 0 &&
+		len(chatManage.Images) == 0 &&
+		len(chatManage.Attachments) == 0
 }
 
 // updateUserMessageImageCaption writes the generated ImageDescription back to

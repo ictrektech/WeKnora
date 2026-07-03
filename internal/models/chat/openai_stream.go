@@ -328,6 +328,10 @@ type streamState struct {
 	firstContentSeen     bool // true once delta.Content first appeared
 	firstReasoningSeen   bool // true once reasoning_content first appeared
 	streamStartedAt      time.Time
+
+	answerPrefixChecked    bool
+	suppressInlineThinking bool
+	answerPrefixBuffer     strings.Builder
 }
 
 func newStreamState() *streamState {
@@ -365,6 +369,92 @@ func (s *streamState) buildOrderedToolCalls() []types.LLMToolCall {
 		return nil
 	}
 	return result
+}
+
+func (s *streamState) filterAnswerContent(content string, isDone bool) string {
+	if content == "" {
+		return ""
+	}
+
+	if !s.answerPrefixChecked {
+		s.answerPrefixBuffer.WriteString(content)
+		buffered := s.answerPrefixBuffer.String()
+		trimmed := strings.TrimLeft(buffered, " \t\r\n")
+		lower := strings.ToLower(trimmed)
+
+		if isInlineThinkingStart(lower) {
+			s.answerPrefixChecked = true
+			s.suppressInlineThinking = true
+			return s.flushInlineThinkingBuffer(isDone)
+		}
+
+		if isPossibleInlineThinkingPrefix(lower) {
+			return ""
+		}
+
+		s.answerPrefixChecked = true
+		s.answerPrefixBuffer.Reset()
+		return buffered
+	}
+
+	if s.suppressInlineThinking {
+		s.answerPrefixBuffer.WriteString(content)
+		return s.flushInlineThinkingBuffer(isDone)
+	}
+
+	return content
+}
+
+func (s *streamState) flushInlineThinkingBuffer(isDone bool) string {
+	buffered := s.answerPrefixBuffer.String()
+	lower := strings.ToLower(buffered)
+	if end := strings.LastIndex(lower, "</think>"); end >= 0 {
+		out := strings.TrimLeft(buffered[end+len("</think>"):], " \t\r\n")
+		s.answerPrefixBuffer.Reset()
+		s.suppressInlineThinking = false
+		return out
+	}
+
+	if start, length := findFinalAnswerMarker(lower); start >= 0 {
+		out := strings.TrimLeft(buffered[start+length:], " \t\r\n")
+		s.answerPrefixBuffer.Reset()
+		s.suppressInlineThinking = false
+		return out
+	}
+
+	if isDone {
+		s.answerPrefixBuffer.Reset()
+		s.suppressInlineThinking = false
+	}
+	return ""
+}
+
+func isInlineThinkingStart(lowerTrimmed string) bool {
+	return strings.HasPrefix(lowerTrimmed, "<think>") ||
+		strings.HasPrefix(lowerTrimmed, "thinking process") ||
+		strings.HasPrefix(lowerTrimmed, "analysis:") ||
+		strings.HasPrefix(lowerTrimmed, "reasoning:")
+}
+
+func isPossibleInlineThinkingPrefix(lowerTrimmed string) bool {
+	if lowerTrimmed == "" {
+		return true
+	}
+	for _, prefix := range []string{"<think>", "thinking process", "analysis:", "reasoning:"} {
+		if strings.HasPrefix(prefix, lowerTrimmed) {
+			return true
+		}
+	}
+	return false
+}
+
+func findFinalAnswerMarker(lower string) (int, int) {
+	for _, marker := range []string{"final answer:", "final answer：", "最终答案:", "最终答案：", "答案:", "答案："} {
+		if idx := strings.LastIndex(lower, marker); idx >= 0 {
+			return idx, len(marker)
+		}
+	}
+	return -1, 0
 }
 
 func (s *streamState) setToolCallProviderMetadata(index int, metadata types.ToolCallMetadata) {
@@ -437,6 +527,7 @@ func (c *RemoteAPIChat) processStreamDelta(
 
 	// 发送回答内容
 	if delta.Content != "" {
+		filteredContent := state.filterAnswerContent(delta.Content, isDone)
 		// Earliest delta.Content signal at the OpenAI-protocol level. Fired once
 		// per stream so we can measure TTFC (time-to-first-content) and tell
 		// "answer started before any tool_call" from "tool_call came first".
@@ -447,15 +538,23 @@ func (c *RemoteAPIChat) processStreamDelta(
 				len(delta.Content), truncateForDebug(delta.Content, 80),
 				state.firstToolCallSeen, state.firstReasoningSeen, state.elapsedMs())
 		}
-		// If we had thinking content and this is the first answer chunk,
-		// send a thinking done event first.
-		state.finish(streamChan)
-		streamChan <- types.StreamResponse{
-			ResponseType: types.ResponseTypeAnswer,
-			Content:      delta.Content,
-			Done:         isDone,
-			ToolCalls:    state.buildOrderedToolCalls(),
-			FinishReason: string(choice.FinishReason),
+		if filteredContent != "" {
+			// If we had thinking content and this is the first answer chunk,
+			// send a thinking done event first.
+			state.finish(streamChan)
+			streamChan <- types.StreamResponse{
+				ResponseType: types.ResponseTypeAnswer,
+				Content:      filteredContent,
+				Done:         isDone,
+				ToolCalls:    state.buildOrderedToolCalls(),
+				FinishReason: string(choice.FinishReason),
+			}
+		} else if isDone && len(state.toolCallMap) == 0 {
+			streamChan <- types.StreamResponse{
+				ResponseType: types.ResponseTypeAnswer,
+				Done:         true,
+				FinishReason: string(choice.FinishReason),
+			}
 		}
 	}
 

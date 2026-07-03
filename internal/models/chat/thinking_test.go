@@ -19,6 +19,8 @@ func TestThinkingStrategy_NilThinking(t *testing.T) {
 		noThinking{},
 		enableThinking{}, // not alwaysSend
 		thinkingTypeField{},
+		thinkField{},
+		reasoningEffortField{},
 		chatTemplateKwargs{},
 	}
 	for _, s := range strategies {
@@ -108,11 +110,44 @@ func TestChatTemplateKwargs(t *testing.T) {
 	assert.Contains(t, string(body), "chat_template_kwargs")
 }
 
+func TestThinkField(t *testing.T) {
+	s := thinkField{}
+	req := openai.ChatCompletionRequest{Model: "ollama-openai"}
+
+	custom, raw := s.Apply(&req, &ChatOptions{Thinking: ptrBool(false)}, true)
+	require.True(t, raw)
+	out, ok := custom.(ThinkChatCompletionRequest)
+	require.True(t, ok)
+	require.NotNil(t, out.Think)
+	assert.False(t, *out.Think)
+
+	body, err := json.Marshal(custom)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), `"think":false`)
+}
+
+func TestReasoningEffortField(t *testing.T) {
+	s := reasoningEffortField{}
+	req := openai.ChatCompletionRequest{Model: "ollama-openai"}
+
+	custom, raw := s.Apply(&req, &ChatOptions{Thinking: ptrBool(false)}, true)
+	require.True(t, raw)
+	out, ok := custom.(ReasoningEffortChatCompletionRequest)
+	require.True(t, ok)
+	assert.Equal(t, "none", out.ReasoningEffort)
+
+	body, err := json.Marshal(custom)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), `"reasoning_effort":"none"`)
+}
+
 func TestParseThinkingOverride(t *testing.T) {
 	cases := map[string]ThinkingStrategy{
 		"none":                 noThinking{},
 		"enable_thinking":      enableThinking{},
 		"thinking_type":        thinkingTypeField{},
+		"think":                thinkField{},
+		"reasoning_effort":     reasoningEffortField{},
 		"chat_template_kwargs": chatTemplateKwargs{},
 		"something-unknown":    chatTemplateKwargs{}, // legacy default-mode fallback
 	}
@@ -140,5 +175,15 @@ func TestEffectiveThinkingControl(t *testing.T) {
 		Provider:    "generic",
 		ModelName:   "qwen3",
 		ExtraConfig: map[string]string{ExtraConfigThinkingControl: "none"},
+	}))
+	assert.Equal(t, "think", EffectiveThinkingControl(&ChatConfig{
+		Provider:    "generic",
+		ModelName:   "qwen3",
+		ExtraConfig: map[string]string{ExtraConfigThinkingControl: "think"},
+	}))
+	assert.Equal(t, "reasoning_effort", EffectiveThinkingControl(&ChatConfig{
+		Provider:    "generic",
+		ModelName:   "qwen3",
+		ExtraConfig: map[string]string{ExtraConfigThinkingControl: "reasoning_effort"},
 	}))
 }

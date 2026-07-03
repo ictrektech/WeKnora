@@ -37,6 +37,19 @@ type ThinkingChatCompletionRequest struct {
 	Thinking *ThinkingConfig `json:"thinking,omitempty"`
 }
 
+// ThinkChatCompletionRequest adds Ollama's OpenAI-compatible `think` field.
+type ThinkChatCompletionRequest struct {
+	openai.ChatCompletionRequest
+	Think *bool `json:"think,omitempty"`
+}
+
+// ReasoningEffortChatCompletionRequest adds Ollama's OpenAI-compatible
+// `reasoning_effort` field. Ollama uses "none" to disable thinking.
+type ReasoningEffortChatCompletionRequest struct {
+	openai.ChatCompletionRequest
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+}
+
 // ThinkingStrategy encodes how ChatOptions.Thinking is mapped onto a provider's
 // HTTP request. Apply returns (customBody, useRawHTTP):
 //   - (nil, false) means "send the standard OpenAI request unchanged" (the
@@ -102,6 +115,35 @@ func (thinkingTypeField) Apply(req *openai.ChatCompletionRequest, opts *ChatOpti
 	return r, true
 }
 
+// thinkField encodes thinking via Ollama's top-level `think` field.
+type thinkField struct{}
+
+func (thinkField) Apply(req *openai.ChatCompletionRequest, opts *ChatOptions, _ bool) (any, bool) {
+	if opts == nil || opts.Thinking == nil {
+		return nil, false
+	}
+	r := ThinkChatCompletionRequest{ChatCompletionRequest: *req}
+	r.Think = opts.Thinking
+	return r, true
+}
+
+// reasoningEffortField encodes thinking via Ollama's OpenAI-compatible
+// `reasoning_effort` field.
+type reasoningEffortField struct{}
+
+func (reasoningEffortField) Apply(req *openai.ChatCompletionRequest, opts *ChatOptions, _ bool) (any, bool) {
+	if opts == nil || opts.Thinking == nil {
+		return nil, false
+	}
+	r := ReasoningEffortChatCompletionRequest{ChatCompletionRequest: *req}
+	if *opts.Thinking {
+		r.ReasoningEffort = "medium"
+	} else {
+		r.ReasoningEffort = "none"
+	}
+	return r, true
+}
+
 // chatTemplateKwargs encodes thinking via the standard request's
 // `chat_template_kwargs.enable_thinking` (vLLM / NVIDIA / generic local
 // deployments). Emits nothing when opts.Thinking is unset.
@@ -134,6 +176,10 @@ func parseThinkingOverride(extraConfig map[string]string) ThinkingStrategy {
 		return enableThinking{}
 	case "thinking_type":
 		return thinkingTypeField{}
+	case "think":
+		return thinkField{}
+	case "reasoning_effort":
+		return reasoningEffortField{}
 	default:
 		// "chat_template_kwargs" and any unknown non-empty value.
 		return chatTemplateKwargs{}
@@ -164,6 +210,10 @@ func thinkingStrategyName(strategy ThinkingStrategy) string {
 		return "enable_thinking"
 	case thinkingTypeField:
 		return "thinking_type"
+	case thinkField:
+		return "think"
+	case reasoningEffortField:
+		return "reasoning_effort"
 	case chatTemplateKwargs:
 		return "chat_template_kwargs"
 	default:

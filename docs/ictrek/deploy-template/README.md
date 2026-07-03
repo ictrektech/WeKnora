@@ -80,6 +80,15 @@ cp config/builtin_models.yaml.example config/builtin_models.yaml
 
 默认建议先启动服务，再在 Web UI 中添加模型，避免把某台机器的模型端口写死进镜像或模板。
 
+GraphRAG 会调用同一个 LLM 后端做实体和关系抽取。为了避免图抽取把聊天模型占满，模板提供两个限流变量：
+
+```text
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+```
+
+OpenAI-compatible 模型如果需要关闭 thinking，在 Web UI 的模型高级参数里把 `thinking_control` 设为后端支持的字段：`chat_template_kwargs`、`enable_thinking`、`thinking_type`、`think`、`reasoning_effort` 或 `none`。Ollama OpenAI-compatible 通常用 `think` 或 `reasoning_effort`。
+
 ---
 
 # ictrek WeKnora Deployment Template
@@ -171,3 +180,17 @@ Then uncomment this line in `docker-compose.yml`:
 
 The default recommendation is to start the stack first and add models in the Web
 UI, so machine-specific model ports are not baked into images or templates.
+
+GraphRAG uses the same LLM backend for entity and relation extraction. To keep
+graph extraction from occupying every chat slot, the template exposes:
+
+```text
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+```
+
+For OpenAI-compatible models that need thinking disabled, set
+`thinking_control` in the model advanced parameters to the provider field:
+`chat_template_kwargs`, `enable_thinking`, `thinking_type`, `think`,
+`reasoning_effort`, or `none`. Ollama OpenAI-compatible backends usually use
+`think` or `reasoning_effort`.

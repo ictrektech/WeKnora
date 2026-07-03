@@ -151,7 +151,7 @@ const uiStore = useUIStore();
 const { navigateToKnowledgeBaseList } = useKnowledgeBaseCreationNavigation();
 const { t } = useI18n();
 const { firstQuery, firstMentionedItems, firstModelId, firstImageFiles, firstAttachmentFiles } = storeToRefs(usemenuStore);
-const { onChunk, error, startStream, stopStream, lastStreamRequest } = useStream();
+const { onChunk, error, startStream, stopStream, lastStreamRequest, hasActiveStream, drainSessionChunks } = useStream();
 /** Snapshot of the in-flight HTTP request for attaching to the next assistant message. */
 const pendingStreamDebug = ref(null);
 
@@ -206,10 +206,15 @@ const limit = ref(20);
 const messagesList = reactive([]);
 const isReplying = ref(false);
 const currentAssistantMessageId = ref(''); // 当前正在生成的 assistant message ID
+// True while attaching to an in-flight reply via continue-stream. Attach failures
+// are retried quietly; the visible message stays incomplete so switching sessions
+// does not collapse the stream into a blank gap.
+const isAttachingContinueStream = ref(false);
+let continueStreamRetryTimer = null;
 // True only while attaching to an in-flight *IM-originated* reply via continue-stream.
 // Such replies are generated on the IM side and never stream through this server, so
 // continue-stream always fails even though the answer is coming — recover by polling
-// instead of erroring. Web/api replies are left on the original error path.
+// instead of erroring. Web/api replies use continue-stream retry.
 const isAttachingImStream = ref(false);
 let recoverPollTimer = null;
 // True while polling to recover an in-flight IM reply we couldn't stream. Drives
@@ -346,8 +351,9 @@ watch([() => route.params], async (newvalue) => {
         if (!firstQuery.value) {
             scrollLock.value = false;
         }
+        const targetSessionId = newvalue[0].chatid;
         messagesList.splice(0);
-        session_id.value = newvalue[0].chatid;
+        session_id.value = targetSessionId;
         clearCitationChunkCache();
 
         // 切换会话时，重置状态
@@ -364,9 +370,10 @@ watch([() => route.params], async (newvalue) => {
         // 并应用自己的 last_request_state（在 loadSessionAndHydrate 内部完成）。
         useSettingsStoreInstance.restoreDefaultsIfSnapshotted();
 
-        await loadSessionAndHydrate(session_id.value);
+        await loadSessionAndHydrate(targetSessionId);
+        if (session_id.value !== targetSessionId) return;
         let data = {
-            session_id: session_id.value,
+            session_id: targetSessionId,
             created_at: '',
             limit: limit.value
         }
@@ -458,26 +465,38 @@ const {
     onAfterMsgList: async () => {
         const lastMessage = messagesList[messagesList.length - 1];
         if (lastMessage && !lastMessage.is_completed) {
+            const targetSessionId = session_id.value;
+            const targetMessageId = lastMessage.id;
             isReplying.value = true;
             if (lastMessage.role === 'assistant') {
-                currentAssistantMessageId.value = lastMessage.id;
-                console.log('[Continue Stream] Set assistant message ID:', lastMessage.id);
+                currentAssistantMessageId.value = targetMessageId;
+                console.log('[Continue Stream] Set assistant message ID:', targetMessageId);
             }
-            // Only IM-originated replies (channel === 'im') get the quiet poll-to-recover
-            // path: their answer is generated on the IM side and never streams through
-            // this server, so continue-stream always 404s even though the reply *is*
-            // coming. Web/api replies keep the original behaviour (a real failure to
-            // resume the stream still surfaces as an error) — we don't touch them.
             isAttachingImStream.value = lastMessage.channel === 'im';
+            if (hasActiveStream(targetSessionId)) {
+                replayBackgroundChunks(targetSessionId);
+                return;
+            }
+            isAttachingContinueStream.value = true;
             await startStream({
-                session_id: session_id.value,
-                query: lastMessage.id,
+                session_id: targetSessionId,
+                query: targetMessageId,
                 method: 'GET',
                 url: '/api/v1/sessions/continue-stream',
             });
-            // On success the stream resumed normally; on failure the error watcher
-            // already took over (quiet recovery for IM), so only clear the flag here.
+            if (session_id.value !== targetSessionId) return;
+            isAttachingContinueStream.value = false;
             if (!error.value) isAttachingImStream.value = false;
+            const target = messagesList.find((item) => item.id === targetMessageId);
+            if (target && !target.is_completed && target.channel !== 'im') {
+                if (continueStreamRetryTimer) clearTimeout(continueStreamRetryTimer);
+                continueStreamRetryTimer = setTimeout(() => {
+                    continueStreamRetryTimer = null;
+                    if (session_id.value !== targetSessionId) return;
+                    if (target.is_completed) return;
+                    getmsgList({ session_id: targetSessionId, created_at: '', limit: limit.value });
+                }, 1000);
+            }
         }
     },
     onAgentQuery: (data, existingMessage) => {
@@ -503,12 +522,20 @@ const showGlobalTypingIndicator = computed(() =>
     shouldShowGlobalTypingIndicator(messagesList, loading.value, isImRecovering.value),
 );
 
+const replayBackgroundChunks = (targetSessionId) => {
+    const chunks = drainSessionChunks(targetSessionId);
+    if (!chunks?.length || session_id.value !== targetSessionId) return;
+    chunks.forEach((chunk) => processStreamChunk(chunk));
+};
+
 const getmsgList = (data, isScrollType = false, scrollHeight) => {
+    const targetSessionId = data.session_id;
     if (isScrollType) {
         if (historyLoadingMore.value || !hasMoreHistory.value) return;
         historyLoadingMore.value = true;
     }
     fetchMessageList(data).then(async (res) => {
+        if (session_id.value !== targetSessionId) return;
         const batch = res?.data;
         if (!batch?.length) {
             if (isScrollType) {
@@ -529,6 +556,7 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
         }
         created_at.value = nextCursor;
         await handleMsgList(batch, isScrollType, scrollHeight);
+        if (!isScrollType) replayBackgroundChunks(targetSessionId);
     }).catch((err) => {
         console.error('Failed to load messages:', err);
         if (isScrollType) {
@@ -547,7 +575,7 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
 // 处理停止生成事件 - 立即清除 loading 状态
 const handleStopGeneration = () => {
     console.log('[Stop Generation] Immediately clearing loading state');
-    stopStream();
+    stopStream(session_id.value);
     loading.value = false;
     isReplying.value = false;
     // 标记当前 assistant 为已结束，避免下一条 query 复用该消息行
@@ -556,7 +584,7 @@ const handleStopGeneration = () => {
 };
 
 const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = [], attachmentFiles = []) => {
-    stopStream();
+    stopStream(session_id.value);
     prepareForNewOutgoingMessage();
     isReplying.value = true;
     loading.value = true;
@@ -729,6 +757,7 @@ const recoverIncompleteMessage = () => {
 // Watch for stream errors and show message
 watch(error, (newError) => {
     if (!newError) return;
+    if (isAttachingContinueStream.value) return;
     // A failed attach to an in-flight IM reply isn't a real error — the answer is
     // produced on the IM side and never streams here. Recover quietly by polling to
     // completion instead of flashing a "stream failed" toast. Web/api replies fall
@@ -746,6 +775,10 @@ watch(error, (newError) => {
 });
 
 onChunk((data) => {
+    const chunkSessionId = data.__stream_session_id || session_id.value;
+    if (chunkSessionId !== session_id.value) {
+        return false;
+    }
     if (data.response_type === 'session_title') {
         const title = data.content || data.data?.title;
         if (title && data.data?.session_id) {
@@ -759,9 +792,10 @@ onChunk((data) => {
                 detail: { sessionId: data.data.session_id, title },
             }));
         }
-        return;
+        return true;
     }
     processStreamChunk(data);
+    return true;
 });
 
 const handleSessionCleared = (e) => {
@@ -824,12 +858,14 @@ onMounted(async () => {
         getmsgList(data)
     }
 })
-const clearData = () => {
-    stopStream();
+const clearData = (abortStreams = true) => {
+    if (abortStreams) stopStream();
     isReplying.value = false;
     fullContent.value = '';
     // Stop any IM-reply recovery poll for the session we're leaving/switching.
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
+    if (continueStreamRetryTimer) { clearTimeout(continueStreamRetryTimer); continueStreamRetryTimer = null; }
+    isAttachingContinueStream.value = false;
     isImRecovering.value = false;
 }
 onUnmounted(() => {
@@ -837,13 +873,13 @@ onUnmounted(() => {
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
 });
 onBeforeRouteLeave((to, from, next) => {
-    clearData()
+    clearData(false)
     // 离开聊天会话 → 还原"用户全局默认"，避免旧会话的请求态泄漏到新建对话。
     useSettingsStoreInstance.restoreDefaultsIfSnapshotted();
     next()
 })
 onBeforeRouteUpdate((to, from, next) => {
-    clearData()
+    clearData(false)
     // 仅"会话 → 会话"会落到这里；跨会话覆盖的还原放到 route.params 的 watch 里，
     // 因为新会话的 getSession 也在那边触发，便于保证 restore→snapshot→apply 顺序。
     next()
