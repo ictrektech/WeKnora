@@ -1910,6 +1910,11 @@ func (s *knowledgeService) generateQuestionsWithContext(ctx context.Context,
 	})
 
 	thinking := false
+	releaseLLM, err := acquireBackgroundLLMSlot(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for background LLM slot: %w", err)
+	}
+	defer releaseLLM()
 	response, err := chatModel.Chat(ctx, []chat.Message{
 		{
 			Role:    "user",

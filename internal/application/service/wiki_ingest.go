@@ -1301,6 +1301,7 @@ func formatExistingTaxonomyForPrompt(paths [][]string) string {
 	}
 	return strings.TrimSpace(buf.String())
 }
+
 // getExistingPageSlugsForKnowledge returns all page slugs that currently
 // reference a given knowledge ID in their source_refs. Used to snapshot
 // state before re-ingest so the reduce phase can reconcile additions vs
@@ -1809,12 +1810,17 @@ func (s *wikiIngestService) generateWithTemplate(ctx context.Context, chatModel 
 
 	var lastErr error
 	for attempt := 1; attempt <= wikiLLMMaxAttempts; attempt++ {
+		releaseLLM, waitErr := acquireBackgroundLLMSlot(ctx)
+		if waitErr != nil {
+			return "", fmt.Errorf("failed to wait for background LLM slot: %w", waitErr)
+		}
 		response, err := chatModel.Chat(ctx, []chat.Message{
 			{Role: "user", Content: prompt},
 		}, &chat.ChatOptions{
 			Temperature: 0.3,
 			Thinking:    &thinking,
 		})
+		releaseLLM()
 		if err == nil {
 			return unmaskImageURLs(response.Content, urlMap), nil
 		}

@@ -327,6 +327,12 @@ func (s *ChunkExtractService) Handle(ctx context.Context, t *asynq.Task) error {
 		},
 	}
 	extractor := chatpipeline.NewExtractor(chatModel, template)
+	releaseLLM, err := acquireBackgroundLLMSlot(ctx)
+	if err != nil {
+		handleErr = err
+		return err
+	}
+	defer releaseLLM()
 	graph, err := extractor.Extract(ctx, chunk.Content)
 	if err != nil {
 		handleErr = err

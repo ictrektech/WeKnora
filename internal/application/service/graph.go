@@ -139,6 +139,11 @@ func (b *graphBuilder) extractEntities(ctx context.Context, chunk *types.Chunk) 
 
 	// Call LLM to extract entities
 	log.Debug("Calling LLM to extract entities")
+	releaseLLM, err := acquireBackgroundLLMSlot(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for background LLM slot: %w", err)
+	}
+	defer releaseLLM()
 	resp, err := b.chatModel.Chat(ctx, messages, &chat.ChatOptions{
 		Temperature: DefaultLLMTemperature,
 		Thinking:    &thinking,
@@ -250,6 +255,11 @@ func (b *graphBuilder) extractRelationships(ctx context.Context,
 
 	// Call LLM to extract relationships
 	log.Debug("Calling LLM to extract relationships")
+	releaseLLM, err := acquireBackgroundLLMSlot(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to wait for background LLM slot: %w", err)
+	}
+	defer releaseLLM()
 	resp, err := b.chatModel.Chat(ctx, messages, &chat.ChatOptions{
 		Temperature: DefaultLLMTemperature,
 		Thinking:    &thinking,

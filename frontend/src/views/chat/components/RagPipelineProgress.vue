@@ -357,7 +357,11 @@ const isThinkingStreaming = computed(
 )
 
 const visible = computed(
-  () => steps.value.length > 0 || showPrePipelineWait.value || showThinkingStep.value,
+  () =>
+    steps.value.length > 0 ||
+    showPrePipelineWait.value ||
+    showThinkingStep.value ||
+    hasReferences.value,
 )
 
 const referenceDocCount = computed(() => {

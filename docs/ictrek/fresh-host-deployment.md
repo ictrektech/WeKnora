@@ -203,6 +203,19 @@ TENANT_AES_KEY=<strong-random-value>
 SYSTEM_AES_KEY=<32-byte-value>
 ```
 
+聊天问答优先级：
+
+```env
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_ASYNQ_QUEUE_CRITICAL=10
+WEKNORA_ASYNQ_QUEUE_GRAPH=1
+WEKNORA_ASYNQ_QUEUE_QUESTION=1
+```
+
+含义：后台图谱抽取、问题生成、wiki 生成最多使用剩余模型槽位，至少给聊天问答保留 2 路并发。`critical` 队列保持最高权重，graph/question 队列保持低权重。
+
 Ollama 主方案：
 
 ```env
@@ -791,6 +804,21 @@ JWT_SECRET=<strong-random-value>
 TENANT_AES_KEY=<strong-random-value>
 SYSTEM_AES_KEY=<32-byte-value>
 ```
+
+Chat/QA priority:
+
+```env
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_ASYNQ_QUEUE_CRITICAL=10
+WEKNORA_ASYNQ_QUEUE_GRAPH=1
+WEKNORA_ASYNQ_QUEUE_QUESTION=1
+```
+
+Background graph extraction, question generation, and wiki generation use the
+remaining model slots, leaving at least two concurrent slots for chat/QA. Keep
+the `critical` queue weight higher than graph/question queues.
 
 For Ollama-first:
 

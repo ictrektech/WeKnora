@@ -59,6 +59,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (debug) console.log(...args)
   }
 
+  const getChunkType = (data: ChatMessage) =>
+    String(data.response_type || data.type || '')
+  let pendingKnowledgeReferences: unknown[] = []
+
   const findLastMessage = (predicate: (item: ChatMessage) => boolean) => {
     for (let i = messagesList.length - 1; i >= 0; i--) {
       const item = messagesList[i]
@@ -99,6 +103,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
     fullContent.value = ''
     currentAssistantMessageId.value = ''
+    pendingKnowledgeReferences = []
   }
 
   /** Mark the assistant row being stopped without clearing its id (stop API still needs it). */
@@ -148,24 +153,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (!refs.length) return undefined
 
     let message = resolveActiveAssistantMessage(data)
-    const created = !message
     if (!message) {
-      const rowId = (data.id as string | undefined) || currentAssistantMessageId.value
-      message = {
-        id: rowId,
-        request_id: rowId,
-        role: 'assistant',
-        content: '',
-        showThink: false,
-        thinkContent: '',
-        thinking: false,
-        is_completed: false,
-        isRagMode: !isAgentStreamSession(),
-        knowledge_references: [],
-      }
-      messagesList.push(message)
-      onMessageCreated?.(message)
+      pendingKnowledgeReferences = refs.slice()
       loading.value = false
+      return undefined
     } else if (isAgentStreamSession()) {
       ensureAgentMessageShell(message, data.id as string | undefined)
     } else {
@@ -174,7 +165,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
 
     message.knowledge_references = refs.slice()
-    if (created) onAgentChunkBound?.(message, true)
+    pendingKnowledgeReferences = []
     onMessageUpdated?.(message, data)
     log('[References] Saved to message, count:', refs.length)
     return message
@@ -448,8 +439,15 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       message.thinking = payload.thinking
       message.thinkContent = payload.thinkContent
       message.showThink = payload.showThink
-      if (!message.knowledge_references) {
-        message.knowledge_references = payload.knowledge_references
+      const refs = extractKnowledgeReferences(payload)
+      if (refs.length > 0) {
+        message.knowledge_references = refs.slice()
+        pendingKnowledgeReferences = []
+      } else if (pendingKnowledgeReferences.length > 0) {
+        message.knowledge_references = pendingKnowledgeReferences.slice()
+        pendingKnowledgeReferences = []
+      } else if (!Array.isArray(message.knowledge_references)) {
+        message.knowledge_references = []
       }
       if (payload.is_fallback) message.is_fallback = true
       if (payload.is_completed) message.is_completed = true
@@ -457,6 +455,14 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     } else {
       const entry = { ...payload }
       if (entry.id && !entry.request_id) entry.request_id = entry.id
+      const refs = extractKnowledgeReferences(payload)
+      if (refs.length > 0) {
+        entry.knowledge_references = refs.slice()
+        pendingKnowledgeReferences = []
+      } else if (pendingKnowledgeReferences.length > 0) {
+        entry.knowledge_references = pendingKnowledgeReferences.slice()
+        pendingKnowledgeReferences = []
+      }
       messagesList.push(entry)
       onMessageCreated?.(entry)
       onMessageUpdated?.(entry, payload)
@@ -514,7 +520,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       loading.value = false
     }
 
-    const responseType = data.response_type as string
+    const responseType = getChunkType(data)
     const dataPayload = data.data as ChatMessage | undefined
 
     switch (responseType) {
@@ -907,17 +913,17 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     const isAgentOnlyResponse =
       isAgentStreamSession() &&
-      (data.response_type === 'thinking' ||
-        data.response_type === 'tool_call' ||
-        data.response_type === 'tool_result' ||
-        data.response_type === 'reflection')
+      (getChunkType(data) === 'thinking' ||
+        getChunkType(data) === 'tool_call' ||
+        getChunkType(data) === 'tool_result' ||
+        getChunkType(data) === 'reflection')
 
     if (
       !isAgentStreamSession() &&
-      (data.response_type === 'thinking' ||
-        data.response_type === 'tool_call' ||
-        data.response_type === 'tool_result' ||
-        data.response_type === 'reflection')
+      (getChunkType(data) === 'thinking' ||
+        getChunkType(data) === 'tool_call' ||
+        getChunkType(data) === 'tool_result' ||
+        getChunkType(data) === 'reflection')
     ) {
       const message = resolveActiveAssistantMessage(data)
       if (message) message.isRagMode = true
@@ -935,9 +941,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         lastMessage?.request_id === data.id ||
         lastMessage?.id === data.id)
     const isAgentAnswerChunk =
-      data.response_type === 'answer' && (isAgentStreamSession() || targetsActiveAgentRequest)
+      getChunkType(data) === 'answer' && (isAgentStreamSession() || targetsActiveAgentRequest)
     const isAgentCompleteChunk =
-      data.response_type === 'complete' && (isAgentStreamSession() || targetsActiveAgentRequest)
+      getChunkType(data) === 'complete' && (isAgentStreamSession() || targetsActiveAgentRequest)
 
     const shouldHandleAsAgent =
       isAgentOnlyResponse ||
@@ -945,7 +951,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       isAgentAnswerChunk ||
       isAgentCompleteChunk
 
-    if (data.response_type === 'references') {
+    if (getChunkType(data) === 'references') {
       applyKnowledgeReferences(data)
       scrollToBottom()
       return

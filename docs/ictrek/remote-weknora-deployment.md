@@ -119,6 +119,18 @@ curl -fsS http://127.0.0.1:<ollama-openai-port>/v1/embeddings \
   -d '{"model":"bge-m3:latest","input":["中文 embedding 测试"]}'
 ```
 
+聊天问答优先级建议写进 app 环境：
+
+```env
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+WEKNORA_ASYNQ_QUEUE_CRITICAL=10
+WEKNORA_ASYNQ_QUEUE_GRAPH=1
+WEKNORA_ASYNQ_QUEUE_QUESTION=1
+```
+
+这会给聊天问答至少保留 2 路模型并发，后台图谱、问题生成、wiki 生成只能使用剩余槽位。
+
 OpenAI-compatible 远程 endpoint，例如 vLLM 或 gateway：
 
 ```text
@@ -549,6 +561,19 @@ curl -fsS http://127.0.0.1:<ollama-openai-port>/v1/embeddings \
   -H 'Content-Type: application/json' \
   -d '{"model":"bge-m3:latest","input":["中文 embedding 测试"]}'
 ```
+
+Set chat/QA priority in the app environment:
+
+```env
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+WEKNORA_ASYNQ_QUEUE_CRITICAL=10
+WEKNORA_ASYNQ_QUEUE_GRAPH=1
+WEKNORA_ASYNQ_QUEUE_QUESTION=1
+```
+
+This keeps at least two model slots available for chat/QA. Background graph,
+question, and wiki generation use the remaining slots.
 
 For an OpenAI-compatible remote endpoint such as vLLM or a gateway, use
 `source=remote`, set `base_url` to the endpoint ending in `/v1`, and provide the

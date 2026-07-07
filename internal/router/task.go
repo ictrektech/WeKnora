@@ -122,11 +122,25 @@ func asynqRetryDelayFunc(n int, e error, t *asynq.Task) time.Duration {
 // not on local CPU).
 const defaultAsynqConcurrency = 32
 
+func asynqQueueWeight(
+	ctx context.Context, svc interfaces.SystemSettingService, key string, envName string, fallback int,
+) int {
+	if svc == nil {
+		return fallback
+	}
+	n := svc.GetInt(ctx, key, envName, int64(fallback))
+	if n <= 0 {
+		return fallback
+	}
+	return int(n)
+}
+
 func NewAsynqServer(svc interfaces.SystemSettingService) *asynq.Server {
 	opt := getAsynqRedisClientOpt()
+	ctx := context.Background()
 	concurrency := defaultAsynqConcurrency
 	if svc != nil {
-		n := svc.GetInt(context.Background(), "asynq.concurrency", "WEKNORA_ASYNQ_CONCURRENCY", defaultAsynqConcurrency)
+		n := svc.GetInt(ctx, "asynq.concurrency", "WEKNORA_ASYNQ_CONCURRENCY", defaultAsynqConcurrency)
 		if n > 0 {
 			concurrency = int(n)
 		}
@@ -138,12 +152,12 @@ func NewAsynqServer(svc interfaces.SystemSettingService) *asynq.Server {
 		asynq.Config{
 			Concurrency: concurrency,
 			Queues: map[string]int{
-				types.QueueCritical:   6, // Highest priority queue
-				types.QueueDefault:    3, // Default priority queue
-				types.QueueLow:        1, // Lowest priority queue
-				types.QueueMultimodal: 1, // Isolated lane for high-volume slow VLM image tasks
-				types.QueueGraph:      1, // Isolated lane for high-volume slow graph-extraction tasks
-				types.QueueQuestion:   1, // Isolated lane for high-volume slow question-generation tasks
+				types.QueueCritical:   asynqQueueWeight(ctx, svc, "asynq.queue.critical", "WEKNORA_ASYNQ_QUEUE_CRITICAL", 6),
+				types.QueueDefault:    asynqQueueWeight(ctx, svc, "asynq.queue.default", "WEKNORA_ASYNQ_QUEUE_DEFAULT", 3),
+				types.QueueLow:        asynqQueueWeight(ctx, svc, "asynq.queue.low", "WEKNORA_ASYNQ_QUEUE_LOW", 1),
+				types.QueueMultimodal: asynqQueueWeight(ctx, svc, "asynq.queue.multimodal", "WEKNORA_ASYNQ_QUEUE_MULTIMODAL", 1),
+				types.QueueGraph:      asynqQueueWeight(ctx, svc, "asynq.queue.graph", "WEKNORA_ASYNQ_QUEUE_GRAPH", 1),
+				types.QueueQuestion:   asynqQueueWeight(ctx, svc, "asynq.queue.question", "WEKNORA_ASYNQ_QUEUE_QUESTION", 1),
 			},
 			RetryDelayFunc: asynqRetryDelayFunc,
 		},

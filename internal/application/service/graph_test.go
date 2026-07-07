@@ -10,3 +10,15 @@ func TestGraphLLMConcurrencyCapsAtHalfMainQA(t *testing.T) {
 		t.Fatalf("graphLLMConcurrency() = %d, want 2", got)
 	}
 }
+
+func TestBackgroundLLMCapacityReservesChatSlots(t *testing.T) {
+	if got := backgroundLLMCapacity(4, 2); got != 2 {
+		t.Fatalf("backgroundLLMCapacity(4, 2) = %d, want 2", got)
+	}
+	if got := backgroundLLMCapacity(2, 2); got != 1 {
+		t.Fatalf("backgroundLLMCapacity(2, 2) = %d, want 1", got)
+	}
+	if got := backgroundLLMCapacity(4, 0); got != 0 {
+		t.Fatalf("backgroundLLMCapacity(4, 0) = %d, want 0", got)
+	}
+}
