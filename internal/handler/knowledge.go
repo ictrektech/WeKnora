@@ -1013,6 +1013,9 @@ func (h *KnowledgeHandler) DeleteKnowledge(c *gin.Context) {
 		c.Error(errors.NewInternalServerError("Failed to enqueue delete task"))
 		return
 	}
+	if err := h.kgService.MarkKnowledgeDeleting(effCtx, []string{id}); err != nil {
+		logger.Warnf(ctx, "Failed to mark knowledge as deleting after enqueue, knowledge_id=%s: %v", secutils.SanitizeForLog(id), err)
+	}
 
 	logger.Infof(ctx, "Knowledge delete task enqueued: %s, knowledge_id: %s", taskID, secutils.SanitizeForLog(id))
 	c.JSON(http.StatusOK, gin.H{
@@ -1120,6 +1123,9 @@ func (h *KnowledgeHandler) BatchDeleteKnowledge(c *gin.Context) {
 		c.Error(errors.NewInternalServerError("Failed to enqueue batch delete task"))
 		return
 	}
+	if err := h.kgService.MarkKnowledgeDeleting(ctx, ids); err != nil {
+		logger.Warnf(ctx, "Failed to mark batch knowledge as deleting after enqueue, kb_id=%s: %v", secutils.SanitizeForLog(kbID), err)
+	}
 
 	logger.Infof(ctx, "Batch knowledge delete task enqueued: %s, kb_id: %s, count: %d",
 		taskID, secutils.SanitizeForLog(kbID), len(ids))
@@ -1193,6 +1199,9 @@ func (h *KnowledgeHandler) ClearKnowledgeBaseContents(c *gin.Context) {
 		logger.Errorf(ctx, "Failed to enqueue knowledge list delete task: %v", err)
 		c.Error(errors.NewInternalServerError("Failed to enqueue cleanup task"))
 		return
+	}
+	if err := h.kgService.MarkKnowledgeDeleting(ctx, knowledgeIDs); err != nil {
+		logger.Warnf(ctx, "Failed to mark cleared knowledge as deleting after enqueue, kb_id=%s: %v", secutils.SanitizeForLog(kbID), err)
 	}
 
 	logger.Infof(ctx, "Knowledge base contents clear task enqueued: %s, kb_id: %s, count: %d",

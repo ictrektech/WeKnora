@@ -8,6 +8,8 @@
 docker-compose.yml
 .env.example
 config/builtin_models.yaml.example
+deploy.sh
+trigger-reparse-incomplete.sh
 ```
 
 Orin NX / L4T 机器如果要用纯 Ollama 后端，额外使用：
@@ -72,6 +74,16 @@ WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docr
 ```
 
 如果某个平台 sheet 没有这三列或最新日期行缺 tag，先按 [build-images.md](../build-images.md) 构建并推送，不要回退到 `wechatopenai/*` 或源码默认镜像。
+
+也可以直接让部署脚本读取飞书并写 `.env`：
+
+```bash
+./deploy.sh --platform amd
+./deploy.sh --platform l4t
+./deploy.sh --platform thor
+```
+
+`deploy.sh` 默认使用 `~/.feishu.components.json`，没有时回退到 `~/.feishu.json`。脚本会写入 `WEKNORA_APP_IMAGE`、`WEKNORA_UI_IMAGE`、`WEKNORA_DOCREADER_IMAGE`，执行 compose 后重建 `docreader` 和 `app`，再运行 `trigger-reparse-incomplete.sh` 把失败/未完成文档重新提交。设置 `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` 可跳过 docreader/app 重建；设置 `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` 可跳过部署后批量 reparse。
 
 新部署：
 
@@ -190,7 +202,7 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=1
 
 单文档 Graph 抽取的 LLM 并发由 `WEKNORA_GRAPH_LLM_CONCURRENCY` 控制，并且会被 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY/2` 限制。Wiki map/reduce 先读知识库 `wiki_config.ingest_map_parallel` 和 `wiki_config.ingest_reduce_parallel`；知识库没填时使用 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` / `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL`。小机器建议 env 默认设为 `1` 或 `2`。
 
-部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重启后会扫描 failed/pending/processing/finalizing 文档并重新入队；启动扫描走 `critical` 队列，每条知识重新解析前会清掉该知识残留的 queued/retry 任务，再提交新的 `parse` 任务。需要手动补救时，也可以运行 [trigger-reparse-incomplete.sh](trigger-reparse-incomplete.sh)。
+部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重启后会扫描 failed/pending/processing/finalizing 文档并重新入队；启动扫描走 `critical` 队列，每条知识重新解析前会清掉该知识残留的 queued/retry 任务，再提交新的 `parse` 任务。需要手动补救时，也可以运行 [trigger-reparse-incomplete.sh](trigger-reparse-incomplete.sh)。文档页工具栏的「重新解析失败文档」只扫描当前知识库的 failed 文档；pending/processing/finalizing 交给启动钩子或部署脚本处理。
 
 Ollama 单实例只能用 `OLLAMA_NUM_PARALLEL` 控制整个服务的并发，不能给聊天和 embedding 分别硬预留槽位。Orin NX 这类小机器推荐两个 Ollama 容器：QA/VLM 容器 `OLLAMA_QA_NUM_PARALLEL=4` 且 `WEKNORA_CHAT_RESERVED_CONCURRENCY=2`；embedding 容器 `OLLAMA_EMBEDDING_NUM_PARALLEL=4` 且 app 侧 `CONCURRENCY_POOL_SIZE=2`。如果机器稳定且显存有余，再把 QA 调到 `5`、聊天保留调到 `3`。
 

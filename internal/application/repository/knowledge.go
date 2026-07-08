@@ -98,6 +98,7 @@ func (r *knowledgeRepository) ListKnowledgeByKnowledgeBaseID(
 // KnowledgeListFilter to a GORM query. Tenant / knowledge base scoping must be
 // applied by the caller before invoking this helper.
 func applyKnowledgeListFilter(query *gorm.DB, filter types.KnowledgeListFilter) *gorm.DB {
+	query = query.Where("parse_status <> ?", types.ParseStatusDeleting)
 	if len(filter.TagIDs) > 0 {
 		query = query.Where(
 			"knowledges.id IN (SELECT knowledge_id FROM knowledge_tag_relations WHERE tag_id IN (?))",
@@ -224,7 +225,10 @@ func (r *knowledgeRepository) CheckKnowledgeExists(
 	params *types.KnowledgeCheckParams,
 ) (bool, *types.Knowledge, error) {
 	query := r.db.WithContext(ctx).Model(&types.Knowledge{}).
-		Where("tenant_id = ? AND knowledge_base_id = ? AND parse_status <> ?", tenantID, kbID, "failed")
+		Where("tenant_id = ? AND knowledge_base_id = ? AND parse_status NOT IN ?", tenantID, kbID, []string{
+			types.ParseStatusFailed,
+			types.ParseStatusDeleting,
+		})
 
 	switch params.Type {
 	case "file":

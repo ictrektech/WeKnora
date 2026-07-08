@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import statistics
+import unicodedata
 
 from docreader.config import CONFIG
 from docreader.models.document import Document
@@ -67,6 +68,13 @@ SCAN_MIN_CHARS_PER_PAGE = _env_int("DOCREADER_PDF_SCAN_MIN_CHARS", 10)
 # A near-empty-text page is only rendered as an image if it actually contains
 # some image content (avoids rendering genuinely blank pages).
 _LOW_TEXT_IMAGE_RATIO = 0.1
+# Some government / web-generated PDFs contain a visually correct page plus an
+# unusable custom-encoded text layer. Text extractors then return strings like
+# ``!"#$%&...`` and Latin-1 mojibake. Treat those pages as scanned so OCR/VLM
+# reads the rendered page instead of indexing garbage.
+GARBLED_TEXT_MIN_CHARS = _env_int("DOCREADER_PDF_GARBLED_TEXT_MIN_CHARS", 80)
+GARBLED_TEXT_BAD_RATIO = _env_float("DOCREADER_PDF_GARBLED_TEXT_BAD_RATIO", 0.18)
+GARBLED_TEXT_CJK_PUNCT_RATIO = _env_float("DOCREADER_PDF_GARBLED_TEXT_CJK_PUNCT_RATIO", 0.30)
 
 # --- Embedded figure extraction (text pages) ------------------------------
 # Native pages can embed figures/charts. We surface them as image references so
@@ -140,6 +148,43 @@ _FIGURE_CAPTION_RE = re.compile(r"^Figure\s+\d+\b", re.IGNORECASE)
 _FIGURE_CAPTION_SEARCH_RE = re.compile(r"\bFigure\s+(\d+)\b", re.IGNORECASE)
 _ARXIV_LINE_RE = re.compile(r"^arXiv:\s*\S+", re.IGNORECASE)
 _PAGE_NUM_LINE_RE = re.compile(r"^\d{1,3}$")
+_CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+_COMMON_TEXT_PUNCT = set(
+    ".,;:!?()[]{}<>/\\'\"-+_%#&*@=|"
+    "，。！？；：“”‘’（）《》〈〉、—…·"
+)
+
+
+def _text_layer_is_garbled(text: str) -> bool:
+    compact = [ch for ch in (text or "") if not ch.isspace()]
+    total = len(compact)
+    if total < GARBLED_TEXT_MIN_CHARS:
+        return False
+
+    bad = punct = cjk = 0
+    for ch in compact:
+        code = ord(ch)
+        cat = unicodedata.category(ch)
+        if _CJK_RE.match(ch):
+            cjk += 1
+        elif ch in _COMMON_TEXT_PUNCT:
+            punct += 1
+        elif ch.isalnum():
+            if 0x80 <= code <= 0x00FF:
+                bad += 1
+        elif cat[0] in {"C", "S"} or 0x80 <= code <= 0x00FF:
+            bad += 1
+        elif cat[0] == "P":
+            punct += 1
+
+    bad_ratio = bad / total
+    punct_ratio = punct / total
+    cjk_ratio = cjk / total
+    return (
+        bad_ratio >= GARBLED_TEXT_BAD_RATIO
+        or (punct_ratio >= 0.45 and bad_ratio >= 0.08)
+        or (cjk_ratio >= 0.05 and punct_ratio >= GARBLED_TEXT_CJK_PUNCT_RATIO)
+    )
 
 
 def _close_pdfium_resource(resource) -> None:
@@ -1434,7 +1479,14 @@ class PDFParser(BaseParser):
                 try:
                     plain = _extract_page_text(page)
                     ratio = _page_image_area_ratio(page, pdfium_r)
-                    cls = _classify_page(ratio, len(plain.strip()))
+                    garbled_text = _text_layer_is_garbled(plain)
+                    cls = "scanned" if garbled_text else _classify_page(ratio, len(plain.strip()))
+                    if garbled_text:
+                        logger.info(
+                            "PDFParser: page %d of %s has garbled text layer; routing to scanned/OCR path",
+                            i + 1,
+                            self.file_name,
+                        )
                     # Layout reconstruction only pays off (and is only spent) on
                     # native text pages; scanned pages are rendered, not read.
                     if cls == "text" and LAYOUT_ORDERING:

@@ -620,6 +620,18 @@ func (s *knowledgeService) GetKnowledgeBatch(ctx context.Context,
 	return s.repo.GetKnowledgeBatch(ctx, tenantID, ids)
 }
 
+func (s *knowledgeService) MarkKnowledgeDeleting(ctx context.Context, ids []string) error {
+	for _, id := range ids {
+		if err := s.repo.UpdateKnowledgeColumns(ctx, id, map[string]interface{}{
+			"parse_status": types.ParseStatusDeleting,
+			"updated_at":   time.Now(),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // GetKnowledgeBatchWithSharedAccess retrieves knowledge by IDs, including items from shared KBs the user has access to.
 // Used when building search targets so that @mentioned files from shared KBs are included.
 func (s *knowledgeService) GetKnowledgeBatchWithSharedAccess(ctx context.Context,

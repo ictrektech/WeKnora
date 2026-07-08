@@ -172,6 +172,28 @@ func TestApplyKnowledgeListFilter_TagIDsOrSemantics(t *testing.T) {
 	assert.ElementsMatch(t, []string{docA, docB, docC}, ids)
 }
 
+func TestListPagedKnowledgeByKnowledgeBaseID_HidesDeleting(t *testing.T) {
+	db := setupKnowledgeTagTestDB(t)
+	repo := &knowledgeRepository{db: db}
+	ctx := context.Background()
+
+	kbID := uuid.New().String()
+	visibleID := uuid.New().String()
+	deletingID := uuid.New().String()
+	require.NoError(t, db.Exec(`
+		INSERT INTO knowledges (id, tenant_id, knowledge_base_id, type, title, parse_status)
+		VALUES (?, 1, ?, 'file', 'visible', 'completed'), (?, 1, ?, 'file', 'deleting', 'deleting')
+	`, visibleID, kbID, deletingID, kbID).Error)
+
+	rows, total, err := repo.ListPagedKnowledgeByKnowledgeBaseID(
+		ctx, 1, kbID, &types.Pagination{Page: 1, PageSize: 20}, types.KnowledgeListFilter{},
+	)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Len(t, rows, 1)
+	assert.Equal(t, visibleID, rows[0].ID)
+}
+
 func TestBatchCountReferences_ScopedToKnowledgeBase(t *testing.T) {
 	db := setupKnowledgeTagTestDB(t)
 	knowledgeRepo := &knowledgeRepository{db: db}

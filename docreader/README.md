@@ -83,6 +83,11 @@ docreader:
 - `DOCREADER_PDF_RENDER_MAX_WORKERS`: 扫描 PDF 渲染为图片的最大并发数（默认：1，设为 0 可关闭限流）
 - `DOCREADER_PDF_RENDER_DPI`: 扫描 PDF 渲染 DPI（默认：200）
 - `DOCREADER_PDF_JPEG_QUALITY`: 扫描 PDF 输出 JPEG 质量（默认：90，范围会自动限制在 1-95）
+- `DOCREADER_PDF_GARBLED_TEXT_MIN_CHARS`: PDF 文本层乱码检测的最小字符数（默认：80）
+- `DOCREADER_PDF_GARBLED_TEXT_BAD_RATIO`: PDF 文本层乱码检测的异常字符比例阈值（默认：0.18）
+- `DOCREADER_PDF_GARBLED_TEXT_CJK_PUNCT_RATIO`: 中文文本层标点异常比例阈值（默认：0.30）
+
+部分网页生成或扫描叠加 OCR 的 PDF 看起来正常，但内置文本层是乱码。DocReader 会把这类页面当作扫描页渲染成图片，再交给 Go App 侧 OCR/VLM 处理，避免把乱码写入知识库。修改这些变量后必须重新构建并部署 `weknora-docreader` 镜像，重启旧镜像不会带入代码改动。
 
 ### OCR / VLM
 

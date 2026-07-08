@@ -88,6 +88,8 @@ type KnowledgeService interface {
 	DeleteKnowledge(ctx context.Context, id string) error
 	// DeleteKnowledgeList deletes multiple knowledge entries by IDs.
 	DeleteKnowledgeList(ctx context.Context, ids []string) error
+	// MarkKnowledgeDeleting hides submitted async deletes from user-facing lists.
+	MarkKnowledgeDeleting(ctx context.Context, ids []string) error
 	// GetKnowledgeFile retrieves the file associated with the knowledge.
 	GetKnowledgeFile(ctx context.Context, id string) (io.ReadCloser, string, error)
 	// UpdateKnowledge updates knowledge information.

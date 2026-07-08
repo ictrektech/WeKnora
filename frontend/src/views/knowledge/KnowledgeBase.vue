@@ -25,6 +25,7 @@ const editorResources = useEditorResourcesStore();
 const router = useRouter();
 import {
   batchQueryKnowledge,
+  listKnowledgeFiles,
   listKnowledgeTags,
   updateKnowledgeTagBatch,
   uploadKnowledgeFile,
@@ -403,6 +404,7 @@ const selectedIds = ref<Set<string>>(new Set());
 let lastSelectedIndex = -1;
 const batchDeleting = ref(false);
 const batchReparsing = ref(false);
+const failedReparsing = ref(false);
 // IDs submitted for async batch reparse; hold optimistic pending until the worker updates DB.
 const pendingReparseAck = ref<Set<string>>(new Set());
 
@@ -473,6 +475,45 @@ const confirmBatchReparse = async () => {
     MessagePlugin.error(e?.message || t('knowledgeBase.batchReparseFailed'));
   } finally {
     batchReparsing.value = false;
+  }
+};
+
+const reparseFailedKnowledge = async () => {
+  if (!kbId.value || failedReparsing.value || batchDeleting.value || batchReparsing.value) return;
+  failedReparsing.value = true;
+  try {
+    const ids: string[] = [];
+    const pageSize = 200;
+    for (let page = 1; page < 500; page++) {
+      const res: any = await listKnowledgeFiles(kbId.value, {
+        page,
+        page_size: pageSize,
+        parse_status: 'failed',
+      });
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      ids.push(...rows.map((item: any) => item.id).filter(Boolean));
+      if (ids.length >= (res?.total || 0) || rows.length < pageSize) break;
+    }
+    if (!ids.length) {
+      MessagePlugin.info(t('knowledgeBase.noFailedDocuments'));
+      return;
+    }
+    for (let i = 0; i < ids.length; i += pageSize) {
+      const res: any = await batchReparseKnowledge(kbId.value, ids.slice(i, i + pageSize));
+      if (!res?.success) {
+        MessagePlugin.error(res?.message || t('knowledgeBase.reparseFailedDocumentsFailed'));
+        return;
+      }
+    }
+    MessagePlugin.success(t('knowledgeBase.reparseFailedDocumentsSuccess', { count: ids.length }));
+    applyOptimisticBatchReparse(ids);
+    resetPage();
+    loadKnowledgeFiles(kbId.value);
+    scheduleWikiStatusProbes();
+  } catch (error: any) {
+    MessagePlugin.error(error?.message || t('knowledgeBase.reparseFailedDocumentsFailed'));
+  } finally {
+    failedReparsing.value = false;
   }
 };
 
@@ -1177,17 +1218,7 @@ const closeCardMoreMenu = (index: number) => {
 
 const confirmDeleteKnowledge = (index: number, item: KnowledgeCard) => {
   closeCardMoreMenu(index);
-  const deletedId = item?.id;
   delKnowledge(index, item, async () => {
-    resetPage();
-    const maxPolls = 30;
-    const delayMs = 400;
-    for (let i = 0; i < maxPolls; i++) {
-      await loadKnowledgeFiles(kbId.value);
-      const stillPresent = (cardList.value || []).some((c: KnowledgeCard) => c.id === deletedId);
-      if (!stillPresent) break;
-      await new Promise<void>((r) => setTimeout(r, delayMs));
-    }
     loadTags(kbId.value, true);
   });
 };
@@ -1813,19 +1844,16 @@ const confirmBatchDelete = async () => {
   try {
     const res: any = await batchDeleteKnowledge(kbId.value, ids);
     if (res?.success) {
-      MessagePlugin.success(t('knowledgeBase.batchDeleteSuccess', { count: ids.length }));
+      MessagePlugin.success(t('knowledgeBase.batchDeleteSubmitted', { count: ids.length }));
+      const before = cardList.value.length;
+      cardList.value = cardList.value.filter((c: KnowledgeCard) => !deletedIdSet.has(c.id));
+      if (cardList.value.length !== before) {
+        total.value = Math.max(0, total.value - (before - cardList.value.length));
+      }
       clearSelection();
       batchMode.value = false;
       resetPage();
-      // 后端将批量删除放入异步队列，立刻拉列表仍可能包含待删项；短轮询直到列表与后端一致或超时
-      const maxPolls = 30;
-      const delayMs = 400;
-      for (let i = 0; i < maxPolls; i++) {
-        await loadKnowledgeFiles(kbId.value);
-        const stillPresent = (cardList.value || []).some((c: KnowledgeCard) => deletedIdSet.has(c.id));
-        if (!stillPresent) break;
-        await new Promise<void>((r) => setTimeout(r, delayMs));
-      }
+      await loadKnowledgeFiles(kbId.value);
       loadTags(kbId.value, true);
     } else {
       MessagePlugin.error(res?.message || t('knowledgeBase.batchDeleteFailed'));
@@ -2195,11 +2223,16 @@ async function createNewSession(value: string): Promise<void> {
                         @click="viewMode = 'list'" :aria-pressed="viewMode === 'list'">
                         <t-icon name="view-list" size="16px" />
                       </button>
-                    </t-tooltip>
-                  </div>
-                  <div v-if="canEdit" class="doc-filter-actions">
-                    <KbUploadSourceDropdown ref="uploadSourceRef" :accept-file-types="acceptFileTypes"
-                      :supported-file-types="[...supportedFileTypes]" include-manual trigger-icon="file-add"
+                  </t-tooltip>
+                </div>
+                <div v-if="canEdit" class="doc-filter-actions">
+                  <t-button variant="outline" size="medium" theme="danger" class="doc-reparse-failed-btn"
+                    :loading="failedReparsing" :disabled="batchDeleting || batchReparsing"
+                    @click="reparseFailedKnowledge">
+                    {{ $t('knowledgeBase.reparseFailedDocuments') }}
+                  </t-button>
+                  <KbUploadSourceDropdown ref="uploadSourceRef" :accept-file-types="acceptFileTypes"
+                    :supported-file-types="[...supportedFileTypes]" include-manual trigger-icon="file-add"
                       trigger-class="content-bar-icon-btn" data-guide="kb-detail-add-doc"
                       :tooltip="t('knowledgeBase.addDocument')" placement="bottom-right" @files="handleUploadSourceFiles"
                       @url="handleUploadSourceUrl" @manual="handleManualCreate" />
@@ -2869,6 +2902,14 @@ async function createNewSession(value: string): Promise<void> {
 
   .doc-filter-actions {
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    .doc-reparse-failed-btn {
+      height: 32px;
+      white-space: nowrap;
+    }
 
     :deep(.content-bar-icon-btn) {
       color: var(--td-text-color-secondary);
