@@ -18,7 +18,7 @@
 
 1. 先定在线体验目标。明确是否必须跑 VLM/Graph/Wiki、是否需要 16k 以上上下文、是否要在文档入库时还能稳定聊天。聊天必须最高优先级时，先预留 `2-3` 个主 QA 槽；多人同时使用再继续提高。
 2. 选候选模型。优先用目标硬件已经验证能稳定启动的量化模型；同等效果下先选更小模型或更低显存量化。模型启动后显存不能长期贴近上限，至少留出 KV cache、embedding、数据库和系统余量。
-3. 定上下文。上下文越大，KV cache 越多，满长并发越低。先用业务必须值，例如 16k、18k、20k；如果聊天或 Graph 变慢，优先把上下文从 20k 降到 18k/16k，而不是直接抢聊天预留。
+3. 定上下文。上下文越大，KV cache 越多，满长并发越低。QA 模型需要超过 16k 上下文时，不要设成正好 `16384`；Orin NX 16G 起步用 `18000`。如果聊天或 Graph 变慢，优先把后台并发降到 1，再考虑换小模型或降低上下文。
 4. 启动模型服务做实测。纯 Ollama 方案看 `OLLAMA_NUM_PARALLEL` 和 `OLLAMA_CONTEXT_LENGTH`；vLLM 方案看 `--max-model-len` 和 `--max-num-seqs`。二者本质都是“同一模型服务能同时接多少条请求”。vLLM 启动日志里的这行可以直接估算满长并发：
 
 ```text
@@ -68,8 +68,8 @@ docker logs --tail 50 <qwen-vllm-container> 2>&1 \
 
 | 容器 | 模型 | WeKnora 模型配置 | 资源限制 |
 | --- | --- | --- | --- |
-| `ollama-qa` | 聊天模型、VLM/图片理解模型 | `KnowledgeQA`、`VLLM` 使用 `source=remote`，`base_url=http://ollama-qa:11535/v1` | `OLLAMA_QA_NUM_PARALLEL=4` 起步，`WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4`，`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` |
-| `ollama-embedding` | embedding 模型，例如 `bge-m3:latest` | `Embedding` 使用 `source=remote`，`base_url=http://ollama-embedding:11535/v1` | `OLLAMA_EMBEDDING_NUM_PARALLEL=4` 起步，`CONCURRENCY_POOL_SIZE=2` |
+| `ollama-qa` | 聊天模型、VLM/图片理解模型 | `KnowledgeQA`、`VLLM` 使用 `source=remote`，`base_url=http://ollama-qa:11535/v1` | `OLLAMA_CONTEXT_LENGTH=18000`、`OLLAMA_QA_NUM_PARALLEL=3` 起步，`WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3`，`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` |
+| `ollama-embedding` | embedding 模型，例如 `bge-m3:latest` | `Embedding` 使用 `source=remote`，`base_url=http://ollama-embedding:11535/v1` | `OLLAMA_EMBEDDING_NUM_PARALLEL=4` 起步，`CONCURRENCY_POOL_SIZE=1` |
 
 只有一个 Ollama 容器时，把 `CONCURRENCY_POOL_SIZE` 降到 `1`，Graph/Wiki 默认低并发，接受文档入库和聊天可能互相排队。单容器只是简化部署，不是稳定生产配置。
 
@@ -86,11 +86,11 @@ WEKNORA_REPARSE_WAIT_URLS=http://ollama-qa:11535/v1/models,http://ollama-embeddi
 对话、Graph 抽取、Wiki 生成、自动问题生成、文档摘要、多模态 VLM 可能共用同一个主 QA/LLM 模型。部署时按模型服务真实容量配置：
 
 ```dotenv
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
-WEKNORA_GRAPH_LLM_CONCURRENCY=2
-WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
-WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
+WEKNORA_GRAPH_LLM_CONCURRENCY=1
+WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
+WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=1
 ```
 
 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 应该对齐主 QA 模型服务的真实在线并发。Ollama 场景下通常和 QA Ollama 容器的 `OLLAMA_NUM_PARALLEL` 保持一致；vLLM 场景下通常和 `VLLM_MAX_NUM_SEQS` 保持一致。
@@ -152,10 +152,10 @@ Orin NX 这类机器上，如果 Ollama 一个实例同时跑 QA/VLM 和 embeddi
 
 | 容器 | 用途 | Ollama 并发 | WeKnora 侧配置 |
 | --- | --- | ---: | --- |
-| `ollama-qa` | KnowledgeQA 和 VLM | `OLLAMA_QA_NUM_PARALLEL=4` | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4`、`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` |
-| `ollama-embedding` | bge-m3 embedding | `OLLAMA_EMBEDDING_NUM_PARALLEL=4` | `CONCURRENCY_POOL_SIZE=2`、`BATCH_EMBED_SIZE=4` |
+| `ollama-qa` | KnowledgeQA 和 VLM | `OLLAMA_CONTEXT_LENGTH=18000`、`OLLAMA_QA_NUM_PARALLEL=3` | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3`、`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` |
+| `ollama-embedding` | bge-m3 embedding | `OLLAMA_EMBEDDING_NUM_PARALLEL=4` | `CONCURRENCY_POOL_SIZE=1`、`BATCH_EMBED_SIZE=4` |
 
-这样聊天/VLM 至少保留 2 个槽位，文档 embedding 只消耗 `ollama-embedding` 容器。机器稳定、显存和等待队列都有余量时，可以把 QA 提到 `5`，聊天保留提到 `3`；先不要提高 embedding 并发。
+这样聊天/VLM 至少保留 2 个槽位，文档 embedding 只消耗 `ollama-embedding` 容器。Orin NX 16G 统一内存不要先追高 QA 并发；机器稳定、内存和等待队列都有余量时，再逐步提高 QA 并发。
 
 分离容器时，模型行使用 OpenAI-compatible gateway：
 
@@ -168,8 +168,9 @@ Embedding    source=remote  base_url=http://ollama-embedding:11535/v1  dimension
 只有单 Ollama 容器时，才把三类模型都建成 `source=local` 并统一使用 `OLLAMA_BASE_URL`。单实例降级值：
 
 ```dotenv
-OLLAMA_NUM_PARALLEL=4
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+OLLAMA_CONTEXT_LENGTH=18000
+OLLAMA_NUM_PARALLEL=3
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
 CONCURRENCY_POOL_SIZE=1
 BATCH_EMBED_SIZE=4
@@ -179,7 +180,7 @@ BATCH_EMBED_SIZE=4
 
 | 机器类型 | QA 服务并发 | 聊天保留 | Graph | Embedding 并发 | 说明 |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Orin NX / L4T 分离 Ollama | 4 | 2 | 1-2 | 2 | 首选。QA/VLM 与 embedding 分容器，`WEKNORA_ASYNQ_CONCURRENCY=2` 起步。 |
+| Orin NX / L4T 分离 Ollama | 3 | 2 | 1 | 1 | 首选。QA/VLM 与 embedding 分容器，QA 上下文用 `18000` 起步，`WEKNORA_ASYNQ_CONCURRENCY=1`。 |
 | 通用 4 并发主机 | 4 | 2 | 1-2 | 2-4 | 后台 worker 不超过 2，优先降低 Wiki 和 embedding。 |
 | 9B vLLM 主机 | 按 `VLLM_MAX_NUM_SEQS` | 2-3 | 1-2 | 按 embedding 后端容量 | QA/Graph/Wiki/Question 共用主 QA 模型时，worker 不超过剩余后台槽。 |
 

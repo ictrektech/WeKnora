@@ -160,11 +160,12 @@ Embedding    source=local  name=bge-m3:latest  dimension=1024
 
 `source=local` 的 Ollama 行不要填 `base_url` 和 `api_key`，WeKnora 会统一使用 `.env` 里的 `OLLAMA_BASE_URL`。
 
-单 Ollama 容器的并发只能尽量保守：
+单 Ollama 容器的并发只能尽量保守。QA 上下文需要大于 16k 时不要设成正好 `16384`，Orin NX 16G 起步用 `18000`：
 
 ```env
-OLLAMA_NUM_PARALLEL=4
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+OLLAMA_CONTEXT_LENGTH=18000
+OLLAMA_NUM_PARALLEL=3
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
 CONCURRENCY_POOL_SIZE=1
 BATCH_EMBED_SIZE=4
@@ -245,18 +246,20 @@ cp config/builtin_models.orin-ollama.yaml.example config/builtin_models.yaml
 推荐起步并发：
 
 ```env
-OLLAMA_QA_NUM_PARALLEL=4
+OLLAMA_CONTEXT_LENGTH=18000
+OLLAMA_QA_NUM_PARALLEL=3
 OLLAMA_EMBEDDING_NUM_PARALLEL=4
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
-WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_GRAPH_LLM_CONCURRENCY=1
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=1
-CONCURRENCY_POOL_SIZE=2
+WEKNORA_ASYNQ_CONCURRENCY=1
+CONCURRENCY_POOL_SIZE=1
 BATCH_EMBED_SIZE=4
 ```
 
-机器稳定且显存有余时，再把 `OLLAMA_QA_NUM_PARALLEL` 调到 `5`、`WEKNORA_CHAT_RESERVED_CONCURRENCY` 调到 `3`。先不要提高 embedding 并发。
+机器稳定且内存、等待队列都有余量时，再逐步提高 `OLLAMA_QA_NUM_PARALLEL`。先不要提高 embedding、Graph 或 Wiki 并发。
 
 原生 Ollama 不提供通用 rerank API。Ollama 主方案如果也要 rerank，需要另准备 rerank 模型或 sidecar，并通过 gateway 暴露 `/v1/rerank`；否则不要配置 rerank。
 
