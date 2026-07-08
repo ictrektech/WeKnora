@@ -350,13 +350,19 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     newScrollHeight?: number,
   ) => {
     const chatlist = [...data]
-    const existingIds = new Set(messagesList.map((m) => m.id).filter(Boolean))
+    const findExistingMessage = (item: ChatMessage) => {
+      return messagesList.find((message) => {
+        if (item.id && message.id === item.id) return true
+        if (item.request_id && message.request_id === item.request_id) return true
+        if (item.id && message.request_id === item.id) return true
+        if (item.request_id && message.id === item.request_id) return true
+        return false
+      })
+    }
     const processed: ChatMessage[] = []
 
     for (const raw of chatlist) {
       const item = preserveIncompleteStreamReactive ? raw : { ...raw }
-      if (item.id && existingIds.has(item.id)) continue
-      if (item.id) existingIds.add(item.id)
 
       item.isAgentMode = false
       const willContinueStream = preserveIncompleteStreamReactive && !item.is_completed
@@ -405,6 +411,12 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           item.thinkContent = content.replace('<think>', '').trim()
           item.content = ''
         }
+      }
+
+      const existing = findExistingMessage(item)
+      if (existing) {
+        Object.assign(existing, item)
+        continue
       }
 
       processed.push(item)

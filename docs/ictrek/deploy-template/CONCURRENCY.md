@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | Asynq 后台任务池 | 控制后台任务 worker 总数，以及不同任务队列的调度权重。 | `WEKNORA_ASYNQ_CONCURRENCY`、`WEKNORA_ASYNQ_QUEUE_*` |
 | 后台 LLM 限流 | 防止 Graph、Wiki、自动问题生成、摘要生成、多模态 VLM 把主 QA 模型并发吃满。 | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`、`WEKNORA_CHAT_RESERVED_CONCURRENCY`、`WEKNORA_GRAPH_LLM_CONCURRENCY`、`WEKNORA_WIKI_INGEST_*` |
-| 模型服务容量 | 控制 vLLM、Ollama 或其他 OpenAI-compatible 服务实际能同时处理多少请求。 | `VLLM_MAX_NUM_SEQS`、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE`、`OLLAMA_NUM_PARALLEL` |
+| 模型服务容量 | 控制 Ollama、vLLM 或其他 OpenAI-compatible 服务实际能同时处理多少请求。 | `OLLAMA_NUM_PARALLEL`、`OLLAMA_CONTEXT_LENGTH`、`VLLM_MAX_NUM_SEQS`、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE` |
 
 队列权重不是硬性的模型并发预留。真正给聊天保留模型槽位的是后台 LLM 限流。`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是 WeKnora 应用侧限制，不是 vLLM/Ollama 自带的硬隔离；后台 LLM 调用必须经过代码里的 `acquireBackgroundLLMSlot` 才会被限制。
 
@@ -19,18 +19,18 @@
 1. 先定在线体验目标。明确是否必须跑 VLM/Graph/Wiki、是否需要 16k 以上上下文、是否要在文档入库时还能稳定聊天。聊天必须最高优先级时，先预留 `2-3` 个主 QA 槽；多人同时使用再继续提高。
 2. 选候选模型。优先用目标硬件已经验证能稳定启动的量化模型；同等效果下先选更小模型或更低显存量化。模型启动后显存不能长期贴近上限，至少留出 KV cache、embedding、数据库和系统余量。
 3. 定上下文。上下文越大，KV cache 越多，满长并发越低。先用业务必须值，例如 16k、18k、20k；如果聊天或 Graph 变慢，优先把上下文从 20k 降到 18k/16k，而不是直接抢聊天预留。
-4. 启动 vLLM 做实测。先设置保守 `--gpu-memory-utilization`，再设置 `--max-model-len` 和候选 `--max-num-seqs`。启动日志里的这行是关键依据：
+4. 启动模型服务做实测。纯 Ollama 方案看 `OLLAMA_NUM_PARALLEL` 和 `OLLAMA_CONTEXT_LENGTH`；vLLM 方案看 `--max-model-len` 和 `--max-num-seqs`。二者本质都是“同一模型服务能同时接多少条请求”。vLLM 启动日志里的这行可以直接估算满长并发：
 
 ```text
 Maximum concurrency for 18,000 tokens per request: 4.75x
 ```
 
-这个数表示满长请求下的有效并发。`VLLM_MAX_NUM_SEQS` 可以略高于它，用于短请求调度弹性；但 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 不应明显高于这个有效并发，否则后台长任务会把聊天压住。
+这个数表示满长请求下的有效并发。Ollama 没有这条日志时，用 `OLLAMA_NUM_PARALLEL` 当服务侧并发上限，再通过实际聊天和解析压测回验。`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 不应高于 Ollama/vLLM 的真实可用并发，否则后台长任务会把聊天压住。
 
 5. 定 WeKnora 应用侧并发。推荐公式：
 
 ```text
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY = min(VLLM_MAX_NUM_SEQS, floor(vLLM 满长有效并发) 或略高 1)
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY = min(OLLAMA_NUM_PARALLEL 或 VLLM_MAX_NUM_SEQS, 实测有效并发)
 WEKNORA_CHAT_RESERVED_CONCURRENCY = 2-3
 background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY
 ```
@@ -39,7 +39,17 @@ background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED
 
 6. 定 Embedding 并发。Embedding 模型最好独立服务。vLLM embedding 场景下，`CONCURRENCY_POOL_SIZE` 是文档 embedding 应用侧上限；如果希望聊天检索保留 2-3 个槽，就让 `CONCURRENCY_POOL_SIZE` 低于 embedding 服务侧总并发。Ollama 场景下优先分成 QA/VLM 容器和 embedding 容器。
 
-7. 用线上指标回验。文档入库时看：
+7. 用线上状态回验。纯 Ollama 方案先看：
+
+```bash
+docker exec <ollama-qa-container> ollama ps
+docker logs --tail 80 <ollama-qa-container>
+docker exec <ollama-embedding-container> ollama ps
+```
+
+如果聊天请求已经开始排队，先降低 `WEKNORA_ASYNQ_CONCURRENCY`、Graph/Wiki 并发或 `CONCURRENCY_POOL_SIZE`，不要先提高 `OLLAMA_NUM_PARALLEL`。`OLLAMA_NUM_PARALLEL` 提高后显存、KV cache 和上下文一起涨，容易直接 OOM。
+
+vLLM 方案再看：
 
 ```bash
 curl -sS http://127.0.0.1:<vllm-metrics-port>/metrics \
@@ -48,7 +58,28 @@ docker logs --tail 50 <qwen-vllm-container> 2>&1 \
   | grep -E 'Running:|Waiting:|GPU KV cache usage'
 ```
 
-如果没有聊天时 qwen `Running` 长期等于或高于 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY`，这是正常后台占用；如果聊天时 `Waiting > 0` 持续出现，优先降低后台槽、Graph/Wiki/VLM 并发或上下文。不要用提高 Asynq worker 数解决模型排队。
+如果没有聊天时主模型 `Running` 长期等于或高于 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY`，这是正常后台占用；如果聊天时持续排队，优先降低后台槽、Graph/Wiki/VLM 并发或上下文。不要用提高 Asynq worker 数解决模型排队。
+
+## 纯 Ollama 部署注意事项
+
+纯 Ollama 方案不要把所有模型塞进一个容器后再期待 WeKnora 能硬隔离资源。`OLLAMA_NUM_PARALLEL` 是整个 Ollama 实例的调度并发，无法区分聊天、图片理解和 embedding。
+
+推荐拆成两个 Ollama 容器：
+
+| 容器 | 模型 | WeKnora 模型配置 | 资源限制 |
+| --- | --- | --- | --- |
+| `ollama-qa` | 聊天模型、VLM/图片理解模型 | `KnowledgeQA`、`VLLM` 使用 `source=remote`，`base_url=http://ollama-qa:11535/v1` | `OLLAMA_QA_NUM_PARALLEL=4` 起步，`WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4`，`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` |
+| `ollama-embedding` | embedding 模型，例如 `bge-m3:latest` | `Embedding` 使用 `source=remote`，`base_url=http://ollama-embedding:11535/v1` | `OLLAMA_EMBEDDING_NUM_PARALLEL=4` 起步，`CONCURRENCY_POOL_SIZE=2` |
+
+只有一个 Ollama 容器时，把 `CONCURRENCY_POOL_SIZE` 降到 `1`，Graph/Wiki 默认低并发，接受文档入库和聊天可能互相排队。单容器只是简化部署，不是稳定生产配置。
+
+`WEKNORA_REPARSE_WAIT_URLS` 在纯 Ollama 方案中应写 OpenAI-compatible gateway 的 `/v1/models`：
+
+```env
+WEKNORA_REPARSE_WAIT_URLS=http://ollama-qa:11535/v1/models,http://ollama-embedding:11535/v1/models
+```
+
+这样 app 启动钩子和部署脚本都会等 QA/VLM 与 embedding 服务 ready，再提交失败/未完成文档重解析。
 
 ## 主 QA/LLM 并发
 
@@ -62,7 +93,7 @@ WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
 ```
 
-`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 应该对齐主 QA 模型服务的真实在线并发。vLLM 场景下通常和 `VLLM_MAX_NUM_SEQS` 保持一致；Ollama 场景下通常和 QA Ollama 容器的 `OLLAMA_NUM_PARALLEL` 保持一致。
+`WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 应该对齐主 QA 模型服务的真实在线并发。Ollama 场景下通常和 QA Ollama 容器的 `OLLAMA_NUM_PARALLEL` 保持一致；vLLM 场景下通常和 `VLLM_MAX_NUM_SEQS` 保持一致。
 
 后台 LLM 可用槽位近似为：
 
@@ -81,22 +112,24 @@ Wiki map/reduce 并发先读知识库 `wiki_config.ingest_map_parallel` 和 `wik
 文档解析、Graph、Wiki、自动问题生成、摘要等后台任务都走 Asynq。队列权重通过 env 读取：
 
 ```dotenv
-WEKNORA_ASYNQ_CONCURRENCY=4
+WEKNORA_ASYNQ_CONCURRENCY=2
 WEKNORA_ASYNQ_QUEUE_CRITICAL=10
 WEKNORA_ASYNQ_QUEUE_PARSE=5
-WEKNORA_ASYNQ_QUEUE_DEFAULT=3
+WEKNORA_ASYNQ_QUEUE_DEFAULT=4
 WEKNORA_ASYNQ_QUEUE_LOW=1
 WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3
 WEKNORA_ASYNQ_QUEUE_GRAPH=1
-WEKNORA_ASYNQ_QUEUE_QUESTION=1
+WEKNORA_ASYNQ_QUEUE_QUESTION=2
 WEKNORA_REPARSE_INCOMPLETE_ON_START=true
+WEKNORA_REPARSE_WAIT_URLS=
+WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 ```
 
-`WEKNORA_ASYNQ_CONCURRENCY` 是后台 worker 总并发。`WEKNORA_ASYNQ_QUEUE_*` 是队列调度权重，权重越高越容易被调度，但不是严格的每队列并发上限。
+`WEKNORA_ASYNQ_CONCURRENCY` 是后台 worker 总并发，必须小于等于 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY`。如果设得更高，Graph/Wiki/Question 等后台任务会先占住 worker 并阻塞在模型限流上，新的文字解析仍然排队。
 
-`parse` 队列承载文档解析和批量重解析，默认高于 default/multimodal/graph/question；多模态 VLM 队列默认权重为 3，排在文本解析之后、图谱和问题生成之前。
+Asynq 使用严格优先级：`critical` > `parse` > `default` > `multimodal` > `question` > `graph` / `low`。`WEKNORA_ASYNQ_QUEUE_*` 是优先级权重，不是每队列并发上限。`parse` 队列承载文档解析和批量重解析，默认高于 default/multimodal/graph/question；多模态 VLM 队列默认权重为 3，排在文本解析之后、图谱和问题生成之前。
 
-小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。`WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时把 failed/pending/processing/finalizing 的文档重新入队，适合部署后补救解析失败；部署模板默认开启，代码默认值仍是关闭，只有 env 显式开启才会执行。
+小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。`WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把 failed/pending/processing/finalizing 的文档重新入队；部署模板默认开启，代码默认值仍是关闭，只有 env 显式开启才会执行。
 
 ## Embedding 并发
 
@@ -104,7 +137,7 @@ WEKNORA_REPARSE_INCOMPLETE_ON_START=true
 
 ```dotenv
 BATCH_EMBED_SIZE=4
-CONCURRENCY_POOL_SIZE=2
+CONCURRENCY_POOL_SIZE=4
 ```
 
 `BATCH_EMBED_SIZE` 是单次 embedding 请求里打包的 chunk 数。
@@ -146,15 +179,15 @@ BATCH_EMBED_SIZE=4
 
 | 机器类型 | QA 服务并发 | 聊天保留 | Graph | Embedding 并发 | 说明 |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Orin NX / L4T 分离 Ollama | 4 | 2 | 2 | 2 | 首选。QA/VLM 与 embedding 分容器。 |
-| 通用 4 并发主机 | 4 | 1-2 | 2 | 2 | 优先降低 Wiki 和 embedding，不要先压缩聊天保留。 |
-| 9B vLLM 主机 | 按 `VLLM_MAX_NUM_SEQS` | 2-3 | 2 | 按 embedding 后端容量 | QA/Graph/Wiki/Question 共用主 QA 模型。 |
+| Orin NX / L4T 分离 Ollama | 4 | 2 | 1-2 | 2 | 首选。QA/VLM 与 embedding 分容器，`WEKNORA_ASYNQ_CONCURRENCY=2` 起步。 |
+| 通用 4 并发主机 | 4 | 2 | 1-2 | 2-4 | 后台 worker 不超过 2，优先降低 Wiki 和 embedding。 |
+| 9B vLLM 主机 | 按 `VLLM_MAX_NUM_SEQS` | 2-3 | 1-2 | 按 embedding 后端容量 | QA/Graph/Wiki/Question 共用主 QA 模型时，worker 不超过剩余后台槽。 |
 
 ## 调参判断
 
 | 现象 | 优先调整 |
 | --- | --- |
-| 文档入库时聊天变慢 | 增大 `WEKNORA_CHAT_RESERVED_CONCURRENCY`，或降低 Graph/Wiki/Question 的并发和队列权重。 |
+| 文档入库时聊天变慢 | 增大 `WEKNORA_CHAT_RESERVED_CONCURRENCY`，并把 `WEKNORA_ASYNQ_CONCURRENCY` 降到 `主模型并发 - 聊天预留` 以内。 |
 | Graph 或 Wiki 很慢，但聊天正常 | 只有在模型服务还有余量时，才提高 `WEKNORA_GRAPH_LLM_CONCURRENCY`、`WEKNORA_WIKI_INGEST_*` 或知识库级 wiki map/reduce 并发。 |
 | 卡在 embedding 阶段 | 先检查 embedding 服务是否 ready，再对比 `WEKNORA_ASYNQ_CONCURRENCY`、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE`、Ollama `OLLAMA_NUM_PARALLEL`。 |
 | Ollama 单实例聊天被文档入库拖慢 | 改成 QA/VLM 和 embedding 两个 Ollama 容器；单实例只能做 best-effort。 |

@@ -8,6 +8,7 @@ COMPOSE_FILE="${COMPOSE_FILE:-${ROOT_DIR}/docker-compose.yml}"
 REPARSE_STATUSES="${REPARSE_STATUSES:-failed,pending,processing,finalizing}"
 REPARSE_BATCH_SIZE="${REPARSE_BATCH_SIZE:-200}"
 REPARSE_WAIT_SECONDS="${REPARSE_WAIT_SECONDS:-120}"
+REPARSE_READY_WAIT_SECONDS="${REPARSE_READY_WAIT_SECONDS:-300}"
 
 log() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*" >&2; }
@@ -97,6 +98,74 @@ wait_for_token() {
   return 1
 }
 
+ready_http_code() {
+  local url="$1"
+  local code parsed host port path
+
+  code="$(curl -sS -m 5 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)"
+  if [[ "$code" =~ ^[0-9]+$ ]] && (( code >= 200 && code < 300 )); then
+    echo "$code"
+    return 0
+  fi
+
+  parsed="$(python3 - "$url" <<'PY' 2>/dev/null || true
+from urllib.parse import urlparse
+import sys
+
+u = urlparse(sys.argv[1])
+if u.scheme not in ("http", "https") or not u.hostname or not u.port:
+    raise SystemExit(1)
+print(u.hostname)
+print(u.port)
+print(u.path or "/")
+PY
+)"
+  host="$(printf '%s\n' "$parsed" | sed -n '1p')"
+  port="$(printf '%s\n' "$parsed" | sed -n '2p')"
+  path="$(printf '%s\n' "$parsed" | sed -n '3p')"
+  [[ -n "${host:-}" && -n "${port:-}" ]] || { echo "$code"; return 0; }
+
+  if docker ps --format '{{.Names}}' | grep -Fxq "$host"; then
+    docker exec "$host" python3 -c 'from http.client import HTTPConnection; import sys; port=int(sys.argv[1]); path=sys.argv[2]
+try:
+    conn=HTTPConnection("127.0.0.1", port, timeout=5); conn.request("GET", path); print(conn.getresponse().status)
+except Exception:
+    print("000")' "$port" "$path" 2>/dev/null || echo "$code"
+    return 0
+  fi
+  echo "$code"
+}
+
+wait_for_ready_urls() {
+  local urls="$1"
+  local deadline url code
+  urls="${urls//;/,}"
+  [[ -n "${urls//,/}" ]] || return 0
+
+  deadline=$((SECONDS + REPARSE_READY_WAIT_SECONDS))
+  while (( SECONDS < deadline )); do
+    local all_ready=1
+    IFS=',' read -ra parts <<< "$urls"
+    for url in "${parts[@]}"; do
+      url="$(echo "$url" | xargs)"
+      [[ -n "$url" ]] || continue
+      code="$(ready_http_code "$url")"
+      if ! [[ "$code" =~ ^[0-9]+$ ]] || (( code < 200 || code >= 300 )); then
+        all_ready=0
+        break
+      fi
+    done
+    if [[ "$all_ready" == "1" ]]; then
+      log "reparse dependencies are ready"
+      return 0
+    fi
+    sleep 5
+  done
+
+  warn "reparse dependencies not ready within ${REPARSE_READY_WAIT_SECONDS}s; skip incomplete knowledge reparse"
+  return 1
+}
+
 main() {
   require_cmd docker
   require_cmd curl
@@ -105,11 +174,14 @@ main() {
   [[ -f "$ENV_FILE" ]] || die "env file not found: $ENV_FILE"
   [[ -f "$COMPOSE_FILE" ]] || die "compose file not found: $COMPOSE_FILE"
 
-  local db_user db_name app_port api_url postgres_cid token status_sql kb_ids tmp ids_file total count payload code
+  local db_user db_name app_port api_url ready_urls postgres_cid token status_sql kb_ids tmp ids_file total count payload code
   db_user="$(env_value DB_USER postgres)"
   db_name="$(env_value DB_NAME WeKnora)"
   app_port="$(env_value APP_PORT 19081)"
   api_url="${WEKNORA_API_URL:-http://127.0.0.1:${app_port}}"
+  ready_urls="${REPARSE_WAIT_URLS:-$(env_value WEKNORA_REPARSE_WAIT_URLS "")}"
+
+  wait_for_ready_urls "$ready_urls" || return 0
 
   postgres_cid="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q postgres)"
   [[ -n "$postgres_cid" ]] || die "postgres service is not running"

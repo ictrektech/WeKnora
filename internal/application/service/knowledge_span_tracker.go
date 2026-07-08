@@ -26,6 +26,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +38,22 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+const maxSpanNameLen = 64
+
+func clampSpanName(name string) string {
+	if len([]rune(name)) <= maxSpanNameLen {
+		return name
+	}
+	sum := sha1.Sum([]byte(name))
+	suffix := hex.EncodeToString(sum[:4])
+	runes := []rune(name)
+	keep := maxSpanNameLen - len(suffix) - 1
+	if keep < 1 {
+		return suffix
+	}
+	return string(runes[:keep]) + "-" + suffix
+}
 
 // Span is the in-memory handle the pipeline holds while a stage / subspan
 // is executing. It carries enough context for End/Fail/Skip to write back
@@ -376,6 +394,7 @@ func (t *spanTracker) BeginSubSpan(ctx context.Context, parent *Span, name, kind
 	if parent == nil || name == "" {
 		return nil
 	}
+	name = clampSpanName(name)
 	if kind != types.SpanKindGeneration && kind != types.SpanKindSubSpan {
 		kind = types.SpanKindSubSpan
 	}

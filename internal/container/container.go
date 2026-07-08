@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -1425,6 +1426,9 @@ func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer
 		return
 	}
 	ctx := context.Background()
+	if !waitForStartupReparseDependencies(ctx) {
+		return
+	}
 	type row struct {
 		TenantID uint64
 		ID       string
@@ -1480,6 +1484,55 @@ func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer
 	logger.Infof(ctx, "[startup-reparse] submitted %d incomplete knowledge item(s)", submitted)
 }
 
+func waitForStartupReparseDependencies(ctx context.Context) bool {
+	raw := strings.TrimSpace(os.Getenv("WEKNORA_REPARSE_WAIT_URLS"))
+	if raw == "" {
+		return true
+	}
+	timeout := envInt("WEKNORA_REPARSE_READY_WAIT_SECONDS", 300)
+	if timeout <= 0 {
+		timeout = 300
+	}
+	urls := make([]string, 0)
+	for _, part := range strings.Split(raw, ",") {
+		if u := strings.TrimSpace(part); u != "" {
+			urls = append(urls, u)
+		}
+	}
+	if len(urls) == 0 {
+		return true
+	}
+	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
+	client := &http.Client{Timeout: 5 * time.Second}
+	for time.Now().Before(deadline) {
+		allReady := true
+		for _, u := range urls {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+			if err != nil {
+				logger.Warnf(ctx, "[startup-reparse] invalid readiness URL %q: %v", u, err)
+				return false
+			}
+			resp, err := client.Do(req)
+			if err != nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				allReady = false
+			}
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			if !allReady {
+				break
+			}
+		}
+		if allReady {
+			logger.Infof(ctx, "[startup-reparse] dependency readiness checks passed")
+			return true
+		}
+		time.Sleep(5 * time.Second)
+	}
+	logger.Warnf(ctx, "[startup-reparse] dependencies not ready within %ds; skip startup reparse", timeout)
+	return false
+}
+
 func envBool(key string, fallback bool) bool {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {
@@ -1493,6 +1546,18 @@ func envBool(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+func envInt(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return n
 }
 
 // startAuditLogRetention spins up the daily audit_logs purge sweep
