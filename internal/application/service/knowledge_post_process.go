@@ -85,7 +85,7 @@ func (s *KnowledgePostProcessService) Handle(ctx context.Context, task *asynq.Ta
 	// rendering the multimodal stage detail and counts them itself,
 	// avoiding an extra query path.
 	if mm := s.tracker().LookupStage(ctx, payload.KnowledgeID, attempt, types.StageMultimodal); mm != nil &&
-		mm.Kind == types.SpanKindStage {
+		mm.Kind == types.SpanKindStage && mm.Status == types.SpanStatusRunning {
 		s.tracker().EndSpan(ctx, mm, nil)
 	}
 

@@ -7,14 +7,14 @@
 | 层级 | 作用 | 主要变量 |
 | --- | --- | --- |
 | Asynq 后台任务池 | 控制后台任务 worker 总数，以及不同任务队列的调度权重。 | `WEKNORA_ASYNQ_CONCURRENCY`、`WEKNORA_ASYNQ_QUEUE_*` |
-| 后台 LLM 限流 | 防止 Graph、Wiki、自动问题生成、摘要生成把主 QA 模型并发吃满。 | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`、`WEKNORA_CHAT_RESERVED_CONCURRENCY`、`WEKNORA_GRAPH_LLM_CONCURRENCY`、`WEKNORA_WIKI_INGEST_*` |
+| 后台 LLM 限流 | 防止 Graph、Wiki、自动问题生成、摘要生成、多模态 VLM 把主 QA 模型并发吃满。 | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`、`WEKNORA_CHAT_RESERVED_CONCURRENCY`、`WEKNORA_GRAPH_LLM_CONCURRENCY`、`WEKNORA_WIKI_INGEST_*` |
 | 模型服务容量 | 控制 vLLM、Ollama 或其他 OpenAI-compatible 服务实际能同时处理多少请求。 | `VLLM_MAX_NUM_SEQS`、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE`、`OLLAMA_NUM_PARALLEL` |
 
 队列权重不是硬性的模型并发预留。真正给聊天保留模型槽位的是后台 LLM 限流。`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是 WeKnora 应用侧限制，不是 vLLM/Ollama 自带的硬隔离；后台 LLM 调用必须经过代码里的 `acquireBackgroundLLMSlot` 才会被限制。
 
 ## 主 QA/LLM 并发
 
-对话、Graph 抽取、Wiki 生成、自动问题生成、文档摘要可能共用同一个主 QA/LLM 模型。部署时按模型服务真实容量配置：
+对话、Graph 抽取、Wiki 生成、自动问题生成、文档摘要、多模态 VLM 可能共用同一个主 QA/LLM 模型。部署时按模型服务真实容量配置：
 
 ```dotenv
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
@@ -32,7 +32,7 @@ WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
 background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY
 ```
 
-如果两个值都大于 0，且 `main <= reserved`，WeKnora 仍会保留 1 个后台槽位，避免 Graph/Wiki/Question 完全不执行。如果任意一个值为空或为 `0`，后台 LLM 限流不会启用。
+如果两个值都大于 0，且 `main <= reserved`，WeKnora 仍会保留 1 个后台槽位，避免 Graph/Wiki/Question/Multimodal 完全不执行。如果任意一个值为空或为 `0`，后台 LLM 限流不会启用。
 
 `WEKNORA_GRAPH_LLM_CONCURRENCY` 限制单文档 Graph 抽取中的 LLM 并发，并且代码会把它限制到 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY/2` 以内。
 
@@ -45,16 +45,20 @@ Wiki map/reduce 并发先读知识库 `wiki_config.ingest_map_parallel` 和 `wik
 ```dotenv
 WEKNORA_ASYNQ_CONCURRENCY=4
 WEKNORA_ASYNQ_QUEUE_CRITICAL=10
+WEKNORA_ASYNQ_QUEUE_PARSE=5
 WEKNORA_ASYNQ_QUEUE_DEFAULT=3
 WEKNORA_ASYNQ_QUEUE_LOW=1
-WEKNORA_ASYNQ_QUEUE_MULTIMODAL=1
+WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3
 WEKNORA_ASYNQ_QUEUE_GRAPH=1
 WEKNORA_ASYNQ_QUEUE_QUESTION=1
+WEKNORA_REPARSE_INCOMPLETE_ON_START=false
 ```
 
 `WEKNORA_ASYNQ_CONCURRENCY` 是后台 worker 总并发。`WEKNORA_ASYNQ_QUEUE_*` 是队列调度权重，权重越高越容易被调度，但不是严格的每队列并发上限。
 
-小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。
+`parse` 队列承载文档解析和批量重解析，默认高于 default/multimodal/graph/question；多模态 VLM 队列默认权重为 3，排在文本解析之后、图谱和问题生成之前。
+
+小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。`WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时把 failed/pending/processing/finalizing 的文档重新入队，适合部署后补救解析失败；默认关闭，避免误重跑大量历史失败任务。
 
 ## Embedding 并发
 

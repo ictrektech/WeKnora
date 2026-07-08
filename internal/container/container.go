@@ -6,6 +6,7 @@ package container
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 	esv7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/elastic/go-elasticsearch/v8"
 	_ "github.com/go-sql-driver/mysql" // 给 Doris (database/sql) 注册 MySQL 协议驱动
+	"github.com/hibiken/asynq"
 	"github.com/milvus-io/milvus/client/v2/milvusclient"
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 	"github.com/panjf2000/ants/v2"
@@ -293,6 +295,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewHousekeepingService))
 	must(container.Invoke(startHousekeepingService))
 	logger.Debugf(ctx, "[Container] Knowledge housekeeping runner registered")
+	must(container.Invoke(reparseIncompleteKnowledgeOnStart))
 	must(container.Provide(chatpipeline.NewEventManager))
 	must(container.Invoke(chatpipeline.NewPluginSearch))
 	must(container.Invoke(chatpipeline.NewPluginRerank))
@@ -1415,6 +1418,81 @@ func startHousekeepingService(svc *service.HousekeepingService, cleaner interfac
 		svc.Stop()
 		return nil
 	})
+}
+
+func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer) {
+	if !envBool("WEKNORA_REPARSE_INCOMPLETE_ON_START", false) || db == nil || task == nil {
+		return
+	}
+	ctx := context.Background()
+	type row struct {
+		TenantID uint64
+		ID       string
+	}
+	var rows []row
+	statuses := []string{
+		types.ParseStatusFailed,
+		types.ParseStatusPending,
+		types.ParseStatusProcessing,
+		types.ParseStatusFinalizing,
+	}
+	if err := db.WithContext(ctx).Model(&types.Knowledge{}).
+		Select("tenant_id, id").
+		Where("deleted_at IS NULL AND parse_status IN ?", statuses).
+		Order("tenant_id, updated_at ASC").
+		Find(&rows).Error; err != nil {
+		logger.Warnf(ctx, "[startup-reparse] query incomplete knowledge failed: %v", err)
+		return
+	}
+	if len(rows) == 0 {
+		logger.Infof(ctx, "[startup-reparse] no incomplete knowledge to reparse")
+		return
+	}
+
+	const batchSize = 200
+	var submitted int
+	for i := 0; i < len(rows); {
+		tenantID := rows[i].TenantID
+		ids := make([]string, 0, batchSize)
+		for i < len(rows) && rows[i].TenantID == tenantID && len(ids) < batchSize {
+			ids = append(ids, rows[i].ID)
+			i++
+		}
+		payload := types.KnowledgeListReparsePayload{
+			TenantID:     tenantID,
+			KnowledgeIDs: ids,
+		}
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			logger.Warnf(ctx, "[startup-reparse] marshal tenant=%d count=%d failed: %v",
+				tenantID, len(ids), err)
+			continue
+		}
+		t := asynq.NewTask(types.TypeKnowledgeListReparse, payloadBytes,
+			asynq.Queue(types.QueueParse), asynq.MaxRetry(3))
+		if _, err := task.Enqueue(t); err != nil {
+			logger.Warnf(ctx, "[startup-reparse] enqueue tenant=%d count=%d failed: %v",
+				tenantID, len(ids), err)
+			continue
+		}
+		submitted += len(ids)
+	}
+	logger.Infof(ctx, "[startup-reparse] submitted %d incomplete knowledge item(s)", submitted)
+}
+
+func envBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	switch strings.ToLower(raw) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return fallback
+	}
 }
 
 // startAuditLogRetention spins up the daily audit_logs purge sweep

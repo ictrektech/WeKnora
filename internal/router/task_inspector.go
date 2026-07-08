@@ -53,6 +53,7 @@ type knowledgeIDProbe struct {
 var queuesScanned = []string{
 	types.QueueDefault,
 	types.QueueCritical,
+	types.QueueParse,
 	types.QueueLow,
 	types.QueueMultimodal,
 	types.QueueGraph,

@@ -280,7 +280,7 @@ func (h *KnowledgeHandler) enqueueKnowledgeListReparse(
 		return "", fmt.Errorf("marshal payload: %w", err)
 	}
 	task := asynq.NewTask(types.TypeKnowledgeListReparse, payloadBytes,
-		asynq.Queue("low"), asynq.MaxRetry(3))
+		asynq.Queue(types.QueueParse), asynq.MaxRetry(3))
 	info, err := h.asynqClient.Enqueue(task)
 	if err != nil {
 		return "", fmt.Errorf("enqueue task: %w", err)

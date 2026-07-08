@@ -180,13 +180,17 @@ WEKNORA_GRAPH_LLM_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
 WEKNORA_ASYNQ_QUEUE_CRITICAL=10
+WEKNORA_ASYNQ_QUEUE_PARSE=5
+WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3
 WEKNORA_ASYNQ_QUEUE_GRAPH=1
 WEKNORA_ASYNQ_QUEUE_QUESTION=1
 ```
 
-`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` 表示后台图谱、问题生成、wiki 生成最多只能使用剩余模型槽位，至少给聊天问答保留 2 路并发。`WEKNORA_ASYNQ_QUEUE_CRITICAL` 保持最高权重，后台图谱/问题队列保持低权重。
+`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` 表示后台图谱、问题生成、wiki 生成、摘要和多模态 VLM 最多只能使用剩余模型槽位，至少给聊天问答保留 2 路并发。`WEKNORA_ASYNQ_QUEUE_CRITICAL` 保持最高权重，`parse` 高于多模态，后台图谱/问题队列保持低权重。
 
 单文档 Graph 抽取的 LLM 并发由 `WEKNORA_GRAPH_LLM_CONCURRENCY` 控制，并且会被 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY/2` 限制。Wiki map/reduce 先读知识库 `wiki_config.ingest_map_parallel` 和 `wiki_config.ingest_reduce_parallel`；知识库没填时使用 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` / `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL`。小机器建议 env 默认设为 `1` 或 `2`。
+
+部署后如果需要自动重跑未完成/失败解析任务，可以临时设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 后重启 app；补救完成后建议改回 `false`。
 
 Ollama 单实例只能用 `OLLAMA_NUM_PARALLEL` 控制整个服务的并发，不能给聊天和 embedding 分别硬预留槽位。Orin NX 这类小机器推荐两个 Ollama 容器：QA/VLM 容器 `OLLAMA_QA_NUM_PARALLEL=4` 且 `WEKNORA_CHAT_RESERVED_CONCURRENCY=2`；embedding 容器 `OLLAMA_EMBEDDING_NUM_PARALLEL=4` 且 app 侧 `CONCURRENCY_POOL_SIZE=2`。如果机器稳定且显存有余，再把 QA 调到 `5`、聊天保留调到 `3`。
 

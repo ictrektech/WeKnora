@@ -234,6 +234,13 @@ func (s *ImageMultimodalService) Handle(ctx context.Context, task *asynq.Task) e
 		OriginalURL: payload.ImageURL,
 	}
 
+	releaseLLM, err := acquireBackgroundLLMSlot(ctx)
+	if err != nil {
+		handleErr = fmt.Errorf("failed to wait for background LLM slot: %w", err)
+		return handleErr
+	}
+	defer releaseLLM()
+
 	if payload.EnableOCR {
 		prompt := vlmOCRPrompt
 		if payload.ImageSourceType == "scanned_pdf" {

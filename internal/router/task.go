@@ -153,9 +153,10 @@ func NewAsynqServer(svc interfaces.SystemSettingService) *asynq.Server {
 			Concurrency: concurrency,
 			Queues: map[string]int{
 				types.QueueCritical:   asynqQueueWeight(ctx, svc, "asynq.queue.critical", "WEKNORA_ASYNQ_QUEUE_CRITICAL", 6),
+				types.QueueParse:      asynqQueueWeight(ctx, svc, "asynq.queue.parse", "WEKNORA_ASYNQ_QUEUE_PARSE", 5),
 				types.QueueDefault:    asynqQueueWeight(ctx, svc, "asynq.queue.default", "WEKNORA_ASYNQ_QUEUE_DEFAULT", 3),
 				types.QueueLow:        asynqQueueWeight(ctx, svc, "asynq.queue.low", "WEKNORA_ASYNQ_QUEUE_LOW", 1),
-				types.QueueMultimodal: asynqQueueWeight(ctx, svc, "asynq.queue.multimodal", "WEKNORA_ASYNQ_QUEUE_MULTIMODAL", 1),
+				types.QueueMultimodal: asynqQueueWeight(ctx, svc, "asynq.queue.multimodal", "WEKNORA_ASYNQ_QUEUE_MULTIMODAL", 3),
 				types.QueueGraph:      asynqQueueWeight(ctx, svc, "asynq.queue.graph", "WEKNORA_ASYNQ_QUEUE_GRAPH", 1),
 				types.QueueQuestion:   asynqQueueWeight(ctx, svc, "asynq.queue.question", "WEKNORA_ASYNQ_QUEUE_QUESTION", 1),
 			},
