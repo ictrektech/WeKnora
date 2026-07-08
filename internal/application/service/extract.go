@@ -779,6 +779,11 @@ func (s *DataTableSummaryService) generateTableDescription(ctx context.Context, 
 	// logger.Debugf(ctx, "generateTableDescription prompt: %s", prompt)
 
 	thinking := false
+	releaseLLM, err := acquireBackgroundLLMSlot(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to wait for background LLM slot: %w", err)
+	}
+	defer releaseLLM()
 	response, err := chatModel.Chat(ctx, []chat.Message{
 		{Role: "user", Content: prompt},
 	}, &chat.ChatOptions{
@@ -801,6 +806,11 @@ func (s *DataTableSummaryService) generateColumnDescriptions(ctx context.Context
 
 	// Call LLM once for all columns
 	thinking := false
+	releaseLLM, err := acquireBackgroundLLMSlot(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to wait for background LLM slot: %w", err)
+	}
+	defer releaseLLM()
 	response, err := chatModel.Chat(ctx, []chat.Message{
 		{Role: "user", Content: prompt},
 	}, &chat.ChatOptions{

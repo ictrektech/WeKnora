@@ -822,6 +822,11 @@ func (s *knowledgeService) getSummary(ctx context.Context,
 		"language": types.LanguageNameFromContext(ctx),
 	})
 	thinking := false
+	releaseLLM, err := acquireBackgroundLLMSlot(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to wait for background LLM slot: %w", err)
+	}
+	defer releaseLLM()
 	summary, err := summaryModel.Chat(ctx, []chat.Message{
 		{
 			Role:    "system",

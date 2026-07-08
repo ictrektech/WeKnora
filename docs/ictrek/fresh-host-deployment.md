@@ -197,6 +197,7 @@ LOCAL_STORAGE_BASE_DIR=/data/files
 FRONTEND_PORT=19080
 APP_PORT=19081
 DOCREADER_PORT=50051
+MAX_FILE_SIZE_MB=500
 
 JWT_SECRET=<strong-random-value>
 TENANT_AES_KEY=<strong-random-value>
@@ -215,6 +216,8 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=1
 ```
 
 含义：后台图谱抽取、问题生成、wiki 生成最多使用剩余模型槽位，至少给聊天问答保留 2 路并发。`critical` 队列保持最高权重，graph/question 队列保持低权重。
+
+更完整的并发、队列和模型服务容量检查见 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。
 
 Ollama 主方案：
 
@@ -799,6 +802,7 @@ LOCAL_STORAGE_BASE_DIR=/data/files
 FRONTEND_PORT=19080
 APP_PORT=19081
 DOCREADER_PORT=50051
+MAX_FILE_SIZE_MB=500
 
 JWT_SECRET=<strong-random-value>
 TENANT_AES_KEY=<strong-random-value>
@@ -819,6 +823,9 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=1
 Background graph extraction, question generation, and wiki generation use the
 remaining model slots, leaving at least two concurrent slots for chat/QA. Keep
 the `critical` queue weight higher than graph/question queues.
+
+See [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md) for full
+concurrency, queue, and model backend capacity checks.
 
 For Ollama-first:
 

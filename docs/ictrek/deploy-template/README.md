@@ -93,6 +93,8 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=1
 
 `WEKNORA_CHAT_RESERVED_CONCURRENCY=2` 表示后台图谱、问题生成、wiki 生成最多只能使用剩余模型槽位，至少给聊天问答保留 2 路并发。`WEKNORA_ASYNQ_QUEUE_CRITICAL` 保持最高权重，后台图谱/问题队列保持低权重。
 
+更多并发、队列和模型服务容量检查见 [CONCURRENCY.md](CONCURRENCY.md)。文件上传默认限制为 `MAX_FILE_SIZE_MB=500`，修改后需要同时重启 frontend、app、docreader。
+
 OpenAI-compatible 模型如果需要关闭 thinking，在 Web UI 的模型高级参数里把 `thinking_control` 设为后端支持的字段：`chat_template_kwargs`、`enable_thinking`、`thinking_type`、`think`、`reasoning_effort` 或 `none`。Ollama OpenAI-compatible 通常用 `think` 或 `reasoning_effort`。
 
 ---
@@ -202,6 +204,10 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=1
 `WEKNORA_CHAT_RESERVED_CONCURRENCY=2` keeps at least two model slots available
 for chat/QA. Background graph, question, and wiki generation use the remaining
 slots. Keep `WEKNORA_ASYNQ_QUEUE_CRITICAL` higher than graph/question queues.
+
+See [CONCURRENCY.md](CONCURRENCY.md) for concurrency, queue, and model backend
+capacity checks. The default upload limit is `MAX_FILE_SIZE_MB=500`; restart
+frontend, app, and docreader together after changing it.
 
 For OpenAI-compatible models that need thinking disabled, set
 `thinking_control` in the model advanced parameters to the provider field:

@@ -77,7 +77,7 @@ func (r *Repository) Save(
 //
 // Dim-aware pre-marshal size cap: estimateBulkBodyBytes predicts NDJSON
 // size before allocating; over-cap callers get ErrBatchTooLarge instead
-// of a 50MB allocation that's then rejected. The service layer is
+// of a large allocation that's then rejected. The service layer is
 // responsible for dim-aware sub-batching above this.
 func (r *Repository) BatchSave(
 	ctx context.Context,

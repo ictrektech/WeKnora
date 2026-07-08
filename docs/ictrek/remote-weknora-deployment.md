@@ -127,9 +127,12 @@ WEKNORA_CHAT_RESERVED_CONCURRENCY=2
 WEKNORA_ASYNQ_QUEUE_CRITICAL=10
 WEKNORA_ASYNQ_QUEUE_GRAPH=1
 WEKNORA_ASYNQ_QUEUE_QUESTION=1
+MAX_FILE_SIZE_MB=500
 ```
 
 这会给聊天问答至少保留 2 路模型并发，后台图谱、问题生成、wiki 生成只能使用剩余槽位。
+
+更完整的并发、队列和模型服务容量检查见 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。
 
 OpenAI-compatible 远程 endpoint，例如 vLLM 或 gateway：
 
@@ -570,10 +573,14 @@ WEKNORA_CHAT_RESERVED_CONCURRENCY=2
 WEKNORA_ASYNQ_QUEUE_CRITICAL=10
 WEKNORA_ASYNQ_QUEUE_GRAPH=1
 WEKNORA_ASYNQ_QUEUE_QUESTION=1
+MAX_FILE_SIZE_MB=500
 ```
 
 This keeps at least two model slots available for chat/QA. Background graph,
 question, and wiki generation use the remaining slots.
+
+See [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md) for full
+concurrency, queue, and model backend capacity checks.
 
 For an OpenAI-compatible remote endpoint such as vLLM or a gateway, use
 `source=remote`, set `base_url` to the endpoint ending in `/v1`, and provide the

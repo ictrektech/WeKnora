@@ -2155,7 +2155,7 @@ func (h *InitializationHandler) TestMultimodalFunction(c *gin.Context) {
 		return
 	}
 
-	// 验证文件大小 — MAX_FILE_SIZE_MB env (50MB 默认)。
+	// 验证文件大小 — MAX_FILE_SIZE_MB env (500MB 默认)。
 	// 见 utils/filesize.go 注释：故意保留为部署期 env，不做 runtime setting。
 	maxSizeMB := utils.GetMaxFileSizeMB()
 	maxSize := maxSizeMB * 1024 * 1024
@@ -2322,8 +2322,8 @@ func (h *InitializationHandler) ExtractTextRelations(c *gin.Context) {
 		return
 	}
 
-	if len(req.Text) > 5000 {
-		c.Error(errors.NewBadRequestError("文本内容长度不能超过5000字符"))
+	if len(req.Text) > 500 {
+		c.Error(errors.NewBadRequestError("文本内容长度不能超过500字符"))
 		return
 	}
 
