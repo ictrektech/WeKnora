@@ -810,7 +810,7 @@ const loadKBData = async () => {
         vectorEnabled: kb.indexing_strategy?.vector_enabled ?? true,
         keywordEnabled: kb.indexing_strategy?.keyword_enabled ?? true,
         wikiEnabled: kb.indexing_strategy?.wiki_enabled ?? false,
-        graphEnabled: kb.indexing_strategy?.graph_enabled ?? false,
+        graphEnabled: kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false,
       },
       // Vector-store binding. vectorStoreId is editor-only state; it
       // is only included in the create request, never the update
@@ -1159,7 +1159,7 @@ const buildSubmitData = () => {
   // regardless of whether the graph indexing strategy is currently enabled.
   if (formData.value.nodeExtractConfig) {
     data.extract_config = {
-      enabled: !!formData.value.nodeExtractConfig.enabled,
+      enabled: formData.value.indexingStrategy?.graphEnabled ?? false,
       text: formData.value.nodeExtractConfig.text || '',
       tags: formData.value.nodeExtractConfig.tags || [],
       nodes: formData.value.nodeExtractConfig.nodes || [],
@@ -1902,4 +1902,3 @@ watch(
   }
 }
 </style>
-

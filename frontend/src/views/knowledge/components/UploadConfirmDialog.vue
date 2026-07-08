@@ -693,7 +693,7 @@ function initFromKbInfo(kb: any) {
       })),
       relations: kb.extract_config?.relations || [],
     },
-    graphEnabled: kb.indexing_strategy?.graph_enabled ?? false,
+    graphEnabled: kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false,
     pdfForceScanned: false,
   }
 }
@@ -729,9 +729,9 @@ function buildProcessOverrides(): KnowledgeProcessOverrides {
       enabled: state.questionGenerationConfig.enabled,
       question_count: state.questionGenerationConfig.questionCount,
     },
-    graph_enabled: state.nodeExtractConfig.enabled && state.graphEnabled,
+    graph_enabled: state.graphEnabled,
     extract_config: {
-      enabled: state.nodeExtractConfig.enabled,
+      enabled: state.graphEnabled,
       text: state.nodeExtractConfig.text,
       tags: state.nodeExtractConfig.tags,
       nodes: state.nodeExtractConfig.nodes,
