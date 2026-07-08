@@ -19,6 +19,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+func wikiParallelDefault(envKey string, fallback int) int {
+	return envPositiveInt(envKey, fallback)
+}
+
 // scheduleFollowUp enqueues another asynq trigger task if there are
 // still pending ops in task_pending_ops for this KB. Returns true when
 // a follow-up was scheduled.
@@ -215,12 +219,11 @@ func (s *wikiIngestService) ProcessWikiIngest(ctx context.Context, t *asynq.Task
 	// Resolve per-KB tunables once. WikiConfig.IngestBatchSize /
 	// IngestMapParallel / IngestReduceParallel let operators on
 	// 4w-document KBs raise the throughput knob (more docs per batch +
-	// more concurrent LLM calls) without a code deploy. Zero falls back
-	// to the historical defaults so existing KBs see no behaviour
-	// change until they opt in.
+	// more concurrent LLM calls) without a code deploy. KB-level wiki_config
+	// wins; if it is unset, env vars provide deployment-wide defaults.
 	batchSize := kb.WikiConfig.IngestBatchSizeOrDefault(wikiMaxDocsPerBatch)
-	mapParallel := kb.WikiConfig.IngestMapParallelOrDefault(10)
-	reduceParallel := kb.WikiConfig.IngestReduceParallelOrDefault(10)
+	mapParallel := kb.WikiConfig.IngestMapParallelOrDefault(wikiParallelDefault("WEKNORA_WIKI_INGEST_MAP_PARALLEL", 10))
+	reduceParallel := kb.WikiConfig.IngestReduceParallelOrDefault(wikiParallelDefault("WEKNORA_WIKI_INGEST_REDUCE_PARALLEL", 10))
 	loggedBatchSize = batchSize
 	loggedMapPar = mapParallel
 	loggedReducePar = reduceParallel

@@ -142,6 +142,48 @@ SSRF_WHITELIST_EXTRA=host.docker.internal,searxng,qdrant,milvus,weaviate,doris-f
 
 端口要和正在运行的容器一致。比如 `weknora-model-hub-ollama` 同时暴露 `21434` 原生 Ollama API 和 `21535` OpenAI-compatible gateway，WeKnora 的 `source=local` Ollama 行走 `OLLAMA_BASE_URL=http://host.docker.internal:21434`；`source=remote` embedding gateway 行才使用 `http://host.docker.internal:21535/v1`。
 
+## Orin NX 分离 Ollama 方案
+
+Orin NX / L4T 机器上，不建议让一个 Ollama 实例同时承担聊天、图片理解和 embedding 的高并发。`OLLAMA_NUM_PARALLEL` 是单个 Ollama 实例的全局调度并发，它不能区分“聊天保留槽位”和“文档 embedding 槽位”。
+
+推荐使用 [deploy-template/docker-compose.orin-ollama.yml](deploy-template/docker-compose.orin-ollama.yml)：
+
+```text
+ollama-qa
+  qwen3.5:2b
+  用于 KnowledgeQA 和 VLLM
+  OpenAI-compatible endpoint: http://ollama-qa:11535/v1
+
+ollama-embedding
+  bge-m3:latest
+  用于 Embedding
+  OpenAI-compatible endpoint: http://ollama-embedding:11535/v1
+```
+
+模型行使用 `source=remote`：
+
+```text
+KnowledgeQA  source=remote  name=qwen3.5:2b    base_url=http://ollama-qa:11535/v1
+VLLM         source=remote  name=qwen3.5:2b    base_url=http://ollama-qa:11535/v1
+Embedding    source=remote  name=bge-m3:latest base_url=http://ollama-embedding:11535/v1 dimension=1024
+```
+
+起步并发：
+
+```env
+OLLAMA_QA_NUM_PARALLEL=4
+OLLAMA_EMBEDDING_NUM_PARALLEL=4
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
+WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=1
+CONCURRENCY_POOL_SIZE=2
+BATCH_EMBED_SIZE=4
+```
+
+如果只启动一个 Ollama 容器，可以用 `source=local` 和 `OLLAMA_BASE_URL`，但这只是简化方案。此时要把 `CONCURRENCY_POOL_SIZE` 降到 `1`，并接受文档 embedding 可能和聊天在 Ollama 内部排队。
+
 Rerank 需要单独的 rerank endpoint。原生 Ollama 不提供 `/v1/rerank`；如果 gateway 只提供 `/v1/models`、`/v1/chat/completions`、`/v1/embeddings`，就不要配置 rerank，或改用外部 rerank provider。
 
 ---

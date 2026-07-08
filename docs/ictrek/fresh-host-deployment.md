@@ -124,7 +124,20 @@ Rerank 可选。只有真实 `/v1/rerank` 或等价 rerank endpoint 可用时才
 
 ### 方案 A：Ollama 为主
 
-一个 Ollama 服务同时提供聊天、图片理解、embedding。具体容器启动和常驻模型方式见 [model-hub-ollama-embedding.md](model-hub-ollama-embedding.md)。
+Ollama 可以同时提供聊天、图片理解和 embedding。小机器上要先区分两种部署方式：
+
+```text
+单 Ollama 容器
+  简单，但 OLLAMA_NUM_PARALLEL 是全局并发，聊天、VLM、embedding 会互相抢槽位。
+
+QA/VLM 和 Embedding 分离为两个 Ollama 容器
+  推荐给 Orin NX / L4T 这类空机器。聊天和图片理解走 ollama-qa，
+  embedding 走 ollama-embedding，文档入库不会占用聊天容器槽位。
+```
+
+具体容器启动和常驻模型方式见 [model-hub-ollama-embedding.md](model-hub-ollama-embedding.md)。
+
+#### 单 Ollama 容器
 
 WeKnora 启动前先准备模型：
 
@@ -142,6 +155,104 @@ Embedding    source=local  name=bge-m3:latest  dimension=1024
 ```
 
 `source=local` 的 Ollama 行不要填 `base_url` 和 `api_key`，WeKnora 会统一使用 `.env` 里的 `OLLAMA_BASE_URL`。
+
+单 Ollama 容器的并发只能尽量保守：
+
+```env
+OLLAMA_NUM_PARALLEL=4
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+CONCURRENCY_POOL_SIZE=1
+BATCH_EMBED_SIZE=4
+```
+
+这只能保证后台 LLM 调用不吃掉全部 QA 槽位，不能阻止 embedding 请求在 Ollama 内部和聊天请求排队。
+
+#### Orin NX / L4T 分离 Ollama 容器
+
+空的 Orin NX 机器优先使用部署模板中的 overlay：
+
+```bash
+cd /data/jhu/deploy/weknora
+cp .env.example .env
+cp .env.orin-ollama.example .env.orin-ollama
+```
+
+编辑 `.env` 和 `.env.orin-ollama`，至少改：
+
+```text
+WEKNORA_APP_IMAGE / WEKNORA_UI_IMAGE / WEKNORA_DOCREADER_IMAGE
+DB_PASSWORD / REDIS_PASSWORD / JWT_SECRET / TENANT_AES_KEY / SYSTEM_AES_KEY
+OLLAMA_SERVER_IMAGE
+OLLAMA_QA_MODELS_DIR
+OLLAMA_EMBEDDING_MODELS_DIR
+OLLAMA_QA_MODEL
+OLLAMA_EMBEDDING_MODEL
+```
+
+启动：
+
+```bash
+set -a
+. ./.env
+. ./.env.orin-ollama
+set +a
+
+docker compose --env-file .env \
+  -f docker-compose.yml \
+  -f docker-compose.orin-ollama.yml \
+  up -d postgres redis docreader ollama-qa ollama-embedding app frontend
+```
+
+拉取模型并 warmup：
+
+```bash
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.orin-ollama.yml \
+  exec ollama-qa ollama pull "${OLLAMA_QA_MODEL:-qwen3.5:2b}"
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.orin-ollama.yml \
+  exec ollama-embedding ollama pull "${OLLAMA_EMBEDDING_MODEL:-bge-m3:latest}"
+
+curl -fsS http://127.0.0.1:${OLLAMA_QA_GATEWAY_HOST_PORT:-21535}/v1/models
+curl -fsS http://127.0.0.1:${OLLAMA_EMBEDDING_GATEWAY_HOST_PORT:-21536}/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge-m3:latest","input":["中文 embedding 测试"]}'
+```
+
+分离 Ollama 时，模型行不要用 `source=local`，因为 `source=local` 只能共用一个 `OLLAMA_BASE_URL`。用 `source=remote` 指向两个 gateway：
+
+```text
+KnowledgeQA  source=remote  name=qwen3.5:2b   base_url=http://ollama-qa:11535/v1
+VLLM         source=remote  name=qwen3.5:2b   base_url=http://ollama-qa:11535/v1
+Embedding    source=remote  name=bge-m3:latest base_url=http://ollama-embedding:11535/v1 dimension=1024
+```
+
+如果要通过 YAML 预置模型：
+
+```bash
+cp config/builtin_models.orin-ollama.yaml.example config/builtin_models.yaml
+```
+
+然后取消 `docker-compose.yml` 中这一行注释：
+
+```yaml
+- ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
+```
+
+推荐起步并发：
+
+```env
+OLLAMA_QA_NUM_PARALLEL=4
+OLLAMA_EMBEDDING_NUM_PARALLEL=4
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
+WEKNORA_CHAT_RESERVED_CONCURRENCY=2
+WEKNORA_GRAPH_LLM_CONCURRENCY=2
+WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
+WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=1
+CONCURRENCY_POOL_SIZE=2
+BATCH_EMBED_SIZE=4
+```
+
+机器稳定且显存有余时，再把 `OLLAMA_QA_NUM_PARALLEL` 调到 `5`、`WEKNORA_CHAT_RESERVED_CONCURRENCY` 调到 `3`。先不要提高 embedding 并发。
 
 原生 Ollama 不提供通用 rerank API。Ollama 主方案如果也要 rerank，需要另准备 rerank 模型或 sidecar，并通过 gateway 暴露 `/v1/rerank`；否则不要配置 rerank。
 
@@ -216,6 +327,8 @@ WEKNORA_ASYNQ_QUEUE_QUESTION=1
 ```
 
 含义：后台图谱抽取、问题生成、wiki 生成最多使用剩余模型槽位，至少给聊天问答保留 2 路并发。`critical` 队列保持最高权重，graph/question 队列保持低权重。
+
+单文档 Graph 抽取由 `WEKNORA_GRAPH_LLM_CONCURRENCY` 控制，并会被主 QA 并发的一半限制。Wiki map/reduce 先读知识库 `wiki_config.ingest_map_parallel` 和 `wiki_config.ingest_reduce_parallel`；知识库没填时使用 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` / `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL`。Orin NX 建议 env 默认设为 `1`，个别大知识库再单独调高。
 
 更完整的并发、队列和模型服务容量检查见 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。
 

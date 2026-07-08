@@ -1,0 +1,49 @@
+# Orin NX / L4T 分离 Ollama 模型行。
+#
+# 只有明确要使用 YAML 托管模型行时，才复制为 config/builtin_models.yaml。
+# 这些条目使用 source=remote，因为 QA/VLM 和 Embedding 指向不同的 Ollama
+# gateway 容器。source=local 只能让所有本地 Ollama 模型共用一个 OLLAMA_BASE_URL。
+
+builtin_models:
+  - id: orin-ollama-qwen35-2b-qa
+    type: KnowledgeQA
+    source: remote
+    is_default: true
+    name: ${OLLAMA_QA_MODEL}
+    display_name: Orin Ollama QA
+    parameters:
+      base_url: http://ollama-qa:11535/v1
+      api_key: EMPTY
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: reasoning_effort
+
+  - id: orin-ollama-qwen35-2b-vlm
+    type: VLLM
+    source: remote
+    is_default: true
+    name: ${OLLAMA_QA_MODEL}
+    display_name: Orin Ollama Vision
+    parameters:
+      base_url: http://ollama-qa:11535/v1
+      api_key: EMPTY
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: reasoning_effort
+
+  - id: orin-ollama-bge-m3-embedding
+    type: Embedding
+    source: remote
+    is_default: true
+    name: ${OLLAMA_EMBEDDING_MODEL}
+    display_name: Orin Ollama Embedding
+    parameters:
+      base_url: http://ollama-embedding:11535/v1
+      api_key: EMPTY
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false
