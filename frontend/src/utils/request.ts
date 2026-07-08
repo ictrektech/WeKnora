@@ -70,6 +70,8 @@ instance.interceptors.request.use(
 // Token刷新标志，防止多个请求同时刷新token
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: Function; reject: Function }> = [];
+let isAutoSettingUp = false;
+let autoSetupPromise: Promise<string | null> | null = null;
 
 // Share-link endpoints (/auth/invitations/lookup, /auth/register-by-invite)
 // are reachable by anonymous users opening an invite link. A 401 from these
@@ -95,6 +97,52 @@ const processQueue = (error: any, token: string | null = null) => {
   
   failedQueue = [];
 };
+
+function persistAutoSetupSession(response: any): string | null {
+  const token = response?.token;
+  if (!response?.success || !token) return null;
+
+  const activeTenant = response.active_tenant || response.tenant;
+  localStorage.setItem('weknora_token', token);
+  if (response.refresh_token) {
+    localStorage.setItem('weknora_refresh_token', response.refresh_token);
+  }
+  if (response.user) {
+    localStorage.setItem('weknora_user', JSON.stringify(response.user));
+  }
+  if (activeTenant) {
+    localStorage.setItem('weknora_tenant', JSON.stringify(activeTenant));
+    localStorage.setItem('weknora_selected_tenant_id', String(activeTenant.id));
+    if (activeTenant.name) {
+      localStorage.setItem('weknora_selected_tenant_name', activeTenant.name);
+    }
+  }
+  if (Array.isArray(response.memberships)) {
+    localStorage.setItem('weknora_memberships', JSON.stringify(response.memberships));
+  }
+  localStorage.setItem('weknora_lite_mode', 'true');
+  localStorage.removeItem('weknora_auto_setup_failed');
+  return token;
+}
+
+async function tryAutoSetupToken(): Promise<string | null> {
+  if (isAutoSettingUp && autoSetupPromise) return autoSetupPromise;
+
+  isAutoSettingUp = true;
+  autoSetupPromise = axios.post(`${BASE_URL}/api/v1/auth/auto-setup`, {}, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-Request-ID": `${generateRandomString(12)}`,
+    },
+  }).then((response) => persistAutoSetupSession(response.data))
+    .catch(() => null)
+    .finally(() => {
+      isAutoSettingUp = false;
+      autoSetupPromise = null;
+    });
+
+  return autoSetupPromise;
+}
 
 function isEmbedPage(): boolean {
   if (typeof window === 'undefined') return false;
@@ -187,6 +235,13 @@ instance.interceptors.response.use(
             throw new Error(response.message || t('error.tokenRefreshFailed'));
           }
         } catch (refreshError) {
+          const setupToken = await tryAutoSetupToken();
+          if (setupToken) {
+            originalRequest.headers['Authorization'] = 'Bearer ' + setupToken;
+            processQueue(null, setupToken);
+            return instance(originalRequest);
+          }
+
           // 刷新失败，清除所有token并跳转到登录页
           localStorage.removeItem('weknora_token');
           localStorage.removeItem('weknora_refresh_token');
@@ -202,6 +257,13 @@ instance.interceptors.response.use(
           isRefreshing = false;
         }
       } else {
+        const setupToken = await tryAutoSetupToken();
+        if (setupToken) {
+          originalRequest.headers['Authorization'] = 'Bearer ' + setupToken;
+          processQueue(null, setupToken);
+          return instance(originalRequest);
+        }
+
         // 没有refresh token，直接跳转到登录页
         localStorage.removeItem('weknora_token');
         localStorage.removeItem('weknora_user');

@@ -1971,6 +1971,8 @@ func (s *knowledgeService) ReparseKnowledge(
 		return nil, err
 	}
 
+	s.dequeueKnowledgeTasks(ctx, knowledgeID)
+
 	// Allocate a fresh span tree attempt up front. Doing this BEFORE
 	// the cleanup + enqueue means: (a) the UI immediately sees a new
 	// attempt with all five stages back to "pending" instead of the

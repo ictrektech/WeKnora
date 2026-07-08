@@ -199,19 +199,24 @@ const router = createRouter({
 
 // 持久化 auto-setup / login 返回的认证信息到 store
 function persistLoginResponse(authStore: ReturnType<typeof useAuthStore>, response: any) {
-  if (response.user && response.tenant && response.token) {
-    authStore.setUser(userInfoFromApi(response.user, response.tenant.id))
+  const activeTenant = response.active_tenant || response.tenant
+  if (response.user && activeTenant && response.token) {
+    authStore.setUser(userInfoFromApi(response.user, response.user.tenant_id ?? activeTenant.id))
     authStore.setToken(response.token)
     if (response.refresh_token) {
       authStore.setRefreshToken(response.refresh_token)
     }
     authStore.setTenant({
-      id: String(response.tenant.id) || '',
-      name: response.tenant.name || '',
+      id: String(activeTenant.id) || '',
+      name: activeTenant.name || '',
+      api_key: activeTenant.api_key || '',
       owner_id: response.user.id || '',
-      created_at: response.tenant.created_at || new Date().toISOString(),
-      updated_at: response.tenant.updated_at || new Date().toISOString()
+      created_at: activeTenant.created_at || new Date().toISOString(),
+      updated_at: activeTenant.updated_at || new Date().toISOString()
     })
+    if (Array.isArray(response.memberships)) {
+      authStore.setMemberships(response.memberships)
+    }
   }
 }
 
@@ -269,6 +274,26 @@ async function hydrateSessionFromToken(authStore: ReturnType<typeof useAuthStore
   }
 }
 
+async function tryAutoSetupSession(authStore: ReturnType<typeof useAuthStore>, force = false) {
+  if (autoSetupAttempted && !force) return false
+  if (!force && !shouldTryAutoSetup()) return false
+
+  autoSetupAttempted = true
+  try {
+    const response = await autoSetup()
+    if (response.success) {
+      persistLoginResponse(authStore, response)
+      authStore.setLiteMode(true)
+      localStorage.removeItem(AUTO_SETUP_FAILED_KEY)
+      return true
+    }
+    markAutoSetupFailed()
+  } catch {
+    markAutoSetupFailed()
+  }
+  return false
+}
+
 let autoSetupAttempted = false
 let liteDeepLinkRestoreDone = false
 
@@ -300,9 +325,16 @@ router.beforeEach(async (to, from, next) => {
   // 如果访问的是登录页面或初始化页面，直接放行
   if (to.meta.requiresAuth === false || to.meta.requiresInit === false) {
     // 如果已登录用户访问登录页面，重定向到知识库列表页面
-    if (to.path === '/login' && authStore.isLoggedIn) {
-      next('/platform/knowledge-bases')
-      return
+    if (to.path === '/login') {
+      if (authStore.isLoggedIn) {
+        next('/platform/knowledge-bases')
+        return
+      }
+      const restored = await hydrateSessionFromToken(authStore)
+      if (restored || await tryAutoSetupSession(authStore, true)) {
+        next('/platform/knowledge-bases')
+        return
+      }
     }
     next()
     return
@@ -317,21 +349,9 @@ router.beforeEach(async (to, from, next) => {
         return
       }
 
-      if (!autoSetupAttempted && shouldTryAutoSetup()) {
-        autoSetupAttempted = true
-        try {
-          const response = await autoSetup()
-          if (response.success) {
-            persistLoginResponse(authStore, response)
-            authStore.setLiteMode(true)
-            next(to.fullPath)
-            return
-          } else {
-            markAutoSetupFailed()
-          }
-        } catch {
-          markAutoSetupFailed()
-        }
+      if (await tryAutoSetupSession(authStore, true)) {
+        next(to.fullPath)
+        return
       }
       next('/login')
       return

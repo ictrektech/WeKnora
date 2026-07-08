@@ -5,6 +5,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 COPY frontend/package.json frontend/package-lock.json ./
 COPY frontend/packages ./packages

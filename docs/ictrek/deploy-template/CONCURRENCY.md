@@ -51,14 +51,14 @@ WEKNORA_ASYNQ_QUEUE_LOW=1
 WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3
 WEKNORA_ASYNQ_QUEUE_GRAPH=1
 WEKNORA_ASYNQ_QUEUE_QUESTION=1
-WEKNORA_REPARSE_INCOMPLETE_ON_START=false
+WEKNORA_REPARSE_INCOMPLETE_ON_START=true
 ```
 
 `WEKNORA_ASYNQ_CONCURRENCY` 是后台 worker 总并发。`WEKNORA_ASYNQ_QUEUE_*` 是队列调度权重，权重越高越容易被调度，但不是严格的每队列并发上限。
 
 `parse` 队列承载文档解析和批量重解析，默认高于 default/multimodal/graph/question；多模态 VLM 队列默认权重为 3，排在文本解析之后、图谱和问题生成之前。
 
-小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。`WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时把 failed/pending/processing/finalizing 的文档重新入队，适合部署后补救解析失败；默认关闭，避免误重跑大量历史失败任务。
+小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。`WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时把 failed/pending/processing/finalizing 的文档重新入队，适合部署后补救解析失败；部署模板默认开启，代码默认值仍是关闭，只有 env 显式开启才会执行。
 
 ## Embedding 并发
 
