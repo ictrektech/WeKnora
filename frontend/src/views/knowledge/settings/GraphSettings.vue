@@ -296,6 +296,25 @@
             >
               {{ t('graphSettings.clearExample') }}
             </t-button>
+            <t-button
+              theme="default"
+              @click="downloadTemplate"
+            >
+              {{ t('graphSettings.downloadTemplate') }}
+            </t-button>
+            <t-button
+              theme="default"
+              @click="templateInput?.click()"
+            >
+              {{ t('graphSettings.uploadTemplate') }}
+            </t-button>
+            <input
+              ref="templateInput"
+              type="file"
+              accept="application/json,.json"
+              style="display: none"
+              @change="uploadTemplate"
+            />
           </div>
         </div>
       </div>
@@ -359,6 +378,7 @@ const localGraphExtract = ref<GraphExtractConfig>({
 const tagFabring = ref(false)
 const textFabring = ref(false)
 const extracting = ref(false)
+const templateInput = ref<HTMLInputElement | null>(null)
 
 // 系统信息
 const systemInfo = ref<any>(null)
@@ -383,14 +403,8 @@ const handleConfigChange = () => {
 }
 
 // 处理启用/禁用切换
-const handleEnabledChange = () => {
-  // 当关闭提取功能时，清空所有数据
-  if (!localGraphExtract.value.enabled) {
-    localGraphExtract.value.text = ''
-    localGraphExtract.value.tags = []
-    localGraphExtract.value.nodes = []
-    localGraphExtract.value.relations = []
-  }
+const handleEnabledChange = (enabled: boolean) => {
+  localGraphExtract.value.enabled = enabled
   handleConfigChange()
 }
 
@@ -553,6 +567,59 @@ const clearExtractExample = () => {
   localGraphExtract.value.relations = []
   handleNodesChange()
   MessagePlugin.success(t('graphSettings.exampleCleared'))
+}
+
+const normalizedTemplate = (raw: any): GraphExtractConfig => ({
+  enabled: raw?.enabled ?? localGraphExtract.value.enabled,
+  text: typeof raw?.text === 'string' ? raw.text : '',
+  tags: Array.isArray(raw?.tags) ? raw.tags.filter((tag: unknown) => typeof tag === 'string') : [],
+  nodes: Array.isArray(raw?.nodes)
+    ? raw.nodes.map((node: any) => ({
+      name: typeof node?.name === 'string' ? node.name : '',
+      attributes: Array.isArray(node?.attributes)
+        ? node.attributes.filter((attr: unknown) => typeof attr === 'string')
+        : [],
+    }))
+    : [],
+  relations: Array.isArray(raw?.relations)
+    ? raw.relations.map((relation: any) => ({
+      node1: typeof relation?.node1 === 'string' ? relation.node1 : '',
+      node2: typeof relation?.node2 === 'string' ? relation.node2 : '',
+      type: typeof relation?.type === 'string' ? relation.type : '',
+    }))
+    : [],
+})
+
+const downloadTemplate = () => {
+  const blob = new Blob([JSON.stringify(localGraphExtract.value, null, 2)], {
+    type: 'application/json',
+  })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'graph-template.json'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+const uploadTemplate = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  try {
+    const text = await file.text()
+    localGraphExtract.value = normalizedTemplate(JSON.parse(text))
+    handleNodesChange()
+    MessagePlugin.success(t('graphSettings.templateUploaded'))
+  } catch (error: any) {
+    console.error('Failed to upload graph template:', error)
+    MessagePlugin.error(t('graphSettings.templateUploadFailed'))
+  } finally {
+    input.value = ''
+  }
 }
 
 const editorResources = useEditorResourcesStore()

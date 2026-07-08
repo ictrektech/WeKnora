@@ -622,6 +622,16 @@ const canConfirm = computed(() => {
   return true
 })
 
+function emptyGraphExtractConfig(enabled = false): UploadUIState['nodeExtractConfig'] {
+  return {
+    enabled,
+    text: '',
+    tags: [],
+    nodes: [],
+    relations: [],
+  }
+}
+
 function createDefaultUIState(): UploadUIState {
   return {
     chunkingConfig: {
@@ -639,13 +649,7 @@ function createDefaultUIState(): UploadUIState {
     multimodalConfig: { enabled: false, vllmModelId: '' },
     asrConfig: { enabled: false, modelId: '', language: '' },
     questionGenerationConfig: { enabled: true, questionCount: 3 },
-    nodeExtractConfig: {
-      enabled: false,
-      text: '',
-      tags: [],
-      nodes: [],
-      relations: [],
-    },
+    nodeExtractConfig: emptyGraphExtractConfig(false),
     graphEnabled: false,
     pdfForceScanned: false,
   }
@@ -656,6 +660,20 @@ function initFromKbInfo(kb: any) {
     uiState.value = createDefaultUIState()
     return
   }
+
+  const graphEnabled = kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false
+  const nodeExtractConfig = kb.extract_config
+    ? {
+      enabled: graphEnabled,
+      text: kb.extract_config?.text || '',
+      tags: kb.extract_config?.tags || [],
+      nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
+        name: node.name,
+        attributes: node.attributes || [],
+      })),
+      relations: kb.extract_config?.relations || [],
+    }
+    : emptyGraphExtractConfig(false)
 
   uiState.value = {
     chunkingConfig: {
@@ -683,17 +701,8 @@ function initFromKbInfo(kb: any) {
       enabled: kb.question_generation_config?.enabled ?? true,
       questionCount: kb.question_generation_config?.question_count || 3,
     },
-    nodeExtractConfig: {
-      enabled: kb.extract_config?.enabled || false,
-      text: kb.extract_config?.text || '',
-      tags: kb.extract_config?.tags || [],
-      nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
-        name: node.name,
-        attributes: node.attributes || [],
-      })),
-      relations: kb.extract_config?.relations || [],
-    },
-    graphEnabled: kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false,
+    nodeExtractConfig,
+    graphEnabled,
     pdfForceScanned: false,
   }
 }
@@ -886,6 +895,7 @@ const handleQuestionGenerationUpdate = (config: { enabled: boolean; questionCoun
 
 const handleNodeExtractUpdate = (config: UploadUIState['nodeExtractConfig']) => {
   uiState.value.nodeExtractConfig = { ...config }
+  uiState.value.graphEnabled = !!config.enabled
 }
 
 const validateBeforeConfirm = (): boolean => {
