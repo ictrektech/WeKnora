@@ -30,6 +30,49 @@ swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
 
 部署模板中不放 Dockerfile。Dockerfile 只属于构建流程，保留在源码构建目录并通过 [build-images.md](../build-images.md) 使用；部署目录只保留 compose、`.env` 和运行配置，避免误触发本机构建或上游镜像。
 
+## 从飞书读取最新镜像版本
+
+部署时不要猜 tag，也不要从相邻组件列抄 tag。飞书发布表是镜像版本来源：
+
+```text
+表格 token：Htotsn3oahO1zxt73YMcaB1zn8e
+表格地址：https://*.feishu.cn/sheets/Htotsn3oahO1zxt73YMcaB1zn8e
+```
+
+按目标机器平台打开对应 sheet：
+
+```text
+AMD 机器：AMD_with_cuda 或 AMD_with_mxn100
+ARM/L4T 机器：ARM_without_cuda、l4t、ARM_with_cuda、thor_spark、SOPHON_bm1688
+```
+
+在 sheet 中找这三列：
+
+```text
+weknora
+weknora-ui
+weknora-docreader
+```
+
+读取规则：
+
+```text
+第 1 行：服务名
+第 2 行：镜像仓库地址
+日期行：tag
+完整镜像：<第 2 行仓库地址>:<日期行 tag>
+```
+
+优先选择最新日期行中三个服务列都不为空的一组 tag，然后写入部署目录 `.env`：
+
+```env
+WEKNORA_APP_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
+WEKNORA_UI_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
+WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+```
+
+如果某个平台 sheet 没有这三列或最新日期行缺 tag，先按 [build-images.md](../build-images.md) 构建并推送，不要回退到 `wechatopenai/*` 或源码默认镜像。
+
 新部署：
 
 ```bash

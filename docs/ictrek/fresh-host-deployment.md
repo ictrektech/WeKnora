@@ -96,9 +96,13 @@ mkdir -p data/files data/docreader data/postgres data/redis config
 
 如果飞书发布表里已有镜像，优先使用已有镜像：
 
+- 表格 token：`Htotsn3oahO1zxt73YMcaB1zn8e`；
+- AMD 机器看 `AMD_with_cuda` 或 `AMD_with_mxn100`；
+- ARM/L4T 机器看 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`；
 - 在目标平台 sheet 中找 `weknora`、`weknora-ui`、`weknora-docreader`；
-- 第 2 行是仓库地址，日期行是 tag；
-- 组合成 `<row-2-repository>:<date-row-tag>`；
+- 第 1 行是服务名，第 2 行是仓库地址，日期行是 tag；
+- 优先选最新日期行中三个服务列都不为空的一组 tag；
+- 组合成 `<第 2 行仓库地址>:<日期行 tag>`；
 - 写入部署目录 `.env` 的 `WEKNORA_APP_IMAGE`、`WEKNORA_UI_IMAGE`、`WEKNORA_DOCREADER_IMAGE`。
 
 发布镜像不包含部署专用模型行。模型后续在 Web UI 添加，或者由运维人员显式挂载 `config/builtin_models.yaml`。
