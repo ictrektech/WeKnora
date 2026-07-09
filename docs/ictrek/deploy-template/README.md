@@ -215,6 +215,8 @@ WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 
 部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 failed/pending/processing 文档；finalizing 只有在 `processed_at` 为空时才会整文档重新入队。启动扫描走 `critical` 队列，每条知识重新解析前会清掉该知识残留的 queued/retry 任务，再提交新的 `parse` 任务。旧 attempt 里还显示 running 的 trace 是被新 attempt 覆盖后的历史行，不要按旧 attempt 判断当前进度。需要手动补救时，也可以运行 [trigger-reparse-incomplete.sh](trigger-reparse-incomplete.sh)。文档页工具栏的「重新解析失败文档」只扫描当前知识库的 failed 文档；pending/processing 和 `processed_at` 为空的 finalizing 交给启动钩子或部署脚本处理。
 
+Housekeeping 每 5 分钟在 app 容器内运行一次。它会把 `pending_subtasks_count=0` 的 finalizing 文档推进为 completed，也会把已 completed 且没有待执行子任务、但 `summary_status=pending/processing` 的文档标记为 summary failed，避免页面长期显示「优化中」或「生成摘要中」。
+
 Ollama 单实例只能用 `OLLAMA_NUM_PARALLEL` 控制整个服务的并发，不能给聊天和 embedding 分别硬预留槽位。Orin NX 16G 这类小机器推荐两个 Ollama 容器：QA/VLM 容器 `OLLAMA_CONTEXT_LENGTH=18000`、`OLLAMA_QA_NUM_PARALLEL=3`、`WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3`，并用 `WEKNORA_CHAT_RESERVED_CONCURRENCY=2` 保留聊天；embedding 容器 `OLLAMA_EMBEDDING_NUM_PARALLEL=4`，app 侧 `CONCURRENCY_POOL_SIZE=1`。QA 上下文需要大于 16k 时不要设成正好 `16384`；机器稳定且内存、等待队列都有余量后，再逐步提高 QA 并发。
 
 更多并发、队列和模型服务容量检查见 [CONCURRENCY.md](CONCURRENCY.md)。文件上传默认限制为 `MAX_FILE_SIZE_MB=500`，修改后需要同时重启 frontend、app、docreader。

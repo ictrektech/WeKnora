@@ -131,6 +131,20 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 		logger.Infof(ctx, "[Housekeeping] promoted %d drained finalizing row(s)", resDrained.RowsAffected)
 	}
 
+	resDrainedSummary := h.db.WithContext(ctx).Model(&types.Knowledge{}).
+		Where("parse_status = ? AND pending_subtasks_count = 0 AND summary_status IN ?",
+			types.ParseStatusCompleted,
+			[]string{types.SummaryStatusPending, types.SummaryStatusProcessing}).
+		Updates(map[string]interface{}{
+			"summary_status": types.SummaryStatusFailed,
+			"updated_at":     now,
+		})
+	if resDrainedSummary.Error != nil {
+		logger.Warnf(ctx, "[Housekeeping] drained summary sweep failed: %v", resDrainedSummary.Error)
+	} else if resDrainedSummary.RowsAffected > 0 {
+		logger.Infof(ctx, "[Housekeeping] recovered %d drained summary row(s)", resDrainedSummary.RowsAffected)
+	}
+
 	// Sweep A: knowledge stuck in "processing".
 	//
 	// Two-stage check is critical here: knowledge.updated_at advances

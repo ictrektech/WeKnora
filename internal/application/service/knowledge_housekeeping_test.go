@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS knowledges (
     type            TEXT NOT NULL DEFAULT 'document',
     embedding_model_id TEXT NOT NULL DEFAULT '',
     storage_size    BIGINT NOT NULL DEFAULT 0,
+    processed_at    DATETIME,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at      DATETIME
@@ -246,6 +247,44 @@ func TestHousekeeping_PromotesDrainedFinalizing(t *testing.T) {
 	assert.Equal(t, types.ParseStatusCompleted, status,
 		"finalizing row with no pending subtasks should be promoted")
 	assert.Empty(t, errorMessage)
+}
+
+func TestHousekeeping_RecoversDrainedSummary(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcForTest(db)
+	require.NoError(t, db.Exec(
+		`INSERT INTO knowledges (id, parse_status, summary_status, pending_subtasks_count, updated_at)
+		 VALUES (?, ?, ?, 0, ?)`,
+		"kid-summary", types.ParseStatusCompleted, types.SummaryStatusPending, time.Now(),
+	).Error)
+
+	svc.runSweep(context.Background())
+
+	var summaryStatus string
+	require.NoError(t, db.Raw(
+		`SELECT summary_status FROM knowledges WHERE id = ?`, "kid-summary",
+	).Row().Scan(&summaryStatus))
+	assert.Equal(t, types.SummaryStatusFailed, summaryStatus,
+		"completed row with drained summary accounting should stop showing summary in progress")
+}
+
+func TestHousekeeping_PreservesQueuedSummary(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcForTest(db)
+	require.NoError(t, db.Exec(
+		`INSERT INTO knowledges (id, parse_status, summary_status, pending_subtasks_count, updated_at)
+		 VALUES (?, ?, ?, 1, ?)`,
+		"kid-summary-queued", types.ParseStatusCompleted, types.SummaryStatusPending, time.Now(),
+	).Error)
+
+	svc.runSweep(context.Background())
+
+	var summaryStatus string
+	require.NoError(t, db.Raw(
+		`SELECT summary_status FROM knowledges WHERE id = ?`, "kid-summary-queued",
+	).Row().Scan(&summaryStatus))
+	assert.Equal(t, types.SummaryStatusPending, summaryStatus,
+		"summary rows with queued subtasks must be left for the worker")
 }
 
 // TestHousekeeping_QueueProbeError_FailsSafe confirms the fail-safe
