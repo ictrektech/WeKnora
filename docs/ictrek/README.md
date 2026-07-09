@@ -19,6 +19,7 @@
 - [ictrek 部署模板](deploy-template/)
 - [部署模板脚本](deploy-template/deploy.sh)
 - [并发和队列配置](deploy-template/CONCURRENCY.md)
+- [用户使用指南](USERGUIDE.md)
 - [手动触发未完成文档重解析脚本](deploy-template/trigger-reparse-incomplete.sh)
 - [Orin NX / L4T 纯 Ollama compose overlay](deploy-template/docker-compose.orin-ollama.yml)
 - [Orin NX / L4T 纯 Ollama env 示例](deploy-template/.env.orin-ollama.example)
