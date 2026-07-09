@@ -246,6 +246,8 @@ func (h *InitializationHandler) UpdateKBConfig(c *gin.Context) {
 		c.Error(errors.NewNotFoundError("知识库不存在"))
 		return
 	}
+	wasMultimodalEnabled := kb.IsMultimodalEnabled()
+	wasGraphEnabled := kb.IsGraphEnabled()
 
 	// 检查Embedding模型是否可以修改
 	if kb.EmbeddingModelID != "" && req.EmbeddingModelID != "" && kb.EmbeddingModelID != req.EmbeddingModelID {
@@ -424,6 +426,20 @@ func (h *InitializationHandler) UpdateKBConfig(c *gin.Context) {
 		logger.Error(ctx, "Failed to update knowledge base", err)
 		c.Error(errors.NewInternalServerError("更新知识库失败: " + err.Error()))
 		return
+	}
+	if err := h.kbService.CancelDisabledFeatureTasks(ctx, kb,
+		wasMultimodalEnabled && !kb.IsMultimodalEnabled(),
+		wasGraphEnabled && !kb.IsGraphEnabled(),
+	); err != nil {
+		logger.Warnf(ctx, "disabled feature cleanup failed for kb %s: %v", utils.SanitizeForLog(kb.ID), err)
+	}
+	if !wasMultimodalEnabled && kb.IsMultimodalEnabled() {
+		if recovered, err := h.kbService.RecoverEnabledMultimodalTasks(ctx, kb); err != nil {
+			logger.Warnf(ctx, "enabled multimodal recovery failed for kb %s: %v", utils.SanitizeForLog(kb.ID), err)
+		} else if recovered > 0 {
+			logger.Infof(ctx, "enabled multimodal recovery enqueued for %d knowledge item(s), kb=%s",
+				recovered, utils.SanitizeForLog(kb.ID))
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1439,11 +1455,9 @@ func (h *InitializationHandler) buildConfigResponse(ctx context.Context, models 
 		}
 	}
 
-	// 判断多模态是否启用：有VLM模型ID或有存储配置（兼容新旧字段）
-	storageProvider := kb.GetStorageProvider()
-	hasMultimodal := (kb.VLMConfig.IsEnabled() ||
-		kb.StorageConfig.SecretID != "" || kb.StorageConfig.BucketName != "" ||
-		(storageProvider != "" && storageProvider != "local"))
+	// 多模态开关只跟 VLM 配置一致。存储配置只是图片文件的保存位置，
+	// 不能反向把已关闭的多模态显示成开启。
+	hasMultimodal := kb.VLMConfig.IsEnabled()
 	if config["multimodal"] == nil {
 		config["multimodal"] = map[string]interface{}{
 			"enabled": hasMultimodal,

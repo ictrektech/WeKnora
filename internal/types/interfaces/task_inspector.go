@@ -24,6 +24,11 @@ type TaskInspector interface {
 	// truth, this just prevents wasted work.
 	CancelTasksForKnowledge(ctx context.Context, knowledgeID string) (deleted int, cancelled int, err error)
 
+	// CancelTasksForKnowledgeTypes is the narrow variant used when a KB feature
+	// is disabled: e.g. cancel graph extraction without touching text parsing,
+	// summary or question generation for the same knowledge.
+	CancelTasksForKnowledgeTypes(ctx context.Context, knowledgeID string, taskTypes []string) (deleted int, cancelled int, err error)
+
 	// HasQueuedTasksForKnowledge reports whether any pending / scheduled
 	// / retry / active task referencing the given knowledge ID still
 	// lives in the queue backend. It is the read-only counterpart of

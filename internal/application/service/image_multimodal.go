@@ -140,6 +140,13 @@ func (s *ImageMultimodalService) Handle(ctx context.Context, task *asynq.Task) e
 				payload.KnowledgeID, k.ParseStatus, payload.ImageURL)
 			return nil
 		}
+		if kb, err := s.kbService.GetKnowledgeBaseByID(ctx, k.KnowledgeBaseID); err == nil && kb != nil && !kb.IsMultimodalEnabled() {
+			logger.Infof(ctx, "[ImageMultimodal] KB %s disabled multimodal, skipping image %s",
+				k.KnowledgeBaseID, payload.ImageURL)
+			finalizeSubtaskDetached(ctx, s.knowledgeRepo, payload.KnowledgeID,
+				fmt.Sprintf("multimodal.image[%d]", payload.ImageIndex), nil, false, true)
+			return nil
+		}
 	}
 
 	// Open a per-image subspan under the parent attempt's multimodal
@@ -613,6 +620,7 @@ func (s *ImageMultimodalService) enqueueKnowledgePostProcessTask(ctx context.Con
 		KnowledgeID:     payload.KnowledgeID,
 		KnowledgeBaseID: payload.KnowledgeBaseID,
 		Language:        payload.Language,
+		Attempt:         payload.Attempt,
 	}
 	langfuse.InjectTracing(ctx, &taskPayload)
 	payloadBytes, err := json.Marshal(taskPayload)

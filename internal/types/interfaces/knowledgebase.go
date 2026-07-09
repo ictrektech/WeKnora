@@ -74,6 +74,9 @@ type KnowledgeBaseService interface {
 		id string, name string, description string, config *types.KnowledgeBaseConfig,
 	) (*types.KnowledgeBase, error)
 
+	CancelDisabledFeatureTasks(ctx context.Context, kb *types.KnowledgeBase, multimodalDisabled bool, graphDisabled bool) error
+	RecoverEnabledMultimodalTasks(ctx context.Context, kb *types.KnowledgeBase) (int, error)
+
 	// DeleteKnowledgeBase deletes a knowledge base
 	// Parameters:
 	//   - ctx: Context information

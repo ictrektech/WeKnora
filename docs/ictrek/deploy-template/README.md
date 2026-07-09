@@ -22,6 +22,14 @@ config/builtin_models.orin-ollama.yaml.example
 
 这个 overlay 会启动两个 Ollama 容器：`ollama-qa` 只服务聊天和图片理解，`ollama-embedding` 只服务 embedding。这样文档向量化不会把聊天/VLM 的 Ollama 调度槽位吃满。
 
+Orin NX / Jetson 上这两个 Ollama 容器显式使用 `runtime: nvidia`、`NVIDIA_VISIBLE_DEVICES=all` 和 `NVIDIA_DRIVER_CAPABILITIES=compute,utility`，避免按 Docker 默认 `runc` 启动后模型落到 CPU。部署后用下面命令确认：
+
+```bash
+docker inspect ollama-qa --format 'runtime={{.HostConfig.Runtime}}'
+docker inspect ollama-embedding --format 'runtime={{.HostConfig.Runtime}}'
+docker exec ollama-qa sh -lc 'ls /dev/nvhost-gpu /dev/nvmap /dev/nvhost-ctrl-gpu'
+```
+
 模板故意不包含 `build:` 段，也不引用 `wechatopenai/*` 上游镜像。WeKnora app、frontend、docreader 必须使用飞书发布表里的 SWR 镜像：
 
 ```text

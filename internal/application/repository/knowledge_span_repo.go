@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Tencent/WeKnora/internal/types"
@@ -51,6 +52,7 @@ type KnowledgeSpanRepository interface {
 	// after asynq retry or server restart so the trace tree does not
 	// accumulate duplicate postprocess.summary / question rows.
 	CancelOpenSpansByName(ctx context.Context, knowledgeID string, attempt int, name, errorCode, reason string) (int64, error)
+	CancelOpenSpansByNamePrefixes(ctx context.Context, knowledgeID string, attempt int, prefixes []string, errorCode, reason string) (int64, error)
 }
 
 type knowledgeSpanRepository struct {
@@ -298,6 +300,43 @@ func (r *knowledgeSpanRepository) CancelOpenSpansByName(
 		Where("knowledge_id = ? AND attempt = ? AND name = ? AND status IN ?",
 			knowledgeID, attempt, name,
 			[]string{types.SpanStatusPending, types.SpanStatusRunning}).
+		Updates(map[string]any{
+			"status":        types.SpanStatusCancelled,
+			"error_code":    errorCode,
+			"error_message": reason,
+			"finished_at":   now,
+			"updated_at":    now,
+		})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
+}
+
+func (r *knowledgeSpanRepository) CancelOpenSpansByNamePrefixes(
+	ctx context.Context, knowledgeID string, attempt int, prefixes []string, errorCode, reason string,
+) (int64, error) {
+	if knowledgeID == "" || attempt <= 0 || len(prefixes) == 0 {
+		return 0, nil
+	}
+	conds := make([]string, 0, len(prefixes))
+	args := make([]any, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		if prefix == "" {
+			continue
+		}
+		conds = append(conds, "name LIKE ?")
+		args = append(args, prefix+"%")
+	}
+	if len(conds) == 0 {
+		return 0, nil
+	}
+	now := time.Now()
+	res := r.db.WithContext(ctx).Model(&types.KnowledgeProcessingSpan{}).
+		Where("knowledge_id = ? AND attempt = ? AND status IN ?",
+			knowledgeID, attempt,
+			[]string{types.SpanStatusPending, types.SpanStatusRunning}).
+		Where("("+strings.Join(conds, " OR ")+")", args...).
 		Updates(map[string]any{
 			"status":        types.SpanStatusCancelled,
 			"error_code":    errorCode,

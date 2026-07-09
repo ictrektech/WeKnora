@@ -129,7 +129,9 @@ WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 
 Asynq 使用严格优先级：`critical` > `parse` > `default` > `multimodal` > `question` > `graph` / `low`。`WEKNORA_ASYNQ_QUEUE_*` 是优先级权重，不是每队列并发上限。`parse` 队列承载文档解析和批量重解析，默认高于 default/multimodal/graph/question；多模态 VLM 队列默认权重为 3，排在文本解析之后、图谱和问题生成之前。
 
-小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。`WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把 failed/pending/processing/finalizing 的文档重新入队；部署模板默认开启，代码默认值仍是关闭，只有 env 显式开启才会执行。
+小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。`WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把 failed/pending/processing 的文档重新入队；`finalizing` 只有在 `processed_at is null` 时才会整篇重跑。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的 `finalizing` 文档不会重复 docreader、分块和 embedding。
+
+启动扫描还会按知识库当前配置清理已关闭功能的后台任务：如果知识库关闭多模态识别，会删除/取消未完成的 VLM/OCR 多模态任务；如果关闭知识图谱，会删除/取消未完成的 Graph 抽取任务。重新打开多模态识别时，app 会检查已经完成文字解析、但最新 attempt 的 `multimodal` 阶段为 `skipped`、`cancelled` 或 `failed` 的文档，并从文本 chunk 里的图片链接补发 `image:multimodal` 任务，不重跑全文解析。
 
 ## Embedding 并发
 

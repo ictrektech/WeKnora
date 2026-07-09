@@ -84,8 +84,26 @@ const listPageSize = 100
 func (a *asynqTaskInspector) CancelTasksForKnowledge(
 	ctx context.Context, knowledgeID string,
 ) (int, int, error) {
+	return a.cancelTasksForKnowledgeTypes(ctx, knowledgeID, nil)
+}
+
+func (a *asynqTaskInspector) CancelTasksForKnowledgeTypes(
+	ctx context.Context, knowledgeID string, taskTypes []string,
+) (int, int, error) {
+	return a.cancelTasksForKnowledgeTypes(ctx, knowledgeID, taskTypes)
+}
+
+func (a *asynqTaskInspector) cancelTasksForKnowledgeTypes(
+	ctx context.Context, knowledgeID string, taskTypes []string,
+) (int, int, error) {
 	if a == nil || a.inspector == nil || knowledgeID == "" {
 		return 0, 0, nil
+	}
+	typeSet := make(map[string]struct{}, len(taskTypes))
+	for _, taskType := range taskTypes {
+		if taskType != "" {
+			typeSet[taskType] = struct{}{}
+		}
 	}
 	deleted := 0
 	cancelled := 0
@@ -94,10 +112,10 @@ func (a *asynqTaskInspector) CancelTasksForKnowledge(
 		// Pending / Scheduled / Retry can all be deleted by task ID.
 		// Archived tasks are NOT touched: dead-letter rows are
 		// already final and should remain visible to operators.
-		deleted += a.deletePendingMatches(ctx, queue, knowledgeID)
-		deleted += a.deleteScheduledMatches(ctx, queue, knowledgeID)
-		deleted += a.deleteRetryMatches(ctx, queue, knowledgeID)
-		cancelled += a.cancelActiveMatches(ctx, queue, knowledgeID)
+		deleted += a.deletePendingMatches(ctx, queue, knowledgeID, typeSet)
+		deleted += a.deleteScheduledMatches(ctx, queue, knowledgeID, typeSet)
+		deleted += a.deleteRetryMatches(ctx, queue, knowledgeID, typeSet)
+		cancelled += a.cancelActiveMatches(ctx, queue, knowledgeID, typeSet)
 	}
 
 	logger.Infof(ctx,
@@ -173,6 +191,15 @@ func (a *asynqTaskInspector) queueStateHasMatch(
 // matchesKnowledge returns true when the task type is one we cancel
 // AND its payload references the target knowledge ID.
 func matchesKnowledge(taskType string, payload []byte, knowledgeID string) bool {
+	return matchesKnowledgeTyped(taskType, payload, knowledgeID, nil)
+}
+
+func matchesKnowledgeTyped(taskType string, payload []byte, knowledgeID string, typeSet map[string]struct{}) bool {
+	if len(typeSet) > 0 {
+		if _, ok := typeSet[taskType]; !ok {
+			return false
+		}
+	}
 	if _, ok := taskTypesForKnowledgeCancel[taskType]; !ok {
 		return false
 	}
@@ -183,7 +210,7 @@ func matchesKnowledge(taskType string, payload []byte, knowledgeID string) bool 
 	return probe.KnowledgeID == knowledgeID
 }
 
-func (a *asynqTaskInspector) deletePendingMatches(ctx context.Context, queue, knowledgeID string) int {
+func (a *asynqTaskInspector) deletePendingMatches(ctx context.Context, queue, knowledgeID string, typeSet map[string]struct{}) int {
 	deleted := 0
 	page := 1
 	for {
@@ -198,7 +225,7 @@ func (a *asynqTaskInspector) deletePendingMatches(ctx context.Context, queue, kn
 			return deleted
 		}
 		for _, t := range tasks {
-			if !matchesKnowledge(t.Type, t.Payload, knowledgeID) {
+			if !matchesKnowledgeTyped(t.Type, t.Payload, knowledgeID, typeSet) {
 				continue
 			}
 			if err := a.inspector.DeleteTask(queue, t.ID); err != nil {
@@ -214,7 +241,7 @@ func (a *asynqTaskInspector) deletePendingMatches(ctx context.Context, queue, kn
 	}
 }
 
-func (a *asynqTaskInspector) deleteScheduledMatches(ctx context.Context, queue, knowledgeID string) int {
+func (a *asynqTaskInspector) deleteScheduledMatches(ctx context.Context, queue, knowledgeID string, typeSet map[string]struct{}) int {
 	deleted := 0
 	page := 1
 	for {
@@ -229,7 +256,7 @@ func (a *asynqTaskInspector) deleteScheduledMatches(ctx context.Context, queue, 
 			return deleted
 		}
 		for _, t := range tasks {
-			if !matchesKnowledge(t.Type, t.Payload, knowledgeID) {
+			if !matchesKnowledgeTyped(t.Type, t.Payload, knowledgeID, typeSet) {
 				continue
 			}
 			if err := a.inspector.DeleteTask(queue, t.ID); err != nil {
@@ -245,7 +272,7 @@ func (a *asynqTaskInspector) deleteScheduledMatches(ctx context.Context, queue, 
 	}
 }
 
-func (a *asynqTaskInspector) deleteRetryMatches(ctx context.Context, queue, knowledgeID string) int {
+func (a *asynqTaskInspector) deleteRetryMatches(ctx context.Context, queue, knowledgeID string, typeSet map[string]struct{}) int {
 	deleted := 0
 	page := 1
 	for {
@@ -260,7 +287,7 @@ func (a *asynqTaskInspector) deleteRetryMatches(ctx context.Context, queue, know
 			return deleted
 		}
 		for _, t := range tasks {
-			if !matchesKnowledge(t.Type, t.Payload, knowledgeID) {
+			if !matchesKnowledgeTyped(t.Type, t.Payload, knowledgeID, typeSet) {
 				continue
 			}
 			if err := a.inspector.DeleteTask(queue, t.ID); err != nil {
@@ -281,7 +308,7 @@ func (a *asynqTaskInspector) deleteRetryMatches(ctx context.Context, queue, know
 // next blocking call (or our checkpoint reads) bails. The DB-level
 // abort flag (parse_status=cancelled) remains the durable signal —
 // this is a latency optimization, not the correctness mechanism.
-func (a *asynqTaskInspector) cancelActiveMatches(ctx context.Context, queue, knowledgeID string) int {
+func (a *asynqTaskInspector) cancelActiveMatches(ctx context.Context, queue, knowledgeID string, typeSet map[string]struct{}) int {
 	cancelled := 0
 	page := 1
 	for {
@@ -296,7 +323,7 @@ func (a *asynqTaskInspector) cancelActiveMatches(ctx context.Context, queue, kno
 			return cancelled
 		}
 		for _, t := range tasks {
-			if !matchesKnowledge(t.Type, t.Payload, knowledgeID) {
+			if !matchesKnowledgeTyped(t.Type, t.Payload, knowledgeID, typeSet) {
 				continue
 			}
 			if err := a.inspector.CancelProcessing(t.ID); err != nil {
@@ -323,6 +350,12 @@ func NewNoopTaskInspector() interfaces.TaskInspector { return noopTaskInspector{
 
 func (noopTaskInspector) CancelTasksForKnowledge(
 	ctx context.Context, knowledgeID string,
+) (int, int, error) {
+	return 0, 0, nil
+}
+
+func (noopTaskInspector) CancelTasksForKnowledgeTypes(
+	ctx context.Context, knowledgeID string, taskTypes []string,
 ) (int, int, error) {
 	return 0, 0, nil
 }

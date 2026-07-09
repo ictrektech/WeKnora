@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/application/repository"
 	"github.com/Tencent/WeKnora/internal/application/service/retriever"
 	"github.com/Tencent/WeKnora/internal/datasource"
 	apperrors "github.com/Tencent/WeKnora/internal/errors"
@@ -19,6 +21,7 @@ import (
 	secutils "github.com/Tencent/WeKnora/internal/utils"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/redis/go-redis/v9"
 )
 
 // ErrInvalidTenantID represents an error for invalid tenant ID
@@ -38,6 +41,9 @@ type knowledgeBaseService struct {
 	fileSvc        interfaces.FileService
 	graphEngine    interfaces.RetrieveGraphRepository
 	asynqClient    interfaces.TaskEnqueuer
+	taskInspector  interfaces.TaskInspector
+	spanRepo       repository.KnowledgeSpanRepository
+	redisClient    *redis.Client
 	dsRepo         interfaces.DataSourceRepository
 	syncLogRepo    interfaces.SyncLogRepository
 	dsScheduler    *datasource.Scheduler
@@ -56,6 +62,9 @@ func NewKnowledgeBaseService(repo interfaces.KnowledgeBaseRepository,
 	fileSvc interfaces.FileService,
 	graphEngine interfaces.RetrieveGraphRepository,
 	asynqClient interfaces.TaskEnqueuer,
+	taskInspector interfaces.TaskInspector,
+	spanRepo repository.KnowledgeSpanRepository,
+	redisClient *redis.Client,
 	dsRepo interfaces.DataSourceRepository,
 	syncLogRepo interfaces.SyncLogRepository,
 	dsScheduler *datasource.Scheduler,
@@ -73,6 +82,9 @@ func NewKnowledgeBaseService(repo interfaces.KnowledgeBaseRepository,
 		fileSvc:        fileSvc,
 		graphEngine:    graphEngine,
 		asynqClient:    asynqClient,
+		taskInspector:  taskInspector,
+		spanRepo:       spanRepo,
+		redisClient:    redisClient,
 		dsRepo:         dsRepo,
 		syncLogRepo:    syncLogRepo,
 		dsScheduler:    dsScheduler,
@@ -442,6 +454,8 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 		})
 		return nil, err
 	}
+	wasGraphEnabled := kb.IsGraphEnabled()
+	wasMultimodalEnabled := kb.IsMultimodalEnabled()
 
 	// Update the knowledge base properties
 	kb.Name = name
@@ -484,9 +498,260 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 		})
 		return nil, err
 	}
+	if err := s.CancelDisabledFeatureTasks(ctx, kb,
+		wasMultimodalEnabled && !kb.IsMultimodalEnabled(),
+		wasGraphEnabled && !kb.IsGraphEnabled(),
+	); err != nil {
+		logger.Warnf(ctx, "knowledge base disabled feature cleanup failed, kb=%s: %v", kb.ID, err)
+	}
+	if !wasMultimodalEnabled && kb.IsMultimodalEnabled() {
+		if recovered, err := s.RecoverEnabledMultimodalTasks(ctx, kb); err != nil {
+			logger.Warnf(ctx, "knowledge base multimodal recovery failed, kb=%s: %v", kb.ID, err)
+		} else if recovered > 0 {
+			logger.Infof(ctx, "knowledge base multimodal recovery enqueued for %d knowledge item(s), kb=%s", recovered, kb.ID)
+		}
+	}
 
 	logger.Infof(ctx, "Knowledge base updated successfully, ID: %s, name: %s", kb.ID, kb.Name)
 	return kb, nil
+}
+
+func (s *knowledgeBaseService) CancelDisabledFeatureTasks(
+	ctx context.Context, kb *types.KnowledgeBase, multimodalDisabled bool, graphDisabled bool,
+) error {
+	if kb == nil || (!multimodalDisabled && !graphDisabled) {
+		return nil
+	}
+	knowledges, err := s.kgRepo.ListKnowledgeByKnowledgeBaseID(ctx, kb.TenantID, kb.ID)
+	if err != nil {
+		return err
+	}
+	for _, k := range knowledges {
+		if k == nil {
+			continue
+		}
+		if multimodalDisabled {
+			s.cancelKnowledgeFeatureTasks(ctx, k.ID, []string{types.TypeImageMultimodal}, []string{types.StageMultimodal, "multimodal."}, "FEATURE_MULTIMODAL_DISABLED", "多模态识别已关闭")
+		}
+		if graphDisabled {
+			s.cancelKnowledgeFeatureTasks(ctx, k.ID, []string{types.TypeChunkExtract}, []string{"postprocess.graph."}, "FEATURE_GRAPH_DISABLED", "知识图谱已关闭")
+		}
+	}
+	return nil
+}
+
+var markdownImageURLRE = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)(?:\s+["'][^)]*["'])?\)`)
+
+type recoveredMultimodalImage struct {
+	url     string
+	chunkID string
+}
+
+type multimodalRecoveryCandidate struct {
+	attempt      int
+	spanID       string
+	parentSpanID string
+}
+
+func (s *knowledgeBaseService) RecoverEnabledMultimodalTasks(ctx context.Context, kb *types.KnowledgeBase) (int, error) {
+	if kb == nil || !kb.IsMultimodalEnabled() || s.asynqClient == nil {
+		return 0, nil
+	}
+	knowledges, err := s.kgRepo.ListKnowledgeByKnowledgeBaseID(ctx, kb.TenantID, kb.ID)
+	if err != nil {
+		return 0, err
+	}
+	recovered := 0
+	for _, k := range knowledges {
+		if k == nil || k.ProcessedAt == nil ||
+			k.ParseStatus == types.ParseStatusDeleting ||
+			k.ParseStatus == types.ParseStatusCancelled {
+			continue
+		}
+		candidate, err := s.multimodalRecoveryCandidate(ctx, k.ID)
+		if err != nil {
+			logger.Warnf(ctx, "multimodal recovery: inspect span failed, knowledge=%s: %v", k.ID, err)
+			continue
+		}
+		if candidate == nil {
+			continue
+		}
+		images, err := s.collectRecoverableMultimodalImages(ctx, k)
+		if err != nil {
+			logger.Warnf(ctx, "multimodal recovery: collect images failed, knowledge=%s: %v", k.ID, err)
+			continue
+		}
+		if len(images) == 0 {
+			continue
+		}
+		if err := s.enqueueRecoveredMultimodal(ctx, kb, k, images, candidate); err != nil {
+			logger.Warnf(ctx, "multimodal recovery: enqueue failed, knowledge=%s: %v", k.ID, err)
+			continue
+		}
+		recovered++
+	}
+	return recovered, nil
+}
+
+func (s *knowledgeBaseService) multimodalRecoveryCandidate(
+	ctx context.Context, knowledgeID string,
+) (*multimodalRecoveryCandidate, error) {
+	if s.spanRepo == nil {
+		return nil, nil
+	}
+	attempt, err := s.spanRepo.LatestAttempt(ctx, knowledgeID)
+	if err != nil || attempt <= 0 {
+		return nil, err
+	}
+	rows, err := s.spanRepo.ListByAttempt(ctx, knowledgeID, attempt)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.Kind == types.SpanKindStage && row.Name == types.StageMultimodal {
+			if row.Status == types.SpanStatusSkipped || row.Status == types.SpanStatusCancelled ||
+				row.Status == types.SpanStatusFailed {
+				return &multimodalRecoveryCandidate{
+					attempt:      attempt,
+					spanID:       row.SpanID,
+					parentSpanID: row.ParentSpanID,
+				}, nil
+			}
+			return nil, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *knowledgeBaseService) collectRecoverableMultimodalImages(
+	ctx context.Context, k *types.Knowledge,
+) ([]recoveredMultimodalImage, error) {
+	chunks, err := s.chunkRepo.ListChunksByKnowledgeID(ctx, k.TenantID, k.ID)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool)
+	images := make([]recoveredMultimodalImage, 0)
+	for _, chunk := range chunks {
+		if chunk == nil || chunk.ChunkType != types.ChunkTypeText {
+			continue
+		}
+		for _, m := range markdownImageURLRE.FindAllStringSubmatch(chunk.Content, -1) {
+			if len(m) < 2 {
+				continue
+			}
+			url := strings.Trim(m[1], "<>\"'")
+			if url == "" || types.ParseProviderScheme(url) == "" || seen[url] {
+				continue
+			}
+			seen[url] = true
+			images = append(images, recoveredMultimodalImage{url: url, chunkID: chunk.ID})
+		}
+	}
+	return images, nil
+}
+
+func (s *knowledgeBaseService) enqueueRecoveredMultimodal(
+	ctx context.Context,
+	kb *types.KnowledgeBase,
+	k *types.Knowledge,
+	images []recoveredMultimodalImage,
+	candidate *multimodalRecoveryCandidate,
+) error {
+	if candidate == nil || candidate.attempt <= 0 || candidate.spanID == "" {
+		return errors.New("multimodal recovery: missing latest multimodal span")
+	}
+	now := time.Now()
+	if err := s.kgRepo.UpdateKnowledgeColumns(ctx, k.ID, map[string]interface{}{
+		"parse_status":           types.ParseStatusFinalizing,
+		"pending_subtasks_count": 0,
+		"updated_at":             now,
+	}); err != nil {
+		return err
+	}
+	if s.redisClient != nil {
+		if err := s.redisClient.Set(ctx, fmt.Sprintf("multimodal:pending:%s", k.ID), len(images), 24*time.Hour).Err(); err != nil {
+			logger.Warnf(ctx, "multimodal recovery: set pending count failed, knowledge=%s: %v", k.ID, err)
+		}
+	}
+	if s.spanRepo != nil {
+		_ = s.spanRepo.Upsert(ctx, &types.KnowledgeProcessingSpan{
+			KnowledgeID:  k.ID,
+			Attempt:      candidate.attempt,
+			SpanID:       candidate.spanID,
+			ParentSpanID: candidate.parentSpanID,
+			Name:         types.StageMultimodal,
+			Kind:         types.SpanKindStage,
+			Status:       types.SpanStatusRunning,
+			Input: types.JSONMap{
+				"image_count":    len(images),
+				"enable_ocr":     true,
+				"enable_caption": true,
+				"recovered":      true,
+			},
+			StartedAt: &now,
+		})
+	}
+	imageSourceType := ""
+	if strings.EqualFold(k.FileType, "pdf") {
+		imageSourceType = "scanned_pdf"
+	}
+	for i, img := range images {
+		payload := types.ImageMultimodalPayload{
+			TenantID:        k.TenantID,
+			KnowledgeID:     k.ID,
+			KnowledgeBaseID: kb.ID,
+			ChunkID:         img.chunkID,
+			ImageURL:        img.url,
+			EnableOCR:       true,
+			EnableCaption:   true,
+			ImageSourceType: imageSourceType,
+			Attempt:         candidate.attempt,
+			ImageIndex:      i,
+		}
+		langfuse.InjectTracing(ctx, &payload)
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		task := asynq.NewTask(types.TypeImageMultimodal, payloadBytes,
+			asynq.Queue(types.QueueMultimodal), asynq.MaxRetry(3))
+		if _, err := s.asynqClient.Enqueue(task); err != nil {
+			return err
+		}
+	}
+	logger.Infof(ctx, "multimodal recovery: enqueued %d image task(s), knowledge=%s attempt=%d",
+		len(images), k.ID, candidate.attempt)
+	return nil
+}
+
+func (s *knowledgeBaseService) cancelKnowledgeFeatureTasks(
+	ctx context.Context, knowledgeID string, taskTypes []string, spanPrefixes []string, errorCode string, reason string,
+) {
+	deleted := 0
+	if s.taskInspector != nil {
+		d, _, err := s.taskInspector.CancelTasksForKnowledgeTypes(ctx, knowledgeID, taskTypes)
+		if err != nil {
+			logger.Warnf(ctx, "feature cleanup: cancel queued tasks failed, knowledge=%s: %v", knowledgeID, err)
+		}
+		deleted = d
+	}
+	for i := 0; i < deleted; i++ {
+		if _, _, err := s.kgRepo.FinalizeSubtask(ctx, knowledgeID); err != nil {
+			logger.Warnf(ctx, "feature cleanup: release subtask failed, knowledge=%s: %v", knowledgeID, err)
+			break
+		}
+	}
+	if s.spanRepo == nil {
+		return
+	}
+	attempt, err := s.spanRepo.LatestAttempt(ctx, knowledgeID)
+	if err != nil || attempt <= 0 {
+		return
+	}
+	if _, err := s.spanRepo.CancelOpenSpansByNamePrefixes(ctx, knowledgeID, attempt, spanPrefixes, errorCode, reason); err != nil {
+		logger.Warnf(ctx, "feature cleanup: cancel spans failed, knowledge=%s: %v", knowledgeID, err)
+	}
 }
 
 // TogglePinKnowledgeBase toggles whether the calling user has pinned

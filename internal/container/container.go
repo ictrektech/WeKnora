@@ -296,6 +296,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewHousekeepingService))
 	must(container.Invoke(startHousekeepingService))
 	logger.Debugf(ctx, "[Container] Knowledge housekeeping runner registered")
+	must(container.Invoke(cleanupDisabledFeatureTasksOnStart))
+	must(container.Invoke(recoverEnabledMultimodalTasksOnStart))
 	must(container.Invoke(reparseIncompleteKnowledgeOnStart))
 	must(container.Provide(chatpipeline.NewEventManager))
 	must(container.Invoke(chatpipeline.NewPluginSearch))
@@ -1438,15 +1440,24 @@ func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer
 		types.ParseStatusFailed,
 		types.ParseStatusPending,
 		types.ParseStatusProcessing,
-		types.ParseStatusFinalizing,
 	}
 	if err := db.WithContext(ctx).Model(&types.Knowledge{}).
 		Select("tenant_id, id").
-		Where("deleted_at IS NULL AND parse_status IN ?", statuses).
+		Where(`deleted_at IS NULL AND (
+			parse_status IN ?
+			OR (parse_status = ? AND processed_at IS NULL)
+		)`, statuses, types.ParseStatusFinalizing).
 		Order("tenant_id, updated_at ASC").
 		Find(&rows).Error; err != nil {
 		logger.Warnf(ctx, "[startup-reparse] query incomplete knowledge failed: %v", err)
 		return
+	}
+	var skippedFinalizing int64
+	if err := db.WithContext(ctx).Model(&types.Knowledge{}).
+		Where("deleted_at IS NULL AND parse_status = ? AND processed_at IS NOT NULL", types.ParseStatusFinalizing).
+		Count(&skippedFinalizing).Error; err == nil && skippedFinalizing > 0 {
+		logger.Infof(ctx, "[startup-reparse] skipped %d finalizing knowledge item(s) with completed text stage",
+			skippedFinalizing)
 	}
 	if len(rows) == 0 {
 		logger.Infof(ctx, "[startup-reparse] no incomplete knowledge to reparse")
@@ -1482,6 +1493,121 @@ func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer
 		submitted += len(ids)
 	}
 	logger.Infof(ctx, "[startup-reparse] submitted %d incomplete knowledge item(s)", submitted)
+}
+
+func cleanupDisabledFeatureTasksOnStart(
+	db *gorm.DB,
+	kgRepo interfaces.KnowledgeRepository,
+	inspector interfaces.TaskInspector,
+	spanRepo repository.KnowledgeSpanRepository,
+) {
+	if db == nil || kgRepo == nil || inspector == nil {
+		return
+	}
+	ctx := context.Background()
+	var kbs []*types.KnowledgeBase
+	if err := db.WithContext(ctx).Where("deleted_at IS NULL").Find(&kbs).Error; err != nil {
+		logger.Warnf(ctx, "[startup-feature-cleanup] query knowledge bases failed: %v", err)
+		return
+	}
+	var cleaned int
+	for _, kb := range kbs {
+		if kb == nil || (kb.IsMultimodalEnabled() && kb.IsGraphEnabled()) {
+			continue
+		}
+		knowledges, err := kgRepo.ListKnowledgeByKnowledgeBaseID(ctx, kb.TenantID, kb.ID)
+		if err != nil {
+			logger.Warnf(ctx, "[startup-feature-cleanup] list knowledge kb=%s failed: %v", kb.ID, err)
+			continue
+		}
+		for _, k := range knowledges {
+			if k == nil {
+				continue
+			}
+			if !kb.IsMultimodalEnabled() {
+				cleanupKnowledgeFeatureTasks(ctx, kgRepo, inspector, spanRepo, k.ID,
+					[]string{types.TypeImageMultimodal}, []string{types.StageMultimodal, "multimodal."},
+					"FEATURE_MULTIMODAL_DISABLED", "多模态识别已关闭")
+			}
+			if !kb.IsGraphEnabled() {
+				cleanupKnowledgeFeatureTasks(ctx, kgRepo, inspector, spanRepo, k.ID,
+					[]string{types.TypeChunkExtract}, []string{"postprocess.graph."},
+					"FEATURE_GRAPH_DISABLED", "知识图谱已关闭")
+			}
+			cleaned++
+		}
+	}
+	if cleaned > 0 {
+		logger.Infof(ctx, "[startup-feature-cleanup] checked disabled feature tasks for %d knowledge item(s)", cleaned)
+	}
+}
+
+func recoverEnabledMultimodalTasksOnStart(
+	db *gorm.DB,
+	kbService interfaces.KnowledgeBaseService,
+) {
+	if db == nil || kbService == nil {
+		return
+	}
+	ctx := context.Background()
+	var kbs []*types.KnowledgeBase
+	if err := db.WithContext(ctx).Where("deleted_at IS NULL").Find(&kbs).Error; err != nil {
+		logger.Warnf(ctx, "[startup-feature-recovery] query knowledge bases failed: %v", err)
+		return
+	}
+	recoveredKBs := 0
+	recoveredKnowledge := 0
+	for _, kb := range kbs {
+		if kb == nil || !kb.IsMultimodalEnabled() {
+			continue
+		}
+		n, err := kbService.RecoverEnabledMultimodalTasks(ctx, kb)
+		if err != nil {
+			logger.Warnf(ctx, "[startup-feature-recovery] recover multimodal kb=%s failed: %v", kb.ID, err)
+			continue
+		}
+		if n > 0 {
+			recoveredKBs++
+			recoveredKnowledge += n
+		}
+	}
+	if recoveredKnowledge > 0 {
+		logger.Infof(ctx, "[startup-feature-recovery] recovered multimodal for %d knowledge item(s) in %d KB(s)",
+			recoveredKnowledge, recoveredKBs)
+	}
+}
+
+func cleanupKnowledgeFeatureTasks(
+	ctx context.Context,
+	kgRepo interfaces.KnowledgeRepository,
+	inspector interfaces.TaskInspector,
+	spanRepo repository.KnowledgeSpanRepository,
+	knowledgeID string,
+	taskTypes []string,
+	spanPrefixes []string,
+	errorCode string,
+	reason string,
+) {
+	deleted, _, err := inspector.CancelTasksForKnowledgeTypes(ctx, knowledgeID, taskTypes)
+	if err != nil {
+		logger.Warnf(ctx, "[startup-feature-cleanup] cancel tasks knowledge=%s failed: %v", knowledgeID, err)
+	}
+	for i := 0; i < deleted; i++ {
+		if _, _, err := kgRepo.FinalizeSubtask(ctx, knowledgeID); err != nil {
+			logger.Warnf(ctx, "[startup-feature-cleanup] release subtask knowledge=%s failed: %v", knowledgeID, err)
+			break
+		}
+	}
+	if spanRepo == nil {
+		return
+	}
+	attempt, err := spanRepo.LatestAttempt(ctx, knowledgeID)
+	if err != nil || attempt <= 0 {
+		return
+	}
+	if _, err := spanRepo.CancelOpenSpansByNamePrefixes(ctx, knowledgeID, attempt, spanPrefixes, errorCode, reason); err != nil {
+		logger.Warnf(ctx, "[startup-feature-cleanup] cancel spans knowledge=%s failed: %v", knowledgeID, err)
+	}
 }
 
 func waitForStartupReparseDependencies(ctx context.Context) bool {

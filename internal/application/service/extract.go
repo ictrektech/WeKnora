@@ -207,6 +207,15 @@ func (s *ChunkExtractService) Handle(ctx context.Context, t *asynq.Task) error {
 	ctx = logger.WithField(ctx, "extract", p.ChunkID)
 	ctx = context.WithValue(ctx, types.TenantIDContextKey, p.TenantID)
 
+	if k, err := s.knowledgeRepo.GetKnowledgeByIDOnly(ctx, p.KnowledgeID); err == nil && k != nil {
+		if kb, err := s.knowledgeBaseRepo.GetKnowledgeBaseByID(ctx, k.KnowledgeBaseID); err == nil && kb != nil && !kb.IsGraphEnabled() {
+			logger.Infof(ctx, "graph extract: KB %s disabled graph, skipping chunk %s", k.KnowledgeBaseID, p.ChunkID)
+			finalizeSubtaskDetached(ctx, s.knowledgeRepo, p.KnowledgeID,
+				fmt.Sprintf("graph_chunk[%d]", p.ChunkIndex), nil, false, true)
+			return nil
+		}
+	}
+
 	// A newer attempt (re-upload / edit / reparse) has superseded this one:
 	// skip before opening the span or registering the FinalizeSubtask defer.
 	// The chunk this task references was deleted by the new attempt's cleanup,
