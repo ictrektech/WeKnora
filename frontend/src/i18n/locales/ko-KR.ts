@@ -15,6 +15,9 @@ export default {
     clearMessages: "메시지 지우기",
     clearMessagesSuccess: "메시지가 지워졌습니다",
     clearMessagesFailed: "메시지 지우기 실패, 나중에 다시 시도해 주세요",
+    renameSession: "제목 수정",
+    renameSessionSuccess: "제목이 업데이트되었습니다",
+    renameSessionFailed: "제목 수정 실패, 나중에 다시 시도해 주세요",
     batchManage: "일괄 관리",
     newSession: "새 세션",
     pin: "고정",
@@ -3169,6 +3172,7 @@ export default {
     },
     menu: {
       viewDetails: "세부 사항을 확인하세요",
+      duplicate: "복제",
     },
     pin: {
       pin: "상단 고정",
@@ -3214,10 +3218,13 @@ export default {
       knowledgeGraph: "지식 그래프 활성화됨",
       multimodal: "멀티모달 활성화됨",
       questionGeneration: "질문 생성 활성화됨",
+      wiki: "Wiki",
     },
     messages: {
       deleted: "삭제됨",
       deleteFailed: "삭제 실패",
+      duplicateSuccess: "지식베이스 복제본이 생성되었습니다(콘텐츠 제외)",
+      duplicateFailed: "지식베이스 복제본 생성 실패",
       file: "파일",
       knowledgeBase: "지식베이스",
       noResult: "결과 없음",

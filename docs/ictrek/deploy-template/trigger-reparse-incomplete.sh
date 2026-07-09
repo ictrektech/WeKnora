@@ -177,7 +177,7 @@ main() {
   local db_user db_name app_port api_url ready_urls postgres_cid token status_sql kb_ids tmp ids_file total count payload code
   db_user="$(env_value DB_USER postgres)"
   db_name="$(env_value DB_NAME WeKnora)"
-  app_port="$(env_value APP_PORT 19081)"
+  app_port="$(env_value APP_PORT 30081)"
   api_url="${WEKNORA_API_URL:-http://127.0.0.1:${app_port}}"
   ready_urls="${REPARSE_WAIT_URLS:-$(env_value WEKNORA_REPARSE_WAIT_URLS "")}"
 

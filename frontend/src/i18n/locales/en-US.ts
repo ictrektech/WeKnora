@@ -15,6 +15,9 @@ export default {
     clearMessages: 'Clear Messages',
     clearMessagesSuccess: 'Messages cleared',
     clearMessagesFailed: 'Failed to clear messages, please try again later',
+    renameSession: 'Rename',
+    renameSessionSuccess: 'Title updated',
+    renameSessionFailed: 'Failed to update title, please try again later',
     batchManage: 'Batch Manage',
     newSession: 'New Chat',
     pin: 'Pin',
@@ -2280,6 +2283,7 @@ export default {
     },
     menu: {
       viewDetails: 'View Details',
+      duplicate: 'Duplicate',
     },
     pin: {
       pin: 'Pin to Top',
@@ -2300,6 +2304,8 @@ export default {
     messages: {
       deleted: 'Knowledge base deleted',
       deleteFailed: 'Failed to delete knowledge base',
+      duplicateSuccess: 'Knowledge base duplicate created (content not included)',
+      duplicateFailed: 'Failed to create knowledge base duplicate',
       file: 'File',
       knowledgeBase: 'Knowledge Base',
       noResult: 'No results',
@@ -2332,6 +2338,7 @@ export default {
       knowledgeGraph: 'Knowledge Graph',
       multimodal: 'Multimodal',
       questionGeneration: 'Question Generation',
+      wiki: 'Wiki',
     },
     processing: 'Processing import task',
     processingDocuments: 'Processing {count} documents',

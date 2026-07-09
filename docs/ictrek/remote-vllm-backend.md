@@ -26,6 +26,8 @@ KnowledgeQA  source=remote  name=qwen3.5-9b-awq  base_url=http://host.docker.int
 VLLM         source=remote  name=qwen3.5-9b-awq  base_url=http://host.docker.internal:18118/v1
 ```
 
+只有 vLLM 容器实际运行并通过 `/v1/models` 验证后，才把这个地址写入模型配置或 `WEKNORA_REPARSE_WAIT_URLS`。纯 Ollama / model-hub 部署不要保留未运行的 `18118` 等待地址。
+
 如果 app 容器通过 `host.docker.internal` 访问这个宿主机端口，`SSRF_WHITELIST_EXTRA` 必须保留 `host.docker.internal`。基础 `docker-compose.yml` 已默认包含；如果部署覆盖了该变量，要显式写回：
 
 ```env

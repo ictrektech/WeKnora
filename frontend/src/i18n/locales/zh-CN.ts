@@ -15,6 +15,9 @@ export default {
     clearMessages: "清空消息",
     clearMessagesSuccess: "消息已清空",
     clearMessagesFailed: "清空消息失败，请稍后再试",
+    renameSession: "修改标题",
+    renameSessionSuccess: "标题已更新",
+    renameSessionFailed: "修改标题失败，请稍后再试",
     batchManage: "批量管理",
     newSession: "新会话",
     pin: "置顶",
@@ -3202,6 +3205,7 @@ export default {
     },
     menu: {
       viewDetails: "查看详情",
+      duplicate: "创建副本",
     },
     pin: {
       pin: "置顶",
@@ -3247,10 +3251,13 @@ export default {
       knowledgeGraph: "知识图谱",
       multimodal: "多模态",
       questionGeneration: "问题生成",
+      wiki: "Wiki",
     },
     messages: {
       deleted: "已删除",
       deleteFailed: "删除失败",
+      duplicateSuccess: "知识库副本已创建（不包含知识内容）",
+      duplicateFailed: "创建知识库副本失败",
       file: "文件",
       knowledgeBase: "知识库",
       noResult: "无结果",

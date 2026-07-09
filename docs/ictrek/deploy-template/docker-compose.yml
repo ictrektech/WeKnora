@@ -4,7 +4,7 @@ services:
   frontend:
     image: ${WEKNORA_UI_IMAGE:?set WEKNORA_UI_IMAGE in .env}
     ports:
-      - "${FRONTEND_PORT:-19080}:80"
+      - "${FRONTEND_PORT:-30080}:80"
     environment:
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
       APP_HOST: app
@@ -20,7 +20,7 @@ services:
   app:
     image: ${WEKNORA_APP_IMAGE:?set WEKNORA_APP_IMAGE in .env}
     ports:
-      - "${APP_PORT:-19081}:8080"
+      - "${APP_PORT:-30081}:8080"
     env_file:
       - .env
     environment:
