@@ -35,6 +35,8 @@
 
 如果改了 `docreader/` 里的解析逻辑，例如 PDF 文本层乱码检测、扫描页渲染策略、文档格式解析器，必须重新构建并部署 `weknora-docreader` 镜像，再重建 `docreader` 容器；只重启旧镜像不会生效。文档页工具栏的「重新解析失败文档」只扫描当前知识库 `parse_status=failed` 的文档并按当前默认解析配置批量重新提交；`pending`、`processing` 和 `processed_at` 为空的 `finalizing` 由启动/部署脚本处理，已完成文字解析和向量入库的 `finalizing` 不会重复跑 docreader/embedding。
 
+后台 housekeeping 每 5 分钟会清理已经没有待完成子任务的 `finalizing` 文档：如果 `pending_subtasks_count=0`，会自动推进为 `completed`，避免文档文字已入库但页面长期显示「优化中」。
+
 启动时还会按知识库开关清理已关闭的多模态/Graph 后台任务；重新开启多模态后，会补发需要的 `image:multimodal` 任务。
 
 Graph 模板只提供实体、关系和示例文本配置，不会强制每个知识库生成 Graph。每个知识库可以单独关闭 Wiki/Graph，只保留向量/关键词检索；关闭 Graph 时前端会保留已配置模板，方便后续重新开启。

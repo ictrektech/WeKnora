@@ -112,6 +112,25 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 	threshold := h.staleThreshold()
 	cutoff := time.Now().Add(-threshold)
 
+	// Sweep 0: finalizing rows whose accounting counter is already drained.
+	// Normally FinalizeSubtask promotes these immediately; this catches rows
+	// left behind by process restarts or older builds before the guarded
+	// promote ran.
+	now := time.Now()
+	resDrained := h.db.WithContext(ctx).Model(&types.Knowledge{}).
+		Where("parse_status = ? AND pending_subtasks_count = 0", types.ParseStatusFinalizing).
+		Updates(map[string]interface{}{
+			"parse_status":  types.ParseStatusCompleted,
+			"processed_at":  now,
+			"updated_at":    now,
+			"error_message": "",
+		})
+	if resDrained.Error != nil {
+		logger.Warnf(ctx, "[Housekeeping] drained finalizing sweep failed: %v", resDrained.Error)
+	} else if resDrained.RowsAffected > 0 {
+		logger.Infof(ctx, "[Housekeeping] promoted %d drained finalizing row(s)", resDrained.RowsAffected)
+	}
+
 	// Sweep A: knowledge stuck in "processing".
 	//
 	// Two-stage check is critical here: knowledge.updated_at advances

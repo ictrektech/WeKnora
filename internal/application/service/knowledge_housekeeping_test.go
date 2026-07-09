@@ -224,6 +224,30 @@ func TestHousekeeping_NoFalseKill_TasksStillQueued(t *testing.T) {
 		"finalizing row with tasks still queued must NOT be flipped to failed")
 }
 
+func TestHousekeeping_PromotesDrainedFinalizing(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcForTest(db)
+	stale := time.Now().Add(-3 * time.Hour)
+	insertKnowledge(t, db, "kid-drained", types.ParseStatusFinalizing, stale)
+	require.NoError(t, db.Model(&types.Knowledge{}).
+		Where("id = ?", "kid-drained").
+		Updates(map[string]interface{}{
+			"pending_subtasks_count": 0,
+			"error_message":          "Task interrupted due to application restart",
+		}).Error)
+
+	svc.runSweep(context.Background())
+
+	var status string
+	var errorMessage string
+	require.NoError(t, db.Raw(
+		`SELECT parse_status, error_message FROM knowledges WHERE id = ?`, "kid-drained",
+	).Row().Scan(&status, &errorMessage))
+	assert.Equal(t, types.ParseStatusCompleted, status,
+		"finalizing row with no pending subtasks should be promoted")
+	assert.Empty(t, errorMessage)
+}
+
 // TestHousekeeping_QueueProbeError_FailsSafe confirms the fail-safe
 // direction: when the queue probe errors we still recover the row rather
 // than leaving it stranded forever.
