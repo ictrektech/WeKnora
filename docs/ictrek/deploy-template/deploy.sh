@@ -258,6 +258,6 @@ if [[ "${WEKNORA_RECREATE_DOCREADER_ON_DEPLOY:-true}" != "false" ]] && compose_h
 fi
 
 if [[ "${WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY:-true}" != "false" && -x "${ROOT_DIR}/trigger-reparse-incomplete.sh" ]]; then
-  log "triggering reparse for incomplete knowledge"
+  log "triggering full-document reparse for incomplete knowledge"
   ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" "${ROOT_DIR}/trigger-reparse-incomplete.sh"
 fi

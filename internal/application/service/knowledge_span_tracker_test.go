@@ -88,6 +88,13 @@ func TestSpanTracker_OpenAttempt_AllocatesFreshNumbers(t *testing.T) {
 		Where("knowledge_id = ? AND kind = 'root'", "kid").
 		Count(&count).Error)
 	assert.Equal(t, int64(2), count, "previous attempt's root must remain after reparse")
+
+	var oldStatus string
+	require.NoError(t, db.Table("knowledge_processing_spans").
+		Select("status").
+		Where("knowledge_id = ? AND attempt = ? AND span_id = ?", "kid", n1, root1.SpanID).
+		Row().Scan(&oldStatus))
+	assert.Equal(t, types.SpanStatusCancelled, oldStatus, "superseded attempt must not stay running")
 }
 
 // TestSpanTracker_FailSpan_CascadesDownstream verifies that failing a

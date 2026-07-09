@@ -240,6 +240,14 @@ func (t *spanTracker) OpenAttempt(ctx context.Context, knowledgeID, langfuseTrac
 	if err != nil {
 		return nil, 0, err
 	}
+	if n, err := t.repo.CancelOpenSpansBeforeAttempt(ctx, knowledgeID, attempt,
+		"ATTEMPT_SUPERSEDED", "superseded by a newer parse attempt"); err != nil {
+		logger.Warnf(ctx, "[SpanTracker] supersede old attempts failed kid=%s attempt=%d: %v",
+			knowledgeID, attempt, err)
+	} else if n > 0 {
+		logger.Infof(ctx, "[SpanTracker] cancelled %d open span(s) from old attempts kid=%s before attempt=%d",
+			n, knowledgeID, attempt)
+	}
 	now := time.Now()
 	rootID := newSpanID()
 	meta := types.JSONMap{}

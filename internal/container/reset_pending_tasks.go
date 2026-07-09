@@ -29,6 +29,12 @@ func resetPendingTasks(db *gorm.DB) {
 	distributed := os.Getenv("REDIS_ADDR") != ""
 	ctx := context.Background()
 	spanRepo := repository.NewKnowledgeSpanRepository(db)
+	if n, err := spanRepo.CancelSupersededOpenSpans(ctx,
+		"ATTEMPT_SUPERSEDED", "superseded by a newer parse attempt"); err != nil {
+		logger.Warnf(ctx, "resetPendingTasks: cancel superseded spans failed: %v", err)
+	} else if n > 0 {
+		logger.Infof(ctx, "resetPendingTasks: cancelled %d superseded open span(s)", n)
+	}
 
 	var staleCutoff time.Time
 	if distributed {

@@ -24,6 +24,7 @@ interface KnowledgeCard {
   title?: string;
   type?: string;
   updated_at?: string;
+  processed_at?: string;
   file_type?: string;
   isMore?: boolean;
   metadata?: any;
@@ -91,6 +92,9 @@ const CANCELABLE_PARSE_STATUSES = new Set(['pending', 'processing', 'finalizing'
 const isParseInFlight = (status?: string): boolean =>
   CANCELABLE_PARSE_STATUSES.has(String(status ?? ''));
 
+const primaryParseDone = (item: KnowledgeCard): boolean =>
+  item.parse_status === 'finalizing' || !!item.processed_at;
+
 const isTraceMenuVisible = (item: KnowledgeCard): boolean => {
   if (!item?.id) return false;
   if (isParseInFlight(item.parse_status)) return true;
@@ -98,7 +102,7 @@ const isTraceMenuVisible = (item: KnowledgeCard): boolean => {
 };
 
 const inFlightCardStatusText = (item: KnowledgeCard): string => {
-  if (item.parse_status === 'finalizing') {
+  if (primaryParseDone(item)) {
     if (item.summary_status === 'pending' || item.summary_status === 'processing') {
       return t('knowledgeBase.generatingSummary');
     }

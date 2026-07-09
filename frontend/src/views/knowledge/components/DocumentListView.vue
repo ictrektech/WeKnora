@@ -21,6 +21,7 @@ interface KnowledgeItem {
   parse_status?: string;
   summary_status?: string;
   updated_at?: string;
+  processed_at?: string;
   source?: string;
   description?: string;
   channel?: string;
@@ -112,6 +113,13 @@ interface StatusInfo {
   spin?: boolean;
 }
 const computeStatus = (item: KnowledgeItem): StatusInfo => {
+  const primaryParseDone = item.parse_status === 'finalizing' || !!item.processed_at;
+  if (primaryParseDone && (item.parse_status === 'processing' || item.parse_status === 'finalizing')) {
+    if (item.summary_status === 'pending' || item.summary_status === 'processing') {
+      return { label: t('knowledgeBase.generatingSummary'), theme: 'primary', icon: 'loading', spin: true };
+    }
+    return { label: t('knowledgeBase.statusFinalizing'), theme: 'primary', icon: 'loading', spin: true };
+  }
   if (item.parse_status === 'pending' || item.parse_status === 'processing') {
     return { label: t('knowledgeBase.statusProcessing'), theme: 'primary', icon: 'loading', spin: true };
   }
