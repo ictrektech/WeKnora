@@ -117,32 +117,64 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 	// left behind by process restarts or older builds before the guarded
 	// promote ran.
 	now := time.Now()
-	resDrained := h.db.WithContext(ctx).Model(&types.Knowledge{}).
+	var drainedFinalizing []types.Knowledge
+	if err := h.db.WithContext(ctx).
 		Where("parse_status = ? AND pending_subtasks_count = 0", types.ParseStatusFinalizing).
-		Updates(map[string]interface{}{
-			"parse_status":  types.ParseStatusCompleted,
-			"processed_at":  now,
-			"updated_at":    now,
-			"error_message": "",
-		})
-	if resDrained.Error != nil {
-		logger.Warnf(ctx, "[Housekeeping] drained finalizing sweep failed: %v", resDrained.Error)
-	} else if resDrained.RowsAffected > 0 {
-		logger.Infof(ctx, "[Housekeeping] promoted %d drained finalizing row(s)", resDrained.RowsAffected)
+		Where(noOpenCurrentAttemptSpanSQL()).
+		Find(&drainedFinalizing).Error; err != nil {
+		logger.Warnf(ctx, "[Housekeeping] drained finalizing candidate query failed: %v", err)
+	} else {
+		drainedFinalizing, skipped := h.filterOutQueued(ctx, drainedFinalizing)
+		if skipped > 0 {
+			logger.Infof(ctx,
+				"[Housekeeping] %d drained finalizing candidate(s) skipped — tasks still queued",
+				skipped)
+		}
+		if len(drainedFinalizing) > 0 {
+			resDrained := h.db.WithContext(ctx).Model(&types.Knowledge{}).
+				Where("id IN ?", knowledgeIDs(drainedFinalizing)).
+				Updates(map[string]interface{}{
+					"parse_status":  types.ParseStatusCompleted,
+					"processed_at":  now,
+					"updated_at":    now,
+					"error_message": "",
+				})
+			if resDrained.Error != nil {
+				logger.Warnf(ctx, "[Housekeeping] drained finalizing sweep failed: %v", resDrained.Error)
+			} else if resDrained.RowsAffected > 0 {
+				logger.Infof(ctx, "[Housekeeping] promoted %d drained finalizing row(s)", resDrained.RowsAffected)
+			}
+		}
 	}
 
-	resDrainedSummary := h.db.WithContext(ctx).Model(&types.Knowledge{}).
+	var drainedSummary []types.Knowledge
+	if err := h.db.WithContext(ctx).
 		Where("parse_status = ? AND pending_subtasks_count = 0 AND summary_status IN ?",
 			types.ParseStatusCompleted,
 			[]string{types.SummaryStatusPending, types.SummaryStatusProcessing}).
-		Updates(map[string]interface{}{
-			"summary_status": types.SummaryStatusFailed,
-			"updated_at":     now,
-		})
-	if resDrainedSummary.Error != nil {
-		logger.Warnf(ctx, "[Housekeeping] drained summary sweep failed: %v", resDrainedSummary.Error)
-	} else if resDrainedSummary.RowsAffected > 0 {
-		logger.Infof(ctx, "[Housekeeping] recovered %d drained summary row(s)", resDrainedSummary.RowsAffected)
+		Where(noOpenCurrentAttemptSpanSQL()).
+		Find(&drainedSummary).Error; err != nil {
+		logger.Warnf(ctx, "[Housekeeping] drained summary candidate query failed: %v", err)
+	} else {
+		drainedSummary, skipped := h.filterOutQueued(ctx, drainedSummary)
+		if skipped > 0 {
+			logger.Infof(ctx,
+				"[Housekeeping] %d drained summary candidate(s) skipped — tasks still queued",
+				skipped)
+		}
+		if len(drainedSummary) > 0 {
+			resDrainedSummary := h.db.WithContext(ctx).Model(&types.Knowledge{}).
+				Where("id IN ?", knowledgeIDs(drainedSummary)).
+				Updates(map[string]interface{}{
+					"summary_status": types.SummaryStatusFailed,
+					"updated_at":     now,
+				})
+			if resDrainedSummary.Error != nil {
+				logger.Warnf(ctx, "[Housekeeping] drained summary sweep failed: %v", resDrainedSummary.Error)
+			} else if resDrainedSummary.RowsAffected > 0 {
+				logger.Infof(ctx, "[Housekeeping] recovered %d drained summary row(s)", resDrainedSummary.RowsAffected)
+			}
+		}
 	}
 
 	// Sweep A: knowledge stuck in "processing".
@@ -366,6 +398,28 @@ func (h *HousekeepingService) staleThreshold() time.Duration {
 		base = h.cfg.KnowledgeBase.DocumentProcessTimeout
 	}
 	return base + 10*time.Minute
+}
+
+func noOpenCurrentAttemptSpanSQL() string {
+	return `NOT EXISTS (
+		SELECT 1
+		FROM knowledge_processing_spans hks
+		WHERE hks.knowledge_id = knowledges.id
+		  AND hks.attempt = (
+			SELECT MAX(hks2.attempt)
+			FROM knowledge_processing_spans hks2
+			WHERE hks2.knowledge_id = knowledges.id
+		  )
+		  AND hks.status IN ('pending', 'running')
+	)`
+}
+
+func knowledgeIDs(items []types.Knowledge) []string {
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	return ids
 }
 
 func housekeepingEnabled() bool {
