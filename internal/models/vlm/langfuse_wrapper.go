@@ -15,8 +15,9 @@ type langfuseVLM struct {
 	inner VLM
 }
 
-func (l *langfuseVLM) GetModelName() string { return l.inner.GetModelName() }
-func (l *langfuseVLM) GetModelID() string   { return l.inner.GetModelID() }
+func (l *langfuseVLM) GetModelName() string  { return l.inner.GetModelName() }
+func (l *langfuseVLM) GetModelID() string    { return l.inner.GetModelID() }
+func (l *langfuseVLM) GetLimiterKey() string { return vlmLimiterKey(l.inner) }
 
 func (l *langfuseVLM) Predict(ctx context.Context, imgBytes [][]byte, prompt string) (string, error) {
 	mgr := langfuse.GetManager()
@@ -37,8 +38,8 @@ func (l *langfuseVLM) Predict(ctx context.Context, imgBytes [][]byte, prompt str
 			"image_count": len(imgBytes),
 		},
 		Metadata: map[string]interface{}{
-			"model_id":         l.inner.GetModelID(),
-			"image_count":      len(imgBytes),
+			"model_id":          l.inner.GetModelID(),
+			"image_count":       len(imgBytes),
 			"image_bytes_total": totalImgSize,
 		},
 	})

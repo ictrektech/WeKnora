@@ -16,8 +16,9 @@ type langfuseChat struct {
 	inner Chat
 }
 
-func (l *langfuseChat) GetModelName() string { return l.inner.GetModelName() }
-func (l *langfuseChat) GetModelID() string   { return l.inner.GetModelID() }
+func (l *langfuseChat) GetModelName() string  { return l.inner.GetModelName() }
+func (l *langfuseChat) GetModelID() string    { return l.inner.GetModelID() }
+func (l *langfuseChat) GetLimiterKey() string { return modelLimiterKey(l.inner) }
 
 func (l *langfuseChat) Chat(ctx context.Context, messages []Message, opts *ChatOptions) (*types.ChatResponse, error) {
 	mgr := langfuse.GetManager()

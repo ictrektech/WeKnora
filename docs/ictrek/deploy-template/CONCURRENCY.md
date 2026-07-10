@@ -129,6 +129,8 @@ WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 
 `WEKNORA_ASYNQ_CONCURRENCY` 是解析和后台增强 worker 池并发；Wiki 使用独立的 `WEKNORA_WIKI_ASYNQ_CONCURRENCY`。两者都受每模型后台上限 `WEKNORA_MODEL_MAX_CONCURRENCY` 约束。共享 QA 模型时，三个值都不应超过 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY`，否则 worker 会阻塞在模型限流上。
 
+OpenAI-compatible Chat/VLM 如果指向相同 `base_url + served model`，即使在 UI 中配置成不同模型 ID，也共用同一个后台限流槽；这适用于同一 vLLM 同时提供 QA 和图片理解的部署。
+
 解析池使用严格优先级：`critical` > `parse` > `default` > `multimodal` > `question` > `graph` / `low`。`WEKNORA_ASYNQ_QUEUE_*` 是解析池内的优先级权重，不是每队列并发上限；Wiki 在独立池中，不参与这些权重竞争。
 
 小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。`WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把 failed/pending/processing 的文档重新入队；`finalizing` 只有在 `processed_at is null` 时才会整篇重跑。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的 `finalizing` 文档不会重复 docreader、分块和 embedding。

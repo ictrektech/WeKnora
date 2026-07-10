@@ -21,8 +21,9 @@ func (d *debugVLM) Predict(ctx context.Context, imgBytes [][]byte, prompt string
 	return result, err
 }
 
-func (d *debugVLM) GetModelName() string { return d.inner.GetModelName() }
-func (d *debugVLM) GetModelID() string   { return d.inner.GetModelID() }
+func (d *debugVLM) GetModelName() string  { return d.inner.GetModelName() }
+func (d *debugVLM) GetModelID() string    { return d.inner.GetModelID() }
+func (d *debugVLM) GetLimiterKey() string { return vlmLimiterKey(d.inner) }
 
 func logVLMDebug(ctx context.Context, model string, imgBytes [][]byte, prompt string, response string, callErr error, dur time.Duration) {
 	if !logger.LLMDebugEnabled() {

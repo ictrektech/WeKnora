@@ -99,4 +99,8 @@ func TestModelLimiterKeyUsesProviderEndpoint(t *testing.T) {
 	if modelLimiterKey(a) != modelLimiterKey(b) {
 		t.Fatalf("same endpoint/model should share limiter key: %q != %q", modelLimiterKey(a), modelLimiterKey(b))
 	}
+	wrapped := &langfuseChat{inner: &debugChat{inner: a}}
+	if modelLimiterKey(wrapped) != modelLimiterKey(a) {
+		t.Fatalf("decorators must preserve limiter key: %q != %q", modelLimiterKey(wrapped), modelLimiterKey(a))
+	}
 }
