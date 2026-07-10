@@ -576,6 +576,17 @@ func (s *knowledgeBaseService) RecoverEnabledMultimodalTasks(ctx context.Context
 		if candidate == nil {
 			continue
 		}
+		if inspector, ok := s.taskInspector.(interface {
+			HasQueuedTasksForKnowledgeTypes(context.Context, string, []string) (bool, error)
+		}); ok {
+			queued, err := inspector.HasQueuedTasksForKnowledgeTypes(ctx, k.ID, []string{types.TypeImageMultimodal})
+			if err != nil {
+				return recovered, err
+			}
+			if queued {
+				continue
+			}
+		}
 		images, err := s.collectRecoverableMultimodalImages(ctx, k)
 		if err != nil {
 			logger.Warnf(ctx, "multimodal recovery: collect images failed, knowledge=%s: %v", k.ID, err)

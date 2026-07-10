@@ -43,6 +43,7 @@ func NewAsynqTaskInspector(inspector *asynq.Inspector) interfaces.TaskInspector 
 // Question / Summary / Extract / Manual.
 type knowledgeIDProbe struct {
 	KnowledgeID string `json:"knowledge_id,omitempty"`
+	Attempt     int    `json:"attempt,omitempty"`
 }
 
 // queuesScanned is the fixed set of queue names this codebase enqueues
@@ -134,8 +135,21 @@ func (a *asynqTaskInspector) cancelTasksForKnowledgeTypes(
 func (a *asynqTaskInspector) HasQueuedTasksForKnowledge(
 	ctx context.Context, knowledgeID string,
 ) (bool, error) {
+	return a.HasQueuedTasksForKnowledgeTypes(ctx, knowledgeID, nil)
+}
+
+// HasQueuedTasksForKnowledgeTypes is the typed variant used by feature
+// recovery so an unrelated graph/summary task does not suppress multimodal
+// recovery for the same knowledge.
+func (a *asynqTaskInspector) HasQueuedTasksForKnowledgeTypes(
+	ctx context.Context, knowledgeID string, taskTypes []string,
+) (bool, error) {
 	if a == nil || a.inspector == nil || knowledgeID == "" {
 		return false, nil
+	}
+	typeSet := make(map[string]struct{}, len(taskTypes))
+	for _, taskType := range taskTypes {
+		typeSet[taskType] = struct{}{}
 	}
 	listers := []struct {
 		state string
@@ -148,7 +162,7 @@ func (a *asynqTaskInspector) HasQueuedTasksForKnowledge(
 	}
 	for _, queue := range queuesScanned {
 		for _, l := range listers {
-			if a.queueStateHasMatch(ctx, queue, knowledgeID, l.state, l.list) {
+			if a.queueStateHasMatch(ctx, queue, knowledgeID, typeSet, l.state, l.list) {
 				return true, nil
 			}
 		}
@@ -162,7 +176,7 @@ func (a *asynqTaskInspector) HasQueuedTasksForKnowledge(
 // is logged and treated as "no match" (false); the caller's fail-safe
 // then errs toward recovering the row rather than preserving it forever.
 func (a *asynqTaskInspector) queueStateHasMatch(
-	ctx context.Context, queue, knowledgeID, state string,
+	ctx context.Context, queue, knowledgeID string, typeSet map[string]struct{}, state string,
 	list func(string, ...asynq.ListOption) ([]*asynq.TaskInfo, error),
 ) bool {
 	page := 1
@@ -178,7 +192,7 @@ func (a *asynqTaskInspector) queueStateHasMatch(
 			return false
 		}
 		for _, t := range tasks {
-			if matchesKnowledge(t.Type, t.Payload, knowledgeID) {
+			if matchesKnowledgeTyped(t.Type, t.Payload, knowledgeID, typeSet) {
 				return true
 			}
 		}
@@ -187,6 +201,104 @@ func (a *asynqTaskInspector) queueStateHasMatch(
 		}
 		page++
 	}
+}
+
+// ReconcileKnowledgeTasks removes queued work that cannot belong to the
+// current parse attempt and exact duplicate payloads. Active tasks seed the
+// duplicate set and stale active tasks are cancelled; pending work is then
+// pruned in one pass per queue.
+func ReconcileKnowledgeTasks(
+	ctx context.Context, inspector *asynq.Inspector, currentAttempts map[string]int,
+) (deleted, cancelled int) {
+	if inspector == nil {
+		return 0, 0
+	}
+	seen := make(map[string]struct{})
+	for _, queue := range queuesScanned {
+		active := listAllTasks(ctx, queue, "active", inspector.ListActiveTasks)
+		for _, task := range active {
+			if keepKnowledgeTask(task, currentAttempts, seen) {
+				continue
+			}
+			if err := inspector.CancelProcessing(task.ID); err == nil {
+				cancelled++
+			}
+		}
+	}
+	states := []struct {
+		name string
+		list func(string, ...asynq.ListOption) ([]*asynq.TaskInfo, error)
+	}{
+		{"pending", inspector.ListPendingTasks},
+		{"scheduled", inspector.ListScheduledTasks},
+		{"retry", inspector.ListRetryTasks},
+	}
+	for _, queue := range queuesScanned {
+		for _, state := range states {
+			for _, task := range listAllTasks(ctx, queue, state.name, state.list) {
+				if keepKnowledgeTask(task, currentAttempts, seen) {
+					continue
+				}
+				if err := inspector.DeleteTask(queue, task.ID); err == nil {
+					deleted++
+				}
+			}
+		}
+	}
+	return deleted, cancelled
+}
+
+func listAllTasks(
+	ctx context.Context, queue, state string,
+	list func(string, ...asynq.ListOption) ([]*asynq.TaskInfo, error),
+) []*asynq.TaskInfo {
+	var out []*asynq.TaskInfo
+	for page := 1; ; page++ {
+		tasks, err := list(queue, asynq.PageSize(listPageSize), asynq.Page(page))
+		if err != nil {
+			if !errors.Is(err, asynq.ErrQueueNotFound) {
+				logger.Warnf(ctx, "[TaskInspector] reconcile list %s queue=%s page=%d: %v", state, queue, page, err)
+			}
+			return out
+		}
+		out = append(out, tasks...)
+		if len(tasks) < listPageSize {
+			return out
+		}
+	}
+}
+
+func keepKnowledgeTask(task *asynq.TaskInfo, currentAttempts map[string]int, seen map[string]struct{}) bool {
+	if task == nil {
+		return true
+	}
+	// Wiki document operations are durable in task_pending_ops; identical
+	// trigger payloads only wake the same KB batch and are safe to coalesce.
+	if task.Type == types.TypeWikiIngest {
+		signature := task.Type + "\x00" + string(task.Payload)
+		if _, duplicate := seen[signature]; duplicate {
+			return false
+		}
+		seen[signature] = struct{}{}
+		return true
+	}
+	if _, ok := taskTypesForKnowledgeCancel[task.Type]; !ok {
+		return true
+	}
+	var probe knowledgeIDProbe
+	if json.Unmarshal(task.Payload, &probe) != nil || probe.KnowledgeID == "" {
+		return true
+	}
+	current, exists := currentAttempts[probe.KnowledgeID]
+	if !exists || (probe.Attempt > 0 && current > 0 && probe.Attempt != current) {
+		return false
+	}
+	signature := task.Type + "\x00" + string(task.Payload)
+	if _, duplicate := seen[signature]; duplicate {
+		return false
+	}
+	seen[signature] = struct{}{}
+	return true
 }
 
 // matchesKnowledge returns true when the task type is one we cancel

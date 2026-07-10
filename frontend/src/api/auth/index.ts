@@ -159,6 +159,7 @@ export function userInfoFromApi(
 export interface TenantInfo {
   id: string
   name: string
+  api_key?: string
   description?: string
   status?: string
   business?: string

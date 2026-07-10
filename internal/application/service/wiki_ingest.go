@@ -460,8 +460,9 @@ func EnqueueWikiIngest(
 		asynq.MaxRetry(wikiIngestMaxRetry),
 		asynq.Timeout(60*time.Minute),
 		asynq.ProcessIn(wikiIngestDelay),
+		asynq.Unique(wikiIngestDelay),
 	)
-	if _, err := task.Enqueue(t); err != nil {
+	if _, err := task.Enqueue(t); err != nil && !errors.Is(err, asynq.ErrDuplicateTask) {
 		logger.Warnf(ctx, "wiki ingest: failed to enqueue trigger task: %v", err)
 	}
 }
@@ -518,8 +519,9 @@ func EnqueueWikiRetract(
 		asynq.MaxRetry(wikiIngestMaxRetry),
 		asynq.Timeout(60*time.Minute),
 		asynq.ProcessIn(5*time.Second), // Retract can trigger the batch quickly
+		asynq.Unique(5*time.Second),
 	)
-	if _, err := task.Enqueue(t); err != nil {
+	if _, err := task.Enqueue(t); err != nil && !errors.Is(err, asynq.ErrDuplicateTask) {
 		logger.Warnf(ctx, "wiki retract: failed to enqueue trigger task: %v", err)
 	}
 }

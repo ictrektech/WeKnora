@@ -310,6 +310,9 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewHousekeepingService))
 	must(container.Invoke(startHousekeepingService))
 	logger.Debugf(ctx, "[Container] Knowledge housekeeping runner registered")
+	if redisAvailable {
+		must(container.Invoke(reconcileKnowledgeTasksOnStart))
+	}
 	must(container.Invoke(cleanupDisabledFeatureTasksOnStart))
 	must(container.Invoke(recoverEnabledMultimodalTasksOnStart))
 	must(container.Invoke(reparseIncompleteKnowledgeOnStart))
@@ -394,6 +397,34 @@ func BuildContainer(container *dig.Container) *dig.Container {
 
 	logger.Infof(ctx, "[Container] Container initialization completed successfully")
 	return container
+}
+
+func reconcileKnowledgeTasksOnStart(db *gorm.DB, inspector *asynq.Inspector) {
+	if db == nil || inspector == nil {
+		return
+	}
+	ctx := context.Background()
+	type row struct {
+		ID      string
+		Attempt int
+	}
+	var rows []row
+	if err := db.WithContext(ctx).Raw(`
+		SELECT k.id, COALESCE(MAX(s.attempt), 0) AS attempt
+		FROM knowledges k
+		LEFT JOIN knowledge_processing_spans s ON s.knowledge_id = k.id
+		WHERE k.deleted_at IS NULL AND k.parse_status NOT IN (?, ?, ?)
+		GROUP BY k.id`, types.ParseStatusDeleting, types.ParseStatusCancelled, types.ParseStatusFailed).
+		Scan(&rows).Error; err != nil {
+		logger.Warnf(ctx, "[startup-task-reconcile] query current attempts failed: %v", err)
+		return
+	}
+	attempts := make(map[string]int, len(rows))
+	for _, row := range rows {
+		attempts[row.ID] = row.Attempt
+	}
+	deleted, cancelled := router.ReconcileKnowledgeTasks(ctx, inspector, attempts)
+	logger.Infof(ctx, "[startup-task-reconcile] removed=%d cancelled=%d", deleted, cancelled)
 }
 
 // registerChatLocalImageResolver wires the chat package's LocalImageResolver

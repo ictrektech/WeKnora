@@ -133,7 +133,7 @@ WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 
 小机器上不要把 Graph、Question、Multimodal 队列权重调太高。聊天请求本身不走这些后台队列，但后台任务仍可能竞争同一个 LLM 或 Embedding 模型服务。`WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把 failed/pending/processing 的文档重新入队；`finalizing` 只有在 `processed_at is null` 时才会整篇重跑。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的 `finalizing` 文档不会重复 docreader、分块和 embedding。
 
-启动扫描还会按知识库当前配置清理已关闭功能的后台任务：如果知识库关闭多模态识别，会删除/取消未完成的 VLM/OCR 多模态任务；如果关闭知识图谱，会删除/取消未完成的 Graph 抽取任务。重新打开多模态识别时，app 会检查已经完成文字解析、但最新 attempt 的 `multimodal` 阶段为 `skipped`、`cancelled` 或 `failed` 的文档，并从文本 chunk 里的图片链接补发 `image:multimodal` 任务，不重跑全文解析。
+启动扫描先删除旧 attempt 和完全重复的 Asynq 任务，再按知识库当前配置清理已关闭功能的后台任务。重新打开多模态识别时，只有队列中不存在对应任务，app 才从文本 chunk 的图片链接补发 `image:multimodal`，避免同一文档重复占用 VLM。日志可搜索 `startup-task-reconcile`。
 
 ## Embedding 并发
 

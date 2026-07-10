@@ -217,7 +217,7 @@ WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 
 部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 failed/pending/processing 文档；finalizing 只有在 `processed_at` 为空时才会整文档重新入队。启动扫描走 `critical` 队列，每条知识重新解析前会清掉该知识残留的 queued/retry 任务，再提交新的 `parse` 任务。旧 attempt 里还显示 running 的 trace 是被新 attempt 覆盖后的历史行，不要按旧 attempt 判断当前进度。需要手动补救时，也可以运行 [trigger-reparse-incomplete.sh](trigger-reparse-incomplete.sh)。文档页工具栏的「重新解析失败文档」只扫描当前知识库的 failed 文档；pending/processing 和 `processed_at` 为空的 finalizing 交给启动钩子或部署脚本处理。
 
-Housekeeping 每 5 分钟在 app 容器内运行一次。它只在 `pending_subtasks_count=0`、最新 attempt 没有 `pending/running` span、并且 Asynq 没有该知识的 queued/active 任务时，才会把 finalizing 文档推进为 completed；已 completed 且 `summary_status=pending/processing` 的文档也使用同样条件，确认没有待执行工作后才标记为 summary failed。仍在排队或运行的多模态、Graph、Wiki、摘要、问题生成任务不会被 housekeeping 清掉。
+Housekeeping 在 app 启动时立即执行一次，之后每 5 分钟运行。它会在最新 attempt 没有 `pending/running` span、Asynq 也没有该知识的 queued/active 任务时修复陈旧的 `pending_subtasks_count` 并推进 finalizing 文档；仍在排队或运行的任务不会被清理。启动恢复前还会删除旧 attempt 和完全重复的 Asynq 任务，日志可搜索 `startup-task-reconcile`。
 
 Ollama 单实例只能用 `OLLAMA_NUM_PARALLEL` 控制整个服务的并发，不能给聊天和 embedding 分别硬预留槽位。Orin NX 16G 这类小机器推荐两个 Ollama 容器：QA/VLM 容器 `OLLAMA_CONTEXT_LENGTH=18000`、`OLLAMA_QA_NUM_PARALLEL=3`、`WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3`，并用 `WEKNORA_CHAT_RESERVED_CONCURRENCY=2` 保留聊天；embedding 容器 `OLLAMA_EMBEDDING_NUM_PARALLEL=4`，app 侧 `CONCURRENCY_POOL_SIZE=1`。QA 上下文需要大于 16k 时不要设成正好 `16384`；机器稳定且内存、等待队列都有余量后，再逐步提高 QA 并发。
 
