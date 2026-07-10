@@ -128,6 +128,8 @@ FRONTEND_PORT
 APP_PORT
 ```
 
+`WEKNORA_TENANT_AUTO_CREATE_API_KEY` 默认保持 `false`。只有兼容旧系统、并且能够安全接收创建响应中一次性明文 token 时才设为 `true`。
+
 确认不会拉上游镜像：
 
 ```bash
