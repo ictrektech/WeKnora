@@ -18,8 +18,8 @@ func NewAsynqInspector() *asynq.Inspector {
 }
 
 // asynqTaskInspector implements interfaces.TaskInspector backed by an
-// *asynq.Inspector. Scans the queues we actually use ("default",
-// "critical", "low") and matches tasks whose payload carries the given
+// *asynq.Inspector. Scans every queue that can carry knowledge-scoped
+// pipeline work and matches tasks whose payload carries the given
 // knowledge_id. Best-effort: any scan/delete error is logged and
 // swallowed so the cancel API still returns success even when Redis is
 // flaky.

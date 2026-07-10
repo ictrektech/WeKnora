@@ -166,6 +166,9 @@ func (v *RemoteAPIVLM) Predict(ctx context.Context, imgBytesList [][]byte, promp
 
 func (v *RemoteAPIVLM) GetModelName() string { return v.modelName }
 func (v *RemoteAPIVLM) GetModelID() string   { return v.modelID }
+func (v *RemoteAPIVLM) GetLimiterKey() string {
+	return strings.TrimRight(v.baseURL, "/") + "|" + v.modelName
+}
 
 // detectImageMIME returns the MIME type for the given image bytes.
 func detectImageMIME(data []byte) string {

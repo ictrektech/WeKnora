@@ -91,3 +91,12 @@ func TestConcurrencyChatStreamReleasesOnAbandon(t *testing.T) {
 		t.Fatal("stream slot leaked: not released after consumer abandoned + cancelled")
 	}
 }
+
+func TestModelLimiterKeyUsesProviderEndpoint(t *testing.T) {
+	a := &RemoteAPIChat{modelID: "qa-model", baseURL: "http://qwen35-9b-vllm:22222/v1/", modelName: "Qwen3.5-9B-AWQ"}
+	b := &RemoteAPIChat{modelID: "vlm-model", baseURL: "http://qwen35-9b-vllm:22222/v1", modelName: "Qwen3.5-9B-AWQ"}
+
+	if modelLimiterKey(a) != modelLimiterKey(b) {
+		t.Fatalf("same endpoint/model should share limiter key: %q != %q", modelLimiterKey(a), modelLimiterKey(b))
+	}
+}

@@ -258,6 +258,57 @@ func TestHousekeeping_PromotesDrainedFinalizing(t *testing.T) {
 	assert.Empty(t, errorMessage)
 }
 
+func TestHousekeeping_PromotesFinalizingWithStalePendingCounter(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcForTest(db)
+	stale := time.Now().Add(-3 * time.Hour)
+	insertKnowledge(t, db, "kid-stale-counter", types.ParseStatusFinalizing, stale)
+	require.NoError(t, db.Model(&types.Knowledge{}).
+		Where("id = ?", "kid-stale-counter").
+		Updates(map[string]interface{}{
+			"pending_subtasks_count": 99,
+			"error_message":          "Task interrupted due to application restart",
+		}).Error)
+	insertSpan(t, db, "kid-stale-counter", 1, "post-1", types.SpanStatusDone, stale)
+
+	svc.runSweep(context.Background())
+
+	var status string
+	var pending int
+	var errorMessage string
+	require.NoError(t, db.Raw(
+		`SELECT parse_status, pending_subtasks_count, error_message FROM knowledges WHERE id = ?`,
+		"kid-stale-counter",
+	).Row().Scan(&status, &pending, &errorMessage))
+	assert.Equal(t, types.ParseStatusCompleted, status)
+	assert.Zero(t, pending)
+	assert.Empty(t, errorMessage)
+}
+
+func TestHousekeeping_PreservesFinalizingStalePendingCounterWithQueuedTask(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcWithInspector(db, fakeTaskInspector{
+		queued: map[string]bool{"kid-valid-queued": true},
+	})
+	stale := time.Now().Add(-3 * time.Hour)
+	insertKnowledge(t, db, "kid-valid-queued", types.ParseStatusFinalizing, stale)
+	require.NoError(t, db.Model(&types.Knowledge{}).
+		Where("id = ?", "kid-valid-queued").
+		Update("pending_subtasks_count", 99).Error)
+	insertSpan(t, db, "kid-valid-queued", 1, "post-1", types.SpanStatusDone, stale)
+
+	svc.runSweep(context.Background())
+
+	var status string
+	var pending int
+	require.NoError(t, db.Raw(
+		`SELECT parse_status, pending_subtasks_count FROM knowledges WHERE id = ?`,
+		"kid-valid-queued",
+	).Row().Scan(&status, &pending))
+	assert.Equal(t, types.ParseStatusFinalizing, status)
+	assert.Equal(t, 99, pending)
+}
+
 func TestHousekeeping_PreservesDrainedFinalizingWithOpenSpan(t *testing.T) {
 	db := setupHousekeepingDB(t)
 	svc := newHousekeepingSvcForTest(db)

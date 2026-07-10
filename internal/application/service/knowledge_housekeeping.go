@@ -91,6 +91,7 @@ func (h *HousekeepingService) Start(ctx context.Context) error {
 	h.cron.Start()
 	h.started = true
 	logger.Infof(ctx, "[Housekeeping] started with 5-minute sweep")
+	go h.runSweep(context.Background())
 	return nil
 }
 
@@ -143,6 +144,44 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 				logger.Warnf(ctx, "[Housekeeping] drained finalizing sweep failed: %v", resDrained.Error)
 			} else if resDrained.RowsAffected > 0 {
 				logger.Infof(ctx, "[Housekeeping] promoted %d drained finalizing row(s)", resDrained.RowsAffected)
+			}
+		}
+	}
+
+	// Sweep 0b: finalizing rows whose counter is stale but whose current
+	// attempt has fully drained. This is deliberately stricter than the
+	// stale-time recovery below: it only fires when no current-attempt span
+	// is open AND the queue backend has no task for the knowledge. Valid
+	// queued/running work is preserved; only abandoned accounting is cleared.
+	var staleCounterFinalizing []types.Knowledge
+	if err := h.db.WithContext(ctx).
+		Where("parse_status = ? AND pending_subtasks_count > 0", types.ParseStatusFinalizing).
+		Where(noOpenCurrentAttemptSpanSQL()).
+		Find(&staleCounterFinalizing).Error; err != nil {
+		logger.Warnf(ctx, "[Housekeeping] stale finalizing counter candidate query failed: %v", err)
+	} else {
+		staleCounterFinalizing, skipped := h.filterOutQueued(ctx, staleCounterFinalizing)
+		if skipped > 0 {
+			logger.Infof(ctx,
+				"[Housekeeping] %d stale finalizing counter candidate(s) skipped — tasks still queued",
+				skipped)
+		}
+		if len(staleCounterFinalizing) > 0 {
+			resStaleCounter := h.db.WithContext(ctx).Model(&types.Knowledge{}).
+				Where("id IN ?", knowledgeIDs(staleCounterFinalizing)).
+				Updates(map[string]interface{}{
+					"parse_status":           types.ParseStatusCompleted,
+					"pending_subtasks_count": 0,
+					"processed_at":           now,
+					"updated_at":             now,
+					"error_message":          "",
+				})
+			if resStaleCounter.Error != nil {
+				logger.Warnf(ctx, "[Housekeeping] stale finalizing counter sweep failed: %v", resStaleCounter.Error)
+			} else if resStaleCounter.RowsAffected > 0 {
+				logger.Infof(ctx,
+					"[Housekeeping] promoted %d finalizing row(s) with stale pending counters",
+					resStaleCounter.RowsAffected)
 			}
 		}
 	}

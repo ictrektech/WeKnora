@@ -398,6 +398,10 @@ func (c *RemoteAPIChat) GetModelID() string {
 	return c.modelID
 }
 
+func (c *RemoteAPIChat) GetLimiterKey() string {
+	return strings.TrimRight(c.baseURL, "/") + "|" + c.modelName
+}
+
 // GetProvider 获取 provider 名称
 func (c *RemoteAPIChat) GetProvider() provider.ProviderName {
 	return c.provider
