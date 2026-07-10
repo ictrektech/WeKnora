@@ -3489,6 +3489,9 @@ export default {
         asynq: {
           concurrency: 'Async task worker concurrency',
         },
+        model: {
+          max_concurrency: 'Default per-model concurrency limit',
+        },
       },
       keyDescriptions: {
         auth: {
@@ -3508,6 +3511,10 @@ export default {
         asynq: {
           concurrency:
             'Async task worker concurrency (asynq thread-pool size). Document parsing, embedding, and similar tasks are mostly I/O-bound, so raising this value can shorten queue time for bulk uploads. Requires a service process restart to take effect.',
+        },
+        model: {
+          max_concurrency:
+            'Default cap on concurrent background (ingestion/enrichment) calls to a single model, keyed by model ID and shared across replicas. Read on every call and applied immediately with no restart. 0 or a negative value disables the default cap (each model still honours its own limit configured in model management). Affects background tasks only, not interactive chat.',
         },
       },
       enumLabels: {
@@ -3791,6 +3798,9 @@ export default {
       dimensionOverrideDesc: 'Enable only if the provider documentation says this model accepts a dimensions parameter.',
       supportsVisionLabel: 'Supports Vision / Multimodal',
       supportsVisionDesc: 'Whether the model accepts image and multimodal input',
+      maxConcurrencyLabel: 'Background concurrency limit',
+      maxConcurrencyPlaceholder: '0 = use global default',
+      maxConcurrencyDesc: 'Caps concurrent background (ingestion/enrichment) calls to this model, shared per model across all replicas. 0 or empty falls back to the global default; interactive chat is never affected.',
       thinkingControlLabel: 'Thinking mode request format',
       thinkingControlDesc:
         'Controls how the agent’s “Thinking mode” on/off switch is written to the API. We pre-select based on vendor/model when possible; change it to match your API docs. With “Do not send”, the agent Thinking mode switch has no effect.',
