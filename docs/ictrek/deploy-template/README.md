@@ -102,7 +102,9 @@ WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docr
 ./update-and-deploy.sh --platform thor
 ```
 
-脚本从 `WEKNORA_DEPLOY_REPO`（默认 `git@github.com:ictrektech/WeKnora.git`）拉取 `WEKNORA_DEPLOY_REF`（默认 `main`），同步最新部署模板，同时保留 `.env*`、`data/`、日志和 `config/builtin_models*.yaml`，然后调用 `deploy.sh` 按需替换。
+脚本从 `WEKNORA_DEPLOY_REPO`（默认 `https://github.com/ictrektech/WeKnora.git`）拉取 `WEKNORA_DEPLOY_REF`（默认 `main`），同步最新部署模板，同时保留 `.env*`、`docker-compose.override.yml`、`data/`、日志和 `config/builtin_models*.yaml`，然后调用 `deploy.sh` 按需替换。
+
+系统信息页的一键更新按钮只对系统管理员显示。app 通过固定的 `deploy-updater` sidecar 执行更新，不接受前端传入命令；进度写入部署目录的 `update-and-deploy.log`。该功能需要 app 和 sidecar 挂载 Docker socket，因此只应在可信管理员可访问的自托管环境开启，并在 `.env` 中正确设置 `WEKNORA_DEPLOY_PLATFORM`、`DEPLOY_UPDATER_CONTAINER` 和 `FEISHU_CONFIG_HOST_FILE`。
 
 新部署：
 

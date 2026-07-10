@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -128,6 +129,8 @@ type GetSystemInfoResponse struct {
 	StartedAt string `json:"started_at,omitempty"`
 	// UptimeSeconds is seconds elapsed since process start.
 	UptimeSeconds int64 `json:"uptime_seconds,omitempty"`
+	// DeployUpdaterEnabled is true when the fixed deploy-updater sidecar is configured.
+	DeployUpdaterEnabled bool `json:"deploy_updater_enabled,omitempty"`
 }
 
 // 编译时注入的版本信息
@@ -187,19 +190,20 @@ func (h *SystemHandler) GetSystemInfo(c *gin.Context) {
 	}
 
 	response := GetSystemInfoResponse{
-		Version:             Version,
-		Edition:             Edition,
-		CommitID:            CommitID,
-		BuildTime:           BuildTime,
-		GoVersion:           GoVersion,
-		KeywordIndexEngine:  keywordIndexEngine,
-		VectorStoreEngine:   vectorStoreEngine,
-		GraphDatabaseEngine: graphDatabaseEngine,
-		MinioEnabled:        minioEnabled,
-		DBVersion:           dbVersion,
-		DBMigrationError:    dbMigrationErr,
-		StartedAt:           startedAt,
-		UptimeSeconds:       uptimeSec,
+		Version:              Version,
+		Edition:              Edition,
+		CommitID:             CommitID,
+		BuildTime:            BuildTime,
+		GoVersion:            GoVersion,
+		KeywordIndexEngine:   keywordIndexEngine,
+		VectorStoreEngine:    vectorStoreEngine,
+		GraphDatabaseEngine:  graphDatabaseEngine,
+		MinioEnabled:         minioEnabled,
+		DBVersion:            dbVersion,
+		DBMigrationError:     dbMigrationErr,
+		StartedAt:            startedAt,
+		UptimeSeconds:        uptimeSec,
+		DeployUpdaterEnabled: strings.TrimSpace(os.Getenv("WEKNORA_DEPLOY_UPDATER_CONTAINER")) != "",
 	}
 
 	logger.Info(ctx, "System info retrieved successfully")
@@ -207,6 +211,70 @@ func (h *SystemHandler) GetSystemInfo(c *gin.Context) {
 		"code": 0,
 		"msg":  "success",
 		"data": response,
+	})
+}
+
+type RunDeployUpdateResponse struct {
+	Success  bool   `json:"success"`
+	Output   string `json:"output"`
+	Duration string `json:"duration"`
+}
+
+// RunDeployUpdate starts the fixed deploy-updater sidecar. It intentionally
+// accepts no command or service names from the client; the script owns compose
+// project/service selection.
+func (h *SystemHandler) RunDeployUpdate(c *gin.Context) {
+	ctx := logger.CloneContext(c.Request.Context())
+	container := strings.TrimSpace(os.Getenv("WEKNORA_DEPLOY_UPDATER_CONTAINER"))
+	platform := strings.TrimSpace(os.Getenv("WEKNORA_DEPLOY_PLATFORM"))
+	if container == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "WEKNORA_DEPLOY_UPDATER_CONTAINER is not configured"})
+		return
+	}
+	if platform == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "WEKNORA_DEPLOY_PLATFORM is not configured"})
+		return
+	}
+	switch platform {
+	case "amd", "l4t", "thor":
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported WEKNORA_DEPLOY_PLATFORM"})
+		return
+	}
+
+	timeout := 30 * time.Minute
+	if raw := strings.TrimSpace(os.Getenv("WEKNORA_DEPLOY_UPDATE_TIMEOUT_SECONDS")); raw != "" {
+		if sec, err := strconv.Atoi(raw); err == nil && sec > 0 {
+			timeout = time.Duration(sec) * time.Second
+		}
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	start := time.Now()
+	script := fmt.Sprintf(
+		`cd /weknora-deploy && { echo "[INFO] deploy update requested at $(date -Is)"; if mkdir .update-and-deploy.lock 2>/dev/null; then trap 'rmdir .update-and-deploy.lock' EXIT; ./update-and-deploy.sh --platform %s; else echo "[INFO] deploy update already running"; fi; } >> update-and-deploy.log 2>&1`,
+		platform,
+	)
+	cmd := exec.CommandContext(runCtx, "docker", "exec", "-d", container, "bash", "-lc", script)
+	out, err := cmd.CombinedOutput()
+	output := string(out)
+	if len(output) > 12000 {
+		output = output[len(output)-12000:]
+	}
+	if runCtx.Err() == context.DeadlineExceeded {
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "deployment update timed out", "output": output})
+		return
+	}
+	if err != nil {
+		logger.Errorf(ctx, "deployment update failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "output": output})
+		return
+	}
+	c.JSON(http.StatusOK, RunDeployUpdateResponse{
+		Success:  true,
+		Output:   output,
+		Duration: time.Since(start).Round(time.Second).String(),
 	})
 }
 

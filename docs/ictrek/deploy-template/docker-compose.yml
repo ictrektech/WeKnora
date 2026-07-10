@@ -70,6 +70,9 @@ services:
       WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
       WEKNORA_REPARSE_WAIT_URLS: ${WEKNORA_REPARSE_WAIT_URLS:-}
       WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
+      WEKNORA_DEPLOY_UPDATER_CONTAINER: ${DEPLOY_UPDATER_CONTAINER:-weknora-deploy-updater}
+      WEKNORA_DEPLOY_PLATFORM: ${WEKNORA_DEPLOY_PLATFORM:-l4t}
+      WEKNORA_RUN_AS_ROOT: "true"
       DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
       JWT_SECRET: ${JWT_SECRET:-}
       TENANT_AES_KEY: ${TENANT_AES_KEY:-}
@@ -81,6 +84,7 @@ services:
     volumes:
       - ./data/files:/data/files
       - ./data/docreader:/tmp/docreader:ro
+      - /var/run/docker.sock:/var/run/docker.sock
       # Uncomment only when this deployment intentionally uses YAML-managed models.
       # - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
     healthcheck:
@@ -98,6 +102,21 @@ services:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - weknora
+    restart: unless-stopped
+
+  deploy-updater:
+    image: ${WEKNORA_APP_IMAGE:?set WEKNORA_APP_IMAGE in .env}
+    container_name: ${DEPLOY_UPDATER_CONTAINER:-weknora-deploy-updater}
+    entrypoint: ["bash", "-lc", "sleep infinity"]
+    environment:
+      FEISHU_CONFIG_FILE: /root/.feishu.json
+      FEISHU_READ_CONFIG_FILE: /root/.feishu.components.json
+    volumes:
+      - ./:/weknora-deploy
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${FEISHU_CONFIG_HOST_FILE:-/home/jhu/.feishu.json}:/root/.feishu.json:ro
     networks:
       - weknora
     restart: unless-stopped

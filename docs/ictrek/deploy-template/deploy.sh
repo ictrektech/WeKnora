@@ -27,12 +27,20 @@ log() { echo "[INFO] $*"; }
 die() { echo "[ERROR] $*" >&2; exit 1; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
 
+docker_compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  else
+    docker-compose "$@"
+  fi
+}
+
 compose_has_service() {
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services | grep -qx "$1"
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services | grep -qx "$1"
 }
 
 service_cid() {
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null || true
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null || true
 }
 
 service_needs_image_update() {
@@ -56,7 +64,7 @@ append_service_once() {
 
 wait_service_healthy() {
   local service="$1" timeout="${2:-180}" cid status deadline
-  cid="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$service")"
+  cid="$(docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$service")"
   [[ -n "$cid" ]] || die "service not running: $service"
   deadline=$((SECONDS + timeout))
   while (( SECONDS < deadline )); do
@@ -268,6 +276,17 @@ write_env_value WEKNORA_UI_IMAGE "$WEKNORA_UI_IMAGE" "$ENV_FILE"
 write_env_value WEKNORA_DOCREADER_IMAGE "$WEKNORA_DOCREADER_IMAGE" "$ENV_FILE"
 
 cd "$ROOT_DIR"
+if [[ -z "$(service_cid app)" ]]; then
+  log "new deployment: starting the complete compose project"
+  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
+  compose_has_service docreader && wait_service_healthy docreader 180
+  wait_service_healthy app 180
+  if [[ "${WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY:-true}" != "false" && -x "${ROOT_DIR}/trigger-reparse-incomplete.sh" ]]; then
+    ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" "${ROOT_DIR}/trigger-reparse-incomplete.sh"
+  fi
+  exit 0
+fi
+
 UPDATE_SERVICES=()
 service_needs_image_update frontend "$WEKNORA_UI_IMAGE" && append_service_once frontend
 service_needs_image_update app "$WEKNORA_APP_IMAGE" && append_service_once app
@@ -285,7 +304,7 @@ if [[ "${#UPDATE_SERVICES[@]}" == "0" ]]; then
 fi
 
 log "updating services: ${UPDATE_SERVICES[*]}"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps "${UPDATE_SERVICES[@]}"
+docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps "${UPDATE_SERVICES[@]}"
 
 if [[ " ${UPDATE_SERVICES[*]} " == *" docreader "* ]]; then
   wait_service_healthy docreader 180

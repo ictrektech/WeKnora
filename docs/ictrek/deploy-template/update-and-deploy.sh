@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_URL="${WEKNORA_DEPLOY_REPO:-git@github.com:ictrektech/WeKnora.git}"
+REPO_URL="${WEKNORA_DEPLOY_REPO:-https://github.com/ictrektech/WeKnora.git}"
 REPO_REF="${WEKNORA_DEPLOY_REF:-main}"
 PLATFORM="${PLATFORM:-}"
 DRY_RUN=0
@@ -16,7 +16,7 @@ directory while preserving local .env files, then runs the platform deploy
 script. Intended for a future "update deployment" web button.
 
 Environment:
-  WEKNORA_DEPLOY_REPO  Git repo to pull from, default git@github.com:ictrektech/WeKnora.git
+  WEKNORA_DEPLOY_REPO  Git repo to pull from, default https://github.com/ictrektech/WeKnora.git
   WEKNORA_DEPLOY_REF   Git ref to pull, default main
   PLATFORM           Alternative to --platform
 EOF
@@ -100,6 +100,7 @@ git -C "$tmp/repo" sparse-checkout set docs/ictrek
 changes="$(rsync -az --delete --dry-run --itemize-changes \
   --exclude='.env' \
   --exclude='.env.*' \
+  --exclude='docker-compose.override.yml' \
   --exclude='data/' \
   --exclude='*.log' \
   --exclude='config/builtin_models*.yaml' \
@@ -110,6 +111,7 @@ if [[ -n "$changes" ]]; then
   rsync -az --delete \
     --exclude='.env' \
     --exclude='.env.*' \
+    --exclude='docker-compose.override.yml' \
     --exclude='data/' \
     --exclude='*.log' \
     --exclude='config/builtin_models*.yaml' \
