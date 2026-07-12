@@ -107,6 +107,28 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     return findCurrentTurnAssistantByContent(item)
   }
 
+  /**
+   * A history refresh can arrive before the SSE completion event. Keep the
+   * stream correlation ids in that case: the persisted row may use a
+   * different id, while later SSE chunks still use the original request id.
+   */
+  const mergeHistoryMessage = (existing: ChatMessage, item: ChatMessage) => {
+    const keepStreamIdentity =
+      existing.role === 'assistant' &&
+      (!existing.is_completed ||
+        existing.id === currentAssistantMessageId.value ||
+        existing.request_id === currentAssistantMessageId.value)
+    const streamId = existing.id
+    const streamRequestId = existing.request_id
+
+    Object.assign(existing, item)
+
+    if (keepStreamIdentity) {
+      if (streamId) existing.id = streamId
+      if (streamRequestId) existing.request_id = streamRequestId
+    }
+  }
+
   /** Incomplete assistant row for the current turn (must be the list tail). */
   const getTrailingIncompleteAssistant = () => {
     const last = messagesList[messagesList.length - 1]
@@ -442,7 +464,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
       const existing = findExistingMessage(item, !isScrollType)
       if (existing) {
-        Object.assign(existing, item)
+        mergeHistoryMessage(existing, item)
         continue
       }
 
@@ -475,9 +497,18 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   }
 
   const updateAssistantSession = (payload: ChatMessage) => {
+    const activeAssistantMessageId = currentAssistantMessageId.value
     let message = findLastMessage((item) => {
+      if (item.role !== 'assistant') return false
       if (item.request_id === payload.id) return true
-      return item.id === payload.id
+      if (item.id === payload.id) return true
+      if (activeAssistantMessageId) {
+        return (
+          item.id === activeAssistantMessageId ||
+          item.request_id === activeAssistantMessageId
+        )
+      }
+      return false
     })
     if (!message) {
       message = findCurrentTurnAssistantByContent({

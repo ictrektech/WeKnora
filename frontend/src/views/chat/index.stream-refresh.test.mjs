@@ -25,5 +25,15 @@ test('completed stream rows merge with refreshed history when ids drift', () => 
   assert.match(handlerSource, /const findCurrentTurnAssistantByContent = \(item: ChatMessage\) => \{/)
   assert.match(handlerSource, /if \(message\.role === 'user'\) break/)
   assert.match(handlerSource, /const existing = findExistingMessage\(item,\s*!isScrollType\)/)
+  assert.match(handlerSource, /const mergeHistoryMessage = \(existing: ChatMessage, item: ChatMessage\) => \{/)
   assert.match(handlerSource, /message = findCurrentTurnAssistantByContent\(\{\s*\.\.\.payload,\s*role: 'assistant',\s*\}\)/)
+})
+
+test('history refresh preserves active stream ids and later chunks target that row', () => {
+  assert.match(handlerSource, /const streamId = existing\.id/)
+  assert.match(handlerSource, /const streamRequestId = existing\.request_id/)
+  assert.match(handlerSource, /if \(streamId\) existing\.id = streamId/)
+  assert.match(handlerSource, /if \(streamRequestId\) existing\.request_id = streamRequestId/)
+  assert.match(handlerSource, /const activeAssistantMessageId = currentAssistantMessageId\.value/)
+  assert.match(handlerSource, /item\.id === activeAssistantMessageId[\s\S]*item\.request_id === activeAssistantMessageId/)
 })
