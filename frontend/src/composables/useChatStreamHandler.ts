@@ -71,6 +71,42 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     return undefined
   }
 
+  const normalizeMessageContent = (value: unknown) =>
+    String(value || '').replace(/\s+/g, ' ').trim()
+
+  const findCurrentTurnAssistantByContent = (item: ChatMessage) => {
+    if (item.role !== 'assistant') return undefined
+    const targetContent = normalizeMessageContent(item.content)
+    if (!targetContent) return undefined
+    for (let i = messagesList.length - 1; i >= 0; i--) {
+      const message = messagesList[i]
+      if (message.role === 'user') break
+      if (
+        message.role === 'assistant' &&
+        normalizeMessageContent(message.content) === targetContent
+      ) {
+        return message
+      }
+    }
+    return undefined
+  }
+
+  const findExistingMessage = (
+    item: ChatMessage,
+    allowCurrentTurnContentFallback = true,
+  ) => {
+    const matchedById = messagesList.find((message) => {
+      if (item.id && message.id === item.id) return true
+      if (item.request_id && message.request_id === item.request_id) return true
+      if (item.id && message.request_id === item.id) return true
+      if (item.request_id && message.id === item.request_id) return true
+      return false
+    })
+    if (matchedById) return matchedById
+    if (!allowCurrentTurnContentFallback) return undefined
+    return findCurrentTurnAssistantByContent(item)
+  }
+
   /** Incomplete assistant row for the current turn (must be the list tail). */
   const getTrailingIncompleteAssistant = () => {
     const last = messagesList[messagesList.length - 1]
@@ -350,15 +386,6 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     newScrollHeight?: number,
   ) => {
     const chatlist = [...data]
-    const findExistingMessage = (item: ChatMessage) => {
-      return messagesList.find((message) => {
-        if (item.id && message.id === item.id) return true
-        if (item.request_id && message.request_id === item.request_id) return true
-        if (item.id && message.request_id === item.id) return true
-        if (item.request_id && message.id === item.request_id) return true
-        return false
-      })
-    }
     const processed: ChatMessage[] = []
 
     for (const raw of chatlist) {
@@ -413,7 +440,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
       }
 
-      const existing = findExistingMessage(item)
+      const existing = findExistingMessage(item, !isScrollType)
       if (existing) {
         Object.assign(existing, item)
         continue
@@ -448,10 +475,16 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   }
 
   const updateAssistantSession = (payload: ChatMessage) => {
-    const message = findLastMessage((item) => {
+    let message = findLastMessage((item) => {
       if (item.request_id === payload.id) return true
       return item.id === payload.id
     })
+    if (!message) {
+      message = findCurrentTurnAssistantByContent({
+        ...payload,
+        role: 'assistant',
+      })
+    }
     if (message) {
       if (payload.id && !message.request_id) message.request_id = payload.id
       message.content = payload.content
