@@ -22,7 +22,6 @@
 - [WeKnora 镜像构建](build-images.md)
 - [ictrek 部署模板](deploy-template/)
 - [部署模板脚本](deploy-template/deploy.sh)
-- [已有部署一键更新脚本](deploy-template/update-and-deploy.sh)
 - [并发和队列配置](deploy-template/CONCURRENCY.md)
 - [手动触发未完成文档重解析脚本](deploy-template/trigger-reparse-incomplete.sh)
 - [Orin NX / L4T 纯 Ollama compose overlay](deploy-template/docker-compose.orin-ollama.yml)
@@ -32,9 +31,7 @@
 - [Neo4j env 示例](neo4j.env.example)
 - [上游同步](upstream-sync.md)
 
-部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 容器重建或重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 `failed`、`pending`、`processing` 文档；`finalizing` 只有在 `processed_at is null` 时才会整文档重跑。`deploy-template/deploy.sh` 从飞书读取三个 WeKnora 镜像，只替换镜像 digest 或部署配置发生变化的 frontend、app、docreader，不重启数据库和模型后端；发生相关替换后再运行 `trigger-reparse-incomplete.sh` 补交失败/未完成文档。
-
-已有部署目录可运行 `./update-and-deploy.sh --platform amd|l4t|thor`。脚本从 `WEKNORA_DEPLOY_REPO` / `WEKNORA_DEPLOY_REF` 拉取最新部署模板，保留本机 `.env*`、`data/` 和模型配置，再调用 `deploy.sh` 检查飞书镜像并按需替换。
+部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 容器重建或重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 `failed`、`pending`、`processing` 文档；`finalizing` 只有在 `processed_at is null` 时才会整文档重跑。启动扫描走 `critical` 队列，每条知识重新解析前会清理残留 queued/retry 任务。`deploy-template/deploy.sh` 会从飞书读取最新 `weknora`、`weknora-ui`、`weknora-docreader` 镜像写入 `.env`，执行 compose 后默认重建 `docreader` 和 `app`，再运行 `trigger-reparse-incomplete.sh` 补交失败/未完成文档。可用 `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` 或 `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` 跳过对应步骤。
 
 如果改了 `docreader/` 里的解析逻辑，例如 PDF 文本层乱码检测、扫描页渲染策略、文档格式解析器，必须重新构建并部署 `weknora-docreader` 镜像，再重建 `docreader` 容器；只重启旧镜像不会生效。文档页工具栏的「重新解析失败文档」只扫描当前知识库 `parse_status=failed` 的文档并按当前默认解析配置批量重新提交；`pending`、`processing` 和 `processed_at` 为空的 `finalizing` 由启动/部署脚本处理，已完成文字解析和向量入库的 `finalizing` 不会重复跑 docreader/embedding。
 

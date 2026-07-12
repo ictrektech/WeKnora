@@ -12,14 +12,13 @@ COMPOSE_FILE="${COMPOSE_FILE:-${ROOT_DIR}/docker-compose.yml}"
 PLATFORM=""
 SHEET_TITLE=""
 DRY_RUN=0
-CONFIG_CHANGED="${WEKNORA_DEPLOY_CONFIG_CHANGED:-0}"
 
 usage() {
   cat <<'EOF'
 Usage: ./deploy.sh --platform amd|l4t|thor [--sheet SHEET] [--compose-file FILE] [--dry-run]
 
-Looks up the latest WeKnora image tags in Feishu, writes them to .env, pulls the
-images, then replaces only changed WeKnora services.
+Looks up the latest WeKnora image tags in Feishu, writes them to .env, then runs docker compose up -d.
+After compose is healthy, docreader and app are recreated and incomplete documents are reparse-submitted.
 EOF
 }
 
@@ -27,44 +26,13 @@ log() { echo "[INFO] $*"; }
 die() { echo "[ERROR] $*" >&2; exit 1; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
 
-docker_compose() {
-  if docker compose version >/dev/null 2>&1; then
-    docker compose "$@"
-  else
-    docker-compose "$@"
-  fi
-}
-
 compose_has_service() {
-  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services | grep -qx "$1"
-}
-
-service_cid() {
-  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null || true
-}
-
-service_needs_image_update() {
-  local service="$1" image="$2" cid current target
-  compose_has_service "$service" || return 1
-  docker pull "$image" >/dev/null
-  cid="$(service_cid "$service")"
-  target="$(docker image inspect "$image" --format '{{.Id}}')"
-  [[ -n "$cid" ]] || return 0
-  current="$(docker inspect "$cid" --format '{{.Image}}')"
-  [[ "$current" != "$target" ]]
-}
-
-append_service_once() {
-  local service="$1" existing
-  for existing in "${UPDATE_SERVICES[@]:-}"; do
-    [[ "$existing" == "$service" ]] && return 0
-  done
-  UPDATE_SERVICES+=("$service")
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services | grep -qx "$1"
 }
 
 wait_service_healthy() {
   local service="$1" timeout="${2:-180}" cid status deadline
-  cid="$(docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$service")"
+  cid="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$service")"
   [[ -n "$cid" ]] || die "service not running: $service"
   deadline=$((SECONDS + timeout))
   while (( SECONDS < deadline )); do
@@ -276,44 +244,20 @@ write_env_value WEKNORA_UI_IMAGE "$WEKNORA_UI_IMAGE" "$ENV_FILE"
 write_env_value WEKNORA_DOCREADER_IMAGE "$WEKNORA_DOCREADER_IMAGE" "$ENV_FILE"
 
 cd "$ROOT_DIR"
-if [[ -z "$(service_cid app)" ]]; then
-  log "new deployment: starting the complete compose project"
-  docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
-  compose_has_service docreader && wait_service_healthy docreader 180
-  wait_service_healthy app 180
-  if [[ "${WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY:-true}" != "false" && -x "${ROOT_DIR}/trigger-reparse-incomplete.sh" ]]; then
-    ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" "${ROOT_DIR}/trigger-reparse-incomplete.sh"
-  fi
-  exit 0
-fi
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
 
-UPDATE_SERVICES=()
-service_needs_image_update frontend "$WEKNORA_UI_IMAGE" && append_service_once frontend
-service_needs_image_update app "$WEKNORA_APP_IMAGE" && append_service_once app
-service_needs_image_update docreader "$WEKNORA_DOCREADER_IMAGE" && append_service_once docreader
-
-if [[ "$CONFIG_CHANGED" == "1" ]]; then
-  for service in frontend app docreader; do
-    compose_has_service "$service" && append_service_once "$service"
-  done
-fi
-
-if [[ "${#UPDATE_SERVICES[@]}" == "0" ]]; then
-  log "no update needed: deploy files and image digests match running containers"
-  exit 0
-fi
-
-log "updating services: ${UPDATE_SERVICES[*]}"
-docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps "${UPDATE_SERVICES[@]}"
-
-if [[ " ${UPDATE_SERVICES[*]} " == *" docreader "* ]]; then
+if [[ "${WEKNORA_RECREATE_DOCREADER_ON_DEPLOY:-true}" != "false" ]] && compose_has_service docreader; then
+  log "recreating docreader to clear stale parser process state"
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate docreader
   wait_service_healthy docreader 180
-fi
-if [[ " ${UPDATE_SERVICES[*]} " == *" app "* ]]; then
-  wait_service_healthy app 180
+  if compose_has_service app; then
+    log "recreating app after docreader is healthy"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate app
+    wait_service_healthy app 180
+  fi
 fi
 
-if [[ (" ${UPDATE_SERVICES[*]} " == *" app "* || " ${UPDATE_SERVICES[*]} " == *" docreader "* || "$CONFIG_CHANGED" == "1") && "${WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY:-true}" != "false" && -x "${ROOT_DIR}/trigger-reparse-incomplete.sh" ]]; then
+if [[ "${WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY:-true}" != "false" && -x "${ROOT_DIR}/trigger-reparse-incomplete.sh" ]]; then
   log "triggering full-document reparse for incomplete knowledge"
   ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" "${ROOT_DIR}/trigger-reparse-incomplete.sh"
 fi

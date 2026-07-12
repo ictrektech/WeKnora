@@ -9,7 +9,6 @@ docker-compose.yml
 .env.example
 config/builtin_models.yaml.example
 deploy.sh
-update-and-deploy.sh
 trigger-reparse-incomplete.sh
 ```
 
@@ -92,19 +91,7 @@ WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docr
 ./deploy.sh --platform thor
 ```
 
-`deploy.sh` 默认使用 `~/.feishu.components.json`，没有时回退到 `~/.feishu.json`。脚本写入三个 WeKnora 镜像变量，拉取镜像并比较运行容器的 image digest，只替换发生变化的 frontend、app、docreader；Postgres、Redis、Neo4j 和模型后端不会被重启。app/docreader 或部署配置变化后，脚本运行 `trigger-reparse-incomplete.sh` 补交失败/未完成文档。
-
-已有部署目录一键更新：
-
-```bash
-./update-and-deploy.sh --platform amd
-./update-and-deploy.sh --platform l4t
-./update-and-deploy.sh --platform thor
-```
-
-脚本从 `WEKNORA_DEPLOY_REPO`（默认 `https://github.com/ictrektech/WeKnora.git`）拉取 `WEKNORA_DEPLOY_REF`（默认 `main`），同步最新部署模板，同时保留 `.env*`、`docker-compose.override.yml`、`data/`、日志和 `config/builtin_models*.yaml`，然后调用 `deploy.sh` 按需替换。
-
-系统信息页的一键更新按钮只对系统管理员显示。app 通过固定的 `deploy-updater` sidecar 执行更新，不接受前端传入命令；进度写入部署目录的 `update-and-deploy.log`。该功能需要 app 和 sidecar 挂载 Docker socket，因此只应在可信管理员可访问的自托管环境开启，并在 `.env` 中正确设置 `WEKNORA_DEPLOY_PLATFORM`、`DEPLOY_UPDATER_CONTAINER` 和 `FEISHU_CONFIG_HOST_FILE`。
+`deploy.sh` 默认使用 `~/.feishu.components.json`，没有时回退到 `~/.feishu.json`。脚本会写入 `WEKNORA_APP_IMAGE`、`WEKNORA_UI_IMAGE`、`WEKNORA_DOCREADER_IMAGE`，执行 compose 后重建 `docreader` 和 `app`，等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再运行 `trigger-reparse-incomplete.sh` 把失败/未完成文档重新提交。`failed`、`pending`、`processing` 会整文档重试；`finalizing` 只有在 `processed_at` 为空时才整文档重试。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后处理的文档不会重复跑 docreader、分块和 embedding。设置 `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` 可跳过 docreader/app 重建；设置 `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` 可跳过部署后批量 reparse。
 
 新部署：
 

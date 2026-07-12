@@ -132,18 +132,6 @@
         </div>
       </div>
 
-      <div v-if="systemInfo?.deploy_updater_enabled && authStore.isSystemAdmin" class="setting-row">
-        <div class="setting-info">
-          <label>{{ $t('system.deployUpdateLabel') }}</label>
-          <p class="desc">{{ $t('system.deployUpdateDescription') }}</p>
-        </div>
-        <div class="setting-control">
-          <t-button theme="primary" :loading="updatingDeploy" @click="handleDeployUpdate">
-            {{ $t('system.deployUpdateButton') }}
-          </t-button>
-        </div>
-      </div>
-
       <!-- DB migration error: full-width banner under the row -->
       <div v-if="systemInfo?.db_migration_error" class="setting-row migration-error-row">
         <t-alert theme="error" :title="$t('system.dbMigrationFailedTitle')" style="width: 100%;">
@@ -208,19 +196,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { getSystemInfo, runDeployUpdate, type SystemInfo } from '@/api/system'
+import { getSystemInfo, type SystemInfo } from '@/api/system'
 import { useI18n } from 'vue-i18n'
-import { MessagePlugin } from 'tdesign-vue-next'
-import { useAuthStore } from '@/stores/auth'
 
 const { t, locale } = useI18n()
-const authStore = useAuthStore()
 
 // Reactive state
 const systemInfo = ref<SystemInfo | null>(null)
 const loading = ref(true)
 const error = ref('')
-const updatingDeploy = ref(false)
 const frontendVersion = __FRONTEND_VERSION__
 const frontendCommit = __FRONTEND_COMMIT__
 
@@ -310,21 +294,6 @@ const loadInfo = async () => {
     error.value = err?.message || t('system.messages.networkError')
   } finally {
     loading.value = false
-  }
-}
-
-const handleDeployUpdate = async () => {
-  if (updatingDeploy.value) return
-  updatingDeploy.value = true
-  try {
-    await runDeployUpdate()
-    MessagePlugin.success(t('system.deployUpdateStarted'))
-  } catch (err: any) {
-    const output = err?.response?.data?.output || err?.output
-    MessagePlugin.error(output || err?.message || t('system.deployUpdateFailed'))
-  } finally {
-    updatingDeploy.value = false
-    await loadInfo()
   }
 }
 

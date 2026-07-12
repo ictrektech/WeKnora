@@ -18,14 +18,6 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
 }
 
-docker_compose() {
-  if docker compose version >/dev/null 2>&1; then
-    docker compose "$@"
-  else
-    docker-compose "$@"
-  fi
-}
-
 env_value() {
   local key="$1"
   local default="${2:-}"
@@ -191,7 +183,7 @@ main() {
 
   wait_for_ready_urls "$ready_urls" || return 0
 
-  postgres_cid="$(docker_compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q postgres)"
+  postgres_cid="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q postgres)"
   [[ -n "$postgres_cid" ]] || die "postgres service is not running"
 
   token="$(wait_for_token "$api_url")" || {

@@ -19,7 +19,6 @@ export interface SystemInfo {
   started_at?: string
   /** Seconds since process start. */
   uptime_seconds?: number
-  deploy_updater_enabled?: boolean
 }
 
 export interface PlaceholderDefinition {
@@ -58,17 +57,6 @@ export interface PromptTemplatesConfig {
 
 export function getSystemInfo(): Promise<{ data: SystemInfo }> {
   return get('/api/v1/system/info')
-}
-
-export interface DeployUpdateResult {
-  success: boolean
-  output: string
-  duration: string
-}
-
-export async function runDeployUpdate(): Promise<DeployUpdateResult> {
-  const response = await post('/api/v1/system/admin/deploy/update')
-  return response as unknown as DeployUpdateResult
 }
 
 export function getPromptTemplates(): Promise<{ data: PromptTemplatesConfig }> {
