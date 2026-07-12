@@ -1227,6 +1227,7 @@ export default {
     storageEngine: 'Storage Engine',
     mcpService: 'MCP Service',
     versionInfo: 'Version Info',
+    taskQueue: 'Task Queues',
     tenantInfo: 'Tenant Info',
     apiInfo: 'API Info',
     navGroups: {
@@ -1234,6 +1235,7 @@ export default {
       workspace: 'Workspace',
       modelsRuntime: 'Models',
       dataExtensions: 'Data & Extensions',
+      systemAdministration: 'System Administration',
       platform: 'Platform',
     },
     roleDenied: {
@@ -3475,6 +3477,96 @@ export default {
         tier2: 'Items not saved here fall back to the environment variable, or to the built-in default if no env var is set.',
         tier3: 'To put an item back under environment-variable control, click the "Reset" button on its row.',
       },
+      runtime: {
+        title: "Task Queue Runtime",
+        description: "Live background-queue load and per-process capacity for each isolated worker pool. Read-only; auto-refreshes every 5s.",
+        refresh: "Refresh",
+        autoRefresh: "Auto-refresh (every 5s)",
+        loading: "Loading...",
+        retry: "Retry",
+        unavailableTitle: "Task queues unavailable",
+        unavailable: "This deployment has no Redis / asynq queue (Lite mode) — nothing to display.",
+        paused: "Paused",
+        empty: "No queue data available",
+        detailsTitle: "Queue details",
+        detailsDescription: "Live load and wait time for every processing lane.",
+        poolsTitle: "Worker pools",
+        poolsDescription: "Core parsing, enrichment, maintenance, and Wiki use isolated concurrency budgets.",
+        perInstance: "Concurrency is per process",
+        queueCount: "{value} queues",
+        weight: "Pool weight {value}",
+        footnote: "Concurrency is a per-process cap (restart required); weight only controls scheduling within one pool; Active is cluster-wide.",
+        updatedAt: "Updated at {value}",
+        errors: {
+          generic: "Failed to load queue stats",
+        },
+        summary: {
+          title: "Runtime overview",
+          active: "Active",
+          pending: "Pending",
+          retry: "Retrying",
+          archived: "Dead letters",
+        },
+        columns: {
+          queue: "Queue",
+          active: "Active",
+          pending: "Pending",
+          scheduled: "Scheduled",
+          retry: "Retry",
+          archived: "Dead",
+          latency: "Oldest wait",
+          status: "Status",
+        },
+        status: {
+          working: "Working",
+          waiting: "Waiting",
+          idle: "Idle",
+          attention: "Attention",
+          paused: "Paused",
+        },
+        models: {
+          title: "Model concurrency",
+          description: "Actual model-service concurrency from background tasks. The section above schedules tasks; this section shows the separate model-service throttle stage.",
+          scope: "Active is cluster-wide · waiting is local",
+          disabled: "Background model concurrency governance is disabled. Configure the default model concurrency limit in Global settings.",
+          empty: "No model activity yet. A model appears after its first background call.",
+          backgroundOnly: "Background tasks only; interactive chat is excluded",
+          columns: { model: "Model ID", active: "In flight", waiting: "Throttled", usage: "Concurrency" },
+          status: { queued: "Throttling", full: "At limit" },
+        },
+        pools: {
+          core: "Core parsing",
+          enrichment: "Enrichment",
+          maintenance: "Maintenance & sync",
+          wiki: "Wiki pool",
+        },
+        poolDescriptions: {
+          core: "Document parsing and post-process orchestration",
+          enrichment: "Summaries, images, graph, and question generation",
+          maintenance: "Source sync, batch work, and deletion cleanup",
+          wiki: "Wiki content generation and global finalization",
+        },
+        queueNames: {
+          default: "Default (document parse)",
+          summary: "Summary generation",
+          sync: "Source sync",
+          low: "Maintenance & batch jobs",
+          multimodal: "Multimodal (images)",
+          graph: "Graph extraction",
+          question: "Question generation",
+          wiki: "Wiki ingest",
+        },
+        queueDescriptions: {
+          default: "Document parsing, manual updates, and post-process orchestration",
+          summary: "Document and data-table summaries",
+          sync: "Manual and scheduled data-source sync",
+          low: "FAQ import, clone/move, batch reparse, and deletion cleanup",
+          multimodal: "Image OCR and multimodal descriptions",
+          graph: "Knowledge graph extraction from document chunks",
+          question: "Question generation from document chunks",
+          wiki: "Wiki content generation and index sync",
+        },
+      },
       keyLabels: {
         auth: {
           registration_mode: 'Self-service registration mode',
@@ -3487,7 +3579,8 @@ export default {
           default_storage_quota_gb: 'Default storage quota for new tenants (GB)',
         },
         asynq: {
-          concurrency: 'Async task worker concurrency',
+          concurrency: 'Total upstream worker budget',
+          wiki_concurrency: 'Wiki worker concurrency',
         },
         model: {
           max_concurrency: 'Default per-model concurrency limit',
@@ -3510,7 +3603,9 @@ export default {
         },
         asynq: {
           concurrency:
-            'Async task worker concurrency (asynq thread-pool size). Document parsing, embedding, and similar tasks are mostly I/O-bound, so raising this value can shorten queue time for bulk uploads. Requires a service process restart to take effect.',
+            'Total per-process concurrency budget for upstream background work (excluding Wiki). It is split into isolated pools: 1/2 core parsing, 3/8 enrichment, and the remainder maintenance and sync. Minimum 3; requires a service restart.',
+          wiki_concurrency:
+            'Per-process concurrency for the dedicated Wiki worker pool, isolated from upstream tasks. Minimum 1; requires a service restart.',
         },
         model: {
           max_concurrency:

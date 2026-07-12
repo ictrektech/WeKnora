@@ -23,7 +23,7 @@ func (w *concurrencyVLM) GetModelName() string { return w.inner.GetModelName() }
 func (w *concurrencyVLM) GetModelID() string   { return w.inner.GetModelID() }
 
 func (w *concurrencyVLM) Predict(ctx context.Context, imgBytes [][]byte, prompt string) (string, error) {
-	release := limiter.GateN(ctx, vlmLimiterKey(w.inner), w.limit)
+	release := limiter.GateNamedN(ctx, vlmLimiterKey(w.inner), w.inner.GetModelName(), w.limit)
 	defer release()
 	return w.inner.Predict(ctx, imgBytes, prompt)
 }

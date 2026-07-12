@@ -127,6 +127,12 @@ func (f fakeTaskInspector) HasQueuedTasksForKnowledge(
 	return f.queued[knowledgeID], nil
 }
 
+func (f fakeTaskInspector) QueueStats(
+	_ context.Context,
+) ([]types.QueueStat, bool, error) {
+	return nil, false, nil
+}
+
 func newHousekeepingSvcForTest(db *gorm.DB) *HousekeepingService {
 	return newHousekeepingSvcWithInspector(db, fakeTaskInspector{})
 }

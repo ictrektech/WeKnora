@@ -1092,6 +1092,7 @@ export default {
     storageEngine: "存储引擎",
     mcpService: "MCP服务",
     versionInfo: "版本信息",
+    taskQueue: "任务队列",
     tenantInfo: "空间信息",
     apiInfo: "API信息",
     navGroups: {
@@ -1099,6 +1100,7 @@ export default {
       workspace: "空间",
       modelsRuntime: "模型",
       dataExtensions: "数据与扩展",
+      systemAdministration: "系统管理",
       platform: "平台",
     },
     roleDenied: {
@@ -2483,6 +2485,96 @@ export default {
         tier2: "未在此处保存过的项 — 如果环境变量里有就用环境变量，否则用程序内置默认值。",
         tier3: "若想让某项重新由环境变量控制，点击该行的「重置」按钮即可清除当前 UI 设置。",
       },
+      runtime: {
+        title: "任务队列运行时",
+        description: "后台任务队列的实时负载，以及各独立 worker 池的每实例并发配置。仅供观察，每 5 秒自动刷新。",
+        refresh: "刷新",
+        autoRefresh: "自动刷新（每 5 秒）",
+        loading: "加载中...",
+        retry: "重试",
+        unavailableTitle: "任务队列不可用",
+        unavailable: "当前部署未启用 Redis / asynq 队列（Lite 模式），无队列可展示。",
+        paused: "已暂停",
+        empty: "暂无队列数据",
+        detailsTitle: "队列明细",
+        detailsDescription: "各处理通道的实时负载与等待情况。",
+        poolsTitle: "Worker 池",
+        poolsDescription: "核心解析、内容富化、维护同步和 Wiki 使用相互隔离的并发预算。",
+        perInstance: "并发数为单实例配置",
+        queueCount: "{value} 个队列",
+        weight: "池内权重 {value}",
+        footnote: "Worker 并发数为单实例上限（修改后需重启）；权重只决定同一池内的调度份额；「运行中」为集群当前任务数。",
+        updatedAt: "更新于 {value}",
+        errors: {
+          generic: "获取队列状态失败",
+        },
+        summary: {
+          title: "运行概览",
+          active: "运行中",
+          pending: "排队中",
+          retry: "重试中",
+          archived: "死信",
+        },
+        columns: {
+          queue: "队列",
+          active: "运行中",
+          pending: "排队",
+          scheduled: "定时",
+          retry: "重试",
+          archived: "死信",
+          latency: "最早等待",
+          status: "状态",
+        },
+        status: {
+          working: "处理中",
+          waiting: "等待中",
+          idle: "空闲",
+          attention: "需关注",
+          paused: "已暂停",
+        },
+        models: {
+          title: "模型并发占用",
+          description: "观察后台任务实际进入模型服务时的并发占用；上方是任务调度，这里是模型服务限流，两者处于不同处理阶段。",
+          scope: "占用为集群全局 · 等待为当前实例",
+          disabled: "模型后台并发治理未启用。可在全局设置中配置模型默认并发上限。",
+          empty: "暂无模型调用数据；模型首次执行后台任务后会出现在这里。",
+          backgroundOnly: "仅统计后台任务，不包含交互式对话",
+          columns: { model: "模型 ID", active: "调用中", waiting: "限流等待", usage: "并发用量" },
+          status: { queued: "限流中", full: "已满载" },
+        },
+        pools: {
+          core: "核心解析",
+          enrichment: "内容富化",
+          maintenance: "维护与同步",
+          wiki: "Wiki 池",
+        },
+        poolDescriptions: {
+          core: "文档解析与后处理调度",
+          enrichment: "摘要、图片、图谱与问题生成",
+          maintenance: "数据源同步、批处理与删除清理",
+          wiki: "Wiki 内容生成与全局收尾",
+        },
+        queueNames: {
+          default: "默认（文档解析）",
+          summary: "摘要生成",
+          sync: "数据源同步",
+          low: "后台维护与批处理",
+          multimodal: "多模态（图片）",
+          graph: "图谱抽取",
+          question: "问题生成",
+          wiki: "Wiki 同步",
+        },
+        queueDescriptions: {
+          default: "文档解析、手工更新与后处理调度",
+          summary: "文档摘要与表格摘要",
+          sync: "手动与定时数据源同步",
+          low: "FAQ 导入、复制移动、批量重解析与删除清理",
+          multimodal: "图片 OCR 与多模态描述",
+          graph: "从文档分块提取知识图谱",
+          question: "基于文档分块生成问题",
+          wiki: "Wiki 内容生成与索引同步",
+        },
+      },
       keyLabels: {
         auth: {
           registration_mode: "自助注册模式",
@@ -2495,7 +2587,8 @@ export default {
           default_storage_quota_gb: "新租户默认存储配额 (GB)",
         },
         asynq: {
-          concurrency: "异步任务并发数",
+          concurrency: "上游 Worker 总并发预算",
+          wiki_concurrency: "Wiki Worker 并发数",
         },
         model: {
           max_concurrency: "模型默认并发上限",
@@ -2523,9 +2616,12 @@ export default {
         },
         asynq: {
           concurrency:
-            "异步任务 worker 并发数（asynq 线程池大小）。" +
-            "文档解析、嵌入等任务多为 I/O 等待，适当提高可缩短批量上传排队时间。" +
-            "修改后需重启服务进程方可生效。",
+            "每个服务实例用于上游后台任务的总并发预算（不含 Wiki）。系统按核心解析 1/2、" +
+            "内容富化 3/8、维护与同步为剩余容量，拆分成相互隔离的 Worker 池。" +
+            "最小值为 3；修改后需重启服务进程方可生效。",
+          wiki_concurrency:
+            "每个服务实例的 Wiki 专用 Worker 并发数，与上游任务池相互隔离。" +
+            "最小值为 1；修改后需重启服务进程方可生效。",
         },
         model: {
           max_concurrency:

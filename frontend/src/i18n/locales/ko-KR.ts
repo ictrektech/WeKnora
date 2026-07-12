@@ -1070,6 +1070,7 @@ export default {
     storageEngine: "스토리지 엔진",
     mcpService: "MCP 서비스",
     versionInfo: "버전 정보",
+    taskQueue: "작업 큐",
     tenantInfo: "테넌트 정보",
     apiInfo: "API 정보",
     navGroups: {
@@ -1077,6 +1078,7 @@ export default {
       workspace: "공간",
       modelsRuntime: "모델",
       dataExtensions: "데이터 및 확장",
+      systemAdministration: "시스템 관리",
       platform: "플랫폼",
     },
     roleDenied: {
@@ -2466,6 +2468,96 @@ export default {
         tier2: "여기서 저장하지 않은 항목은 환경 변수를 따르며, 환경 변수도 없으면 내장 기본값을 사용합니다.",
         tier3: "특정 항목을 다시 환경 변수 기반으로 되돌리려면 해당 행의 \"초기화\" 버튼을 누르세요.",
       },
+      runtime: {
+        title: "작업 큐 런타임",
+        description: "백그라운드 작업 큐의 실시간 부하와 각 독립 워커 풀의 프로세스별 동시성 설정입니다. 5초마다 자동 새로고침됩니다.",
+        refresh: "새로고침",
+        autoRefresh: "자동 새로고침 (5초마다)",
+        loading: "불러오는 중...",
+        retry: "다시 시도",
+        unavailableTitle: "작업 큐를 사용할 수 없음",
+        unavailable: "현재 배포는 Redis / asynq 큐가 없습니다(Lite 모드) — 표시할 내용이 없습니다.",
+        paused: "일시중지됨",
+        empty: "표시할 큐 데이터가 없습니다",
+        detailsTitle: "큐 세부 정보",
+        detailsDescription: "각 처리 경로의 실시간 부하와 대기 상태입니다.",
+        poolsTitle: "워커 풀",
+        poolsDescription: "핵심 파싱, 보강, 유지 관리 및 Wiki는 독립된 동시성 예산을 사용합니다.",
+        perInstance: "동시성은 프로세스별 설정",
+        queueCount: "큐 {value}개",
+        weight: "풀 내 가중치 {value}",
+        footnote: "동시성은 프로세스별 상한이며 재시작 후 적용됩니다. 가중치는 같은 풀 안의 스케줄링 비율이며 실행 중 수치는 클러스터 전체입니다.",
+        updatedAt: "{value} 업데이트됨",
+        errors: {
+          generic: "큐 상태를 불러오지 못했습니다",
+        },
+        summary: {
+          title: "실행 개요",
+          active: "실행 중",
+          pending: "대기 중",
+          retry: "재시도 중",
+          archived: "데드 레터",
+        },
+        columns: {
+          queue: "큐",
+          active: "실행 중",
+          pending: "대기",
+          scheduled: "예약",
+          retry: "재시도",
+          archived: "실패",
+          latency: "최장 대기",
+          status: "상태",
+        },
+        status: {
+          working: "처리 중",
+          waiting: "대기 중",
+          idle: "유휴",
+          attention: "확인 필요",
+          paused: "일시중지됨",
+        },
+        models: {
+          title: "모델 동시성",
+          description: "백그라운드 작업이 실제로 모델 서비스에 진입할 때의 동시성입니다. 위 섹션은 작업 스케줄링이고, 이 섹션은 별도의 모델 서비스 스로틀 단계입니다.",
+          scope: "실행 중은 클러스터 전체 · 대기는 로컬",
+          disabled: "백그라운드 모델 동시성 제어가 비활성화되어 있습니다. 전역 설정에서 모델 기본 동시성 상한을 구성하세요.",
+          empty: "아직 모델 활동이 없습니다. 첫 백그라운드 호출 후 모델이 표시됩니다.",
+          backgroundOnly: "백그라운드 작업만; 대화형 채팅은 제외",
+          columns: { model: "모델 ID", active: "실행 중", waiting: "스로틀 대기", usage: "동시성" },
+          status: { queued: "스로틀 중", full: "한도 도달" },
+        },
+        pools: {
+          core: "핵심 파싱",
+          enrichment: "콘텐츠 보강",
+          maintenance: "유지 관리 및 동기화",
+          wiki: "Wiki 풀",
+        },
+        poolDescriptions: {
+          core: "문서 파싱 및 후처리 오케스트레이션",
+          enrichment: "요약, 이미지, 그래프 및 질문 생성",
+          maintenance: "데이터 소스 동기화, 일괄 작업 및 삭제 정리",
+          wiki: "Wiki 콘텐츠 생성 및 전체 마무리",
+        },
+        queueNames: {
+          default: "기본(문서 파싱)",
+          summary: "요약 생성",
+          sync: "데이터 소스 동기화",
+          low: "백그라운드 유지 관리 및 일괄 작업",
+          multimodal: "멀티모달(이미지)",
+          graph: "그래프 추출",
+          question: "질문 생성",
+          wiki: "Wiki 동기화",
+        },
+        queueDescriptions: {
+          default: "문서 파싱, 수동 업데이트 및 후처리 오케스트레이션",
+          summary: "문서 및 데이터 테이블 요약",
+          sync: "수동 및 예약 데이터 소스 동기화",
+          low: "FAQ 가져오기, 복제/이동, 일괄 재파싱 및 삭제 정리",
+          multimodal: "이미지 OCR 및 멀티모달 설명",
+          graph: "문서 청크에서 지식 그래프 추출",
+          question: "문서 청크를 기반으로 질문 생성",
+          wiki: "Wiki 콘텐츠 생성 및 인덱스 동기화",
+        },
+      },
       keyLabels: {
         auth: {
           registration_mode: "셀프 가입 모드",
@@ -2478,7 +2570,8 @@ export default {
           default_storage_quota_gb: "신규 테넌트 기본 저장 용량 (GB)",
         },
         asynq: {
-          concurrency: "비동기 작업 워커 동시 처리 수",
+          concurrency: "상위 워커 총 동시성 예산",
+          wiki_concurrency: "Wiki 워커 동시성",
         },
         model: {
           max_concurrency: "모델 기본 동시 처리 상한",
@@ -2501,7 +2594,9 @@ export default {
         },
         asynq: {
           concurrency:
-            "비동기 작업 worker 동시 처리 수(asynq 스레드 풀 크기)입니다. 문서 파싱·임베딩 등은 대부분 I/O 대기이므로 값을 올리면 대량 업로드 대기 시간을 줄일 수 있습니다. 적용하려면 서비스 프로세스를 재시작해야 합니다.",
+            "Wiki를 제외한 상위 백그라운드 작업의 프로세스별 총 동시성 예산입니다. 핵심 파싱 1/2, 콘텐츠 보강 3/8, 나머지는 유지 관리 및 동기화로 분리됩니다. 최소값은 3이며 적용하려면 서비스를 재시작해야 합니다.",
+          wiki_concurrency:
+            "상위 작업과 분리된 전용 Wiki 워커 풀의 프로세스별 동시성입니다. 최소값은 1이며 적용하려면 서비스를 재시작해야 합니다.",
         },
         model: {
           max_concurrency:

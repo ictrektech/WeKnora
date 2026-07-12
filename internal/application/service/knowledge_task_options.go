@@ -8,8 +8,9 @@ import (
 
 func documentProcessTaskOptions(cfg *config.Config, extra ...asynq.Option) []asynq.Option {
 	opts := []asynq.Option{
-		asynq.Queue(types.QueueParse),
+		asynq.Queue(types.QueueDefault),
 		asynq.Timeout(config.DocumentProcessTimeout(cfg)),
+		asynq.MaxRetry(3),
 	}
 	opts = append(opts, extra...)
 	return opts

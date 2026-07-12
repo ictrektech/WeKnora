@@ -47,9 +47,10 @@ func TestDocumentProcessTaskOptions_defaults(t *testing.T) {
 			t.Parallel()
 			opts := documentProcessTaskOptions(tc.cfg)
 			queue, timeout, maxRetry := parseDocumentProcessOpts(t, opts)
-			assert.Equal(t, types.QueueParse, queue)
+			assert.Equal(t, types.QueueDefault, queue)
 			assert.Equal(t, config.DefaultDocumentProcessTimeout, timeout)
-			assert.Nil(t, maxRetry)
+			require.NotNil(t, maxRetry)
+			assert.Equal(t, 3, *maxRetry)
 		})
 	}
 }
@@ -63,16 +64,17 @@ func TestDocumentProcessTaskOptions_configuredTimeout(t *testing.T) {
 	}
 	opts := documentProcessTaskOptions(cfg)
 	queue, timeout, maxRetry := parseDocumentProcessOpts(t, opts)
-	assert.Equal(t, types.QueueParse, queue)
+	assert.Equal(t, types.QueueDefault, queue)
 	assert.Equal(t, 90*time.Minute, timeout)
-	assert.Nil(t, maxRetry)
+	require.NotNil(t, maxRetry)
+	assert.Equal(t, 3, *maxRetry)
 }
 
 func TestDocumentProcessTaskOptions_extraMaxRetry(t *testing.T) {
 	t.Parallel()
 	opts := documentProcessTaskOptions(nil, asynq.MaxRetry(3))
 	queue, timeout, maxRetry := parseDocumentProcessOpts(t, opts)
-	assert.Equal(t, types.QueueParse, queue)
+	assert.Equal(t, types.QueueDefault, queue)
 	assert.Equal(t, config.DefaultDocumentProcessTimeout, timeout)
 	require.NotNil(t, maxRetry)
 	assert.Equal(t, 3, *maxRetry)
