@@ -15,7 +15,7 @@
 ## 文档入口
 
 - 第一次在空机器部署时，先看 [空机器部署总指南](fresh-host-deployment.md)，不要直接从零散命令启动服务。
-- 任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM/Ollama 并发、聊天预留、后台队列权重和 Embedding 并发的统一参考。
+- 任意机器部署前，先看 [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md)。它是模型大小、上下文长度、vLLM/Ollama 并发、聊天预留、后台 worker 池和 Embedding 并发的统一参考。
 - [空机器部署总指南](fresh-host-deployment.md)
 - [远程 vLLM 后端](remote-vllm-backend.md)
 - [Ollama embedding 后端](model-hub-ollama-embedding.md)
@@ -31,7 +31,7 @@
 - [Neo4j env 示例](neo4j.env.example)
 - [上游同步](upstream-sync.md)
 
-部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 容器重建或重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 `failed`、`pending`、`processing` 文档；`finalizing` 只有在 `processed_at is null` 时才会整文档重跑。启动扫描走 `critical` 队列，每条知识重新解析前会清理残留 queued/retry 任务。`deploy-template/deploy.sh` 会从飞书读取最新 `weknora`、`weknora-ui`、`weknora-docreader` 镜像写入 `.env`，执行 compose 后默认重建 `docreader` 和 `app`，再运行 `trigger-reparse-incomplete.sh` 补交失败/未完成文档。可用 `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` 或 `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` 跳过对应步骤。
+部署模板默认开启 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 容器重建或重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 `failed`、`pending`、`processing` 文档；`finalizing` 只有在 `processed_at is null` 时才会整文档重跑。启动扫描走 maintenance worker 池，每条知识重新解析前会清理残留 queued/retry 任务。`deploy-template/deploy.sh` 会从飞书读取最新 `weknora`、`weknora-ui`、`weknora-docreader` 镜像写入 `.env`，执行 compose 后默认重建 `docreader` 和 `app`，再运行 `trigger-reparse-incomplete.sh` 补交失败/未完成文档。可用 `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` 或 `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` 跳过对应步骤。
 
 如果改了 `docreader/` 里的解析逻辑，例如 PDF 文本层乱码检测、扫描页渲染策略、文档格式解析器，必须重新构建并部署 `weknora-docreader` 镜像，再重建 `docreader` 容器；只重启旧镜像不会生效。文档页工具栏的「重新解析失败文档」只扫描当前知识库 `parse_status=failed` 的文档并按当前默认解析配置批量重新提交；`pending`、`processing` 和 `processed_at` 为空的 `finalizing` 由启动/部署脚本处理，已完成文字解析和向量入库的 `finalizing` 不会重复跑 docreader/embedding。
 

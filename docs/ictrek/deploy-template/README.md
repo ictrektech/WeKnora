@@ -198,26 +198,21 @@ GraphRAG 会调用同一个 LLM 后端做实体和关系抽取。为了避免图
 ```text
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
-WEKNORA_ASYNQ_CONCURRENCY=2
+WEKNORA_ASYNQ_CONCURRENCY=4
 WEKNORA_WIKI_ASYNQ_CONCURRENCY=2
 WEKNORA_MODEL_MAX_CONCURRENCY=2
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
-WEKNORA_ASYNQ_QUEUE_CRITICAL=10
-WEKNORA_ASYNQ_QUEUE_PARSE=5
-WEKNORA_ASYNQ_QUEUE_MULTIMODAL=3
-WEKNORA_ASYNQ_QUEUE_GRAPH=1
-WEKNORA_ASYNQ_QUEUE_QUESTION=2
 WEKNORA_REPARSE_WAIT_URLS=
 WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 ```
 
-`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` 表示至少给聊天问答保留 2 路并发。解析池由 `WEKNORA_ASYNQ_CONCURRENCY` 控制，Wiki 独立池由 `WEKNORA_WIKI_ASYNQ_CONCURRENCY` 控制；`WEKNORA_MODEL_MAX_CONCURRENCY` 对同一模型的后台 Chat/VLM/Embedding 请求做统一上限。共享主模型时，这三个值都不应超过 `主模型并发 - 聊天预留`。
+`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` 表示至少给聊天问答保留 2 路并发。`WEKNORA_ASYNQ_CONCURRENCY=4` 会拆成 core=2、enrichment=1、maintenance=1；Wiki 独立池由 `WEKNORA_WIKI_ASYNQ_CONCURRENCY` 控制。`WEKNORA_MODEL_MAX_CONCURRENCY` 对同一模型 endpoint 的后台 Chat/VLM/Embedding 请求做统一上限，应该按模型真实剩余容量设置，而不是按 worker 总数设置。
 
 单文档 Graph 抽取的 LLM 并发由 `WEKNORA_GRAPH_LLM_CONCURRENCY` 控制，并且会被 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY/2` 限制。Wiki map/reduce 先读知识库 `wiki_config.ingest_map_parallel` 和 `wiki_config.ingest_reduce_parallel`；知识库没填时使用 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` / `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL`。小机器建议 env 默认设为 `1` 或 `2`。
 
-部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 failed/pending/processing 文档；finalizing 只有在 `processed_at` 为空时才会整文档重新入队。启动扫描走 `critical` 队列，每条知识重新解析前会清掉该知识残留的 queued/retry 任务，再提交新的 `parse` 任务。旧 attempt 里还显示 running 的 trace 是被新 attempt 覆盖后的历史行，不要按旧 attempt 判断当前进度。需要手动补救时，也可以运行 [trigger-reparse-incomplete.sh](trigger-reparse-incomplete.sh)。文档页工具栏的「重新解析失败文档」只扫描当前知识库的 failed 文档；pending/processing 和 `processed_at` 为空的 finalizing 交给启动钩子或部署脚本处理。
+部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 failed/pending/processing 文档；finalizing 只有在 `processed_at` 为空时才会整文档重新入队。启动扫描走 maintenance 池，每条知识重新解析前会清掉该知识残留的 queued/retry 任务，再提交新的文档处理任务。旧 attempt 里还显示 running 的 trace 是被新 attempt 覆盖后的历史行，不要按旧 attempt 判断当前进度。需要手动补救时，也可以运行 [trigger-reparse-incomplete.sh](trigger-reparse-incomplete.sh)。文档页工具栏的「重新解析失败文档」只扫描当前知识库的 failed 文档；pending/processing 和 `processed_at` 为空的 finalizing 交给启动钩子或部署脚本处理。
 
 Housekeeping 在 app 启动时立即执行一次，之后每 5 分钟运行。它会在最新 attempt 没有 `pending/running` span、Asynq 也没有该知识的 queued/active 任务时修复陈旧的 `pending_subtasks_count` 并推进 finalizing 文档；仍在排队或运行的任务不会被清理。启动恢复前还会删除旧 attempt 和完全重复的 Asynq 任务，日志可搜索 `startup-task-reconcile`。
 

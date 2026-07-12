@@ -254,7 +254,7 @@ WEKNORA_CHAT_RESERVED_CONCURRENCY=2
 WEKNORA_GRAPH_LLM_CONCURRENCY=1
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=1
-WEKNORA_ASYNQ_CONCURRENCY=1
+WEKNORA_ASYNQ_CONCURRENCY=3
 WEKNORA_WIKI_ASYNQ_CONCURRENCY=1
 WEKNORA_MODEL_MAX_CONCURRENCY=1
 CONCURRENCY_POOL_SIZE=1
@@ -329,16 +329,13 @@ SYSTEM_AES_KEY=<32-byte-value>
 ```env
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
-WEKNORA_ASYNQ_CONCURRENCY=2
+WEKNORA_ASYNQ_CONCURRENCY=4
 WEKNORA_WIKI_ASYNQ_CONCURRENCY=2
 WEKNORA_MODEL_MAX_CONCURRENCY=2
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
-WEKNORA_ASYNQ_QUEUE_CRITICAL=10
-WEKNORA_ASYNQ_QUEUE_GRAPH=1
-WEKNORA_ASYNQ_QUEUE_QUESTION=2
 ```
 
-含义：后台图谱抽取、问题生成、wiki 生成最多使用剩余模型槽位，至少给聊天问答保留 2 路并发。`critical` 队列保持最高权重，graph/question 队列保持低权重。
+含义：后台图谱抽取、问题生成、wiki 生成最多使用剩余模型槽位，至少给聊天问答保留 2 路并发。`WEKNORA_ASYNQ_CONCURRENCY=4` 会拆为 core=2、enrichment=1、maintenance=1；不再配置旧的 `WEKNORA_ASYNQ_QUEUE_*` 权重。
 
 单文档 Graph 抽取由 `WEKNORA_GRAPH_LLM_CONCURRENCY` 控制，并会被主 QA 并发的一半限制。Wiki map/reduce 先读知识库 `wiki_config.ingest_map_parallel` 和 `wiki_config.ingest_reduce_parallel`；知识库没填时使用 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` / `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL`。Orin NX 建议 env 默认设为 `1`，个别大知识库再单独调高。
 
@@ -939,18 +936,13 @@ Chat/QA priority:
 ```env
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
-WEKNORA_ASYNQ_CONCURRENCY=2
+WEKNORA_ASYNQ_CONCURRENCY=4
 WEKNORA_WIKI_ASYNQ_CONCURRENCY=2
 WEKNORA_MODEL_MAX_CONCURRENCY=2
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
-WEKNORA_ASYNQ_QUEUE_CRITICAL=10
-WEKNORA_ASYNQ_QUEUE_GRAPH=1
-WEKNORA_ASYNQ_QUEUE_QUESTION=2
 ```
 
-Background graph extraction, question generation, and wiki generation use the
-remaining model slots, leaving at least two concurrent slots for chat/QA. Keep
-the `critical` queue weight higher than graph/question queues.
+后台图谱抽取、问题生成和 Wiki 生成使用剩余模型槽位，至少保留两路给聊天问答。`WEKNORA_ASYNQ_CONCURRENCY=4` 会拆为 core=2、enrichment=1、maintenance=1；旧的 `WEKNORA_ASYNQ_QUEUE_*` 不再生效。
 
 See [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md) for full
 concurrency, queue, and model backend capacity checks.
