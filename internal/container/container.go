@@ -1580,7 +1580,7 @@ func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer
 			continue
 		}
 		t := asynq.NewTask(types.TypeKnowledgeListReparse, payloadBytes,
-			asynq.Queue(types.QueueCritical), asynq.MaxRetry(3))
+			asynq.Queue(types.QueueMaintenance), asynq.MaxRetry(3))
 		if _, err := task.Enqueue(t); err != nil {
 			logger.Warnf(ctx, "[startup-reparse] enqueue tenant=%d count=%d failed: %v",
 				tenantID, len(ids), err)
