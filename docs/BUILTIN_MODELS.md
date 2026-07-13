@@ -196,7 +196,7 @@ services:
 
 ### 方式二：直接 SQL 插入
 
-支持的 provider：`generic`（自定义）、`openai`、`aliyun`、`zhipu`、`volcengine`、`hunyuan`、`deepseek`、`minimax`、`mimo`、`siliconflow`、`jina`、`openrouter`、`gemini`、`modelscope`、`moonshot`、`qianfan`、`qiniu`、`longcat`、`gpustack`
+支持的 provider：`generic`（自定义）、`openai`、`aliyun`、`zhipu`、`volcengine`、`hunyuan`、`deepseek`、`minimax`、`mimo`、`siliconflow`、`jina`、`openrouter`、`requesty`、`gemini`、`modelscope`、`moonshot`、`qianfan`、`qiniu`、`longcat`、`gpustack`
 
 直接 SQL 插入时不要设置 `managed_by = 'yaml'`，除非你明确希望这条记录跟随 YAML 生命周期。默认空值表示手工维护，YAML loader 不会软删除它。
 

@@ -1798,10 +1798,10 @@ export default {
     registerNow: "지금 가입하기",
     loginHint: "로그인하여 계속하세요. 처음이시라면 아래에서 계정을 만드세요.",
     firstTime: "WeKnora가 처음이신가요?",
-    registerSuccess: "가입 성공! 시스템이 전용 테넌트를 생성했습니다. 로그인해주세요",
+    registerSuccess: "가입이 완료되었습니다. 로그인해주세요",
     registerFailed: "가입 실패",
     subtitle: "RAG Q&A, ReAct 에이전트, Wiki 지식베이스 — 대규모 언어 모델 기반 엔터프라이즈 지식 프레임워크",
-    registerSubtitle: "가입 후 시스템이 전용 테넌트를 생성합니다",
+    registerSubtitle: "계정을 만들고 WeKnora를 시작하세요",
     emailPlaceholder: "이메일 주소 입력",
     passwordPlaceholder: "비밀번호 입력 (8-32자, 문자와 숫자 포함)",
     confirmPasswordPlaceholder: "비밀번호 다시 입력",
@@ -1824,6 +1824,20 @@ export default {
     registerError: "가입 오류, 나중에 다시 시도해주세요",
     forgotPasswordNotAvailable:
       "비밀번호 찾기 기능을 현재 사용할 수 없습니다. 관리자에게 문의해주세요",
+    workspaceOnboarding: {
+      title: "작업 공간 선택",
+      description: "아직 참여한 공간이 없습니다. 새 공간을 만들거나 관리자의 초대를 수락하세요.",
+      create: "공간 만들기",
+      invitations: "초대 보기",
+      help: "사용 가능한 초대가 없다면 시스템 관리자에게 기존 공간 추가를 요청하세요.",
+      loadingPolicy: "사용 가능한 공간 참여 방식을 확인하고 있습니다…",
+      policyLoadFailed: "공간 권한을 불러올 수 없습니다. 네트워크를 확인한 후 다시 시도하세요.",
+      retry: "다시 불러오기",
+      inviteOnlyTitle: "작업 공간 초대 대기",
+      inviteOnlyDescription: "개인 공간 만들기가 비활성화되어 있습니다. 관리자가 보낸 초대를 확인하고 수락하세요.",
+      inviteOnlyNotice: "이 계정은 초대를 통해서만 기존 공간에 참여할 수 있습니다",
+      inviteOnlyHelp: "초대가 없다면 등록 이메일을 공간 관리자에게 전달하고 초대를 요청하세요.",
+    },
   },
   authStore: {
     errors: {
@@ -2316,6 +2330,7 @@ export default {
       cancel: "취소",
       success: "워크스페이스가 생성되었습니다",
       failed: "워크스페이스 생성 실패",
+      disabled: "현재 시스템에서는 초대를 통해서만 공간에 참여할 수 있으며 직접 만들 수 없습니다.",
     },
     details: {
       idLabel: "테넌트 ID",
@@ -2459,17 +2474,59 @@ export default {
       description: "플랫폼 전역 런타임 설정입니다. 저장하면 모든 테넌트에 즉시 적용됩니다. 시스템 관리자만 보고 수정할 수 있습니다.",
       loading: "로딩 중...",
       empty: "설정 가능한 시스템 항목이 없습니다",
+      autoSaveHint: "변경 내용은 자동으로 저장됩니다",
+      saving: "저장 중",
+      saved: "저장됨",
+      saveAnnouncement: "{label} 저장됨",
       badgeRequiresRestart: "재시작 필요",
       badgeSecret: "민감",
+      badgeHighRisk: "고위험",
       badgeOverride: "재정의됨",
       badgeOverrideTooltip: "이 값은 관리자가 DB에 저장하여 환경 변수 및 기본값을 덮어썼습니다.",
       modifiedAt: "마지막 수정: {value}",
       tagInputPlaceholder: "엔터로 항목 추가. 예: example.com / *.foo.com / 10.0.0.0/8",
       priorityHint: {
         title: "우선순위 안내",
+        disclosure: "설정 소스 및 우선순위",
         tier1: "이 페이지에서 저장한 항목(\"재정의됨\" 배지가 붙은 항목)은 항상 우선 적용되며, 환경 변수는 무시됩니다.",
         tier2: "여기서 저장하지 않은 항목은 환경 변수를 따르며, 환경 변수도 없으면 내장 기본값을 사용합니다.",
         tier3: "특정 항목을 다시 환경 변수 기반으로 되돌리려면 해당 행의 \"초기화\" 버튼을 누르세요.",
+      },
+      summary: {
+        overridden: "재정의 {count}개",
+        restart: "재시작 필요 {count}개",
+      },
+      sections: {
+        access: {
+          tab: "계정 및 액세스 {count}",
+          title: "계정 및 액세스",
+          description: "시스템 관리자, 공개 가입, 공간 생성 규칙을 관리합니다.",
+        },
+        tenant: {
+          tab: "테넌트 기본값 {count}",
+          title: "테넌트 기본값",
+          description: "기존 테넌트를 변경하지 않고 신규 테넌트의 초기 할당량과 호환 동작을 설정합니다.",
+        },
+        runtime: {
+          tab: "런타임 및 동시성 {count}",
+          title: "런타임 및 동시성",
+          description: "백그라운드 워커 풀과 모델 서비스의 동시 처리 용량을 설정합니다.",
+          restartHint: "워커 설정은 재시작 후 적용",
+        },
+        security: {
+          tab: "네트워크 보안 {count}",
+          title: "네트워크 보안",
+          description: "SSRF 보호를 우회할 수 있는 신뢰 호스트, IP, 네트워크를 관리합니다.",
+        },
+        other: {
+          tab: "기타 {count}",
+          title: "기타 설정",
+          description: "표준 제품 그룹에 포함되지 않은 현재 배포의 설정입니다.",
+        },
+      },
+      runtimeTable: {
+        setting: "설정 및 용도",
+        value: "현재 값",
       },
       runtime: {
         title: "작업 큐 런타임",
@@ -2573,13 +2630,16 @@ export default {
       keyLabels: {
         auth: {
           registration_mode: "셀프 가입 모드",
+          default_tenant_mode: "기본 공간 프로비저닝",
         },
         ssrf: {
           whitelist: "SSRF 보호 허용 목록",
         },
         tenant: {
           max_owned_per_user: "사용자당 최대 테넌트 수",
+          self_service_creation_enabled: "사용자 공간 직접 생성 허용",
           default_storage_quota_gb: "신규 테넌트 기본 저장 용량 (GB)",
+          auto_create_api_key: "신규 테넌트 API Key 자동 생성",
         },
         asynq: {
           core_concurrency: "핵심 파싱 보장 동시성",
@@ -2597,6 +2657,8 @@ export default {
         auth: {
           registration_mode:
             "셀프 가입 모드입니다. self_serve = 누구나 계정을 만들 수 있음; invite_only = 공개 가입을 끄고 Owner/Admin만 초대 가능. 저장 즉시 적용되며, self_serve는 스팸 가입이 들어올 수 있으니 신중히 사용하세요.",
+          default_tenant_mode:
+            "공개 가입 후 공간 초기화 정책입니다. create_personal은 개인 공간을 만들고 Owner를 부여하며, tenantless는 초대 수락 또는 직접 공간 생성 전까지 계정만 만듭니다.",
         },
         ssrf: {
           whitelist:
@@ -2605,8 +2667,12 @@ export default {
         tenant: {
           max_owned_per_user:
             "슈퍼유저가 아닌 사용자가 셀프 서비스로 소유할 수 있는 최대 테넌트 수입니다. 테넌트 생성 시마다 읽으며 저장 즉시 적용됩니다. 0은 내장 기본값 10을 사용하고, 음수는 제한을 완전히 해제합니다(공개 배포에는 권장하지 않음).",
+          self_service_creation_enabled:
+            "비슈퍼유저가 공간을 직접 만들 수 있는지 설정합니다. 비활성화하면 일반 사용자는 초대로만 기존 공간에 참여할 수 있으며, 크로스 테넌트 슈퍼유저는 계속 만들 수 있습니다.",
           default_storage_quota_gb:
             "신규 테넌트 생성 시 기본으로 할당되는 저장 용량(GB)으로, 벡터·원본·텍스트·인덱스 등을 포함합니다. 생성 시에만 읽으며, 변경은 이후 생성되는 테넌트에만 적용되고 기존 테넌트에는 소급되지 않습니다. 0 또는 음수는 내장 기본값 10GB를 사용합니다.",
+          auto_create_api_key:
+            "신규 테넌트에 full_access API Key를 자동 생성하고 생성 응답에 평문 token을 반환합니다. 기존 동작에 의존하는 연동에만 사용하세요. 기본값은 비활성화입니다.",
         },
         asynq: {
           core_concurrency: "문서 및 수동 파싱의 프로세스별 보장 동시성입니다. 공유 탄력 풀도 사용할 수 있습니다. 최소 1, 서비스 재시작이 필요합니다.",
@@ -2627,6 +2693,10 @@ export default {
           registration_mode: {
             self_serve: "셀프 가입 (누구나 가입 가능)",
             invite_only: "초대 전용 (공개 가입 비활성)",
+          },
+          default_tenant_mode: {
+            create_personal: "개인 공간 자동 생성",
+            tenantless: "공간을 자동 생성하지 않음",
           },
         },
       },
@@ -2687,6 +2757,32 @@ export default {
           },
         },
       },
+      passwordReset: {
+        label: "사용자 비밀번호 재설정",
+        description: "로그인할 수 없는 다른 사용자의 새 비밀번호를 설정합니다. 재설정하면 해당 사용자의 현재 로그인 세션이 모두 만료되며 새 비밀번호로 다시 로그인해야 합니다.",
+        action: "비밀번호 재설정",
+        dialogTitle: "다른 사용자의 비밀번호 재설정",
+        warning: "보안에 민감한 작업입니다. 사용자 이메일을 반드시 확인하세요. 여기서는 자신의 비밀번호를 재설정할 수 없습니다.",
+        emailLabel: "사용자 이메일",
+        emailPlaceholder: "비밀번호를 재설정할 사용자의 이메일 입력",
+        newPasswordLabel: "새 비밀번호",
+        newPasswordPlaceholder: "8~32자, 문자와 숫자 포함",
+        confirmPasswordLabel: "새 비밀번호 확인",
+        confirmPasswordPlaceholder: "새 비밀번호를 다시 입력",
+        confirmBtn: "재설정 확인",
+        success: "비밀번호가 재설정되고 기존 세션이 만료되었습니다",
+        failed: "비밀번호 재설정 실패",
+        validation: {
+          emailRequired: "사용자 이메일을 입력하세요",
+          emailInvalid: "올바른 이메일 주소를 입력하세요",
+          passwordRequired: "새 비밀번호를 입력하세요",
+          passwordLength: "비밀번호는 8~32자여야 합니다",
+          passwordLetter: "비밀번호에 문자가 포함되어야 합니다",
+          passwordNumber: "비밀번호에 숫자가 포함되어야 합니다",
+          confirmRequired: "새 비밀번호를 다시 입력하세요",
+          passwordMismatch: "비밀번호가 일치하지 않습니다",
+        },
+      },
       bulkApply: {
         label: "모든 기존 테넌트에 적용",
         tooltip: "저장한 값은 기본적으로 새로 생성되는 테넌트에만 적용됩니다. 이 버튼을 누르면 현재 값을 모든 기존 테넌트에도 덮어씁니다.",
@@ -2724,6 +2820,7 @@ export default {
           "system.setting_changed": "시스템 설정 변경",
           "system.admin_promoted": "시스템 관리자 부여",
           "system.admin_revoked": "시스템 관리자 회수",
+          "system.user_password_reset": "사용자 비밀번호 재설정",
         },
         outcome: {
           success: "성공",
@@ -2963,6 +3060,10 @@ export default {
         openrouter: {
           label: "OpenRouter",
           description: "openai/gpt-5.2-chat, google/gemini-3-flash-preview 등",
+        },
+        requesty: {
+          label: "Requesty",
+          description: "openai/gpt-4o-mini, anthropic/claude-sonnet-4-5 등",
         },
         generic: {
           label: "사용자 정의 (OpenAI 호환)",

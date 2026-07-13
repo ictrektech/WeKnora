@@ -1819,10 +1819,10 @@ export default {
     registerNow: "立即注册",
     loginHint: "登录以继续使用；首次使用请在下方创建账户。",
     firstTime: "首次使用 WeKnora？",
-    registerSuccess: "注册成功！系统已为您创建专属空间，请登录",
+    registerSuccess: "注册成功，请登录",
     registerFailed: "注册失败",
     subtitle: "RAG 问答、ReAct 智能体与 Wiki 知识库，大模型驱动的企业级知识框架",
-    registerSubtitle: "注册后系统将为您创建专属空间",
+    registerSubtitle: "创建账户并开始使用 WeKnora",
     emailPlaceholder: "输入邮箱地址",
     passwordPlaceholder: "输入密码（8-32个字符，包含字母和数字）",
     confirmPasswordPlaceholder: "再次输入密码",
@@ -1844,6 +1844,20 @@ export default {
     loginErrorRetry: "登录错误，请稍后重试",
     registerError: "注册错误，请稍后重试",
     forgotPasswordNotAvailable: "密码找回功能暂不可用，请联系管理员",
+    workspaceOnboarding: {
+      title: "选择你的工作空间",
+      description: "你的账户尚未加入任何空间。你可以创建一个新空间，或接受管理员发来的邀请。",
+      create: "创建空间",
+      invitations: "查看邀请",
+      help: "如果这里没有可用邀请，请联系系统管理员将你加入现有空间。",
+      loadingPolicy: "正在确认可用的空间加入方式…",
+      policyLoadFailed: "暂时无法获取空间权限，请检查网络后重试。",
+      retry: "重新加载",
+      inviteOnlyTitle: "等待加入工作空间",
+      inviteOnlyDescription: "当前系统不开放个人创建空间。你可以查看并接受管理员发来的空间邀请。",
+      inviteOnlyNotice: "此账户只能通过邀请加入已有空间",
+      inviteOnlyHelp: "还没有邀请？请把你的注册邮箱提供给空间管理员，由管理员向你发送邀请。",
+    },
   },
   authStore: {
     errors: {
@@ -2322,6 +2336,7 @@ export default {
       cancel: "取消",
       success: "空间创建成功",
       failed: "空间创建失败",
+      disabled: "当前系统只允许通过邀请加入空间，不能自行创建空间。",
     },
     details: {
       idLabel: "空间 ID",
@@ -2476,17 +2491,59 @@ export default {
       description: "平台级运行时配置，保存后立即对所有租户生效。仅系统管理员可见可改。",
       loading: "加载中...",
       empty: "暂无可配置的系统设置",
+      autoSaveHint: "修改后自动保存",
+      saving: "保存中",
+      saved: "已保存",
+      saveAnnouncement: "{label} 已保存",
       badgeRequiresRestart: "需重启",
       badgeSecret: "敏感",
+      badgeHighRisk: "高风险",
       badgeOverride: "已覆盖",
       badgeOverrideTooltip: "该值已由管理员保存到数据库，覆盖了环境变量与默认值",
       modifiedAt: "上次修改：{value}",
       tagInputPlaceholder: "回车添加条目，例：example.com / *.foo.com / 10.0.0.0/8",
       priorityHint: {
         title: "关于优先级",
+        disclosure: "配置来源与优先级",
         tier1: "在此页面保存过的项（带「已覆盖」徽章）— 始终以这里的值为准，环境变量会被忽略。",
         tier2: "未在此处保存过的项 — 如果环境变量里有就用环境变量，否则用程序内置默认值。",
         tier3: "若想让某项重新由环境变量控制，点击该行的「重置」按钮即可清除当前 UI 设置。",
+      },
+      summary: {
+        overridden: "已覆盖 {count}",
+        restart: "需重启 {count}",
+      },
+      sections: {
+        access: {
+          tab: "账户与访问 {count}",
+          title: "账户与访问",
+          description: "管理系统管理员、公开注册与用户创建空间的规则。",
+        },
+        tenant: {
+          tab: "租户默认值 {count}",
+          title: "租户默认值",
+          description: "设置新租户的初始配额与兼容性行为，不会自动改写已有租户。",
+        },
+        runtime: {
+          tab: "运行与并发 {count}",
+          title: "运行与并发",
+          description: "配置后台任务池与模型服务的并发容量。",
+          restartHint: "Worker 配置需重启生效",
+        },
+        security: {
+          tab: "网络安全 {count}",
+          title: "网络安全",
+          description: "管理可绕过 SSRF 防护的受信主机、IP 与网段。",
+        },
+        other: {
+          tab: "其他 {count}",
+          title: "其他配置",
+          description: "当前部署中未归入标准分组的配置项。",
+        },
+      },
+      runtimeTable: {
+        setting: "配置项与用途",
+        value: "当前值",
       },
       runtime: {
         title: "任务队列运行时",
@@ -2590,13 +2647,16 @@ export default {
       keyLabels: {
         auth: {
           registration_mode: "自助注册模式",
+          default_tenant_mode: "注册默认空间策略",
         },
         ssrf: {
           whitelist: "SSRF 防护白名单",
         },
         tenant: {
           max_owned_per_user: "每用户最大租户数",
+          self_service_creation_enabled: "允许用户自助创建空间",
           default_storage_quota_gb: "新租户默认存储配额 (GB)",
+          auto_create_api_key: "创建租户时自动生成 API Key",
         },
         asynq: {
           core_concurrency: "核心解析保底并发数",
@@ -2615,6 +2675,9 @@ export default {
           registration_mode:
             "自助注册模式。self_serve = 任何人可注册账号；invite_only = 关闭公网注册，" +
             "仅 Owner/Admin 可邀请。修改后立即生效，但谨慎对待 self_serve（公网会接受 spam）。",
+          default_tenant_mode:
+            "公开注册后的空间初始化策略。create_personal 会自动创建个人空间并授予 Owner；" +
+            "tenantless 仅创建账户，用户需要接受邀请或主动创建空间。只影响之后注册的用户。",
         },
         ssrf: {
           whitelist:
@@ -2625,10 +2688,16 @@ export default {
           max_owned_per_user:
             "每个非超管用户通过自助创建可拥有的最大租户数。每次创建租户时实时读取，" +
             "修改后立即生效。0 表示使用内置默认值 10；负数表示完全关闭限制（不建议在公开部署使用）。",
+          self_service_creation_enabled:
+            "是否允许非超管用户主动创建空间。关闭后，普通用户只能通过邀请加入已有空间；" +
+            "跨租户超管仍可创建。修改后立即生效。",
           default_storage_quota_gb:
             "新建租户时默认分配的存储配额（GB），包含向量、原文、文本、索引等。" +
             "仅在创建时读取，修改后只对之后新建的租户生效，不会回写已存在的租户。" +
             "0 或负数表示使用内置默认值 10GB。",
+          auto_create_api_key:
+            "为新租户自动生成 full_access API Key，并在创建响应中返回明文 token。" +
+            "仅用于兼容依赖旧行为的集成；默认关闭，建议通过 API Key 管理显式创建。",
         },
         asynq: {
           core_concurrency: "文档解析与手工重解析的每实例保底并发，可额外借用共享弹性池；修改后需重启。",
@@ -2652,6 +2721,10 @@ export default {
           registration_mode: {
             self_serve: "自助注册（任何人可注册）",
             invite_only: "仅邀请（关闭公网注册）",
+          },
+          default_tenant_mode: {
+            create_personal: "自动创建个人空间",
+            tenantless: "不自动创建空间",
           },
         },
       },
@@ -2712,6 +2785,32 @@ export default {
           },
         },
       },
+      passwordReset: {
+        label: "重置用户密码",
+        description: "为忘记密码的其他用户设置新密码。重置成功后，该用户当前所有登录会话都会失效，需要使用新密码重新登录。",
+        action: "重置密码",
+        dialogTitle: "重置其他用户的密码",
+        warning: "这是高风险操作。请核对用户邮箱；出于安全考虑，不能在这里重置自己的密码。",
+        emailLabel: "用户邮箱",
+        emailPlaceholder: "输入需要重置密码的用户邮箱",
+        newPasswordLabel: "新密码",
+        newPasswordPlaceholder: "8-32 个字符，包含字母和数字",
+        confirmPasswordLabel: "确认新密码",
+        confirmPasswordPlaceholder: "再次输入新密码",
+        confirmBtn: "确认重置",
+        success: "密码已重置，该用户的现有会话已失效",
+        failed: "重置密码失败",
+        validation: {
+          emailRequired: "请输入用户邮箱",
+          emailInvalid: "请输入有效的邮箱地址",
+          passwordRequired: "请输入新密码",
+          passwordLength: "密码长度必须为 8-32 个字符",
+          passwordLetter: "密码必须包含字母",
+          passwordNumber: "密码必须包含数字",
+          confirmRequired: "请再次输入新密码",
+          passwordMismatch: "两次输入的密码不一致",
+        },
+      },
       bulkApply: {
         label: "应用到所有现有租户",
         tooltip: "保存的值默认只对之后新建的租户生效；点击此按钮将当前值同步写入所有现有租户。",
@@ -2749,6 +2848,7 @@ export default {
           "system.setting_changed": "系统设置变更",
           "system.admin_promoted": "授予系统管理员",
           "system.admin_revoked": "回收系统管理员",
+          "system.user_password_reset": "重置用户密码",
         },
         outcome: {
           success: "成功",
@@ -3002,6 +3102,10 @@ export default {
         openrouter: {
           label: "OpenRouter",
           description: "openai/gpt-5.2-chat, google/gemini-3-flash-preview, etc.",
+        },
+        requesty: {
+          label: "Requesty",
+          description: "openai/gpt-4o-mini, anthropic/claude-sonnet-4-5, etc.",
         },
         generic: {
           label: "自定义 (OpenAI兼容接口)",

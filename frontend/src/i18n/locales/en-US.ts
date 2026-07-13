@@ -1962,10 +1962,10 @@ export default {
     registerNow: 'Register Now',
     loginHint: 'Sign in to continue, or create an account below if this is your first time.',
     firstTime: 'New to WeKnora?',
-    registerSuccess: 'Registration successful! The system has created an exclusive tenant for you, please login',
+    registerSuccess: 'Registration successful. Please sign in',
     registerFailed: 'Registration failed',
     subtitle: 'RAG Q&A, ReAct Agent and Wiki — an LLM-powered enterprise knowledge framework',
-    registerSubtitle: 'The system will create an exclusive tenant for you after registration',
+    registerSubtitle: 'Create your account and start using WeKnora',
     emailPlaceholder: 'Enter email address',
     passwordPlaceholder: 'Enter password (8-32 characters, including letters and numbers)',
     confirmPasswordPlaceholder: 'Enter password again',
@@ -1986,7 +1986,21 @@ export default {
     loginError: 'Login error, please check email or password',
     loginErrorRetry: 'Login error, please try again later',
     registerError: 'Registration error, please try again later',
-    forgotPasswordNotAvailable: 'Password recovery function is temporarily unavailable, please contact administrator'
+    forgotPasswordNotAvailable: 'Password recovery function is temporarily unavailable, please contact administrator',
+    workspaceOnboarding: {
+      title: 'Choose your workspace',
+      description: 'Your account does not belong to a workspace yet. Create one or accept an invitation from an administrator.',
+      create: 'Create workspace',
+      invitations: 'View invitations',
+      help: 'If no invitation is available, ask a system administrator to add you to an existing workspace.',
+      loadingPolicy: 'Checking the available workspace options…',
+      policyLoadFailed: 'Workspace permissions could not be loaded. Check your connection and try again.',
+      retry: 'Reload',
+      inviteOnlyTitle: 'Waiting for a workspace invitation',
+      inviteOnlyDescription: 'Personal workspace creation is disabled. View and accept an invitation from a workspace administrator.',
+      inviteOnlyNotice: 'This account can only join an existing workspace by invitation',
+      inviteOnlyHelp: 'No invitation yet? Send your registered email address to a workspace administrator and ask them to invite you.',
+    }
   },
   authStore: {
     errors: {
@@ -3334,6 +3348,7 @@ export default {
       cancel: 'Cancel',
       success: 'Workspace created successfully',
       failed: 'Failed to create workspace',
+      disabled: 'This system only allows joining workspaces by invitation. You cannot create one yourself.',
     },
     details: {
       idLabel: 'Tenant ID',
@@ -3488,17 +3503,59 @@ export default {
       description: 'Platform-wide runtime configuration. Saves take effect immediately for every tenant. Visible and editable by system administrators only.',
       loading: 'Loading...',
       empty: 'No configurable system settings available',
+      autoSaveHint: 'Changes save automatically',
+      saving: 'Saving',
+      saved: 'Saved',
+      saveAnnouncement: '{label} saved',
       badgeRequiresRestart: 'Restart required',
       badgeSecret: 'Secret',
+      badgeHighRisk: 'High risk',
       badgeOverride: 'Overridden',
       badgeOverrideTooltip: 'This value has been saved to the database by an administrator, overriding the environment variable and built-in default.',
       modifiedAt: 'Last modified: {value}',
       tagInputPlaceholder: 'Press Enter to add an entry, e.g. example.com / *.foo.com / 10.0.0.0/8',
       priorityHint: {
         title: 'About priority',
+        disclosure: 'Configuration source and priority',
         tier1: 'Items saved on this page (marked "Overridden") always win — the environment variable is ignored for them.',
         tier2: 'Items not saved here fall back to the environment variable, or to the built-in default if no env var is set.',
         tier3: 'To put an item back under environment-variable control, click the "Reset" button on its row.',
+      },
+      summary: {
+        overridden: '{count} overridden',
+        restart: '{count} require restart',
+      },
+      sections: {
+        access: {
+          tab: 'Accounts & access {count}',
+          title: 'Accounts & access',
+          description: 'Manage system administrators, public registration, and workspace-creation rules.',
+        },
+        tenant: {
+          tab: 'Tenant defaults {count}',
+          title: 'Tenant defaults',
+          description: 'Set initial quotas and compatibility behavior for new tenants without rewriting existing tenants.',
+        },
+        runtime: {
+          tab: 'Runtime & concurrency {count}',
+          title: 'Runtime & concurrency',
+          description: 'Configure concurrency capacity for background worker pools and model services.',
+          restartHint: 'Worker settings require restart',
+        },
+        security: {
+          tab: 'Network security {count}',
+          title: 'Network security',
+          description: 'Manage trusted hosts, IPs, and networks that may bypass SSRF protection.',
+        },
+        other: {
+          tab: 'Other {count}',
+          title: 'Other settings',
+          description: 'Settings in this deployment that are not part of a standard product group.',
+        },
+      },
+      runtimeTable: {
+        setting: 'Setting and purpose',
+        value: 'Current value',
       },
       runtime: {
         title: "Task Queue Runtime",
@@ -3602,13 +3659,16 @@ export default {
       keyLabels: {
         auth: {
           registration_mode: 'Self-service registration mode',
+          default_tenant_mode: 'Default workspace provisioning',
         },
         ssrf: {
           whitelist: 'SSRF protection allowlist',
         },
         tenant: {
           max_owned_per_user: 'Max tenants owned per user',
+          self_service_creation_enabled: 'Allow self-service workspace creation',
           default_storage_quota_gb: 'Default storage quota for new tenants (GB)',
+          auto_create_api_key: 'Automatically create an API key for new tenants',
         },
         asynq: {
           core_concurrency: 'Guaranteed core parse concurrency',
@@ -3626,6 +3686,8 @@ export default {
         auth: {
           registration_mode:
             'Self-service registration mode. self_serve = anyone can register an account; invite_only = public registration is disabled and only Owners/Admins can invite. Takes effect immediately after saving, but use self_serve with care (the public internet will send spam sign-ups).',
+          default_tenant_mode:
+            'Workspace provisioning after public registration. create_personal creates an Owner workspace; tenantless creates only the account until the user accepts an invitation or creates a workspace. Applies to new users only.',
         },
         ssrf: {
           whitelist:
@@ -3634,8 +3696,12 @@ export default {
         tenant: {
           max_owned_per_user:
             'Maximum number of tenants a non-superuser may own via self-service creation. Read on every tenant creation and takes effect immediately after saving. 0 uses the built-in default of 10; a negative value disables the cap entirely (not recommended on public deployments).',
+          self_service_creation_enabled:
+            'Whether non-superusers may create workspaces themselves. When disabled, regular users can only join existing workspaces by invitation; cross-tenant superusers remain exempt. Takes effect immediately.',
           default_storage_quota_gb:
             'Default storage quota (GB) assigned when a new tenant is created, covering vectors, originals, text, indexes, and related data. Read only at creation time — changes apply to newly created tenants only and do not retroactively update existing tenants. 0 or a negative value uses the built-in default of 10 GB.',
+          auto_create_api_key:
+            'Automatically creates a full_access API key for a new tenant and returns its plaintext token in the create response. Use only for integrations that depend on the legacy behavior; it is disabled by default and explicit API-key creation is recommended.',
         },
         asynq: {
           core_concurrency: 'Guaranteed per-process concurrency for document and manual parsing. Core may also borrow the shared elastic pool. Minimum 1; requires a service restart.',
@@ -3656,6 +3722,10 @@ export default {
           registration_mode: {
             self_serve: 'Self-service (anyone can register)',
             invite_only: 'Invite only (public registration disabled)',
+          },
+          default_tenant_mode: {
+            create_personal: 'Create personal workspace',
+            tenantless: 'Do not create a workspace',
           },
         },
       },
@@ -3716,6 +3786,32 @@ export default {
           },
         },
       },
+      passwordReset: {
+        label: 'Reset user password',
+        description: 'Set a new password for another user who cannot sign in. A successful reset invalidates all of that user\'s current sessions, so they must sign in again with the new password.',
+        action: 'Reset password',
+        dialogTitle: 'Reset another user\'s password',
+        warning: 'This is a high-risk action. Verify the user email carefully. You cannot reset your own password here.',
+        emailLabel: 'User email',
+        emailPlaceholder: 'Enter the email of the user to reset',
+        newPasswordLabel: 'New password',
+        newPasswordPlaceholder: '8-32 characters, including letters and numbers',
+        confirmPasswordLabel: 'Confirm new password',
+        confirmPasswordPlaceholder: 'Enter the new password again',
+        confirmBtn: 'Confirm reset',
+        success: 'Password reset; the user\'s existing sessions were revoked',
+        failed: 'Failed to reset password',
+        validation: {
+          emailRequired: 'Enter the user email',
+          emailInvalid: 'Enter a valid email address',
+          passwordRequired: 'Enter a new password',
+          passwordLength: 'Password must be 8-32 characters',
+          passwordLetter: 'Password must contain a letter',
+          passwordNumber: 'Password must contain a number',
+          confirmRequired: 'Enter the new password again',
+          passwordMismatch: 'The passwords do not match',
+        },
+      },
       bulkApply: {
         label: 'Apply to all existing tenants',
         tooltip: 'Saving the value only affects new tenants by default; click here to also overwrite every existing tenant.',
@@ -3753,6 +3849,7 @@ export default {
           'system.setting_changed': 'System setting changed',
           'system.admin_promoted': 'System admin granted',
           'system.admin_revoked': 'System admin revoked',
+          'system.user_password_reset': 'User password reset',
         },
         outcome: {
           success: 'Success',
@@ -4007,6 +4104,10 @@ export default {
         openrouter: {
           label: 'OpenRouter',
           description: 'openai/gpt-5.2-chat, google/gemini-3-flash-preview, etc.',
+        },
+        requesty: {
+          label: 'Requesty',
+          description: 'openai/gpt-4o-mini, anthropic/claude-sonnet-4-5, etc.',
         },
         generic: {
           label: 'Custom (OpenAI-compatible)',
