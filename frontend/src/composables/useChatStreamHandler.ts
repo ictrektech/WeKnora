@@ -74,6 +74,13 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   const normalizeMessageContent = (value: unknown) =>
     String(value || '').replace(/\s+/g, ' ').trim()
 
+  const findLastUserMessageIndex = () => {
+    for (let i = messagesList.length - 1; i >= 0; i--) {
+      if (messagesList[i].role === 'user') return i
+    }
+    return -1
+  }
+
   const findCurrentTurnAssistantByContent = (item: ChatMessage) => {
     if (item.role !== 'assistant') return undefined
     const targetContent = normalizeMessageContent(item.content)
@@ -89,6 +96,49 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       }
     }
     return undefined
+  }
+
+  const mergeAssistantRuntimeState = (target: ChatMessage, source: ChatMessage) => {
+    if (!target.id && source.id) target.id = source.id
+    if (!target.request_id && source.request_id) target.request_id = source.request_id
+    if (!target.knowledge_references?.length && source.knowledge_references?.length) {
+      target.knowledge_references = source.knowledge_references.slice()
+    }
+    if (!target.agentEventStream && source.agentEventStream) {
+      target.agentEventStream = source.agentEventStream
+    }
+    if (!target.agent_steps && source.agent_steps) target.agent_steps = source.agent_steps
+    if (source.is_completed) target.is_completed = true
+    if (source.is_fallback) target.is_fallback = true
+    if (source.isRagMode) target.isRagMode = true
+    if (source.isAgentMode) target.isAgentMode = true
+    if (source.hideContent) target.hideContent = true
+  }
+
+  const dedupeCurrentTurnCompletedAssistants = (preferred?: ChatMessage) => {
+    const lastUserIndex = findLastUserMessageIndex()
+    const seen = new Map<string, ChatMessage>()
+    let retainedPreferred = preferred
+
+    for (let i = lastUserIndex + 1; i < messagesList.length; i++) {
+      const message = messagesList[i]
+      if (message.role !== 'assistant' || !message.is_completed) continue
+      const key = normalizeMessageContent(message.content)
+      if (!key) continue
+
+      const existing = seen.get(key)
+      if (!existing) {
+        seen.set(key, message)
+        continue
+      }
+
+      mergeAssistantRuntimeState(existing, message)
+      if (message === preferred) retainedPreferred = existing
+      messagesList.splice(i, 1)
+      i--
+    }
+
+    return retainedPreferred
   }
 
   const findExistingMessage = (
@@ -478,6 +528,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
       } else {
         messagesList.push(...processed)
+        dedupeCurrentTurnCompletedAssistants()
       }
     }
 
@@ -535,6 +586,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       if (payload.is_fallback) message.is_fallback = true
       if (payload.is_completed) message.is_completed = true
       restoreCompletedQuickAnswerPipeline(message)
+      if (payload.is_completed) {
+        message = dedupeCurrentTurnCompletedAssistants(message) || message
+      }
       onMessageUpdated?.(message, payload)
     } else {
       const entry = { ...payload }
@@ -549,8 +603,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       }
       restoreCompletedQuickAnswerPipeline(entry)
       messagesList.push(entry)
-      onMessageCreated?.(entry)
-      onMessageUpdated?.(entry, payload)
+      const retainedEntry = payload.is_completed
+        ? dedupeCurrentTurnCompletedAssistants(entry) || entry
+        : entry
+      if (retainedEntry === entry) onMessageCreated?.(entry)
+      onMessageUpdated?.(retainedEntry, payload)
     }
     scrollToBottom()
   }

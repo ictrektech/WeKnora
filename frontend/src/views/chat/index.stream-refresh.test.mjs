@@ -37,3 +37,14 @@ test('history refresh preserves active stream ids and later chunks target that r
   assert.match(handlerSource, /const activeAssistantMessageId = currentAssistantMessageId\.value/)
   assert.match(handlerSource, /item\.id === activeAssistantMessageId[\s\S]*item\.request_id === activeAssistantMessageId/)
 })
+
+test('completed assistant rows are deduped inside the current user turn', () => {
+  assert.match(handlerSource, /const dedupeCurrentTurnCompletedAssistants = \(preferred\?: ChatMessage\) => \{/)
+  assert.match(handlerSource, /const lastUserIndex = findLastUserMessageIndex\(\)/)
+  assert.match(handlerSource, /message\.role !== 'assistant' \|\| !message\.is_completed/)
+  assert.match(handlerSource, /mergeAssistantRuntimeState\(existing,\s*message\)/)
+  assert.match(handlerSource, /messagesList\.splice\(i,\s*1\)/)
+  assert.match(handlerSource, /message = dedupeCurrentTurnCompletedAssistants\(message\) \|\| message/)
+  assert.match(handlerSource, /const retainedEntry = payload\.is_completed[\s\S]*dedupeCurrentTurnCompletedAssistants\(entry\) \|\| entry/)
+  assert.match(handlerSource, /messagesList\.push\(\.\.\.processed\)[\s\S]*dedupeCurrentTurnCompletedAssistants\(\)/)
+})
