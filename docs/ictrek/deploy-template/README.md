@@ -117,6 +117,22 @@ APP_PORT
 
 `WEKNORA_TENANT_AUTO_CREATE_API_KEY` 默认保持 `false`。只有兼容旧系统、并且能够安全接收创建响应中一次性明文 token 时才设为 `true`。
 
+### 注册、空间和管理员账号
+
+默认配置 `DISABLE_REGISTRATION=false`、`WEKNORA_AUTH_DEFAULT_TENANT_MODE=create_personal`、`WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED=true`：新用户注册后会自动得到一个个人空间，并且可以自行创建空间。
+
+面向公开网络但只允许受邀用户加入既有空间时，使用下面的组合后重建 app：
+
+```env
+DISABLE_REGISTRATION=true
+WEKNORA_AUTH_DEFAULT_TENANT_MODE=tenantless
+WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED=false
+```
+
+`tenantless` 只影响之后新注册或 OIDC 首次登录的用户；已有用户和已有空间不会迁移。用户没有有效空间时会进入「创建或加入空间」引导页。系统管理员可在系统设置的访问控制页配置这两个开关；页面保存值优先于 `.env`。管理员也可在系统设置中为其他用户重置密码，重置会立即撤销该用户全部现有会话，不能通过该入口重置自己的密码。
+
+模型编辑器新增 `Requesty` 供应商；它是标准 OpenAI-compatible endpoint，使用 Requesty API key。自建 vLLM、Ollama gateway 或其他兼容端点仍选择 `generic`，不需要改部署模板。
+
 确认不会拉上游镜像：
 
 ```bash
