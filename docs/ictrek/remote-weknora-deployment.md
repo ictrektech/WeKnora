@@ -124,15 +124,19 @@ curl -fsS http://127.0.0.1:<ollama-openai-port>/v1/embeddings \
 ```env
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
-WEKNORA_ASYNQ_CONCURRENCY=4
-WEKNORA_WIKI_ASYNQ_CONCURRENCY=2
+WEKNORA_ASYNQ_CORE_CONCURRENCY=1
+WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=1
+WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=1
+WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1
+WEKNORA_ASYNQ_SHARED_CONCURRENCY=1
+WEKNORA_WIKI_ASYNQ_CONCURRENCY=1
 WEKNORA_MODEL_MAX_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
 MAX_FILE_SIZE_MB=500
 ```
 
-这会给聊天问答至少保留 2 路模型并发，后台图谱、问题生成、wiki 生成只能使用剩余槽位。`WEKNORA_ASYNQ_CONCURRENCY=4` 会固定分为 core=2、enrichment=1、maintenance=1，旧的 `WEKNORA_ASYNQ_QUEUE_*` 不再生效。
+这会给聊天问答至少保留 2 路模型并发，后台图谱、问题生成、Wiki 生成只能使用剩余槽位。worker 使用独立的 core、postprocess、enrichment、maintenance、shared、wiki 池，模板全部从 `1` 起步；旧的 `WEKNORA_ASYNQ_CONCURRENCY` 和 `WEKNORA_ASYNQ_QUEUE_*` 不再生效。
 
 Wiki map/reduce 的部署级默认值由 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` 和 `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL` 控制；知识库自己的 `wiki_config.ingest_map_parallel` / `wiki_config.ingest_reduce_parallel` 会覆盖 env 默认值。Orin NX 这类小机器建议 env 默认设为 `1`，大机器可以从 `2` 起步。
 
@@ -574,13 +578,17 @@ Set chat/QA priority in the app environment:
 ```env
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
-WEKNORA_ASYNQ_CONCURRENCY=4
-WEKNORA_WIKI_ASYNQ_CONCURRENCY=2
+WEKNORA_ASYNQ_CORE_CONCURRENCY=1
+WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=1
+WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=1
+WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1
+WEKNORA_ASYNQ_SHARED_CONCURRENCY=1
+WEKNORA_WIKI_ASYNQ_CONCURRENCY=1
 WEKNORA_MODEL_MAX_CONCURRENCY=2
 MAX_FILE_SIZE_MB=500
 ```
 
-聊天问答至少保留两个模型槽位；后台图谱、问题生成和 Wiki 使用剩余槽位。`WEKNORA_ASYNQ_CONCURRENCY=4` 固定拆为 core=2、enrichment=1、maintenance=1，旧队列权重变量不生效。
+聊天问答至少保留两个模型槽位；后台图谱、问题生成和 Wiki 使用剩余槽位。worker 使用独立的 core、postprocess、enrichment、maintenance、shared、wiki 池，模板全部从 `1` 起步；旧总 worker 变量和旧队列权重变量均不生效。
 
 See [deploy-template/CONCURRENCY.md](deploy-template/CONCURRENCY.md) for full
 concurrency, queue, and model backend capacity checks.

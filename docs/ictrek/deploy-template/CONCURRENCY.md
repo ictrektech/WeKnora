@@ -6,7 +6,7 @@
 
 | 层级 | 作用 | 主要变量 |
 | --- | --- | --- |
-| Asynq 后台任务池 | 控制后台任务 worker 总预算，并固定拆分为互不抢占的 core、enrichment、maintenance 三个池；Wiki 另有独立池。 | `WEKNORA_ASYNQ_CONCURRENCY`、`WEKNORA_WIKI_ASYNQ_CONCURRENCY` |
+| Asynq 后台任务池 | 控制独立的 core、postprocess、enrichment、maintenance、shared、wiki worker 池。 | `WEKNORA_ASYNQ_*_CONCURRENCY`、`WEKNORA_WIKI_ASYNQ_CONCURRENCY` |
 | 后台 LLM 限流 | 防止 Graph、Wiki、自动问题生成、摘要生成、多模态 VLM 把主 QA 模型并发吃满。 | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`、`WEKNORA_CHAT_RESERVED_CONCURRENCY`、`WEKNORA_GRAPH_LLM_CONCURRENCY`、`WEKNORA_WIKI_INGEST_*` |
 | 模型服务容量 | 控制 Ollama、vLLM 或其他 OpenAI-compatible 服务实际能同时处理多少请求。 | `OLLAMA_NUM_PARALLEL`、`OLLAMA_CONTEXT_LENGTH`、`VLLM_MAX_NUM_SEQS`、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE` |
 
@@ -47,7 +47,7 @@ docker logs --tail 80 <ollama-qa-container>
 docker exec <ollama-embedding-container> ollama ps
 ```
 
-如果聊天请求已经开始排队，先降低 `WEKNORA_ASYNQ_CONCURRENCY`、Graph/Wiki 并发或 `CONCURRENCY_POOL_SIZE`，不要先提高 `OLLAMA_NUM_PARALLEL`。`OLLAMA_NUM_PARALLEL` 提高后显存、KV cache 和上下文一起涨，容易直接 OOM。
+如果聊天请求已经开始排队，先降低 enrichment、shared、Wiki worker，或降低 Graph/Wiki 并发和 `CONCURRENCY_POOL_SIZE`，不要先提高 `OLLAMA_NUM_PARALLEL`。`OLLAMA_NUM_PARALLEL` 提高后显存、KV cache 和上下文一起涨，容易直接 OOM。
 
 vLLM 方案再看：
 
@@ -109,38 +109,37 @@ Wiki map/reduce 并发先读知识库 `wiki_config.ingest_map_parallel` 和 `wik
 
 ## 单文档任务和 worker 池
 
-文档解析、Graph、Wiki、自动问题生成、摘要等后台任务都走 Asynq。当前代码不再读取 `WEKNORA_ASYNQ_QUEUE_*`；旧变量可以从 `.env` 和 compose 中删除，继续保留不会改变调度结果。
+文档解析、Graph、Wiki、自动问题生成、摘要等后台任务都走 Asynq。当前代码不再读取旧的总预算 `WEKNORA_ASYNQ_CONCURRENCY`，也不读取 `WEKNORA_ASYNQ_QUEUE_*`；它们可以从 `.env` 和 compose 中删除，继续保留不会改变调度结果。
 
 ```dotenv
-WEKNORA_ASYNQ_CONCURRENCY=4
-WEKNORA_WIKI_ASYNQ_CONCURRENCY=2
+WEKNORA_ASYNQ_CORE_CONCURRENCY=1
+WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY=1
+WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=1
+WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1
+WEKNORA_ASYNQ_SHARED_CONCURRENCY=1
+WEKNORA_WIKI_ASYNQ_CONCURRENCY=1
 WEKNORA_MODEL_MAX_CONCURRENCY=2
 WEKNORA_REPARSE_INCOMPLETE_ON_START=true
 WEKNORA_REPARSE_WAIT_URLS=
 WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 ```
 
-`WEKNORA_ASYNQ_CONCURRENCY` 是除 Wiki 外的总 worker 预算，不是单个队列并发。代码会固定拆分：总数的约 `1/2` 给 core、约 `3/8` 给 enrichment，剩余给 maintenance；最小有效值是 `3`，保证每个池至少一个 worker。常用值的实际分配如下：
-
-| 总预算 | core | enrichment | maintenance | 适用情况 |
-| ---: | ---: | ---: | ---: | --- |
-| 3 | 1 | 1 | 1 | Orin NX、小模型或模型服务容量很低的起步值。 |
-| 4 | 2 | 1 | 1 | 通用部署模板的保守值，优先让上传文档完成可检索状态。 |
-| 6 | 3 | 2 | 1 | 模型和 embedding 已拆分、可同时入库和问答的中等机器。 |
-| 8 | 4 | 3 | 1 | 仅在 DocReader、embedding 与主 QA 都有余量时使用。 |
+每个变量是单个 app 实例对该池的保证 worker 数，不能再用一个总数推导分配。`shared` 只订阅 core 和 enrichment 队列，在这两个池有积压时提供弹性容量；maintenance 和 Wiki 不会借用 shared。小机器从所有池 `1` 开始。只有对应队列积压且下游服务有余量时，才单独提高该池。
 
 | worker 池 | 队列与任务 | 资源含义 |
 | --- | --- | --- |
-| core | `default`：文档解析、手动处理、知识后处理 | 文本解析、分块、向量化优先推进；不会被 Graph/VLM 占满 worker。 |
+| core | `default`：文档解析、手动处理 | 文本解析、分块、向量化有独立保证；不会被 Graph/VLM 占满 worker。 |
+| postprocess | `postprocess`：解析完成后的状态收敛和增强任务 fan-out | 轻量收尾不会排在长 DocReader 后面。 |
 | enrichment | `summary`、`multimodal`、`graph`、`question` | 摘要、图片理解、知识图谱、自动问题等增强任务。 |
 | maintenance | `sync`、`low`：数据源同步、批量删除、批量重解析、索引删除 | 批量和维护操作不会堵住新文档解析。`low` 是兼容旧 Redis 任务的物理队列名。 |
+| shared | `default`、`summary`、`multimodal`、`graph`、`question` | core 与 enrichment 的弹性补充；不应在小机器上用它提高模型请求并发。 |
 | wiki | `wiki`：Wiki ingest/finalize | `WEKNORA_WIKI_ASYNQ_CONCURRENCY` 单独控制，不与前三个池共享 worker。 |
 
 worker 数量只决定可取走多少后台任务，不等于可以同时调用多少次模型。`WEKNORA_MODEL_MAX_CONCURRENCY` 是所有后台 Chat/VLM/Embedding 调用的每模型默认硬闸门，按模型 endpoint/served model 共享；如果 QA 与 VLM 指向同一 vLLM 或 gateway，它们会共用同一槽位。模型行自己的 `max_concurrency` 可覆盖该默认值。在线聊天不走后台 worker，也不经过这个后台闸门。
 
-因此不要把 `WEKNORA_ASYNQ_CONCURRENCY` 简单设成 `主模型并发 - 聊天预留`。core 中的文本解析和 embedding 可以继续工作；真正需要按主 QA 剩余容量收紧的是 `WEKNORA_MODEL_MAX_CONCURRENCY`、`WEKNORA_GRAPH_LLM_CONCURRENCY` 与 Wiki map/reduce。模型服务已经接近满载时，先把 enrichment 和 Wiki worker 降低，再降低 worker 总数。
+因此不要把任一 worker 池直接设成 `主模型并发 - 聊天预留`。core 中的文本解析和 embedding 可以继续工作；真正需要按主 QA 剩余容量收紧的是 `WEKNORA_MODEL_MAX_CONCURRENCY`、`WEKNORA_GRAPH_LLM_CONCURRENCY` 与 Wiki map/reduce。模型服务已经接近满载时，先把 enrichment、shared 和 Wiki worker 降低。
 
-系统设置优先级是「系统管理页面保存值 > 容器环境变量 > 代码默认值」。`asynq.concurrency` 和 `asynq.wiki_concurrency` 修改后必须重启 app 才会重建 worker 池；`model.max_concurrency` 会即时下发到限流器，不需要重启。管理员可在系统设置的运行时队列页面查看 core/enrichment/maintenance/wiki 的实际 worker 数、各队列积压，以及模型限流的 active/waiting/limit；这比只读 `.env` 更可信。
+系统设置优先级是「系统管理页面保存值 > 容器环境变量 > 代码默认值」。`asynq.core_concurrency`、`asynq.postprocess_concurrency`、`asynq.enrichment_concurrency`、`asynq.maintenance_concurrency`、`asynq.shared_concurrency`、`asynq.wiki_concurrency` 修改后必须重启 app 才会重建 worker 池；`model.max_concurrency` 会即时下发到限流器，不需要重启。管理员可在系统设置的运行时队列页面查看六个池的实例数、容量、利用率、各队列积压，以及模型限流的 active/waiting/limit；这比只读 `.env` 更可信。
 
 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true` 会在服务启动时先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再把 failed/pending/processing 的文档提交到 maintenance 池；`finalizing` 只有在 `processed_at is null` 时才会整篇重跑。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后台增强的 `finalizing` 文档不会重复 docreader、分块和 embedding。
 
@@ -195,8 +194,8 @@ BATCH_EMBED_SIZE=4
 
 | 机器类型 | QA 服务并发 | 聊天保留 | Graph | Embedding 并发 | 说明 |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Orin NX / L4T 分离 Ollama | 3 | 2 | 1 | 1 | 首选。QA/VLM 与 embedding 分容器，QA 上下文用 `18000` 起步，`WEKNORA_ASYNQ_CONCURRENCY=3`。 |
-| 通用 4 并发主机 | 4 | 2 | 1-2 | 2-4 | `WEKNORA_ASYNQ_CONCURRENCY=4`，实际为 core=2/enrichment=1/maintenance=1。 |
+| Orin NX / L4T 分离 Ollama | 3 | 2 | 1 | 1 | 首选。QA/VLM 与 embedding 分容器，所有 worker 池从 `1` 起步，QA 上下文用 `18000` 起步。 |
+| 通用 4 并发主机 | 4 | 2 | 1-2 | 2-4 | core/postprocess/enrichment/maintenance/shared/wiki 先各设 `1`；积压只提高对应池。 |
 | 9B vLLM 主机 | 按 `VLLM_MAX_NUM_SEQS` | 2-3 | 1-2 | 按 embedding 后端容量 | QA/Graph/Wiki/Question 共用主 QA 模型时，worker 不超过剩余后台槽。 |
 
 ## 调参判断
@@ -205,7 +204,7 @@ BATCH_EMBED_SIZE=4
 | --- | --- |
 | 文档入库时聊天变慢 | 增大 `WEKNORA_CHAT_RESERVED_CONCURRENCY`，把 `WEKNORA_MODEL_MAX_CONCURRENCY`、Graph/Wiki 并发先降到主模型真实剩余容量；必要时再降低 enrichment/Wiki worker。 |
 | Graph 或 Wiki 很慢，但聊天正常 | 只有在模型服务还有余量时，才提高 `WEKNORA_GRAPH_LLM_CONCURRENCY`、`WEKNORA_WIKI_INGEST_*` 或知识库级 wiki map/reduce 并发。 |
-| 卡在 embedding 阶段 | 先检查 embedding 服务是否 ready，再对比 `WEKNORA_ASYNQ_CONCURRENCY`、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE`、Ollama `OLLAMA_NUM_PARALLEL`。 |
+| 卡在 embedding 阶段 | 先检查 embedding 服务是否 ready，再对比 core/shared、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE`、Ollama `OLLAMA_NUM_PARALLEL`。 |
 | Ollama 单实例聊天被文档入库拖慢 | 改成 QA/VLM 和 embedding 两个 Ollama 容器；单实例只能做 best-effort。 |
 | GPU 显存接近打满 | 先降低模型服务侧并发、上下文长度或显存占用率，再把应用侧并发同步降下来。 |
 
@@ -215,7 +214,7 @@ BATCH_EMBED_SIZE=4
 
 ```bash
 docker inspect <app-container> --format '{{range .Config.Env}}{{println .}}{{end}}' \
-  | grep -E '^(WEKNORA_MAIN_QA_MODEL_CONCURRENCY|WEKNORA_CHAT_RESERVED_CONCURRENCY|WEKNORA_ASYNQ_CONCURRENCY|WEKNORA_WIKI_ASYNQ_CONCURRENCY|WEKNORA_MODEL_MAX_CONCURRENCY|WEKNORA_GRAPH_LLM_CONCURRENCY|WEKNORA_WIKI_INGEST_MAP_PARALLEL|WEKNORA_WIKI_INGEST_REDUCE_PARALLEL|CONCURRENCY_POOL_SIZE|BATCH_EMBED_SIZE)='
+  | grep -E '^(WEKNORA_MAIN_QA_MODEL_CONCURRENCY|WEKNORA_CHAT_RESERVED_CONCURRENCY|WEKNORA_ASYNQ_(CORE|POSTPROCESS|ENRICHMENT|MAINTENANCE|SHARED)_CONCURRENCY|WEKNORA_WIKI_ASYNQ_CONCURRENCY|WEKNORA_MODEL_MAX_CONCURRENCY|WEKNORA_GRAPH_LLM_CONCURRENCY|WEKNORA_WIKI_INGEST_MAP_PARALLEL|WEKNORA_WIKI_INGEST_REDUCE_PARALLEL|CONCURRENCY_POOL_SIZE|BATCH_EMBED_SIZE)='
 
 docker inspect <ollama-qa-container> --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep -E '^(OLLAMA_NUM_PARALLEL|OLLAMA_KEEP_ALIVE|OLLAMA_CONTEXT_LENGTH)='
@@ -236,6 +235,6 @@ curl -sS http://127.0.0.1:<vllm-metrics-port>/metrics \
   | grep -E 'vllm:num_requests_(running|waiting)'
 ```
 
-如果 `waiting > 0` 长时间存在，先降低 `WEKNORA_MODEL_MAX_CONCURRENCY`、enrichment/Wiki worker 或 `CONCURRENCY_POOL_SIZE`，不要只提高模型服务并发。
+如果 `waiting > 0` 长时间存在，先降低 `WEKNORA_MODEL_MAX_CONCURRENCY`、enrichment/shared/Wiki worker 或 `CONCURRENCY_POOL_SIZE`，不要只提高模型服务并发。
 
-修改后要同步系统设置、env、compose 里的模型服务参数和模型行配置。修改 `WEKNORA_ASYNQ_CONCURRENCY` 或 `WEKNORA_WIKI_ASYNQ_CONCURRENCY` 后，重新执行对应 compose `up -d app`；修改 `WEKNORA_MODEL_MAX_CONCURRENCY` 可在系统设置页即时生效。
+修改后要同步系统设置、env、compose 里的模型服务参数和模型行配置。修改任一 `WEKNORA_ASYNQ_*_CONCURRENCY` 或 `WEKNORA_WIKI_ASYNQ_CONCURRENCY` 后，重新执行对应 compose `up -d app`；修改 `WEKNORA_MODEL_MAX_CONCURRENCY` 可在系统设置页即时生效。
