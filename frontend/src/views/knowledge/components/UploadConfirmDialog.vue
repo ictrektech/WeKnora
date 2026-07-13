@@ -286,19 +286,21 @@ interface ChunkingUIConfig {
   strategy?: string
   tokenLimit?: number
   languages?: string[]
+  tableMetadataInstructions?: string
 }
 
 interface UploadUIState {
   chunkingConfig: ChunkingUIConfig
-  multimodalConfig: { enabled: boolean; vllmModelId: string }
+  multimodalConfig: { enabled: boolean; vllmModelId: string; descriptionLanguage?: string; customInstructions?: string }
   asrConfig: { enabled: boolean; modelId: string; language: string }
-  questionGenerationConfig: { enabled: boolean; questionCount: number }
+  questionGenerationConfig: { enabled: boolean; questionCount: number; customInstructions?: string }
   nodeExtractConfig: {
     enabled: boolean
     text: string
     tags: string[]
     nodes: Array<{ name: string; attributes: string[] }>
     relations: Array<{ node1: string; node2: string; type: string }>
+    customInstructions?: string
   }
   graphEnabled: boolean
   pdfForceScanned: boolean
@@ -622,16 +624,6 @@ const canConfirm = computed(() => {
   return true
 })
 
-function emptyGraphExtractConfig(enabled = false): UploadUIState['nodeExtractConfig'] {
-  return {
-    enabled,
-    text: '',
-    tags: [],
-    nodes: [],
-    relations: [],
-  }
-}
-
 function createDefaultUIState(): UploadUIState {
   return {
     chunkingConfig: {
@@ -645,11 +637,19 @@ function createDefaultUIState(): UploadUIState {
       strategy: 'auto',
       tokenLimit: 0,
       languages: [],
+      tableMetadataInstructions: '',
     },
-    multimodalConfig: { enabled: false, vllmModelId: '' },
+    multimodalConfig: { enabled: false, vllmModelId: '', descriptionLanguage: '', customInstructions: '' },
     asrConfig: { enabled: false, modelId: '', language: '' },
-    questionGenerationConfig: { enabled: true, questionCount: 3 },
-    nodeExtractConfig: emptyGraphExtractConfig(false),
+    questionGenerationConfig: { enabled: true, questionCount: 3, customInstructions: '' },
+    nodeExtractConfig: {
+      enabled: false,
+      text: '',
+      tags: [],
+      nodes: [],
+      relations: [],
+      customInstructions: '',
+    },
     graphEnabled: false,
     pdfForceScanned: false,
   }
@@ -660,20 +660,6 @@ function initFromKbInfo(kb: any) {
     uiState.value = createDefaultUIState()
     return
   }
-
-  const graphEnabled = kb.indexing_strategy?.graph_enabled ?? kb.extract_config?.enabled ?? false
-  const nodeExtractConfig = kb.extract_config
-    ? {
-      enabled: graphEnabled,
-      text: kb.extract_config?.text || '',
-      tags: kb.extract_config?.tags || [],
-      nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
-        name: node.name,
-        attributes: node.attributes || [],
-      })),
-      relations: kb.extract_config?.relations || [],
-    }
-    : emptyGraphExtractConfig(false)
 
   uiState.value = {
     chunkingConfig: {
@@ -687,10 +673,13 @@ function initFromKbInfo(kb: any) {
       strategy: kb.chunking_config?.strategy || 'auto',
       tokenLimit: kb.chunking_config?.token_limit || 0,
       languages: kb.chunking_config?.languages || [],
+      tableMetadataInstructions: kb.chunking_config?.table_metadata_instructions || '',
     },
     multimodalConfig: {
       enabled: !!kb.vlm_config?.enabled,
       vllmModelId: kb.vlm_config?.model_id || '',
+      descriptionLanguage: kb.vlm_config?.description_language || '',
+      customInstructions: kb.vlm_config?.custom_instructions || '',
     },
     asrConfig: {
       enabled: !!kb.asr_config?.enabled,
@@ -700,9 +689,20 @@ function initFromKbInfo(kb: any) {
     questionGenerationConfig: {
       enabled: kb.question_generation_config?.enabled ?? true,
       questionCount: kb.question_generation_config?.question_count || 3,
+      customInstructions: kb.question_generation_config?.custom_instructions || '',
     },
-    nodeExtractConfig,
-    graphEnabled,
+    nodeExtractConfig: {
+      enabled: kb.extract_config?.enabled || false,
+      text: kb.extract_config?.text || '',
+      tags: kb.extract_config?.tags || [],
+      nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
+        name: node.name,
+        attributes: node.attributes || [],
+      })),
+      relations: kb.extract_config?.relations || [],
+      customInstructions: kb.extract_config?.custom_instructions || '',
+    },
+    graphEnabled: kb.indexing_strategy?.graph_enabled ?? false,
     pdfForceScanned: false,
   }
 }
@@ -723,11 +723,14 @@ function buildProcessOverrides(): KnowledgeProcessOverrides {
       strategy: chunking.strategy,
       token_limit: chunking.tokenLimit,
       languages: chunking.languages,
+      table_metadata_instructions: chunking.tableMetadataInstructions,
     },
     enable_multimodel: state.multimodalConfig.enabled,
     vlm_config: {
       enabled: state.multimodalConfig.enabled,
       model_id: state.multimodalConfig.vllmModelId,
+      description_language: state.multimodalConfig.descriptionLanguage,
+      custom_instructions: state.multimodalConfig.customInstructions,
     },
     asr_config: {
       enabled: state.asrConfig.enabled,
@@ -737,14 +740,16 @@ function buildProcessOverrides(): KnowledgeProcessOverrides {
     question_generation_config: {
       enabled: state.questionGenerationConfig.enabled,
       question_count: state.questionGenerationConfig.questionCount,
+      custom_instructions: state.questionGenerationConfig.customInstructions,
     },
-    graph_enabled: state.graphEnabled,
+    graph_enabled: state.nodeExtractConfig.enabled && state.graphEnabled,
     extract_config: {
-      enabled: state.graphEnabled,
+      enabled: state.nodeExtractConfig.enabled,
       text: state.nodeExtractConfig.text,
       tags: state.nodeExtractConfig.tags,
       nodes: state.nodeExtractConfig.nodes,
       relations: state.nodeExtractConfig.relations,
+      custom_instructions: state.nodeExtractConfig.customInstructions,
     },
   }
 
@@ -771,6 +776,7 @@ function applyOverridesToState(o?: KnowledgeProcessOverrides | null) {
     if (cc.strategy != null) s.chunkingConfig.strategy = cc.strategy
     if (cc.token_limit != null) s.chunkingConfig.tokenLimit = cc.token_limit
     if (cc.languages) s.chunkingConfig.languages = cc.languages
+    if (cc.table_metadata_instructions != null) s.chunkingConfig.tableMetadataInstructions = cc.table_metadata_instructions
     if (cc.parser_engine_rules) s.chunkingConfig.parserEngineRules = cc.parser_engine_rules
   }
   if (o.parser_engine_rules) s.chunkingConfig.parserEngineRules = o.parser_engine_rules
@@ -778,6 +784,8 @@ function applyOverridesToState(o?: KnowledgeProcessOverrides | null) {
   if (o.vlm_config) {
     if (o.vlm_config.enabled != null) s.multimodalConfig.enabled = o.vlm_config.enabled
     if (o.vlm_config.model_id != null) s.multimodalConfig.vllmModelId = o.vlm_config.model_id
+    if (o.vlm_config.description_language != null) s.multimodalConfig.descriptionLanguage = o.vlm_config.description_language
+    if (o.vlm_config.custom_instructions != null) s.multimodalConfig.customInstructions = o.vlm_config.custom_instructions
   }
   if (o.asr_config) {
     if (o.asr_config.enabled != null) s.asrConfig.enabled = o.asr_config.enabled
@@ -788,6 +796,7 @@ function applyOverridesToState(o?: KnowledgeProcessOverrides | null) {
   if (qg) {
     if (qg.enabled != null) s.questionGenerationConfig.enabled = qg.enabled
     if (qg.question_count != null) s.questionGenerationConfig.questionCount = qg.question_count
+    if (qg.custom_instructions != null) s.questionGenerationConfig.customInstructions = qg.custom_instructions
   }
   const ec = o.extract_config
   if (ec) {
@@ -796,6 +805,7 @@ function applyOverridesToState(o?: KnowledgeProcessOverrides | null) {
     if (ec.tags) s.nodeExtractConfig.tags = ec.tags
     if (ec.nodes) s.nodeExtractConfig.nodes = ec.nodes.map(n => ({ name: n.name, attributes: n.attributes || [] }))
     if (ec.relations) s.nodeExtractConfig.relations = ec.relations
+    if (ec.custom_instructions != null) s.nodeExtractConfig.customInstructions = ec.custom_instructions
   }
   if (o.graph_enabled != null) s.graphEnabled = o.graph_enabled
   if (o.parser_engine_overrides && o.parser_engine_overrides.pdf_force_scanned === 'true') {
@@ -895,7 +905,6 @@ const handleQuestionGenerationUpdate = (config: { enabled: boolean; questionCoun
 
 const handleNodeExtractUpdate = (config: UploadUIState['nodeExtractConfig']) => {
   uiState.value.nodeExtractConfig = { ...config }
-  uiState.value.graphEnabled = !!config.enabled
 }
 
 const validateBeforeConfirm = (): boolean => {

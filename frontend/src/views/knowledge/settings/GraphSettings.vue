@@ -42,6 +42,22 @@
         </div>
       </div>
 
+      <div v-if="localGraphExtract.enabled" class="setting-row vertical">
+        <div class="setting-info">
+          <label>{{ t('graphSettings.customInstructionsLabel') }}</label>
+          <p class="desc">{{ t('graphSettings.customInstructionsDescription') }}</p>
+        </div>
+        <div class="setting-control full-width">
+          <t-textarea
+            v-model="localGraphExtract.customInstructions"
+            :placeholder="t('graphSettings.customInstructionsPlaceholder')"
+            :maxlength="4000"
+            :autosize="{ minRows: 3, maxRows: 8 }"
+            @change="handleConfigChange"
+          />
+        </div>
+      </div>
+
       <!-- 关系类型配置 -->
       <div v-if="localGraphExtract.enabled" class="setting-row vertical">
         <div class="setting-info">
@@ -296,25 +312,6 @@
             >
               {{ t('graphSettings.clearExample') }}
             </t-button>
-            <t-button
-              theme="default"
-              @click="downloadTemplate"
-            >
-              {{ t('graphSettings.downloadTemplate') }}
-            </t-button>
-            <t-button
-              theme="default"
-              @click="templateInput?.click()"
-            >
-              {{ t('graphSettings.uploadTemplate') }}
-            </t-button>
-            <input
-              ref="templateInput"
-              type="file"
-              accept="application/json,.json"
-              style="display: none"
-              @change="uploadTemplate"
-            />
           </div>
         </div>
       </div>
@@ -344,6 +341,7 @@ interface GraphExtractConfig {
   tags: string[]
   nodes: Node[]
   relations: Relation[]
+  customInstructions?: string
 }
 
 interface Props {
@@ -371,14 +369,14 @@ const modelStatus = computed(() => ({
 const localGraphExtract = ref<GraphExtractConfig>({
   ...props.graphExtract,
   nodes: props.graphExtract.nodes || [],
-  relations: props.graphExtract.relations || []
+  relations: props.graphExtract.relations || [],
+  customInstructions: props.graphExtract.customInstructions || ''
 })
 
 // 加载状态
 const tagFabring = ref(false)
 const textFabring = ref(false)
 const extracting = ref(false)
-const templateInput = ref<HTMLInputElement | null>(null)
 
 // 系统信息
 const systemInfo = ref<any>(null)
@@ -393,7 +391,8 @@ watch(() => props.graphExtract, (newVal) => {
   localGraphExtract.value = {
     ...newVal,
     nodes: newVal.nodes || [],
-    relations: newVal.relations || []
+    relations: newVal.relations || [],
+    customInstructions: newVal.customInstructions || ''
   }
 }, { deep: true })
 
@@ -405,6 +404,13 @@ const handleConfigChange = () => {
 // 处理启用/禁用切换
 const handleEnabledChange = (enabled: boolean) => {
   localGraphExtract.value.enabled = enabled
+  // 当关闭提取功能时，清空示例数据，但保留自定义指令以便再次启用时恢复。
+  if (!enabled) {
+    localGraphExtract.value.text = ''
+    localGraphExtract.value.tags = []
+    localGraphExtract.value.nodes = []
+    localGraphExtract.value.relations = []
+  }
   handleConfigChange()
 }
 
@@ -567,59 +573,6 @@ const clearExtractExample = () => {
   localGraphExtract.value.relations = []
   handleNodesChange()
   MessagePlugin.success(t('graphSettings.exampleCleared'))
-}
-
-const normalizedTemplate = (raw: any): GraphExtractConfig => ({
-  enabled: raw?.enabled ?? localGraphExtract.value.enabled,
-  text: typeof raw?.text === 'string' ? raw.text : '',
-  tags: Array.isArray(raw?.tags) ? raw.tags.filter((tag: unknown) => typeof tag === 'string') : [],
-  nodes: Array.isArray(raw?.nodes)
-    ? raw.nodes.map((node: any) => ({
-      name: typeof node?.name === 'string' ? node.name : '',
-      attributes: Array.isArray(node?.attributes)
-        ? node.attributes.filter((attr: unknown) => typeof attr === 'string')
-        : [],
-    }))
-    : [],
-  relations: Array.isArray(raw?.relations)
-    ? raw.relations.map((relation: any) => ({
-      node1: typeof relation?.node1 === 'string' ? relation.node1 : '',
-      node2: typeof relation?.node2 === 'string' ? relation.node2 : '',
-      type: typeof relation?.type === 'string' ? relation.type : '',
-    }))
-    : [],
-})
-
-const downloadTemplate = () => {
-  const blob = new Blob([JSON.stringify(localGraphExtract.value, null, 2)], {
-    type: 'application/json',
-  })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'graph-template.json'
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
-}
-
-const uploadTemplate = async (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  try {
-    const text = await file.text()
-    localGraphExtract.value = normalizedTemplate(JSON.parse(text))
-    handleNodesChange()
-    MessagePlugin.success(t('graphSettings.templateUploaded'))
-  } catch (error: any) {
-    console.error('Failed to upload graph template:', error)
-    MessagePlugin.error(t('graphSettings.templateUploadFailed'))
-  } finally {
-    input.value = ''
-  }
 }
 
 const editorResources = useEditorResourcesStore()

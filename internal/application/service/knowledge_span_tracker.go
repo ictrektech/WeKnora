@@ -26,8 +26,8 @@ package service
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
+	"crypto/sha256"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -39,20 +39,31 @@ import (
 	"gorm.io/gorm"
 )
 
-const maxSpanNameLen = 64
+// maxSpanNameLen matches knowledge_processing_spans.name (varchar(255)).
+const maxSpanNameLen = 255
 
-func clampSpanName(name string) string {
-	if len([]rune(name)) <= maxSpanNameLen {
+// fitSpanName ensures a span name fits the DB column. Wiki ingest builds
+// names like postprocess.wiki.page[<slug>] which can exceed 64 chars when
+// the slug is a long romanized entity name; when truncated an 8-hex hash
+// suffix keeps concurrent subspans distinct. Truncation is rune-aware to
+// match PostgreSQL VARCHAR(255) character semantics and avoid splitting
+// multi-byte UTF-8 sequences.
+func fitSpanName(name string) string {
+	runes := []rune(name)
+	if len(runes) <= maxSpanNameLen {
 		return name
 	}
-	sum := sha1.Sum([]byte(name))
-	suffix := hex.EncodeToString(sum[:4])
-	runes := []rune(name)
-	keep := maxSpanNameLen - len(suffix) - 1
+	sum := sha256.Sum256([]byte(name))
+	suffix := fmt.Sprintf("~%x", sum[:4])
+	suffixRunes := []rune(suffix)
+	keep := maxSpanNameLen - len(suffixRunes)
 	if keep < 1 {
+		if len(suffixRunes) > maxSpanNameLen {
+			return string(suffixRunes[:maxSpanNameLen])
+		}
 		return suffix
 	}
-	return string(runes[:keep]) + "-" + suffix
+	return string(runes[:keep]) + suffix
 }
 
 // Span is the in-memory handle the pipeline holds while a stage / subspan
@@ -65,7 +76,6 @@ type Span struct {
 	ParentSpanID string
 	Name         string
 	Kind         string
-	Status       string
 	StartedAt    time.Time
 }
 
@@ -240,14 +250,6 @@ func (t *spanTracker) OpenAttempt(ctx context.Context, knowledgeID, langfuseTrac
 	if err != nil {
 		return nil, 0, err
 	}
-	if n, err := t.repo.CancelOpenSpansBeforeAttempt(ctx, knowledgeID, attempt,
-		"ATTEMPT_SUPERSEDED", "superseded by a newer parse attempt"); err != nil {
-		logger.Warnf(ctx, "[SpanTracker] supersede old attempts failed kid=%s attempt=%d: %v",
-			knowledgeID, attempt, err)
-	} else if n > 0 {
-		logger.Infof(ctx, "[SpanTracker] cancelled %d open span(s) from old attempts kid=%s before attempt=%d",
-			n, knowledgeID, attempt)
-	}
 	now := time.Now()
 	rootID := newSpanID()
 	meta := types.JSONMap{}
@@ -307,8 +309,8 @@ func (t *spanTracker) BeginStage(ctx context.Context, knowledgeID string, attemp
 		return nil
 	}
 	var (
-		rootID   string
-		existing *types.KnowledgeProcessingSpan
+		rootID    string
+		existing  *types.KnowledgeProcessingSpan
 	)
 	for i := range rows {
 		r := rows[i]
@@ -363,7 +365,6 @@ func (t *spanTracker) BeginStage(ctx context.Context, knowledgeID string, attemp
 			ParentSpanID: existing.ParentSpanID,
 			Name:         existing.Name,
 			Kind:         existing.Kind,
-			Status:       types.SpanStatusRunning,
 			StartedAt:    now,
 		}
 	}
@@ -393,7 +394,6 @@ func (t *spanTracker) BeginStage(ctx context.Context, knowledgeID string, attemp
 		ParentSpanID: rootID,
 		Name:         stage,
 		Kind:         types.SpanKindStage,
-		Status:       types.SpanStatusRunning,
 		StartedAt:    now,
 	}
 }
@@ -402,7 +402,7 @@ func (t *spanTracker) BeginSubSpan(ctx context.Context, parent *Span, name, kind
 	if parent == nil || name == "" {
 		return nil
 	}
-	name = clampSpanName(name)
+	name = fitSpanName(name)
 	if kind != types.SpanKindGeneration && kind != types.SpanKindSubSpan {
 		kind = types.SpanKindSubSpan
 	}
@@ -578,7 +578,6 @@ func (t *spanTracker) LookupStage(ctx context.Context, knowledgeID string, attem
 			ParentSpanID: r.ParentSpanID,
 			Name:         r.Name,
 			Kind:         r.Kind,
-			Status:       r.Status,
 			StartedAt:    started,
 		}
 	}
@@ -589,6 +588,7 @@ func (t *spanTracker) LookupSpanByName(ctx context.Context, knowledgeID string, 
 	if name == "" || knowledgeID == "" || attempt <= 0 {
 		return nil
 	}
+	name = fitSpanName(name)
 	rows, err := t.repo.ListByAttempt(ctx, knowledgeID, attempt)
 	if err != nil {
 		logger.Warnf(ctx, "[SpanTracker] LookupSpanByName list failed kid=%s attempt=%d: %v",
