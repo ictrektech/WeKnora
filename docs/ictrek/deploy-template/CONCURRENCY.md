@@ -223,6 +223,23 @@ BATCH_EMBED_SIZE=4
 | Ollama 单实例聊天被文档入库拖慢 | 改成 QA/VLM 和 embedding 两个 Ollama 容器；单实例只能做 best-effort。 |
 | GPU 显存接近打满 | 先降低模型服务侧并发、上下文长度或显存占用率，再把应用侧并发同步降下来。 |
 
+## 管理界面运行检查
+
+系统设置页显示的是单个 app 实例的 worker 配置；带「需重启」标识的 worker 值保存后，必须重启 app。系统设置保存值优先于 `.env`，因此部署后应在页面确认值是否与模板一致。
+
+![系统资源设置](images/system-resource-settings.png)
+
+任务队列页用于区分 worker 队列与模型限流：
+
+![任务队列运行时](images/task-queue-runtime.png)
+
+- 「运行中/容量」表示所有 app 实例合计的任务 worker 使用量。`2/2` 只表示两个 worker 都在处理任务，不能据此推断模型有两路请求。
+- 「模型并发占用」显示后台调用的 active、waiting 和 limit。waiting 持续增长说明应用侧模型闸门或模型服务已成为瓶颈，应先降低 enrichment、shared、wiki、Graph 或 embedding 并发，不要直接提高 worker。
+- 默认（文档解析）排队高时，依次检查 core worker、docreader、embedding 和数据库写入；图谱、摘要、Wiki 排队高但聊天正常时，保持低优先级处理即可。
+- 六个 worker 池都必须使用正整数。系统设置或 env 中的 `0`、负数和空值会回退代码默认值，不会停用该池；要关闭某项能力，应关闭知识库对应功能或暂停任务。
+
+面向管理员的操作说明与界面截图见 [用户指南的系统资源章节](../USERGUIDE.md#15-系统资源与任务队列)。
+
 ## 现场确认
 
 在目标机上看运行中的容器，不要只看 env 文件：
