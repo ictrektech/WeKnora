@@ -1614,7 +1614,7 @@ const displayEvents = computed(() => {
   // Quick-answer RAG: pipeline steps and model thinking live in RagPipelineProgress;
   // here we only render the final answer stream.
   if (props.ragMode) {
-    return result.filter((e: any) => e.type === 'answer');
+    return dedupeAnswerEvents(result.filter((e: any) => e.type === 'answer'));
   }
 
   // While the conversation is still running, keep the same lightweight tool-log
@@ -1670,6 +1670,38 @@ const displayEvents = computed(() => {
 
   return result;
 });
+
+const normalizeAnswerEventContent = (event: any): string => {
+  return String(event?.content || '').replace(/\s+/g, ' ').trim();
+};
+
+const dedupeAnswerEvents = (events: any[]): any[] => {
+  const retained: any[] = [];
+  const indexByContent = new Map<string, number>();
+
+  for (const event of events) {
+    const key = normalizeAnswerEventContent(event);
+    if (!key) {
+      retained.push(event);
+      continue;
+    }
+
+    const existingIndex = indexByContent.get(key);
+    if (existingIndex === undefined) {
+      indexByContent.set(key, retained.length);
+      retained.push(event);
+      continue;
+    }
+
+    retained[existingIndex] = {
+      ...retained[existingIndex],
+      ...event,
+      done: Boolean(retained[existingIndex]?.done || event?.done),
+    };
+  }
+
+  return retained;
+};
 
 // Get unique key for event
 const getEventKey = (event: any, index: number): string => {

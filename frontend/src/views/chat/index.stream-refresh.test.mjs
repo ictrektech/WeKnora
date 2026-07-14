@@ -8,6 +8,10 @@ const handlerSource = readFileSync(
   join(import.meta.dirname, '../../composables/useChatStreamHandler.ts'),
   'utf8',
 )
+const agentStreamSource = readFileSync(
+  join(import.meta.dirname, 'components/AgentStreamDisplay.vue'),
+  'utf8',
+)
 
 test('completed quick answer references sync without page navigation', () => {
   assert.match(source, /const syncCompletedMessageReferences = \(message,\s*attempt = 0\) => \{/)
@@ -67,4 +71,11 @@ test('chat view renders a deduped message list', () => {
   assert.match(source, /message\.role === 'assistant'[\s\S]*normalizeRenderedMessageContent\(message\.content\)/)
   assert.match(source, /if \(message\?\.is_completed\) score \+= 1000/)
   assert.match(source, /result\[currentTurnAssistantIndex\] = message/)
+})
+
+test('rag answer display dedupes identical answer events', () => {
+  assert.match(agentStreamSource, /return dedupeAnswerEvents\(result\.filter\(\(e: any\) => e\.type === 'answer'\)\)/)
+  assert.match(agentStreamSource, /const dedupeAnswerEvents = \(events: any\[\]\): any\[\] => \{/)
+  assert.match(agentStreamSource, /const indexByContent = new Map<string, number>\(\)/)
+  assert.match(agentStreamSource, /retained\[existingIndex\] = \{[\s\S]*done: Boolean\(retained\[existingIndex\]\?\.done \|\| event\?\.done\)/)
 })
