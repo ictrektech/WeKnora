@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -25,13 +26,22 @@ type mockChat struct {
 	mu        sync.Mutex
 	responses []mockResponse
 	callCount int
+	messages  [][]chat.Message
+	options   []*chat.ChatOptions
 }
 
-func (m *mockChat) ChatStream(_ context.Context, _ []chat.Message, _ *chat.ChatOptions) (<-chan types.StreamResponse, error) {
+func (m *mockChat) ChatStream(_ context.Context, messages []chat.Message, opts *chat.ChatOptions) (<-chan types.StreamResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.callCount >= len(m.responses) {
 		return nil, fmt.Errorf("unexpected ChatStream call #%d (only %d responses prepared)", m.callCount, len(m.responses))
+	}
+	m.messages = append(m.messages, append([]chat.Message(nil), messages...))
+	if opts != nil {
+		copied := *opts
+		m.options = append(m.options, &copied)
+	} else {
+		m.options = append(m.options, nil)
 	}
 	resp := m.responses[m.callCount]
 	m.callCount++
@@ -390,4 +400,35 @@ func TestStreamFinalAnswerToEventBus_EmitsDoneWhenProviderEndsWithEmptyChunk(t *
 	assert.Empty(t, finalAnswerEvents[1].Content)
 	assert.True(t, finalAnswerEvents[1].Done)
 	assert.Equal(t, "final answer", state.FinalAnswer)
+}
+
+func TestStreamFinalAnswerToEventBus_TrimsOldToolResultsToReserveOutput(t *testing.T) {
+	t.Setenv("WEKNORA_CHAT_MODEL_CONTEXT_TOKENS", "9000")
+	mock := &mockChat{
+		responses: []mockResponse{
+			{chunks: []types.StreamResponse{
+				{ResponseType: types.ResponseTypeAnswer, Content: "fallback answer", Done: true, FinishReason: "stop"},
+			}},
+		},
+	}
+	engine := newTestEngine(t, mock)
+	state := &types.AgentState{
+		RoundSteps: []types.AgentStep{
+			{ToolCalls: []types.ToolCall{{Name: "first", Result: &types.ToolResult{Output: strings.Repeat("旧工具结果", 2000)}}}},
+			{ToolCalls: []types.ToolCall{{Name: "last", Result: &types.ToolResult{Output: "关键结果"}}}},
+		},
+	}
+
+	err := engine.streamFinalAnswerToEventBus(context.Background(), "审查合同", state, "sess-1")
+
+	require.NoError(t, err)
+	require.Len(t, mock.messages, 1)
+	require.Len(t, mock.options, 1)
+	assert.Equal(t, finalAnswerDefaultCompletionTokens, mock.options[0].MaxCompletionTokens)
+	sent := mock.messages[0]
+	assert.Equal(t, "system", sent[0].Role)
+	assert.Equal(t, "user", sent[1].Role)
+	assert.NotContains(t, fmt.Sprint(sent), "旧工具结果")
+	assert.Contains(t, fmt.Sprint(sent), "关键结果")
+	assert.Equal(t, "fallback answer", state.FinalAnswer)
 }

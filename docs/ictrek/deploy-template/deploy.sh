@@ -179,6 +179,10 @@ raise SystemExit("latest version not found")
 PY
 }
 
+latest_tag_for_component_optional() {
+  latest_tag_for_component "$@" 2>/dev/null || true
+}
+
 write_env_value() {
   python3 - "$1" "$2" "$3" <<'PY'
 from pathlib import Path
@@ -197,6 +201,42 @@ if not done:
     out.append(f"{key}={value}")
 path.write_text("\n".join(out) + "\n", encoding="utf-8")
 PY
+}
+
+env_value() {
+  local key="$1"
+  local file="$2"
+  [[ -f "$file" ]] || return 0
+  python3 - "$key" "$file" <<'PY'
+import sys
+key, path = sys.argv[1], sys.argv[2]
+prefix = key + "="
+for line in open(path, encoding="utf-8"):
+    line = line.strip()
+    if line.startswith(prefix):
+        print(line[len(prefix):])
+        break
+PY
+}
+
+ensure_sandbox_image() {
+  local mode image
+  mode="$(env_value WEKNORA_SANDBOX_MODE "$ENV_FILE")"
+  mode="${mode:-docker}"
+  image="$(env_value WEKNORA_SANDBOX_DOCKER_IMAGE "$ENV_FILE")"
+
+  if [[ "$mode" != "docker" ]]; then
+    log "skills sandbox mode=${mode}; skip sandbox image pull"
+    return 0
+  fi
+  [[ -n "$image" ]] || die "WEKNORA_SANDBOX_MODE=docker requires WEKNORA_SANDBOX_DOCKER_IMAGE"
+
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    log "skills sandbox image present: ${image}"
+  else
+    log "pull skills sandbox image: ${image}"
+    docker pull "$image"
+  fi
 }
 
 platform_sheet() {
@@ -228,20 +268,35 @@ resolve_feishu_reader
 WEKNORA_APP_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" weknora)"
 WEKNORA_UI_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" weknora-ui)"
 WEKNORA_DOCREADER_TAG="$(latest_tag_for_component "$TOKEN" "$SHEET_ID" weknora-docreader)"
+WEKNORA_SANDBOX_TAG="$(latest_tag_for_component_optional "$TOKEN" "$SHEET_ID" weknora-sandbox)"
 WEKNORA_APP_IMAGE="${REGISTRY}/weknora:${WEKNORA_APP_TAG}"
 WEKNORA_UI_IMAGE="${REGISTRY}/weknora-ui:${WEKNORA_UI_TAG}"
 WEKNORA_DOCREADER_IMAGE="${REGISTRY}/weknora-docreader:${WEKNORA_DOCREADER_TAG}"
+if [[ -n "$WEKNORA_SANDBOX_TAG" ]]; then
+  WEKNORA_SANDBOX_DOCKER_IMAGE="${REGISTRY}/weknora-sandbox:${WEKNORA_SANDBOX_TAG}"
+else
+  WEKNORA_SANDBOX_DOCKER_IMAGE="$(env_value WEKNORA_SANDBOX_DOCKER_IMAGE "$ENV_FILE")"
+fi
 
 log "sheet=${SHEET_TITLE}"
 log "WEKNORA_APP_IMAGE=${WEKNORA_APP_IMAGE}"
 log "WEKNORA_UI_IMAGE=${WEKNORA_UI_IMAGE}"
 log "WEKNORA_DOCREADER_IMAGE=${WEKNORA_DOCREADER_IMAGE}"
+if [[ -n "$WEKNORA_SANDBOX_DOCKER_IMAGE" ]]; then
+  log "WEKNORA_SANDBOX_DOCKER_IMAGE=${WEKNORA_SANDBOX_DOCKER_IMAGE}"
+else
+  log "WEKNORA_SANDBOX_DOCKER_IMAGE is not set; set WEKNORA_SANDBOX_MODE=disabled or build/publish weknora-sandbox"
+fi
 [[ "$DRY_RUN" == "1" ]] && exit 0
 
 require_cmd docker
 write_env_value WEKNORA_APP_IMAGE "$WEKNORA_APP_IMAGE" "$ENV_FILE"
 write_env_value WEKNORA_UI_IMAGE "$WEKNORA_UI_IMAGE" "$ENV_FILE"
 write_env_value WEKNORA_DOCREADER_IMAGE "$WEKNORA_DOCREADER_IMAGE" "$ENV_FILE"
+if [[ -n "$WEKNORA_SANDBOX_DOCKER_IMAGE" ]]; then
+  write_env_value WEKNORA_SANDBOX_DOCKER_IMAGE "$WEKNORA_SANDBOX_DOCKER_IMAGE" "$ENV_FILE"
+fi
+ensure_sandbox_image
 
 cd "$ROOT_DIR"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d

@@ -30,12 +30,13 @@ docker inspect ollama-embedding --format 'runtime={{.HostConfig.Runtime}}'
 docker exec ollama-qa sh -lc 'ls /dev/nvhost-gpu /dev/nvmap /dev/nvhost-ctrl-gpu'
 ```
 
-模板故意不包含 `build:` 段，也不引用 `wechatopenai/*` 上游镜像。WeKnora app、frontend、docreader 必须使用飞书发布表里的 SWR 镜像：
+模板故意不包含 `build:` 段，也不引用 `wechatopenai/*` 上游镜像。WeKnora app、frontend、docreader、sandbox 必须使用飞书发布表里的 SWR 镜像：
 
 ```text
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
 部署模板中不放 Dockerfile。Dockerfile 只属于构建流程，保留在源码构建目录并通过 [build-images.md](../build-images.md) 使用；部署目录只保留 compose、`.env` 和运行配置，避免误触发本机构建或上游镜像。
@@ -56,12 +57,13 @@ AMD 机器：AMD_with_cuda 或 AMD_with_mxn100
 ARM/L4T 机器：ARM_without_cuda、l4t、ARM_with_cuda、thor_spark、SOPHON_bm1688
 ```
 
-在 sheet 中找这三列：
+在 sheet 中找这四列：
 
 ```text
 weknora
 weknora-ui
 weknora-docreader
+weknora-sandbox
 ```
 
 读取规则：
@@ -73,15 +75,16 @@ weknora-docreader
 完整镜像：<第 2 行仓库地址>:<日期行 tag>
 ```
 
-优先选择最新日期行中三个服务列都不为空的一组 tag，然后写入部署目录 `.env`：
+优先选择最新日期行中四个服务列都不为空的一组 tag，然后写入部署目录 `.env`：
 
 ```env
 WEKNORA_APP_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
 WEKNORA_UI_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
 WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
-如果某个平台 sheet 没有这三列或最新日期行缺 tag，先按 [build-images.md](../build-images.md) 构建并推送，不要回退到 `wechatopenai/*` 或源码默认镜像。
+如果某个平台 sheet 没有这四列或最新日期行缺 tag，先按 [build-images.md](../build-images.md) 构建并推送，不要回退到 `wechatopenai/*` 或源码默认镜像。
 
 也可以直接让部署脚本读取飞书并写 `.env`：
 
@@ -91,7 +94,7 @@ WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docr
 ./deploy.sh --platform thor
 ```
 
-`deploy.sh` 默认使用 `~/.feishu.components.json`，没有时回退到 `~/.feishu.json`。脚本会写入 `WEKNORA_APP_IMAGE`、`WEKNORA_UI_IMAGE`、`WEKNORA_DOCREADER_IMAGE`，执行 compose 后重建 `docreader` 和 `app`，等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再运行 `trigger-reparse-incomplete.sh` 把失败/未完成文档重新提交。`failed`、`pending`、`processing` 会整文档重试；`finalizing` 只有在 `processed_at` 为空时才整文档重试。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后处理的文档不会重复跑 docreader、分块和 embedding。设置 `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` 可跳过 docreader/app 重建；设置 `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` 可跳过部署后批量 reparse。
+`deploy.sh` 默认使用 `~/.feishu.components.json`，没有时回退到 `~/.feishu.json`。脚本会写入 `WEKNORA_APP_IMAGE`、`WEKNORA_UI_IMAGE`、`WEKNORA_DOCREADER_IMAGE`、`WEKNORA_SANDBOX_DOCKER_IMAGE`，执行 compose 前会预拉 sandbox 镜像，执行 compose 后重建 `docreader` 和 `app`，等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再运行 `trigger-reparse-incomplete.sh` 把失败/未完成文档重新提交。`failed`、`pending`、`processing` 会整文档重试；`finalizing` 只有在 `processed_at` 为空时才整文档重试。已经完成文字解析和向量入库、只是停在 VLM/Graph/Wiki 后处理的文档不会重复跑 docreader、分块和 embedding。设置 `WEKNORA_RECREATE_DOCREADER_ON_DEPLOY=false` 可跳过 docreader/app 重建；设置 `WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY=false` 可跳过部署后批量 reparse。
 
 新部署：
 
@@ -109,6 +112,7 @@ mkdir -p data/files data/docreader data/postgres data/redis config
 WEKNORA_APP_IMAGE
 WEKNORA_UI_IMAGE
 WEKNORA_DOCREADER_IMAGE
+WEKNORA_SANDBOX_DOCKER_IMAGE
 DB_PASSWORD
 REDIS_PASSWORD
 FRONTEND_PORT
@@ -145,7 +149,25 @@ docker compose config | grep -E 'wechatopenai|swr.cn-southwest-2.myhuaweicloud.c
 
 ```bash
 docker compose pull frontend app docreader
+docker pull "${WEKNORA_SANDBOX_DOCKER_IMAGE}"
 docker compose up -d postgres redis docreader app frontend
+```
+
+### Agent Skills sandbox
+
+`WEKNORA_SANDBOX_MODE=docker` 时，WeKnora 会在用户触发 Agent Skills 脚本执行时，通过 app 容器里的 Docker CLI 调用宿主 Docker，按需启动短生命周期的 sandbox 容器。模板默认使用 ictrek 发布镜像：
+
+```env
+WEKNORA_SANDBOX_MODE=docker
+WEKNORA_SANDBOX_TIMEOUT=60
+WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
+WEKNORA_RUN_AS_ROOT=true
+```
+
+`docker-compose.yml` 会把 `/var/run/docker.sock` 挂到 app 容器。这个授权等价于允许 app 容器管理宿主 Docker，只应在可信机器启用。完全不使用 Skills 脚本执行时，可以设：
+
+```env
+WEKNORA_SANDBOX_MODE=disabled
 ```
 
 Orin NX / L4T 纯 Ollama 部署：
@@ -224,6 +246,7 @@ WEKNORA_MODEL_MAX_CONCURRENCY=2
 WEKNORA_GRAPH_LLM_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
+WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=16384
 WEKNORA_REPARSE_WAIT_URLS=
 WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 ```
@@ -231,6 +254,8 @@ WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 `WEKNORA_CHAT_RESERVED_CONCURRENCY=2` 表示至少给聊天问答保留 2 路并发。worker 使用独立的 core、postprocess、enrichment、maintenance、shared、wiki 池；模板全部从 `1` 起步，Wiki 池由 `WEKNORA_WIKI_ASYNQ_CONCURRENCY` 控制。`WEKNORA_MODEL_MAX_CONCURRENCY` 对同一模型 endpoint 的后台 Chat/VLM/Embedding 请求做统一上限，应该按模型真实剩余容量设置，而不是按 worker 数设置。旧的 `WEKNORA_ASYNQ_CONCURRENCY` 不再生效。
 
 单文档 Graph 抽取的 LLM 并发由 `WEKNORA_GRAPH_LLM_CONCURRENCY` 控制，并且会被 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY/2` 限制。Wiki map/reduce 先读知识库 `wiki_config.ingest_map_parallel` 和 `wiki_config.ingest_reduce_parallel`；知识库没填时使用 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` / `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL`。小机器建议 env 默认设为 `1` 或 `2`。
+
+最终答案合成会为输出预留 2048 tokens，并按 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` 估算输入预算。工具调用结果太长时，系统会优先裁掉较旧的工具结果，保留用户问题、系统提示、最新工具结果和最终答案指令，避免模型上下文被旧检索内容撑满后先输出失败占位再继续生成。这个值应小于或等于主 QA 模型实际上下文，修改后重启 app。
 
 部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 failed/pending/processing 文档；finalizing 只有在 `processed_at` 为空时才会整文档重新入队。启动扫描走 maintenance 池，每条知识重新解析前会清掉该知识残留的 queued/retry 任务，再提交新的文档处理任务。旧 attempt 里还显示 running 的 trace 是被新 attempt 覆盖后的历史行，不要按旧 attempt 判断当前进度。需要手动补救时，也可以运行 [trigger-reparse-incomplete.sh](trigger-reparse-incomplete.sh)。文档页工具栏的「重新解析失败文档」只扫描当前知识库的 failed 文档；pending/processing 和 `processed_at` 为空的 finalizing 交给启动钩子或部署脚本处理。
 

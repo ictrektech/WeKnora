@@ -99,15 +99,15 @@ mkdir -p data/files data/docreader data/postgres data/redis config
 - 表格 token：`Htotsn3oahO1zxt73YMcaB1zn8e`；
 - AMD 机器看 `AMD_with_cuda` 或 `AMD_with_mxn100`；
 - ARM/L4T 机器看 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`；
-- 在目标平台 sheet 中找 `weknora`、`weknora-ui`、`weknora-docreader`；
+- 在目标平台 sheet 中找 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox`；
 - 第 1 行是服务名，第 2 行是仓库地址，日期行是 tag；
-- 优先选最新日期行中三个服务列都不为空的一组 tag；
+- 优先选最新日期行中四个服务列都不为空的一组 tag；
 - 组合成 `<第 2 行仓库地址>:<日期行 tag>`；
-- 写入部署目录 `.env` 的 `WEKNORA_APP_IMAGE`、`WEKNORA_UI_IMAGE`、`WEKNORA_DOCREADER_IMAGE`。
+- 写入部署目录 `.env` 的 `WEKNORA_APP_IMAGE`、`WEKNORA_UI_IMAGE`、`WEKNORA_DOCREADER_IMAGE`、`WEKNORA_SANDBOX_DOCKER_IMAGE`。
 
 发布镜像不包含部署专用模型行。模型后续在 Web UI 添加，或者由运维人员显式挂载 `config/builtin_models.yaml`。
 
-如果目标平台没有可用镜像，先暂停部署，按 [build-images.md](build-images.md) 完成构建、推送和飞书记录后再回来继续。WeKnora app/frontend/docreader 镜像本身没有 CUDA 依赖，tag 不应带 CUDA 标记。
+如果目标平台没有可用镜像，先暂停部署，按 [build-images.md](build-images.md) 完成构建、推送和飞书记录后再回来继续。WeKnora app/frontend/docreader/sandbox 镜像本身没有 CUDA 依赖，tag 不应带 CUDA 标记。
 
 ## 准备模型后端
 
@@ -186,7 +186,7 @@ cp .env.orin-ollama.example .env.orin-ollama
 编辑 `.env` 和 `.env.orin-ollama`，至少改：
 
 ```text
-WEKNORA_APP_IMAGE / WEKNORA_UI_IMAGE / WEKNORA_DOCREADER_IMAGE
+WEKNORA_APP_IMAGE / WEKNORA_UI_IMAGE / WEKNORA_DOCREADER_IMAGE / WEKNORA_SANDBOX_DOCKER_IMAGE
 DB_PASSWORD / REDIS_PASSWORD / JWT_SECRET / TENANT_AES_KEY / SYSTEM_AES_KEY
 OLLAMA_SERVER_IMAGE
 OLLAMA_QA_MODELS_DIR
@@ -720,7 +720,7 @@ continue after each step passes:
 
 1. Prepare Docker, data directories, and `.env`.
 2. Copy the ictrek deployment template and keep using the same deployment directory.
-3. Pick the three released WeKnora images from the Feishu table and write them to `.env`.
+3. Pick the four released WeKnora images from the Feishu table and write them to `.env`.
 4. Start and test model backends such as Ollama or vLLM.
 5. Start postgres, redis, and docreader.
 6. Start app and frontend.
@@ -822,10 +822,10 @@ root `docker-compose.yml`; the deployment directory should use
 If images already exist, prefer the released-image path:
 
 - read the platform sheet in the Feishu release table;
-- find the `weknora`, `weknora-ui`, and `weknora-docreader` columns;
+- find the `weknora`, `weknora-ui`, `weknora-docreader`, and `weknora-sandbox` columns;
 - combine row 2 repository URI with the selected dated row tag;
 - write the resulting images to `WEKNORA_APP_IMAGE`, `WEKNORA_UI_IMAGE`, and
-  `WEKNORA_DOCREADER_IMAGE` in the deployment `.env`.
+  `WEKNORA_DOCREADER_IMAGE`, and `WEKNORA_SANDBOX_DOCKER_IMAGE` in the deployment `.env`.
 
 The released WeKnora images do not include deployment-specific model rows.
 That is intentional. Add models later in the UI, or mount an operator-created

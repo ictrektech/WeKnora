@@ -23,6 +23,7 @@
 | `WEKNORA_MODEL_MAX_CONCURRENCY` 或模型行 `max_concurrency` | 同一模型 endpoint/served model 的后台 Chat、VLM、Embedding 调用 | `>0` 是每模型后台调用上限；`0` 或负数关闭全局默认闸门。模型行的显式 `max_concurrency` 可覆盖默认值。在线聊天不经过此闸门。 | 系统设置值会即时下发；修改 env 后重启 app。 |
 | `WEKNORA_GRAPH_LLM_CONCURRENCY` | 单文档 Graph 抽取的 LLM 调用 | 取正整数，且会被主 QA 并发的一半上限约束。 | 修改 env 后重启 app。 |
 | `WEKNORA_WIKI_INGEST_MAP_PARALLEL`、`WEKNORA_WIKI_INGEST_REDUCE_PARALLEL` | Wiki 生成阶段的 map/reduce LLM 调用 | 是部署级默认值；知识库的 `wiki_config.ingest_map_parallel` / `wiki_config.ingest_reduce_parallel` 优先。 | 修改 env 后重启 app；知识库配置在新任务开始时生效。 |
+| `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` | 最终答案合成的主模型上下文估算 | 默认 `16384`。系统会为最终输出预留 2048 tokens 和安全余量，工具结果太长时优先裁掉旧工具结果，保留最新结果。 | 应小于或等于模型实际上下文；修改 env 后重启 app。 |
 | `CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE` | 文档 embedding 请求数与单请求 batch 大小 | 前者限制应用侧 embedding 并发，后者增加单请求显存和吞吐。两者都不等于 Asynq worker 数。 | 修改 env 后重启 app。 |
 
 最小可用基线是六个 worker 池均为 `1`，再按模型服务容量设置模型限流。不要通过设置 worker 为 `0` 来停用 Graph、Wiki 或维护任务；应在对应知识库/功能配置中关闭功能或暂停任务，避免由于回退默认值而意外恢复执行。
@@ -106,6 +107,7 @@ WEKNORA_CHAT_RESERVED_CONCURRENCY=2
 WEKNORA_GRAPH_LLM_CONCURRENCY=1
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=1
+WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=18000
 ```
 
 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 应该对齐主 QA 模型服务的真实在线并发。Ollama 场景下通常和 QA Ollama 容器的 `OLLAMA_NUM_PARALLEL` 保持一致；vLLM 场景下通常和 `VLLM_MAX_NUM_SEQS` 保持一致。
@@ -121,6 +123,8 @@ background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED
 `WEKNORA_GRAPH_LLM_CONCURRENCY` 限制单文档 Graph 抽取中的 LLM 并发，并且代码会把它限制到 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY/2` 以内。
 
 Wiki map/reduce 并发先读知识库 `wiki_config.ingest_map_parallel` 和 `wiki_config.ingest_reduce_parallel`；知识库未设置时，使用 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` 和 `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL` 作为部署级默认值；env 也为空时才回退代码默认值。小机器建议 env 默认设为 `1` 或 `2`，个别大知识库再通过 KB 配置提高。
+
+最终答案合成不再无上限塞入全部工具结果。`WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` 用来告诉应用主 QA 模型的实际上下文，应用会扣掉 2048 输出 tokens 和安全余量后计算输入预算；超过预算时裁掉较旧工具结果，保留用户问题、系统提示、最新工具结果和最终回答指令。上下文设得比模型真实能力大，会重新出现长检索结果挤爆最终答案的问题；设得太小，会减少最终答案可参考的旧工具结果。
 
 ## 单文档任务和 worker 池
 
@@ -246,7 +250,7 @@ BATCH_EMBED_SIZE=4
 
 ```bash
 docker inspect <app-container> --format '{{range .Config.Env}}{{println .}}{{end}}' \
-  | grep -E '^(WEKNORA_MAIN_QA_MODEL_CONCURRENCY|WEKNORA_CHAT_RESERVED_CONCURRENCY|WEKNORA_ASYNQ_(CORE|POSTPROCESS|ENRICHMENT|MAINTENANCE|SHARED)_CONCURRENCY|WEKNORA_WIKI_ASYNQ_CONCURRENCY|WEKNORA_MODEL_MAX_CONCURRENCY|WEKNORA_GRAPH_LLM_CONCURRENCY|WEKNORA_WIKI_INGEST_MAP_PARALLEL|WEKNORA_WIKI_INGEST_REDUCE_PARALLEL|CONCURRENCY_POOL_SIZE|BATCH_EMBED_SIZE)='
+  | grep -E '^(WEKNORA_MAIN_QA_MODEL_CONCURRENCY|WEKNORA_CHAT_RESERVED_CONCURRENCY|WEKNORA_ASYNQ_(CORE|POSTPROCESS|ENRICHMENT|MAINTENANCE|SHARED)_CONCURRENCY|WEKNORA_WIKI_ASYNQ_CONCURRENCY|WEKNORA_MODEL_MAX_CONCURRENCY|WEKNORA_GRAPH_LLM_CONCURRENCY|WEKNORA_WIKI_INGEST_MAP_PARALLEL|WEKNORA_WIKI_INGEST_REDUCE_PARALLEL|WEKNORA_CHAT_MODEL_CONTEXT_TOKENS|CONCURRENCY_POOL_SIZE|BATCH_EMBED_SIZE)='
 
 docker inspect <ollama-qa-container> --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep -E '^(OLLAMA_NUM_PARALLEL|OLLAMA_KEEP_ALIVE|OLLAMA_CONTEXT_LENGTH)='

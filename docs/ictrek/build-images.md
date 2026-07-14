@@ -8,11 +8,12 @@
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
 vLLM、Ollama、model_hub 等模型后端不在这个构建流程里。它们使用官方镜像或各自组件的镜像流程。
 
-WeKnora 这三个镜像本身不包含 CUDA 运行时依赖，所以 tag 不应带 `cu130` 之类 CUDA 标记。当前推荐 tag：
+WeKnora 这些镜像本身不包含 CUDA 运行时依赖，所以 tag 不应带 `cu130` 之类 CUDA 标记。当前推荐 tag：
 
 ```text
 amd_YYYYMMDD
@@ -51,6 +52,7 @@ EOF
 ./build_image.sh --app-only
 ./build_image.sh --frontend-only
 ./build_image.sh --docreader-only
+./build_image.sh --sandbox-only
 ```
 
 `--no-push` 用于只做本机构建检查；`--no-feishu` 用于不更新飞书发布表。
@@ -61,16 +63,17 @@ EOF
 - 表格 token：`Htotsn3oahO1zxt73YMcaB1zn8e`；
 - amd 目标默认更新 `AMD_with_cuda`、`AMD_with_mxn100`；
 - arm 目标默认更新 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`；
-- 每个服务镜像一列：`weknora`、`weknora-ui`、`weknora-docreader`；
+- 每个服务镜像一列：`weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox`；
 - 第 1 行是服务名，第 2 行是镜像仓库地址，日期行写 tag，完整镜像是 `<row-2-repository>:<date-row-tag>`；
 - 脚本先复用已有服务列，不存在才追加下一空列；构建脚本不能删除或整理飞书列。
 
-如果镜像已经在 SWR 和飞书表中存在，部署时不要从源码根目录临时拼 compose 文件。到对应平台 sheet 中找到三个服务列，组合第 2 行仓库和日期行 tag，然后写入部署目录 `.env`：
+如果镜像已经在 SWR 和飞书表中存在，部署时不要从源码根目录临时拼 compose 文件。到对应平台 sheet 中找到四个服务列，组合第 2 行仓库和日期行 tag，然后写入部署目录 `.env`：
 
 ```env
 WEKNORA_APP_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
 WEKNORA_UI_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
 WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
 实际部署使用 [deploy-template](deploy-template/) 复制出来的单文件 compose。构建文档只记录镜像构建、推送和飞书写入，不维护运行时 compose 示例。启动后必须按 [remote-weknora-deployment.md](remote-weknora-deployment.md#升级后的强制冒烟检查) 做“你是谁”、文档问答、SSRF 白名单检查。
@@ -106,6 +109,7 @@ component-specific image flow instead.
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
 The images do not contain CUDA runtime dependencies, so tags should not include
@@ -117,8 +121,8 @@ arm_YYYYMMDD
 ```
 
 Even when the deployment host has CUDA-capable GPUs, the WeKnora app, frontend,
-and docreader images should not use a `cu130` tag unless the image itself starts
-depending on CUDA libraries.
+docreader, and sandbox images should not use a `cu130` tag unless the image
+itself starts depending on CUDA libraries.
 
 ## Build
 
@@ -159,6 +163,7 @@ To build only one service image:
 ./build_image.sh --app-only
 ./build_image.sh --frontend-only
 ./build_image.sh --docreader-only
+./build_image.sh --sandbox-only
 ```
 
 Use `--no-push` for a local build check and `--no-feishu` when the image should
@@ -203,6 +208,7 @@ The table uses one service column per image:
 weknora            -> swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora
 weknora-ui         -> swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui
 weknora-docreader  -> swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader
+weknora-sandbox    -> swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox
 ```
 
 If a column is missing, `build_image.sh` creates the service header and writes
@@ -228,6 +234,7 @@ host, then read these service columns:
 weknora
 weknora-ui
 weknora-docreader
+weknora-sandbox
 ```
 
 For each service, row 2 is the image repository and the selected date row is
@@ -243,6 +250,7 @@ For example, the ARM record for `20260626` currently resolves to:
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:arm_20260626
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:arm_20260626
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:arm_20260626
+swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:arm_20260626
 ```
 
 Write those three full image names into the deployment `.env`:
@@ -251,6 +259,7 @@ Write those three full image names into the deployment `.env`:
 WEKNORA_APP_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
 WEKNORA_UI_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
 WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
 Runtime deployment uses the single compose file copied from

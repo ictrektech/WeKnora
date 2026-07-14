@@ -8,6 +8,7 @@ set -euo pipefail
 #   swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
 #   swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
 #   swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+#   swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 
 REGISTRY_PREFIX="swr.cn-southwest-2.myhuaweicloud.com/ictrek"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.json}"
@@ -20,14 +21,17 @@ TARGET_SHEET_TITLES=()
 APP_IMAGE="${REGISTRY_PREFIX}/weknora"
 UI_IMAGE="${REGISTRY_PREFIX}/weknora-ui"
 DOCREADER_IMAGE="${REGISTRY_PREFIX}/weknora-docreader"
+SANDBOX_IMAGE="${REGISTRY_PREFIX}/weknora-sandbox"
 
 BUILD_APP=1
 BUILD_FRONTEND=1
 BUILD_DOCREADER=1
+BUILD_SANDBOX=1
 PUSH_IMAGES=1
 UPDATE_FEISHU=1
 DRY_RUN=0
 SKIP_BUILD=0
+BUILD_ENGINE="${WEKNORA_BUILD_ENGINE:-auto}"
 
 log() {
   echo "[INFO] $*"
@@ -47,6 +51,7 @@ Options:
   --app-only             Build only swr.../weknora
   --frontend-only        Build only swr.../weknora-ui
   --docreader-only       Build only swr.../weknora-docreader
+  --sandbox-only         Build only swr.../weknora-sandbox
   --no-push              Build locally without docker push
   --no-feishu            Do not update Feishu after push
   --feishu-only          Do not build or push; only write selected service tags to Feishu
@@ -66,6 +71,9 @@ Environment:
   GOPROXY_ARG            Optional Go proxy for app image
   GOPRIVATE_ARG          Optional Go private module pattern for app image
   GOSUMDB_ARG            Optional Go checksum DB setting, default off in Dockerfile
+  DOCKER_CLI_VERSION     Optional Docker CLI version bundled into the app image
+  WEKNORA_BUILD_ENGINE   auto (default), buildx, or docker. auto prefers buildx
+                         and falls back to docker build.
 EOF
 }
 
@@ -74,6 +82,109 @@ require_cmd() {
     err "missing command: $1"
     exit 1
   }
+}
+
+configure_build_engine() {
+  case "$BUILD_ENGINE" in
+    auto)
+      if docker buildx version >/dev/null 2>&1; then
+        BUILD_ENGINE="buildx"
+      else
+        BUILD_ENGINE="docker"
+      fi
+      ;;
+    buildx)
+      docker buildx version >/dev/null 2>&1 || {
+        err "WEKNORA_BUILD_ENGINE=buildx but docker buildx is unavailable"
+        exit 1
+      }
+      ;;
+    docker)
+      ;;
+    *)
+      err "Unsupported WEKNORA_BUILD_ENGINE=${BUILD_ENGINE}; expected auto, buildx, or docker"
+      exit 1
+      ;;
+  esac
+}
+
+docker_build_image() {
+  if [[ "$BUILD_ENGINE" == "buildx" ]]; then
+    docker buildx build --load --provenance=false --sbom=false "$@"
+  else
+    docker build "$@"
+  fi
+}
+
+normalize_official_image_path() {
+  local image="$1"
+  local image_without_tag="${image%%:*}"
+
+  if [[ "$image_without_tag" != */* ]]; then
+    printf 'library/%s\n' "$image"
+  else
+    printf '%s\n' "$image"
+  fi
+}
+
+pull_base_image() {
+  local image="$1"
+  local normalized_image mirror mirrored_image
+
+  if docker pull "$image"; then
+    return 0
+  fi
+
+  normalized_image="$(normalize_official_image_path "$image")"
+  for mirror in docker.m.daocloud.io docker.1ms.run dockerproxy.com; do
+    mirrored_image="${mirror}/${normalized_image}"
+    log "Direct pull failed for ${image}; trying Docker registry mirror: ${mirrored_image}"
+    if docker pull "$mirrored_image"; then
+      docker tag "$mirrored_image" "$image"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+ensure_dockerfile_base_images() {
+  local dockerfile="$1"
+  local image missing=0
+
+  while IFS= read -r image; do
+    [[ -n "$image" ]] || continue
+    if docker image inspect "$image" >/dev/null 2>&1; then
+      log "Base image present locally: ${image}"
+      continue
+    fi
+
+    log "Base image missing locally, pulling: ${image}"
+    if ! pull_base_image "$image"; then
+      err "Base image is not available locally and pull failed: ${image}"
+      missing=1
+    fi
+  done < <(awk 'toupper($1) == "FROM" { print $2 }' "$dockerfile" | sort -u)
+
+  [[ "$missing" == "0" ]]
+}
+
+docker_build_with_local_base_fallback() {
+  local dockerfile="$1"
+  shift
+
+  ensure_dockerfile_base_images "$dockerfile"
+
+  if docker_build_image "$@"; then
+    return 0
+  fi
+
+  if [[ "$BUILD_ENGINE" != "buildx" ]]; then
+    return 1
+  fi
+
+  log "Buildx build failed for ${dockerfile}; retrying with docker build --pull=false to use local base images"
+  DOCKER_BUILDKIT=1 docker build --pull=false "$@"
 }
 
 column_letter() {
@@ -355,6 +466,7 @@ update_feishu() {
     [[ "$BUILD_APP" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "weknora" "$APP_IMAGE" "$date_row" "$tag"
     [[ "$BUILD_FRONTEND" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "weknora-ui" "$UI_IMAGE" "$date_row" "$tag"
     [[ "$BUILD_DOCREADER" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "weknora-docreader" "$DOCREADER_IMAGE" "$date_row" "$tag"
+    [[ "$BUILD_SANDBOX" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "weknora-sandbox" "$SANDBOX_IMAGE" "$date_row" "$tag"
   done
 }
 
@@ -366,18 +478,28 @@ while [[ $# -gt 0 ]]; do
       BUILD_APP=1
       BUILD_FRONTEND=0
       BUILD_DOCREADER=0
+      BUILD_SANDBOX=0
       shift
       ;;
     --frontend-only)
       BUILD_APP=0
       BUILD_FRONTEND=1
       BUILD_DOCREADER=0
+      BUILD_SANDBOX=0
       shift
       ;;
     --docreader-only)
       BUILD_APP=0
       BUILD_FRONTEND=0
       BUILD_DOCREADER=1
+      BUILD_SANDBOX=0
+      shift
+      ;;
+    --sandbox-only)
+      BUILD_APP=0
+      BUILD_FRONTEND=0
+      BUILD_DOCREADER=0
+      BUILD_SANDBOX=1
       shift
       ;;
     --no-push)
@@ -484,6 +606,7 @@ log "TAG=${TAG}"
 log "APP_IMAGE=${APP_IMAGE}:${TAG}"
 log "UI_IMAGE=${UI_IMAGE}:${TAG}"
 log "DOCREADER_IMAGE=${DOCREADER_IMAGE}:${TAG}"
+log "SANDBOX_IMAGE=${SANDBOX_IMAGE}:${TAG}"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
@@ -491,6 +614,8 @@ fi
 
 if [[ "$SKIP_BUILD" != "1" ]]; then
   require_cmd docker
+  configure_build_engine
+  log "BUILD_ENGINE=${BUILD_ENGINE}"
 fi
 if [[ "$UPDATE_FEISHU" == "1" ]]; then
   require_cmd curl
@@ -516,7 +641,7 @@ DOCREADER_BUILD_ARGS=(
 )
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_APP" == "1" ]]; then
-  docker build \
+  docker_build_with_local_base_fallback docker/Dockerfile.app \
     "${APP_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.app \
     -t "${APP_IMAGE}:${TAG}" \
@@ -524,7 +649,7 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_APP" == "1" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
-  docker build \
+  docker_build_with_local_base_fallback docker/Dockerfile.frontend \
     "${FRONTEND_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.frontend \
     -t "${UI_IMAGE}:${TAG}" \
@@ -532,10 +657,17 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_DOCREADER" == "1" ]]; then
-  docker build \
+  docker_build_with_local_base_fallback docker/Dockerfile.docreader \
     "${DOCREADER_BUILD_ARGS[@]}" \
     -f docker/Dockerfile.docreader \
     -t "${DOCREADER_IMAGE}:${TAG}" \
+    .
+fi
+
+if [[ "$SKIP_BUILD" != "1" && "$BUILD_SANDBOX" == "1" ]]; then
+  docker_build_with_local_base_fallback docker/Dockerfile.sandbox \
+    -f docker/Dockerfile.sandbox \
+    -t "${SANDBOX_IMAGE}:${TAG}" \
     .
 fi
 
@@ -543,6 +675,7 @@ if [[ "$PUSH_IMAGES" == "1" ]]; then
   [[ "$BUILD_APP" == "1" ]] && docker push "${APP_IMAGE}:${TAG}"
   [[ "$BUILD_FRONTEND" == "1" ]] && docker push "${UI_IMAGE}:${TAG}"
   [[ "$BUILD_DOCREADER" == "1" ]] && docker push "${DOCREADER_IMAGE}:${TAG}"
+  [[ "$BUILD_SANDBOX" == "1" ]] && docker push "${SANDBOX_IMAGE}:${TAG}"
 fi
 
 if [[ "$UPDATE_FEISHU" == "1" ]]; then

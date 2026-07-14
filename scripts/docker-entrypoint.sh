@@ -40,4 +40,8 @@ if [ -d "$BUILTIN_DIR" ]; then
 fi
 
 # ─── Drop privileges and exec the main process ───
+if [ "${WEKNORA_RUN_AS_ROOT:-}" = "true" ]; then
+    exec "$@"
+fi
+
 exec gosu appuser "$@"

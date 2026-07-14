@@ -3,6 +3,9 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	agenttools "github.com/Tencent/WeKnora/internal/agent/tools"
@@ -11,6 +14,11 @@ import (
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/models/chat"
 	"github.com/Tencent/WeKnora/internal/types"
+)
+
+const (
+	finalAnswerDefaultCompletionTokens = 2048
+	finalAnswerContextSafetyTokens     = 768
 )
 
 // streamFinalAnswerToEventBus streams the final answer generation through EventBus
@@ -74,6 +82,7 @@ Now generate the final answer:`, query)
 		Role:    "user",
 		Content: finalPrompt,
 	})
+	messages = e.fitFinalAnswerMessages(ctx, messages)
 
 	// Generate a single ID for this entire final answer stream
 	answerID := generateEventID("answer")
@@ -83,7 +92,10 @@ Now generate the final answer:`, query)
 	llmResult, err := e.streamLLMToEventBus(
 		ctx,
 		messages,
-		&chat.ChatOptions{Temperature: e.config.Temperature}, // Thinking disabled for final answer synthesis
+		&chat.ChatOptions{
+			Temperature:         e.config.Temperature,
+			MaxCompletionTokens: finalAnswerDefaultCompletionTokens,
+		}, // Thinking disabled for final answer synthesis
 		func(chunk *types.StreamResponse, fullContent string) {
 			// Defensive filter: only emit answer content, skip thinking chunks
 			if chunk.ResponseType == types.ResponseTypeThinking {
@@ -136,6 +148,50 @@ Now generate the final answer:`, query)
 	})
 	state.FinalAnswer = fullAnswer
 	return nil
+}
+
+func (e *AgentEngine) fitFinalAnswerMessages(ctx context.Context, messages []chat.Message) []chat.Message {
+	inputBudget := e.finalAnswerInputBudget()
+	if inputBudget <= 0 || len(messages) <= 3 || e.tokenEstimator.EstimateMessages(messages) <= inputBudget {
+		return messages
+	}
+
+	trimmed := append([]chat.Message(nil), messages...)
+	removed := 0
+	for len(trimmed) > 3 && e.tokenEstimator.EstimateMessages(trimmed) > inputBudget {
+		trimmed = append(trimmed[:2], trimmed[3:]...)
+		removed++
+	}
+	if removed > 0 {
+		logger.Warnf(ctx, "[Agent][FinalAnswer] Trimmed %d old tool result(s) to reserve %d completion tokens",
+			removed, finalAnswerDefaultCompletionTokens)
+		common.PipelineWarn(ctx, "Agent", "final_answer_context_trimmed", map[string]interface{}{
+			"removed_tool_results": removed,
+			"input_budget":         inputBudget,
+			"message_count":        len(trimmed),
+		})
+	}
+	return trimmed
+}
+
+func (e *AgentEngine) finalAnswerInputBudget() int {
+	limit := envInt("WEKNORA_CHAT_MODEL_CONTEXT_TOKENS", 16384)
+	if e.config != nil && e.config.MaxContextTokens > 0 && e.config.MaxContextTokens < limit {
+		limit = e.config.MaxContextTokens
+	}
+	return limit - finalAnswerDefaultCompletionTokens - finalAnswerContextSafetyTokens
+}
+
+func envInt(name string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 // handleMaxIterations generates a final answer when the agent loop exhausted all iterations

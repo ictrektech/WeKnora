@@ -53,6 +53,9 @@ FROM debian:12.12-slim
 WORKDIR /app
 
 ARG APK_MIRROR_ARG
+ARG TARGETARCH
+ARG DOCKER_CLI_VERSION=29.1.3
+ARG DOCKER_COMPOSE_VERSION=v2.40.3
 
 # Create a non-root user first
 RUN useradd -m -s /bin/bash appuser
@@ -68,7 +71,7 @@ RUN if [ -n "$APK_MIRROR_ARG" ]; then \
     fi && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        build-essential postgresql-client default-mysql-client tzdata sed curl bash vim wget \
+        build-essential postgresql-client default-mysql-client tzdata sed curl bash vim wget git rsync \
         libsqlite3-0 \
         python3 python3-pip python3-dev libffi-dev libssl-dev \
         nodejs npm \
@@ -82,6 +85,27 @@ RUN if [ -n "$APK_MIRROR_ARG" ]; then \
     chmod +x /usr/local/bin/uvx && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
+        amd64) docker_arch="x86_64" ;; \
+        arm64) docker_arch="aarch64" ;; \
+        *) echo "unsupported docker cli arch: ${TARGETARCH:-$(dpkg --print-architecture)}" >&2; exit 1 ;; \
+    esac; \
+    docker_url="https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
+    docker_tuna_url="https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
+    docker_aliyun_url="https://mirrors.aliyun.com/docker-ce/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
+    curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${docker_tuna_url}" -o /tmp/docker.tgz || \
+        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${docker_aliyun_url}" -o /tmp/docker.tgz || \
+        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${docker_url}" -o /tmp/docker.tgz; \
+    tar -xzf /tmp/docker.tgz -C /tmp docker/docker; \
+    install -m 0755 /tmp/docker/docker /usr/local/bin/docker; \
+    rm -rf /tmp/docker /tmp/docker.tgz; \
+    mkdir -p /usr/local/lib/docker/cli-plugins; \
+    compose_url="https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${docker_arch}"; \
+    curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "https://ghfast.top/${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose || \
+        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors -fsSL "${compose_url}" -o /usr/local/lib/docker/cli-plugins/docker-compose; \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 # Create data directories and set permissions
 RUN mkdir -p /data/files && \

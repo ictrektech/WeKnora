@@ -258,12 +258,13 @@ cp .env.example .env
 mkdir -p data/files data/docreader data/postgres data/redis config
 ```
 
-从飞书发布表读取 `weknora`、`weknora-ui`、`weknora-docreader` 三列，把完整镜像写入 `.env`：
+从飞书发布表读取 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 四列，把完整镜像写入 `.env`：
 
 ```env
 WEKNORA_APP_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
 WEKNORA_UI_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
 WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
 启动前确认不会拉取上游镜像：
@@ -733,13 +734,14 @@ cp .env.example .env
 mkdir -p data/files data/docreader data/postgres data/redis config
 ```
 
-Read the `weknora`, `weknora-ui`, and `weknora-docreader` columns from the
+Read the `weknora`, `weknora-ui`, `weknora-docreader`, and `weknora-sandbox` columns from the
 Feishu release table and write the full image names to `.env`:
 
 ```env
 WEKNORA_APP_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora:<tag>
 WEKNORA_UI_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui:<tag>
 WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
+WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
 Confirm it cannot pull upstream images:
@@ -756,7 +758,7 @@ docker compose pull frontend app docreader
 docker compose up -d postgres redis docreader app frontend
 ```
 
-For image upgrades, update only the three image values in `.env`, then run from
+For image upgrades, update only the four image values in `.env`, then run from
 the same deployment directory:
 
 ```bash
