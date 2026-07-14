@@ -379,6 +379,24 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     return out
   }
 
+  const mergeStreamText = (currentValue: unknown, incomingValue: unknown) => {
+    const current = String(currentValue || '')
+    const incoming = String(incomingValue || '')
+    if (!incoming) return current
+    if (!current) return incoming
+    if (current === incoming) return current
+    if (incoming.startsWith(current)) return incoming
+    if (current.endsWith(incoming)) return current
+
+    const maxOverlap = Math.min(current.length, incoming.length)
+    for (let size = maxOverlap; size > 0; size -= 1) {
+      if (current.endsWith(incoming.slice(0, size))) {
+        return current + incoming.slice(size)
+      }
+    }
+    return current + incoming
+  }
+
   const reconstructEventStreamFromSteps = (
     agentSteps: unknown[],
     messageContent: string,
@@ -949,13 +967,12 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           stream.push(answerEvent)
           if (eventId) eventMap.set(eventId, answerEvent)
         }
-        if (!answerEvent.content && message.content && String(message.content).trim()) {
-          answerEvent.content = message.content
-        }
         if (data.content) {
-          answerEvent.content = String(answerEvent.content || '') + String(data.content)
+          answerEvent.content = mergeStreamText(answerEvent.content, data.content)
           message.content = recomposeAgentAnswer(message)
           fullContent.value = String(message.content || '')
+        } else if (!answerEvent.content && message.content && String(message.content).trim()) {
+          answerEvent.content = message.content
         }
         if (dataPayload?.is_fallback) {
           answerEvent.is_fallback = true

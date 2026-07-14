@@ -51,6 +51,15 @@ test('completed assistant rows are deduped inside the current user turn', () => 
   assert.match(handlerSource, /messagesList\.push\(\.\.\.processed\)[\s\S]*dedupeCurrentTurnCompletedAssistants\(\)/)
 })
 
+test('answer stream chunks merge snapshots without duplicating the same answer', () => {
+  assert.match(handlerSource, /const mergeStreamText = \(currentValue: unknown,\s*incomingValue: unknown\) => \{/)
+  assert.match(handlerSource, /if \(current === incoming\) return current/)
+  assert.match(handlerSource, /if \(incoming\.startsWith\(current\)\) return incoming/)
+  assert.match(handlerSource, /if \(current\.endsWith\(incoming\)\) return current/)
+  assert.match(handlerSource, /answerEvent\.content = mergeStreamText\(answerEvent\.content,\s*data\.content\)/)
+  assert.match(handlerSource, /if \(data\.content\) \{[\s\S]*\} else if \(!answerEvent\.content && message\.content/)
+})
+
 test('chat view renders a deduped message list', () => {
   assert.match(source, /v-for=\"\(session, index\) in renderedMessagesList\"/)
   assert.match(source, /const renderedMessagesList = computed\(\(\) => \{/)
