@@ -117,6 +117,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
   const getAssistantDedupeScore = (message: ChatMessage) => {
     let score = 0
+    if (message.is_completed) score += 1000
     if ((message.knowledge_references as unknown[] | undefined)?.length) score += 100
     if ((message.agentEventStream as unknown[] | undefined)?.length) score += 50
     if ((message.agent_steps as unknown[] | undefined)?.length) score += 30
@@ -134,7 +135,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     for (let i = lastUserIndex + 1; i < messagesList.length; i++) {
       const message = messagesList[i]
-      if (message.role !== 'assistant' || !message.is_completed) continue
+      if (message.role !== 'assistant') continue
       if (!normalizeMessageContent(message.content)) continue
       candidates.push(message)
     }
@@ -152,7 +153,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     for (let i = messagesList.length - 1; i > lastUserIndex; i--) {
       const message = messagesList[i]
-      if (message.role !== 'assistant' || !message.is_completed || message === retained) continue
+      if (message.role !== 'assistant' || message === retained) continue
       if (!normalizeMessageContent(message.content)) continue
       mergeAssistantRuntimeState(retained, message)
       messagesList.splice(i, 1)
