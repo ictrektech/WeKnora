@@ -72,7 +72,7 @@
                   这是历史加载时白屏 + layout shift 蔓延到 session 列表的根因。
                   仅对极少数尚未拿到 id 的本地占位消息 fallback 到 role+created_at+index。
                 -->
-                <div v-for="(session, index) in messagesList"
+                <div v-for="(session, index) in renderedMessagesList"
                     :key="session.id || `${session.role}-${session.created_at}-${index}`" class="msg-item-wrapper">
 
                     <div v-if="session.role == 'user'">
@@ -586,6 +586,53 @@ const {
 const showGlobalTypingIndicator = computed(() =>
     shouldShowGlobalTypingIndicator(messagesList, loading.value, isImRecovering.value),
 );
+
+const normalizeRenderedMessageContent = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const getRenderedAssistantScore = (message) => {
+    let score = 0;
+    if (message?.knowledge_references?.length) score += 100;
+    if (message?.agentEventStream?.length) score += 50;
+    if (message?.agent_steps?.length) score += 30;
+    if (message?.isRagMode) score += 10;
+    if (message?.isAgentMode) score += 10;
+    if (message?.request_id) score += 2;
+    if (message?.id) score += 1;
+    score += normalizeRenderedMessageContent(message?.content).length / 10000;
+    return score;
+};
+
+const renderedMessagesList = computed(() => {
+    const result = [];
+    let currentTurnAssistantIndex = -1;
+
+    for (const message of messagesList) {
+        if (message.role === 'user') {
+            result.push(message);
+            currentTurnAssistantIndex = -1;
+            continue;
+        }
+
+        if (
+            message.role === 'assistant' &&
+            message.is_completed &&
+            normalizeRenderedMessageContent(message.content)
+        ) {
+            if (currentTurnAssistantIndex >= 0) {
+                const existing = result[currentTurnAssistantIndex];
+                if (getRenderedAssistantScore(message) > getRenderedAssistantScore(existing)) {
+                    result[currentTurnAssistantIndex] = message;
+                }
+                continue;
+            }
+            currentTurnAssistantIndex = result.length;
+        }
+
+        result.push(message);
+    }
+
+    return result;
+});
 
 const replayBackgroundChunks = (targetSessionId) => {
     const chunks = drainSessionChunks(targetSessionId);

@@ -41,10 +41,19 @@ test('history refresh preserves active stream ids and later chunks target that r
 test('completed assistant rows are deduped inside the current user turn', () => {
   assert.match(handlerSource, /const dedupeCurrentTurnCompletedAssistants = \(preferred\?: ChatMessage\) => \{/)
   assert.match(handlerSource, /const lastUserIndex = findLastUserMessageIndex\(\)/)
+  assert.match(handlerSource, /const candidates: ChatMessage\[\] = \[\]/)
   assert.match(handlerSource, /message\.role !== 'assistant' \|\| !message\.is_completed/)
-  assert.match(handlerSource, /mergeAssistantRuntimeState\(existing,\s*message\)/)
+  assert.match(handlerSource, /mergeAssistantRuntimeState\(retained,\s*message\)/)
   assert.match(handlerSource, /messagesList\.splice\(i,\s*1\)/)
   assert.match(handlerSource, /message = dedupeCurrentTurnCompletedAssistants\(message\) \|\| message/)
   assert.match(handlerSource, /const retainedEntry = payload\.is_completed[\s\S]*dedupeCurrentTurnCompletedAssistants\(entry\) \|\| entry/)
   assert.match(handlerSource, /messagesList\.push\(\.\.\.processed\)[\s\S]*dedupeCurrentTurnCompletedAssistants\(\)/)
+})
+
+test('chat view renders a deduped message list', () => {
+  assert.match(source, /v-for=\"\(session, index\) in renderedMessagesList\"/)
+  assert.match(source, /const renderedMessagesList = computed\(\(\) => \{/)
+  assert.match(source, /let currentTurnAssistantIndex = -1/)
+  assert.match(source, /message\.role === 'assistant'[\s\S]*message\.is_completed/)
+  assert.match(source, /result\[currentTurnAssistantIndex\] = message/)
 })

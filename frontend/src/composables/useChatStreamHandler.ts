@@ -115,30 +115,50 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (source.hideContent) target.hideContent = true
   }
 
+  const getAssistantDedupeScore = (message: ChatMessage) => {
+    let score = 0
+    if ((message.knowledge_references as unknown[] | undefined)?.length) score += 100
+    if ((message.agentEventStream as unknown[] | undefined)?.length) score += 50
+    if ((message.agent_steps as unknown[] | undefined)?.length) score += 30
+    if (message.isRagMode) score += 10
+    if (message.isAgentMode) score += 10
+    if (message.request_id) score += 2
+    if (message.id) score += 1
+    score += normalizeMessageContent(message.content).length / 10000
+    return score
+  }
+
   const dedupeCurrentTurnCompletedAssistants = (preferred?: ChatMessage) => {
     const lastUserIndex = findLastUserMessageIndex()
-    const seen = new Map<string, ChatMessage>()
-    let retainedPreferred = preferred
+    const candidates: ChatMessage[] = []
 
     for (let i = lastUserIndex + 1; i < messagesList.length; i++) {
       const message = messagesList[i]
       if (message.role !== 'assistant' || !message.is_completed) continue
-      const key = normalizeMessageContent(message.content)
-      if (!key) continue
-
-      const existing = seen.get(key)
-      if (!existing) {
-        seen.set(key, message)
-        continue
-      }
-
-      mergeAssistantRuntimeState(existing, message)
-      if (message === preferred) retainedPreferred = existing
-      messagesList.splice(i, 1)
-      i--
+      if (!normalizeMessageContent(message.content)) continue
+      candidates.push(message)
     }
 
-    return retainedPreferred
+    if (candidates.length <= 1) return preferred
+
+    let retained = preferred && candidates.includes(preferred) ? preferred : candidates[0]
+    for (const candidate of candidates) {
+      if (candidate === retained) continue
+      if (retained === preferred) continue
+      if (candidate === preferred || getAssistantDedupeScore(candidate) > getAssistantDedupeScore(retained)) {
+        retained = candidate
+      }
+    }
+
+    for (let i = messagesList.length - 1; i > lastUserIndex; i--) {
+      const message = messagesList[i]
+      if (message.role !== 'assistant' || !message.is_completed || message === retained) continue
+      if (!normalizeMessageContent(message.content)) continue
+      mergeAssistantRuntimeState(retained, message)
+      messagesList.splice(i, 1)
+    }
+
+    return retained
   }
 
   const findExistingMessage = (
