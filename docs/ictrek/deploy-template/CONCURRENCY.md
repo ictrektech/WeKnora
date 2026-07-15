@@ -131,7 +131,7 @@ background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED
 
 Wiki map/reduce 并发先读知识库 `wiki_config.ingest_map_parallel` 和 `wiki_config.ingest_reduce_parallel`；知识库未设置时，使用 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` 和 `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL` 作为部署级默认值；env 也为空时才回退代码默认值。小机器建议 env 默认设为 `1` 或 `2`，个别大知识库再通过 KB 配置提高。
 
-最终答案合成不再无上限塞入全部工具结果。`WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` 用来告诉应用主 QA 模型的实际上下文，应用会扣掉 2048 输出 tokens 和安全余量后计算输入预算；超过预算时裁掉较旧工具结果，保留用户问题、系统提示、最新工具结果和最终回答指令。上下文设得比模型真实能力大，会重新出现长检索结果挤爆最终答案的问题；设得太小，会减少最终答案可参考的旧工具结果。
+最终答案合成不再无上限塞入全部工具结果。`WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` 用来告诉应用主 QA 模型的实际上下文，应用会先预留 `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS` 输出 tokens 和 `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS` 安全余量，再计算输入预算；超过预算时裁掉较旧工具结果，保留用户问题、系统提示、最新工具结果和最终回答指令。`WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS` 默认是 `2048`，配置过大时会按 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS - WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS - 512` 自动夹紧，至少给输入上下文保留 512 token。上下文设得比模型真实能力大，会重新出现长检索结果挤爆最终答案的问题；设得太小，会减少最终答案可参考的旧工具结果。
 
 ## 单文档任务和 worker 池
 
