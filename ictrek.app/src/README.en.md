@@ -14,9 +14,9 @@ WeKnora is an enterprise knowledge-base, RAG, Wiki graph, and agent platform. Th
 
 ## Profiles
 
-Choose one profile at install time: `AMD_with_cuda`, `ARM_with_cuda`, `l4t`, `thor_spark`, or `SOPHON_bm1688`.
+Choose one profile at install time: `AMD_with_cuda`, `ARM_with_cuda`, `l4t`, or `thor_spark`.
 
-AMD and ARM generic profiles read image versions from `AMD_with_cuda` and `ARM_with_cuda` respectively. `l4t`, `thor_spark`, and `SOPHON_bm1688` use their own Feishu sheets.
+AMD and ARM generic profiles read image versions from `AMD_with_cuda` and `ARM_with_cuda` respectively. `l4t` and `thor_spark` use their own Feishu sheets. This app publishes four profiles only.
 
 ## Models
 

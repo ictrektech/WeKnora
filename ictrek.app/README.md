@@ -19,7 +19,7 @@ dist/weknora_${VERSION}_pull.tar
 
 ## Profiles
 
-profile 按 `ollama_server` 的发布维度设置。WeKnora 自身 AMD 有无 CUDA 通用，ARM 有无 CUDA 通用，因此只查一个通用表；L4T、Thor Spark 和 Sophon 单独查表。
+profile 按 `ollama_server` 的发布维度设置。WeKnora 自身 AMD 有无 CUDA 通用，ARM 有无 CUDA 通用，因此只查一个通用表；L4T 和 Thor Spark 单独查表。本应用只发布 4 个 profile。
 
 | profile | 飞书 sheet | 说明 |
 | --- | --- | --- |
@@ -27,7 +27,6 @@ profile 按 `ollama_server` 的发布维度设置。WeKnora 自身 AMD 有无 CU
 | `ARM_with_cuda` | `ARM_with_cuda` | ARM 通用 WeKnora + Ollama |
 | `l4t` | `l4t` | Jetson / L4T |
 | `thor_spark` | `thor_spark` | Thor Spark |
-| `SOPHON_bm1688` | `SOPHON_bm1688` | Sophon BM1688 |
 
 安装时由 VOS 指定其中一个 profile。手动检查 compose 时也必须只启用一个 profile：
 

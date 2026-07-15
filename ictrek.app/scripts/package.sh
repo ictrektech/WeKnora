@@ -22,7 +22,6 @@ PROFILES=(
   "ARM_with_cuda|ARM_with_cuda"
   "l4t|l4t"
   "thor_spark|thor_spark"
-  "SOPHON_bm1688|SOPHON_bm1688"
 )
 COMPONENTS=(
   "WEKNORA_APP|weknora|swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora"

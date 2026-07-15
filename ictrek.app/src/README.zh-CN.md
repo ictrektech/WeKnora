@@ -14,9 +14,9 @@ WeKnora 是企业知识库、RAG 问答、Wiki 知识图谱和智能体平台。
 
 ## Profile
 
-安装时选择一个 profile：`AMD_with_cuda`、`ARM_with_cuda`、`l4t`、`thor_spark` 或 `SOPHON_bm1688`。
+安装时选择一个 profile：`AMD_with_cuda`、`ARM_with_cuda`、`l4t` 或 `thor_spark`。
 
-AMD 和 ARM 通用 profile 分别从 `AMD_with_cuda`、`ARM_with_cuda` 飞书表读取 WeKnora 与 `ollama_server` 镜像版本；`l4t`、`thor_spark`、`SOPHON_bm1688` 使用各自表格。
+AMD 和 ARM 通用 profile 分别从 `AMD_with_cuda`、`ARM_with_cuda` 飞书表读取 WeKnora 与 `ollama_server` 镜像版本；`l4t`、`thor_spark` 使用各自表格。本应用只发布 4 个 profile。
 
 ## 模型
 
@@ -26,4 +26,3 @@ AMD 和 ARM 通用 profile 分别从 `AMD_with_cuda`、`ARM_with_cuda` 飞书表
 - Embedding: `http://weknora-ollama-embedding:11535/v1`
 
 如由 Model Hub 预先管理模型，请确保对应模型已经存在于 Ollama 数据目录中。
-

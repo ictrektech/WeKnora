@@ -363,51 +363,6 @@ services:
     image: ${OLLAMA_SERVER_THOR_SPARK_IMAGE}
     pull_policy: always
 
-  weknora-frontend-sophon-bm1688:
-    <<: *weknora-frontend-base
-    profiles: ["SOPHON_bm1688"]
-    image: ${WEKNORA_UI_SOPHON_BM1688_IMAGE}
-    pull_policy: always
-    depends_on:
-      weknora-app-sophon-bm1688:
-        condition: service_healthy
-
-  weknora-app-sophon-bm1688:
-    <<: *weknora-app-base
-    profiles: ["SOPHON_bm1688"]
-    image: ${WEKNORA_APP_SOPHON_BM1688_IMAGE}
-    pull_policy: always
-    environment:
-      <<: *weknora-app-env
-      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_SOPHON_BM1688_IMAGE}
-    depends_on:
-      weknora-redis:
-        condition: service_started
-      weknora-docreader-sophon-bm1688:
-        condition: service_healthy
-      weknora-ollama-qa-sophon-bm1688:
-        condition: service_healthy
-      weknora-ollama-embedding-sophon-bm1688:
-        condition: service_healthy
-
-  weknora-docreader-sophon-bm1688:
-    <<: *weknora-docreader-base
-    profiles: ["SOPHON_bm1688"]
-    image: ${WEKNORA_DOCREADER_SOPHON_BM1688_IMAGE}
-    pull_policy: always
-
-  weknora-ollama-qa-sophon-bm1688:
-    <<: *weknora-ollama-qa-base
-    profiles: ["SOPHON_bm1688"]
-    image: ${OLLAMA_SERVER_SOPHON_BM1688_IMAGE}
-    pull_policy: always
-
-  weknora-ollama-embedding-sophon-bm1688:
-    <<: *weknora-ollama-embedding-base
-    profiles: ["SOPHON_bm1688"]
-    image: ${OLLAMA_SERVER_SOPHON_BM1688_IMAGE}
-    pull_policy: always
-
 networks:
   vos_default:
     external: true
