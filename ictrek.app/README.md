@@ -68,7 +68,7 @@ WeKnora 默认通过 OpenAI-compatible gateway 访问：
 4. 提交 `VERSION` 和 `manifest.yml`，推送触发 tag `vos-weknora-v${VERSION}`。
 5. 使用 `gh release create` 或 `gh release upload --clobber` 在 GitHub Releases 页面发布 tar 包。
 
-CI 或本机执行前需要可用的 `gh` 登录态，以及飞书凭据 `~/.feishu.components.json` 或 `~/.feishu.json`。本机 `gh` 能查到私有仓库不代表 GitHub Actions 默认 `GITHUB_TOKEN` 也能查到；`Check VOS Dependency Release Access` workflow 已用于验证默认 token 的权限边界。如果 `ictrektech/model_hub` 或 `ictrektech/pgv` 是私有仓库，CI 需要配置名为 `VOS_DEPENDENCY_RELEASE_TOKEN` 的 repository 或 organization secret。这个 token 建议使用 fine-grained PAT，只授予 `ictrektech/model_hub` 和 `ictrektech/pgv` 的 `Contents: Read-only` 权限，用于读取 releases/assets。配置后重新运行 `Check VOS Dependency Release Access`，成功看到两个依赖的最新 pull 包版本后，再接入正式发布 workflow。
+CI 或本机执行前需要可用的 `gh` 登录态，以及飞书凭据 `~/.feishu.components.json` 或 `~/.feishu.json`。本机 `gh` 能查到私有仓库不代表 GitHub Actions 默认 `GITHUB_TOKEN` 也能查到；`Check VOS Dependency Release Access` workflow 已用于验证默认 token 的权限边界。如果 `ictrektech/model_hub` 或 `ictrektech/pgv` 是私有仓库，CI 需要配置名为 `VOS_DEPENDENCY_RELEASE_TOKEN` 的 repository 或 organization secret。这个 token 建议使用 fine-grained PAT，`Repository access` 选 `All repositories`，权限只添加 `Contents: Read-only`，用于读取同组织内当前和后续 VOS 依赖仓库的 releases/assets。配置后重新运行 `Check VOS Dependency Release Access`，成功看到依赖的最新 pull 包版本后，再接入正式发布 workflow。
 
 如依赖 release 不在默认同组织 repo，可用环境变量覆盖：
 
