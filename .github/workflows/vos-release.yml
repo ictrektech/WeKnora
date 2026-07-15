@@ -1,0 +1,131 @@
+name: VOS Pull Package Release
+
+on:
+  push:
+    tags:
+      - "vos-weknora-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all release tags
+        run: git fetch --force --tags origin
+
+      - name: Write Feishu component credentials
+        run: |
+          cat > "$HOME/.feishu.components.json" <<EOF
+          {
+            "feishu_app_id": "${{ secrets.FEISHU_APP_ID }}",
+            "feishu_app_secret": "${{ secrets.FEISHU_APP_SECRET }}"
+          }
+          EOF
+
+      - name: Build pull-mode package
+        env:
+          GH_TOKEN: ${{ secrets.VOS_DEPENDENCY_RELEASE_TOKEN }}
+          FEISHU_SPREADSHEET_TOKEN: ${{ secrets.FEISHU_SPREADSHEET_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || {
+            echo "VOS_DEPENDENCY_RELEASE_TOKEN is required to read dependency releases." >&2
+            exit 1
+          }
+          VERSION="${GITHUB_REF_NAME#vos-weknora-v}"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          manifest = Path("ictrek.app/src/manifest.yml")
+          deps = {
+              "com.ictrek.model-hub": ("ictrektech/model_hub", "model_hub"),
+              "com.ictrek.pgv": ("ictrektech/pgv", "pgv"),
+          }
+
+          def latest(repo, prefix):
+              response = subprocess.check_output(
+                  ["gh", "api", f"repos/{repo}/releases?per_page=100"],
+                  env=os.environ.copy(),
+                  stderr=subprocess.STDOUT,
+                  text=True,
+              )
+              releases = json.loads(response)
+              pattern = re.compile(rf"^{re.escape(prefix)}_([0-9]+\.[0-9]+\.[0-9]+)_pull\.tar$")
+              versions = []
+              for release in releases:
+                  for asset in release.get("assets", []):
+                      match = pattern.match(asset.get("name") or "")
+                      if match:
+                          versions.append(tuple(int(part) for part in match.group(1).split(".")))
+              if not versions:
+                  raise SystemExit(f"no release asset found for {prefix}_*_pull.tar in {repo}")
+              return ".".join(str(part) for part in max(versions))
+
+          versions = {dep_id: f">={latest(repo, prefix)}" for dep_id, (repo, prefix) in deps.items()}
+          lines = manifest.read_text(encoding="utf-8").splitlines()
+          current_id = None
+          out = []
+          for line in lines:
+              stripped = line.strip()
+              if stripped.startswith("- id: "):
+                  current_id = stripped.split(":", 1)[1].strip().strip('"').strip("'")
+              elif stripped.startswith("version: ") and current_id in versions:
+                  indent = line[: len(line) - len(line.lstrip())]
+                  line = f'{indent}version: "{versions[current_id]}"'
+                  current_id = None
+              out.append(line)
+          manifest.write_text("\n".join(out) + "\n", encoding="utf-8")
+          for dep_id, version in versions.items():
+              print(f"{dep_id} {version}")
+          PY
+          PACKAGE_VERSION="$VERSION" ./ictrek.app/scripts/package.sh
+          test -f "ictrek.app/dist/weknora_${VERSION}_pull.tar"
+
+      - name: Create release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_PREFIX: vos-weknora-v
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#vos-weknora-v}"
+          CURRENT="${GITHUB_REF_NAME}"
+          PUBLIC_TAG="v${VERSION}"
+          export PUBLIC_TAG
+          PREVIOUS="$(gh release list --limit 100 --json tagName,publishedAt --jq '[.[] | select(.tagName != env.PUBLIC_TAG) | select((.tagName | startswith("v")) or (.tagName | startswith(env.TAG_PREFIX)))] | sort_by(.publishedAt) | reverse | .[0].tagName // ""')"
+          {
+            echo "Pull-mode VOS app package for com.ictrek.weknora."
+            echo
+            if [[ -n "$PREVIOUS" ]]; then
+              echo "Changes since ${PREVIOUS}:"
+              git log --no-merges --pretty='- %s (%h)' "${PREVIOUS}..${CURRENT}"
+            else
+              echo "Initial VOS package release."
+              git log --no-merges --pretty='- %s (%h)' -20 "${CURRENT}"
+            fi
+          } > release-notes.md
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#vos-weknora-v}"
+          PUBLIC_TAG="v${VERSION}"
+          if ! git ls-remote --exit-code --tags origin "refs/tags/${PUBLIC_TAG}" >/dev/null 2>&1; then
+            git tag "$PUBLIC_TAG" "$GITHUB_SHA"
+            git push origin "$PUBLIC_TAG"
+          fi
+          gh release create "$PUBLIC_TAG" "ictrek.app/dist/weknora_${VERSION}_pull.tar" \
+            --verify-tag \
+            --latest \
+            --title "v${VERSION}" \
+            --notes-file release-notes.md

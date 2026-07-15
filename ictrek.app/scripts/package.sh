@@ -213,6 +213,23 @@ latest_image() {
   echo "${repository}:${tag}"
 }
 
+resolve_image_versions() {
+  local env_file="$1"
+  : > "$env_file"
+  for profile_spec in "${PROFILES[@]}"; do
+    IFS='|' read -r profile sheet_title <<< "$profile_spec"
+    profile_key="$(env_key "$profile")"
+    sheet_id="$(get_sheet_id_by_title "$FEISHU_TOKEN" "$sheet_title")"
+    for component_spec in "${COMPONENTS[@]}"; do
+      IFS='|' read -r env_prefix component repository <<< "$component_spec"
+      image="$(latest_image "$FEISHU_TOKEN" "$sheet_id" "$component" "$repository")" \
+        || die "failed to resolve image for profile=${profile} component=${component} sheet=${sheet_title}"
+      log "$profile ($sheet_title) $component -> $image"
+      printf '%s_%s_IMAGE=%s\n' "$env_prefix" "$profile_key" "$image" >> "$env_file"
+    done
+  done
+}
+
 load_feishu_auth() {
   local config_file tried=""
   for config_file in "$FEISHU_CONFIG_FILE" "$FEISHU_FALLBACK_CONFIG_FILE"; do
@@ -331,19 +348,7 @@ rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR"
 
 ENV_FILE="${STAGE_DIR}/.env"
-: > "$ENV_FILE"
-for profile_spec in "${PROFILES[@]}"; do
-  IFS='|' read -r profile sheet_title <<< "$profile_spec"
-  profile_key="$(env_key "$profile")"
-  sheet_id="$(get_sheet_id_by_title "$FEISHU_TOKEN" "$sheet_title")"
-  for component_spec in "${COMPONENTS[@]}"; do
-    IFS='|' read -r env_prefix component repository <<< "$component_spec"
-    image="$(latest_image "$FEISHU_TOKEN" "$sheet_id" "$component" "$repository")" \
-      || die "failed to resolve image for profile=${profile} component=${component} sheet=${sheet_title}"
-    log "$profile ($sheet_title) $component -> $image"
-    printf '%s_%s_IMAGE=%s\n' "$env_prefix" "$profile_key" "$image" >> "$ENV_FILE"
-  done
-done
+resolve_image_versions "$ENV_FILE"
 
 for file in manifest.yml configs.yml routers.yml README.zh-CN.md README.en.md; do
   if [[ -f "${SRC_DIR}/${file}" ]]; then
@@ -351,6 +356,10 @@ for file in manifest.yml configs.yml routers.yml README.zh-CN.md README.en.md; d
   fi
 done
 render_compose_file "${SRC_DIR}/docker-compose.yml" "${STAGE_DIR}/docker-compose.yml" "$ENV_FILE"
+if grep -q '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml"; then
+  grep '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml" >&2
+  die "unresolved image placeholder remains in rendered docker-compose.yml"
+fi
 
 APP_TARBALL="${DIST_DIR}/app.tar.gz"
 PACKAGE_NAME="${APP_NAME}_${APP_VERSION}_pull.tar"

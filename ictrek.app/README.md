@@ -53,7 +53,7 @@ WeKnora 默认通过 OpenAI-compatible gateway 访问：
 
 ## 版本更新与 Release
 
-`scripts/update_version.sh` 用于发布自增版本。它不是 dry-run；执行成功后会修改版本文件、提交 commit、推送 tag，并在 GitHub Releases 上传 pull 包。
+`scripts/update_version.sh` 用于发布自增版本并触发 GitHub Actions。它不是 dry-run；执行成功后会修改版本文件、提交 commit、创建 `vos-weknora-v${VERSION}` 触发 tag，并推送分支和 tag。真正的依赖版本查询、飞书查表、pull 包打包、release notes 生成和 tar 上传由 `.github/workflows/vos-release.yml` 完成。
 
 ```bash
 ./scripts/update_version.sh patch
@@ -70,12 +70,17 @@ WeKnora 默认通过 OpenAI-compatible gateway 访问：
 脚本会：
 
 1. 自增 `ictrek.app/VERSION`。
-2. 从当前仓库 `origin` 推断 GitHub 组织，例如 `git@github.com:ictrektech/WeKnora.git` 会推断为 `ictrektech`。
-3. 通过 GitHub CLI 查询同组织下 `ictrektech/model_hub` 和 `ictrektech/pgv` 的 release assets，找到最新 `model_hub_*_pull.tar` 与 `pgv_*_pull.tar`，并写入 `manifest.yml` 的依赖版本。
-4. 调用 `scripts/package.sh`，从飞书发布表读取 WeKnora 四镜像和 `ollama_server` 的最新版本，生成 `dist/weknora_${VERSION}_pull.tar`。
-5. 提交 `VERSION` 和 `manifest.yml`，提交信息为 `chore: release VOS weknora ${VERSION}`。
-6. 推送当前分支，并推送触发 tag `vos-weknora-v${VERSION}`。
-7. 使用 `gh release create v${VERSION}` 创建公开 release，或在 release 已存在时使用 `gh release upload --clobber` 覆盖上传 tar 包。
+2. 提交 `VERSION`，提交信息为 `chore: release VOS weknora ${VERSION}`。
+3. 创建并推送 `vos-weknora-v${VERSION}` 触发 tag。
+4. GitHub Actions 收到 tag 后执行 `.github/workflows/vos-release.yml`。
+
+GitHub Actions 会：
+
+1. 使用 `VOS_DEPENDENCY_RELEASE_TOKEN` 查询 `model_hub_*_pull.tar` 与 `pgv_*_pull.tar` 的最新版本，并写入 CI 工作区内的 `manifest.yml`。
+2. 使用 `FEISHU_APP_ID`、`FEISHU_APP_SECRET` 和可选 `FEISHU_SPREADSHEET_TOKEN` 写出 `~/.feishu.components.json`。
+3. 调用 `scripts/package.sh`，从飞书发布表读取 WeKnora 四镜像和 `ollama_server` 的最新版本，生成 `dist/weknora_${VERSION}_pull.tar`。
+4. 生成 release notes。
+5. 创建公开 release tag `v${VERSION}`，并上传 pull 模式 tar 包。`vos-weknora-v${VERSION}` 只用于触发 CI，不作为公开 release tag。
 
 执行前检查：
 
@@ -83,19 +88,28 @@ WeKnora 默认通过 OpenAI-compatible gateway 访问：
 cd apps/WeKnora
 git status --short
 git remote get-url origin
-gh auth status
-gh api 'repos/ictrektech/model_hub/releases?per_page=100' --jq '.[0].tag_name'
-gh api 'repos/ictrektech/pgv/releases?per_page=100' --jq '.[0].tag_name'
-ls -l ~/.feishu.components.json ~/.feishu.json 2>/dev/null
+git fetch --tags origin
 ```
 
 要求：
 
 - WeKnora 工作区必须干净；脚本会在存在未提交改动时退出。
-- `origin` 应指向发布目标仓库，例如 `git@github.com:ictrektech/WeKnora.git`。如果不是这个仓库，可以用 `WEKNORA_RELEASE_REPO=ictrektech/WeKnora` 显式覆盖。
-- `gh` 需要能读取依赖仓库 release，并能在 WeKnora 创建 GitHub Release。
-- 本机发布时，`gh auth status` 至少应包含 `repo`；如果 GitHub 因 workflow 文件改动拒绝 release/tag 相关操作，再执行一次 `gh auth refresh -h github.com -s workflow`。这个授权会保存到本机 GitHub CLI 登录态，不是每次发布都要做。
-- 需要飞书凭据 `~/.feishu.components.json` 或 `~/.feishu.json`，用于读取组件镜像 tag。
+- `origin` 应指向发布目标仓库，例如 `git@github.com:ictrektech/WeKnora.git`。
+- 本地只需要能向 WeKnora push 分支和 tag；不需要本地读取飞书，也不需要本地创建 GitHub Release。
+- GitHub Actions 需要能读取依赖 release、读取飞书发布表，并能写 WeKnora release。
+
+GitHub secrets：
+
+| Secret | 用途 | 建议配置位置 |
+| --- | --- | --- |
+| `VOS_DEPENDENCY_RELEASE_TOKEN` | 读取同组织私有依赖仓库 release assets，例如 `model_hub`、`pgv` | Organization secret，`Repository access` 可选 `All repositories`，权限 `Contents: Read-only` |
+| `FEISHU_APP_ID` | 飞书应用 ID，用于读取镜像发布表 | Organization secret；WeKnora 是 public repo，可使用当前组织 public repositories 范围 |
+| `FEISHU_APP_SECRET` | 飞书应用 secret | Organization secret；WeKnora 是 public repo，可使用当前组织 public repositories 范围 |
+| `FEISHU_SPREADSHEET_TOKEN` | 可选；覆盖默认飞书表 token | Organization secret 或 repository secret |
+
+WeKnora 是 public repo，因此当前组织级 Feishu secrets 可被 GitHub Actions 读取。其他没有私有依赖 release 的 VOS app 可继续沿用各自现有流程，不需要套用 WeKnora 的依赖 token 逻辑。
+
+当前这条说明里的“其他 VOS app”包括 `model_hub`、`pgv`、`motrix-next`、`cc_setup`。这些 app 暂不因为 WeKnora 的私有依赖查询需求改变发布流程。
 
 发布命令：
 
@@ -108,42 +122,23 @@ cd apps/WeKnora/ictrek.app
 
 ```bash
 VERSION="$(cat VERSION)"
+gh run list --repo ictrektech/WeKnora --workflow vos-release.yml --limit 1
 gh release view "v${VERSION}" --repo ictrektech/WeKnora \
   --json tagName,targetCommitish,url,assets
 git tag --list "vos-weknora-v${VERSION}" "v${VERSION}" --format='%(refname:short) %(objectname:short)'
-tar tf "dist/weknora_${VERSION}_pull.tar"
 ```
 
 如果脚本失败，按阶段处理：
 
-- 依赖 release 查询失败：确认 `gh api 'repos/ictrektech/model_hub/releases?per_page=100'` 和 `gh api 'repos/ictrektech/pgv/releases?per_page=100'` 可读；如果在 CI 里失败，检查 `VOS_DEPENDENCY_RELEASE_TOKEN`。
-- 飞书查表失败：确认目标 profile 的 sheet 里存在 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox`、`ollama_server` 列，并且最新行有 tag。
-- 包已生成但 release 创建失败：先用 `git status --short`、`git tag --list 'vos-weknora-v*' 'v*'`、`gh release view v${VERSION}` 判断已经完成到哪一步。若 commit 和 tag 已推送但 release 未创建，可补执行：
+- 本地脚本失败：通常是工作区不干净、版本号非法、触发 tag 或公开 release tag 已存在。先用 `git status --short`、`git tag --list 'vos-weknora-v*' 'v*'` 检查。
+- CI 依赖 release 查询失败：检查 `VOS_DEPENDENCY_RELEASE_TOKEN` 是否可用，是否有同组织仓库 `Contents: Read-only` 权限。
+- CI 飞书查表失败：检查 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_SPREADSHEET_TOKEN`，以及目标 profile 的 sheet 里是否存在 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox`、`ollama_server` 列，并且最新行有 tag。
+- CI release 创建失败：查看 `VOS Pull Package Release` workflow 日志。若 package 已生成但 release 未创建，可在本地确认后补执行：
 
 ```bash
 VERSION="$(cat VERSION)"
-gh release create "v${VERSION}" "dist/weknora_${VERSION}_pull.tar" \
-  --repo ictrektech/WeKnora \
-  --target "$(git rev-parse HEAD)" \
-  --title "v${VERSION}" \
-  --notes "WeKnora VOS pull package ${VERSION}."
-```
-
-如果 release 已存在但资产缺失或需要覆盖：
-
-```bash
-VERSION="$(cat VERSION)"
-gh release upload "v${VERSION}" "dist/weknora_${VERSION}_pull.tar" \
-  --repo ictrektech/WeKnora \
-  --clobber
-```
-
-如依赖 release 不在默认同组织 repo，可用环境变量覆盖：
-
-```bash
-WEKNORA_MODEL_HUB_RELEASE_REPO=ictrektech/model_hub \
-WEKNORA_PGV_RELEASE_REPO=ictrektech/pgv \
-./scripts/update_version.sh patch
+gh run view --repo ictrektech/WeKnora --log
+gh release view "v${VERSION}" --repo ictrektech/WeKnora
 ```
 
 ## GitHub Actions 依赖查询验证
