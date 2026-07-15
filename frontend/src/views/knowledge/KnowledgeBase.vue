@@ -2327,11 +2327,11 @@ async function createNewSession(value: string): Promise<void> {
                         @click="viewMode = 'list'" :aria-pressed="viewMode === 'list'">
                         <t-icon name="view-list" size="16px" />
                       </button>
-                  </t-tooltip>
-                </div>
-                <div v-if="canEdit" class="doc-filter-actions">
-                  <KbUploadSourceDropdown ref="uploadSourceRef" :accept-file-types="acceptFileTypes"
-                    :supported-file-types="[...supportedFileTypes]" include-manual trigger-icon="file-add"
+                    </t-tooltip>
+                  </div>
+                  <div v-if="canEdit" class="doc-filter-actions">
+                    <KbUploadSourceDropdown ref="uploadSourceRef" :accept-file-types="acceptFileTypes"
+                      :supported-file-types="[...supportedFileTypes]" include-manual trigger-icon="file-add"
                       trigger-class="content-bar-icon-btn" data-guide="kb-detail-add-doc"
                       :tooltip="t('knowledgeBase.addDocument')" placement="bottom-right" @files="handleUploadSourceFiles"
                       @url="handleUploadSourceUrl" @manual="handleManualCreate" />
