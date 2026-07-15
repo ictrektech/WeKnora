@@ -1,0 +1,61 @@
+name: Check VOS Dependency Release Access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-release-access:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check dependency release assets with default GITHUB_TOKEN
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          deps = [
+              ("ictrektech/model_hub", "model_hub"),
+              ("ictrektech/pgv", "pgv"),
+          ]
+
+          for repo, prefix in deps:
+              print(f"checking {repo} release assets for {prefix}_*_pull.tar")
+              try:
+                  response = subprocess.check_output(
+                      ["gh", "api", f"repos/{repo}/releases?per_page=100"],
+                      env=os.environ.copy(),
+                      stderr=subprocess.STDOUT,
+                      text=True,
+                  )
+              except subprocess.CalledProcessError as exc:
+                  print(exc.output, file=sys.stderr)
+                  raise SystemExit(
+                      f"cannot query {repo} releases with this workflow's default GITHUB_TOKEN"
+                  ) from exc
+
+              releases = json.loads(response)
+              pattern = re.compile(rf"^{re.escape(prefix)}_([0-9]+\.[0-9]+\.[0-9]+)_pull\.tar$")
+              versions = []
+              for release in releases:
+                  for asset in release.get("assets", []):
+                      match = pattern.match(asset.get("name") or "")
+                      if match:
+                          versions.append(tuple(int(part) for part in match.group(1).split(".")))
+
+              if not versions:
+                  raise SystemExit(f"no {prefix}_*_pull.tar assets are visible in {repo}")
+
+              latest = ".".join(str(part) for part in max(versions))
+              print(f"{repo}: latest visible pull asset version is {latest}")
+          PY
