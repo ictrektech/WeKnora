@@ -1,0 +1,41 @@
+id: com.ictrek.weknora
+name:
+  zh-CN: WeKnora
+  en: WeKnora
+description:
+  zh-CN: 企业知识库、RAG 问答、Wiki 知识图谱与智能体平台，使用 Ollama 提供聊天、图片理解和 embedding 后端。
+  en: Enterprise knowledge-base, RAG, Wiki graph, and agent platform backed by Ollama for chat, vision, and embedding.
+version: __APP_VERSION__
+author: ictrek
+category: [ai]
+arch: [amd64, arm64]
+
+platform:
+  version: ">=3.0.0"
+
+dependencies:
+  apps:
+    - id: com.ictrek.model-hub
+      version: ">=0.0.13"
+      optional: false
+    - id: com.ictrek.pgv
+      version: ">=0.0.13"
+      optional: false
+
+frontend:
+  enabled: true
+  basePath: /app/com.ictrek.weknora
+  service: weknora-frontend-amd-with-cuda
+
+storage:
+  directories:
+    - path: files
+      mode: "0755"
+    - path: docreader
+      mode: "0755"
+    - path: redis
+      mode: "0755"
+    - path: ollama/qa
+      mode: "0755"
+    - path: ollama/embedding
+      mode: "0755"

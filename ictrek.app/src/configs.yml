@@ -1,0 +1,63 @@
+configs:
+  - name: OLLAMA_QA_MODEL
+    type: string
+    title:
+      zh-CN: QA/VLM 模型
+      en: QA/VLM Model
+    description:
+      zh-CN: 需要预先在 QA Ollama 容器中存在的聊天和图片理解模型名。
+      en: Chat and vision model name expected to exist in the QA Ollama container.
+    default: qwen3.5:2b
+  - name: OLLAMA_EMBEDDING_MODEL
+    type: string
+    title:
+      zh-CN: Embedding 模型
+      en: Embedding Model
+    description:
+      zh-CN: 需要预先在 embedding Ollama 容器中存在的多语言 embedding 模型名。
+      en: Multilingual embedding model name expected to exist in the embedding Ollama container.
+    default: bge-m3:latest
+  - name: OLLAMA_CONTEXT_LENGTH
+    type: integer
+    title:
+      zh-CN: Ollama QA 上下文长度
+      en: Ollama QA Context Length
+    description:
+      zh-CN: QA/VLM Ollama 容器的默认上下文长度。
+      en: Default context length for the QA/VLM Ollama container.
+    default: 18000
+    minimum: 1024
+    maximum: 131072
+  - name: OLLAMA_QA_NUM_PARALLEL
+    type: integer
+    title:
+      zh-CN: QA/VLM Ollama 并发
+      en: QA/VLM Ollama Parallelism
+    description:
+      zh-CN: QA/VLM Ollama 实例的 OLLAMA_NUM_PARALLEL。
+      en: OLLAMA_NUM_PARALLEL for the QA/VLM Ollama instance.
+    default: 3
+    minimum: 1
+    maximum: 32
+  - name: OLLAMA_EMBEDDING_NUM_PARALLEL
+    type: integer
+    title:
+      zh-CN: Embedding Ollama 并发
+      en: Embedding Ollama Parallelism
+    description:
+      zh-CN: Embedding Ollama 实例的 OLLAMA_NUM_PARALLEL。
+      en: OLLAMA_NUM_PARALLEL for the embedding Ollama instance.
+    default: 4
+    minimum: 1
+    maximum: 32
+  - name: WEKNORA_CHAT_RESERVED_CONCURRENCY
+    type: integer
+    title:
+      zh-CN: 聊天预留并发
+      en: Chat Reserved Concurrency
+    description:
+      zh-CN: 为在线聊天预留的主模型槽位，后台 Graph/Wiki/VLM/摘要任务不会占满所有 QA/VLM 并发。
+      en: Main-model slots reserved for interactive chat.
+    default: 2
+    minimum: 1
+    maximum: 16

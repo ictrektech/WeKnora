@@ -1,0 +1,413 @@
+x-weknora-frontend-base: &weknora-frontend-base
+  restart: unless-stopped
+  networks:
+    - vos_default
+  environment:
+    MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+    APP_HOST: weknora-app
+    APP_PORT: 8080
+    APP_SCHEME: http
+  labels:
+    - "traefik.enable=true"
+    - "traefik.docker.network=vos_default"
+    - "traefik.http.routers.weknora-web.rule=PathPrefix(`/app/com.ictrek.weknora`)"
+    - "traefik.http.routers.weknora-web.service=weknora-web"
+    - "traefik.http.routers.weknora-web.middlewares=weknora-web-slash,weknora-web-strip"
+    - "traefik.http.middlewares.weknora-web-slash.redirectregex.regex=^(.*)/app/com\\.ictrek\\.weknora$"
+    - "traefik.http.middlewares.weknora-web-slash.redirectregex.replacement=$${1}/app/com.ictrek.weknora/"
+    - "traefik.http.middlewares.weknora-web-slash.redirectregex.permanent=true"
+    - "traefik.http.middlewares.weknora-web-strip.stripprefix.prefixes=/app/com.ictrek.weknora"
+    - "traefik.http.services.weknora-web.loadbalancer.server.port=80"
+
+x-weknora-docreader-base: &weknora-docreader-base
+  restart: unless-stopped
+  networks:
+    vos_default:
+      aliases:
+        - weknora-docreader
+  expose:
+    - "50051"
+  environment:
+    DOCREADER_IMAGE_OUTPUT_DIR: /tmp/docreader
+    DOCREADER_PDF_FORCE_SCANNED: ${DOCREADER_PDF_FORCE_SCANNED:-false}
+    MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+    DOCREADER_ODL_MAX_WORKERS: ${DOCREADER_ODL_MAX_WORKERS:-1}
+    DOCREADER_ODL_HYBRID: ${DOCREADER_ODL_HYBRID:-off}
+    DOCREADER_MARKITDOWN_MAX_WORKERS: ${DOCREADER_MARKITDOWN_MAX_WORKERS:-1}
+    DOCREADER_PDF_RENDER_MAX_WORKERS: ${DOCREADER_PDF_RENDER_MAX_WORKERS:-1}
+    DOCREADER_PDF_RENDER_DPI: ${DOCREADER_PDF_RENDER_DPI:-200}
+    DOCREADER_PDF_JPEG_QUALITY: ${DOCREADER_PDF_JPEG_QUALITY:-90}
+    GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
+    GRPC_AUTH_TOKEN: ${GRPC_AUTH_TOKEN:-}
+  volumes:
+    - ${VOS_APP_STORAGE_PATH}/docreader:/tmp/docreader
+  healthcheck:
+    test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+
+x-weknora-ollama-qa-base: &weknora-ollama-qa-base
+  restart: unless-stopped
+  runtime: nvidia
+  networks:
+    vos_default:
+      aliases:
+        - weknora-ollama-qa
+  entrypoint: ["/bin/sh", "-lc"]
+  command:
+    - ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
+  environment:
+    NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+    NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
+    OLLAMA_HOST: 0.0.0.0:11434
+    OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+    OLLAMA_NUM_PARALLEL: ${OLLAMA_QA_NUM_PARALLEL:-3}
+    OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-18000}
+  volumes:
+    - ${VOS_APP_STORAGE_PATH}/ollama/qa:/root/.ollama
+  healthcheck:
+    test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
+    start_period: 60s
+
+x-weknora-ollama-embedding-base: &weknora-ollama-embedding-base
+  restart: unless-stopped
+  runtime: nvidia
+  networks:
+    vos_default:
+      aliases:
+        - weknora-ollama-embedding
+  entrypoint: ["/bin/sh", "-lc"]
+  command:
+    - ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
+  environment:
+    NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+    NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
+    OLLAMA_HOST: 0.0.0.0:11434
+    OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+    OLLAMA_NUM_PARALLEL: ${OLLAMA_EMBEDDING_NUM_PARALLEL:-4}
+    OLLAMA_CONTEXT_LENGTH: ${OLLAMA_EMBEDDING_CONTEXT_LENGTH:-8192}
+  volumes:
+    - ${VOS_APP_STORAGE_PATH}/ollama/embedding:/root/.ollama
+  healthcheck:
+    test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
+    start_period: 60s
+
+x-weknora-app-env: &weknora-app-env
+  GIN_MODE: ${GIN_MODE:-release}
+  TZ: ${TZ:-Asia/Shanghai}
+  WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
+  DB_DRIVER: postgres
+  DB_HOST: ${WEKNORA_DB_HOST:-shared-pgv}
+  DB_PORT: ${WEKNORA_DB_PORT:-5432}
+  DB_USER: ${WEKNORA_DB_USER:-weknora}
+  DB_PASSWORD: ${WEKNORA_DB_PASSWORD:-weknora}
+  DB_NAME: ${WEKNORA_DB_NAME:-WeKnora}
+  RETRIEVE_DRIVER: ${RETRIEVE_DRIVER:-postgres}
+  STORAGE_TYPE: ${STORAGE_TYPE:-local}
+  LOCAL_STORAGE_BASE_DIR: ${LOCAL_STORAGE_BASE_DIR:-/data/files}
+  STREAM_MANAGER_TYPE: ${STREAM_MANAGER_TYPE:-redis}
+  REDIS_ADDR: weknora-redis:6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-weknora-redis}
+  REDIS_DB: ${REDIS_DB:-0}
+  REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
+  DOCREADER_ADDR: weknora-docreader:50051
+  DOCREADER_TRANSPORT: grpc
+  OLLAMA_BASE_URL: http://weknora-ollama-qa:11434
+  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-weknora-ollama-qa,weknora-ollama-embedding,shared-pgv,ictrek-pgv}
+  CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-1}
+  BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
+  WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
+  WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY: ${WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY:-1}
+  WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY: ${WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY:-1}
+  WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY: ${WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY:-1}
+  WEKNORA_ASYNQ_SHARED_CONCURRENCY: ${WEKNORA_ASYNQ_SHARED_CONCURRENCY:-1}
+  WEKNORA_WIKI_ASYNQ_CONCURRENCY: ${WEKNORA_WIKI_ASYNQ_CONCURRENCY:-1}
+  WEKNORA_MODEL_MAX_CONCURRENCY: ${WEKNORA_MODEL_MAX_CONCURRENCY:-1}
+  WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-3}
+  WEKNORA_CHAT_RESERVED_CONCURRENCY: ${WEKNORA_CHAT_RESERVED_CONCURRENCY:-2}
+  WEKNORA_GRAPH_LLM_CONCURRENCY: ${WEKNORA_GRAPH_LLM_CONCURRENCY:-1}
+  WEKNORA_WIKI_INGEST_MAP_PARALLEL: ${WEKNORA_WIKI_INGEST_MAP_PARALLEL:-1}
+  WEKNORA_WIKI_INGEST_REDUCE_PARALLEL: ${WEKNORA_WIKI_INGEST_REDUCE_PARALLEL:-1}
+  WEKNORA_CHAT_MODEL_CONTEXT_TOKENS: ${WEKNORA_CHAT_MODEL_CONTEXT_TOKENS:-18000}
+  WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS: ${WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS:-768}
+  WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS:-2048}
+  WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS:-2048}
+  WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
+  WEKNORA_REPARSE_WAIT_URLS: http://weknora-ollama-qa:11535/v1/models,http://weknora-ollama-embedding:11535/v1/models
+  WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
+  WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
+  WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
+  WEKNORA_RUN_AS_ROOT: ${WEKNORA_RUN_AS_ROOT:-true}
+  WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_IMAGE:-}
+  ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-false}
+  NEO4J_ENABLE: ${NEO4J_ENABLE:-false}
+  MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+  DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
+  WEKNORA_AUTH_DEFAULT_TENANT_MODE: ${WEKNORA_AUTH_DEFAULT_TENANT_MODE:-create_personal}
+  WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED: ${WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED:-true}
+  WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
+
+x-weknora-app-base: &weknora-app-base
+  restart: unless-stopped
+  networks:
+    vos_default:
+      aliases:
+        - weknora-app
+  environment: *weknora-app-env
+  volumes:
+    - ${VOS_APP_STORAGE_PATH}/files:/data/files
+    - ${VOS_APP_STORAGE_PATH}/docreader:/tmp/docreader:ro
+    - /var/run/docker.sock:/var/run/docker.sock
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+
+services:
+  weknora-redis:
+    image: redis:7.0-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-weknora-redis}
+    volumes:
+      - ${VOS_APP_STORAGE_PATH}/redis:/data
+    networks:
+      - vos_default
+    restart: unless-stopped
+
+  weknora-frontend-amd-with-cuda:
+    <<: *weknora-frontend-base
+    profiles: ["AMD_with_cuda"]
+    image: ${WEKNORA_UI_AMD_WITH_CUDA_IMAGE}
+    pull_policy: always
+    depends_on:
+      weknora-app-amd-with-cuda:
+        condition: service_healthy
+
+  weknora-app-amd-with-cuda:
+    <<: *weknora-app-base
+    profiles: ["AMD_with_cuda"]
+    image: ${WEKNORA_APP_AMD_WITH_CUDA_IMAGE}
+    pull_policy: always
+    environment:
+      <<: *weknora-app-env
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_WITH_CUDA_IMAGE}
+    depends_on:
+      weknora-redis:
+        condition: service_started
+      weknora-docreader-amd-with-cuda:
+        condition: service_healthy
+      weknora-ollama-qa-amd-with-cuda:
+        condition: service_healthy
+      weknora-ollama-embedding-amd-with-cuda:
+        condition: service_healthy
+
+  weknora-docreader-amd-with-cuda:
+    <<: *weknora-docreader-base
+    profiles: ["AMD_with_cuda"]
+    image: ${WEKNORA_DOCREADER_AMD_WITH_CUDA_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-qa-amd-with-cuda:
+    <<: *weknora-ollama-qa-base
+    profiles: ["AMD_with_cuda"]
+    image: ${OLLAMA_SERVER_AMD_WITH_CUDA_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-embedding-amd-with-cuda:
+    <<: *weknora-ollama-embedding-base
+    profiles: ["AMD_with_cuda"]
+    image: ${OLLAMA_SERVER_AMD_WITH_CUDA_IMAGE}
+    pull_policy: always
+
+  weknora-frontend-arm-with-cuda:
+    <<: *weknora-frontend-base
+    profiles: ["ARM_with_cuda"]
+    image: ${WEKNORA_UI_ARM_WITH_CUDA_IMAGE}
+    pull_policy: always
+    depends_on:
+      weknora-app-arm-with-cuda:
+        condition: service_healthy
+
+  weknora-app-arm-with-cuda:
+    <<: *weknora-app-base
+    profiles: ["ARM_with_cuda"]
+    image: ${WEKNORA_APP_ARM_WITH_CUDA_IMAGE}
+    pull_policy: always
+    environment:
+      <<: *weknora-app-env
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_WITH_CUDA_IMAGE}
+    depends_on:
+      weknora-redis:
+        condition: service_started
+      weknora-docreader-arm-with-cuda:
+        condition: service_healthy
+      weknora-ollama-qa-arm-with-cuda:
+        condition: service_healthy
+      weknora-ollama-embedding-arm-with-cuda:
+        condition: service_healthy
+
+  weknora-docreader-arm-with-cuda:
+    <<: *weknora-docreader-base
+    profiles: ["ARM_with_cuda"]
+    image: ${WEKNORA_DOCREADER_ARM_WITH_CUDA_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-qa-arm-with-cuda:
+    <<: *weknora-ollama-qa-base
+    profiles: ["ARM_with_cuda"]
+    image: ${OLLAMA_SERVER_ARM_WITH_CUDA_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-embedding-arm-with-cuda:
+    <<: *weknora-ollama-embedding-base
+    profiles: ["ARM_with_cuda"]
+    image: ${OLLAMA_SERVER_ARM_WITH_CUDA_IMAGE}
+    pull_policy: always
+
+  weknora-frontend-l4t:
+    <<: *weknora-frontend-base
+    profiles: ["l4t"]
+    image: ${WEKNORA_UI_L4T_IMAGE}
+    pull_policy: always
+    depends_on:
+      weknora-app-l4t:
+        condition: service_healthy
+
+  weknora-app-l4t:
+    <<: *weknora-app-base
+    profiles: ["l4t"]
+    image: ${WEKNORA_APP_L4T_IMAGE}
+    pull_policy: always
+    environment:
+      <<: *weknora-app-env
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_L4T_IMAGE}
+    depends_on:
+      weknora-redis:
+        condition: service_started
+      weknora-docreader-l4t:
+        condition: service_healthy
+      weknora-ollama-qa-l4t:
+        condition: service_healthy
+      weknora-ollama-embedding-l4t:
+        condition: service_healthy
+
+  weknora-docreader-l4t:
+    <<: *weknora-docreader-base
+    profiles: ["l4t"]
+    image: ${WEKNORA_DOCREADER_L4T_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-qa-l4t:
+    <<: *weknora-ollama-qa-base
+    profiles: ["l4t"]
+    image: ${OLLAMA_SERVER_L4T_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-embedding-l4t:
+    <<: *weknora-ollama-embedding-base
+    profiles: ["l4t"]
+    image: ${OLLAMA_SERVER_L4T_IMAGE}
+    pull_policy: always
+
+  weknora-frontend-thor-spark:
+    <<: *weknora-frontend-base
+    profiles: ["thor_spark"]
+    image: ${WEKNORA_UI_THOR_SPARK_IMAGE}
+    pull_policy: always
+    depends_on:
+      weknora-app-thor-spark:
+        condition: service_healthy
+
+  weknora-app-thor-spark:
+    <<: *weknora-app-base
+    profiles: ["thor_spark"]
+    image: ${WEKNORA_APP_THOR_SPARK_IMAGE}
+    pull_policy: always
+    environment:
+      <<: *weknora-app-env
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_THOR_SPARK_IMAGE}
+    depends_on:
+      weknora-redis:
+        condition: service_started
+      weknora-docreader-thor-spark:
+        condition: service_healthy
+      weknora-ollama-qa-thor-spark:
+        condition: service_healthy
+      weknora-ollama-embedding-thor-spark:
+        condition: service_healthy
+
+  weknora-docreader-thor-spark:
+    <<: *weknora-docreader-base
+    profiles: ["thor_spark"]
+    image: ${WEKNORA_DOCREADER_THOR_SPARK_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-qa-thor-spark:
+    <<: *weknora-ollama-qa-base
+    profiles: ["thor_spark"]
+    image: ${OLLAMA_SERVER_THOR_SPARK_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-embedding-thor-spark:
+    <<: *weknora-ollama-embedding-base
+    profiles: ["thor_spark"]
+    image: ${OLLAMA_SERVER_THOR_SPARK_IMAGE}
+    pull_policy: always
+
+  weknora-frontend-sophon-bm1688:
+    <<: *weknora-frontend-base
+    profiles: ["SOPHON_bm1688"]
+    image: ${WEKNORA_UI_SOPHON_BM1688_IMAGE}
+    pull_policy: always
+    depends_on:
+      weknora-app-sophon-bm1688:
+        condition: service_healthy
+
+  weknora-app-sophon-bm1688:
+    <<: *weknora-app-base
+    profiles: ["SOPHON_bm1688"]
+    image: ${WEKNORA_APP_SOPHON_BM1688_IMAGE}
+    pull_policy: always
+    environment:
+      <<: *weknora-app-env
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_SOPHON_BM1688_IMAGE}
+    depends_on:
+      weknora-redis:
+        condition: service_started
+      weknora-docreader-sophon-bm1688:
+        condition: service_healthy
+      weknora-ollama-qa-sophon-bm1688:
+        condition: service_healthy
+      weknora-ollama-embedding-sophon-bm1688:
+        condition: service_healthy
+
+  weknora-docreader-sophon-bm1688:
+    <<: *weknora-docreader-base
+    profiles: ["SOPHON_bm1688"]
+    image: ${WEKNORA_DOCREADER_SOPHON_BM1688_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-qa-sophon-bm1688:
+    <<: *weknora-ollama-qa-base
+    profiles: ["SOPHON_bm1688"]
+    image: ${OLLAMA_SERVER_SOPHON_BM1688_IMAGE}
+    pull_policy: always
+
+  weknora-ollama-embedding-sophon-bm1688:
+    <<: *weknora-ollama-embedding-base
+    profiles: ["SOPHON_bm1688"]
+    image: ${OLLAMA_SERVER_SOPHON_BM1688_IMAGE}
+    pull_policy: always
+
+networks:
+  vos_default:
+    external: true

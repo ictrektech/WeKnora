@@ -1,0 +1,18 @@
+routers:
+  - id: com-ictrek-weknora
+    kind: group
+    title:
+      zh-CN: WeKnora
+      en: WeKnora
+    icon: lucide:brain-circuit
+    order: 210
+    children:
+      - id: weknora
+        kind: page
+        title:
+          zh-CN: 知识库
+          en: Knowledge Base
+        icon: lucide:brain-circuit
+        iframe-src: /app/com.ictrek.weknora/?v=__APP_VERSION__
+        order: 10
+        keep-alive: true
