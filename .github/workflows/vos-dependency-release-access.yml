@@ -10,12 +10,20 @@ jobs:
   check-release-access:
     runs-on: ubuntu-latest
     env:
+      VOS_DEPENDENCY_RELEASE_TOKEN: ${{ secrets.VOS_DEPENDENCY_RELEASE_TOKEN }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Check dependency release assets with default GITHUB_TOKEN
+      - name: Check dependency release assets
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ -n "${VOS_DEPENDENCY_RELEASE_TOKEN:-}" ]; then
+            export GH_TOKEN="$VOS_DEPENDENCY_RELEASE_TOKEN"
+            echo "Using VOS_DEPENDENCY_RELEASE_TOKEN for dependency release lookup."
+          else
+            echo "VOS_DEPENDENCY_RELEASE_TOKEN is not set; using this repository's default GITHUB_TOKEN."
+          fi
 
           python3 - <<'PY'
           import json
@@ -41,7 +49,7 @@ jobs:
               except subprocess.CalledProcessError as exc:
                   print(exc.output, file=sys.stderr)
                   raise SystemExit(
-                      f"cannot query {repo} releases with this workflow's default GITHUB_TOKEN"
+                      f"cannot query {repo} releases with the configured workflow token"
                   ) from exc
 
               releases = json.loads(response)
