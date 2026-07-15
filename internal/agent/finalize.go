@@ -18,7 +18,10 @@ import (
 
 const (
 	finalAnswerDefaultCompletionTokens = 2048
+	finalAnswerCompletionTokensEnv     = "WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS"
+	finalAnswerContextSafetyTokensEnv  = "WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS"
 	finalAnswerContextSafetyTokens     = 768
+	finalAnswerMinimumInputBudget      = 512
 )
 
 // streamFinalAnswerToEventBus streams the final answer generation through EventBus
@@ -82,7 +85,8 @@ Now generate the final answer:`, query)
 		Role:    "user",
 		Content: finalPrompt,
 	})
-	messages = e.fitFinalAnswerMessages(ctx, messages)
+	inputBudget, completionTokens := e.finalAnswerTokenBudgets()
+	messages = e.fitFinalAnswerMessages(ctx, messages, inputBudget, completionTokens)
 
 	// Generate a single ID for this entire final answer stream
 	answerID := generateEventID("answer")
@@ -94,7 +98,7 @@ Now generate the final answer:`, query)
 		messages,
 		&chat.ChatOptions{
 			Temperature:         e.config.Temperature,
-			MaxCompletionTokens: finalAnswerDefaultCompletionTokens,
+			MaxCompletionTokens: completionTokens,
 		}, // Thinking disabled for final answer synthesis
 		func(chunk *types.StreamResponse, fullContent string) {
 			// Defensive filter: only emit answer content, skip thinking chunks
@@ -150,8 +154,12 @@ Now generate the final answer:`, query)
 	return nil
 }
 
-func (e *AgentEngine) fitFinalAnswerMessages(ctx context.Context, messages []chat.Message) []chat.Message {
-	inputBudget := e.finalAnswerInputBudget()
+func (e *AgentEngine) fitFinalAnswerMessages(
+	ctx context.Context,
+	messages []chat.Message,
+	inputBudget int,
+	completionTokens int,
+) []chat.Message {
 	if inputBudget <= 0 || len(messages) <= 3 || e.tokenEstimator.EstimateMessages(messages) <= inputBudget {
 		return messages
 	}
@@ -164,22 +172,38 @@ func (e *AgentEngine) fitFinalAnswerMessages(ctx context.Context, messages []cha
 	}
 	if removed > 0 {
 		logger.Warnf(ctx, "[Agent][FinalAnswer] Trimmed %d old tool result(s) to reserve %d completion tokens",
-			removed, finalAnswerDefaultCompletionTokens)
+			removed, completionTokens)
 		common.PipelineWarn(ctx, "Agent", "final_answer_context_trimmed", map[string]interface{}{
 			"removed_tool_results": removed,
 			"input_budget":         inputBudget,
 			"message_count":        len(trimmed),
+			"completion_tokens":    completionTokens,
 		})
 	}
 	return trimmed
 }
 
-func (e *AgentEngine) finalAnswerInputBudget() int {
+func (e *AgentEngine) finalAnswerTokenBudgets() (inputBudget int, completionTokens int) {
 	limit := envInt("WEKNORA_CHAT_MODEL_CONTEXT_TOKENS", 16384)
 	if e.config != nil && e.config.MaxContextTokens > 0 && e.config.MaxContextTokens < limit {
 		limit = e.config.MaxContextTokens
 	}
-	return limit - finalAnswerDefaultCompletionTokens - finalAnswerContextSafetyTokens
+	completionTokens = envInt(finalAnswerCompletionTokensEnv, finalAnswerDefaultCompletionTokens)
+	if completionTokens <= 0 {
+		completionTokens = finalAnswerDefaultCompletionTokens
+	}
+	safetyTokens := envInt(finalAnswerContextSafetyTokensEnv, finalAnswerContextSafetyTokens)
+	if safetyTokens < 0 {
+		safetyTokens = 0
+	}
+	maxCompletionTokens := limit - safetyTokens - finalAnswerMinimumInputBudget
+	if maxCompletionTokens < 1 {
+		return 0, 1
+	}
+	if completionTokens > maxCompletionTokens {
+		completionTokens = maxCompletionTokens
+	}
+	return limit - completionTokens - safetyTokens, completionTokens
 }
 
 func envInt(name string, fallback int) int {

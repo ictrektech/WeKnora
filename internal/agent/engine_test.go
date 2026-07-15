@@ -444,6 +444,7 @@ func TestStreamFinalAnswerToEventBus_EmitsDoneWhenProviderEndsWithEmptyChunk(t *
 
 func TestStreamFinalAnswerToEventBus_TrimsOldToolResultsToReserveOutput(t *testing.T) {
 	t.Setenv("WEKNORA_CHAT_MODEL_CONTEXT_TOKENS", "9000")
+	t.Setenv("WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS", "3072")
 	mock := &mockChat{
 		responses: []mockResponse{
 			{chunks: []types.StreamResponse{
@@ -464,11 +465,24 @@ func TestStreamFinalAnswerToEventBus_TrimsOldToolResultsToReserveOutput(t *testi
 	require.NoError(t, err)
 	require.Len(t, mock.messages, 1)
 	require.Len(t, mock.options, 1)
-	assert.Equal(t, finalAnswerDefaultCompletionTokens, mock.options[0].MaxCompletionTokens)
+	assert.Equal(t, 3072, mock.options[0].MaxCompletionTokens)
 	sent := mock.messages[0]
 	assert.Equal(t, "system", sent[0].Role)
 	assert.Equal(t, "user", sent[1].Role)
 	assert.NotContains(t, fmt.Sprint(sent), "旧工具结果")
 	assert.Contains(t, fmt.Sprint(sent), "关键结果")
 	assert.Equal(t, "fallback answer", state.FinalAnswer)
+}
+
+func TestFinalAnswerTokenBudgetsClampOversizedCompletion(t *testing.T) {
+	t.Setenv("WEKNORA_CHAT_MODEL_CONTEXT_TOKENS", "4096")
+	t.Setenv("WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS", "768")
+	t.Setenv("WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS", "24576")
+
+	engine := newTestEngine(t, &mockChat{})
+
+	inputBudget, completionTokens := engine.finalAnswerTokenBudgets()
+
+	assert.Equal(t, finalAnswerMinimumInputBudget, inputBudget)
+	assert.Equal(t, 2816, completionTokens)
 }

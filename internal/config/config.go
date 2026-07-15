@@ -578,6 +578,7 @@ func LoadConfig() (*Config, error) {
 
 	// Validate configuration values
 	applyOIDCEnvOverrides(&cfg)
+	applyConversationEnvOverrides(&cfg)
 	applyAgentEnvOverrides(&cfg)
 	applyKnowledgeBaseEnvOverrides(&cfg)
 	applyAuthAndTenantDefaults(&cfg)
@@ -763,6 +764,20 @@ func applyKnowledgeBaseEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("WEKNORA_DOCREADER_CALL_TIMEOUT")); value != "" {
 		if d, err := time.ParseDuration(value); err == nil && d > 0 {
 			cfg.KnowledgeBase.DocReaderCallTimeout = d
+		}
+	}
+}
+
+func applyConversationEnvOverrides(cfg *Config) {
+	if cfg.Conversation == nil {
+		cfg.Conversation = &ConversationConfig{}
+	}
+	if cfg.Conversation.Summary == nil {
+		cfg.Conversation.Summary = &SummaryConfig{}
+	}
+	if value := strings.TrimSpace(os.Getenv("WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS")); value != "" {
+		if tokens, err := strconv.Atoi(value); err == nil && tokens > 0 {
+			cfg.Conversation.Summary.MaxCompletionTokens = tokens
 		}
 	}
 }

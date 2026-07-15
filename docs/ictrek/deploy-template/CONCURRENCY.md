@@ -2,13 +2,14 @@
 
 本文说明 ictrek 部署模板里的并发配置。实际部署时，把应用侧变量写到目标机 `.env`；模型服务侧变量写到对应模型容器的 env。
 
-## 三层控制
+## 四层控制
 
 | 层级 | 作用 | 主要变量 |
 | --- | --- | --- |
 | Asynq 后台任务池 | 控制独立的 core、postprocess、enrichment、maintenance、shared、wiki worker 池。 | `WEKNORA_ASYNQ_*_CONCURRENCY`、`WEKNORA_WIKI_ASYNQ_CONCURRENCY` |
 | 后台 LLM 限流 | 防止 Graph、Wiki、自动问题生成、摘要生成、多模态 VLM 把主 QA 模型并发吃满。 | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`、`WEKNORA_CHAT_RESERVED_CONCURRENCY`、`WEKNORA_GRAPH_LLM_CONCURRENCY`、`WEKNORA_WIKI_INGEST_*` |
 | 模型服务容量 | 控制 Ollama、vLLM 或其他 OpenAI-compatible 服务实际能同时处理多少请求。 | `OLLAMA_NUM_PARALLEL`、`OLLAMA_CONTEXT_LENGTH`、`VLLM_MAX_NUM_SEQS`、`CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE` |
+| 单次请求上下文预算 | 控制最终答案合成和会话摘要单次 LLM 调用的输入/输出 token 分配。 | `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS`、`WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS`、`WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS`、`WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS` |
 
 队列权重不是硬性的模型并发预留。真正给聊天保留模型槽位的是后台 LLM 限流。`WEKNORA_CHAT_RESERVED_CONCURRENCY` 是 WeKnora 应用侧限制，不是 vLLM/Ollama 自带的硬隔离；后台 LLM 调用必须经过代码里的 `acquireBackgroundLLMSlot` 才会被限制。
 
@@ -23,7 +24,10 @@
 | `WEKNORA_MODEL_MAX_CONCURRENCY` 或模型行 `max_concurrency` | 同一模型 endpoint/served model 的后台 Chat、VLM、Embedding 调用 | `>0` 是每模型后台调用上限；`0` 或负数关闭全局默认闸门。模型行的显式 `max_concurrency` 可覆盖默认值。在线聊天不经过此闸门。 | 系统设置值会即时下发；修改 env 后重启 app。 |
 | `WEKNORA_GRAPH_LLM_CONCURRENCY` | 单文档 Graph 抽取的 LLM 调用 | 取正整数，且会被主 QA 并发的一半上限约束。 | 修改 env 后重启 app。 |
 | `WEKNORA_WIKI_INGEST_MAP_PARALLEL`、`WEKNORA_WIKI_INGEST_REDUCE_PARALLEL` | Wiki 生成阶段的 map/reduce LLM 调用 | 是部署级默认值；知识库的 `wiki_config.ingest_map_parallel` / `wiki_config.ingest_reduce_parallel` 优先。 | 修改 env 后重启 app；知识库配置在新任务开始时生效。 |
-| `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` | 最终答案合成的主模型上下文估算 | 默认 `16384`。系统会为最终输出预留 2048 tokens 和安全余量，工具结果太长时优先裁掉旧工具结果，保留最新结果。 | 应小于或等于模型实际上下文；修改 env 后重启 app。 |
+| `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` | 最终答案合成的主模型上下文估算 | 默认 `16384`。应小于或等于模型实际上下文。 | 修改 env 后重启 app。 |
+| `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS` | 最终答案合成的上下文安全余量 | 默认 `768`。系统会先预留安全余量，再预留最终输出 token。工具结果太长时优先裁掉旧工具结果，保留最新结果。 | 修改 env 后重启 app。 |
+| `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS` | Agent 最终答案合成的最大输出 token | 默认 `2048`。如果配置过大，代码会按 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS - WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS - 512` 自动夹紧，至少保留 512 token 输入预算。 | 修改 env 后重启 app。 |
+| `WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS` | 普通知识库问答摘要/回答生成的最大输出 token | 正整数才生效，会覆盖 `conversation.summary.max_completion_tokens`。小模型或 Ollama 低并发机器不要盲目调大。 | 修改 env 后重启 app。 |
 | `CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE` | 文档 embedding 请求数与单请求 batch 大小 | 前者限制应用侧 embedding 并发，后者增加单请求显存和吞吐。两者都不等于 Asynq worker 数。 | 修改 env 后重启 app。 |
 
 最小可用基线是六个 worker 池均为 `1`，再按模型服务容量设置模型限流。不要通过设置 worker 为 `0` 来停用 Graph、Wiki 或维护任务；应在对应知识库/功能配置中关闭功能或暂停任务，避免由于回退默认值而意外恢复执行。
@@ -49,9 +53,12 @@ Maximum concurrency for 18,000 tokens per request: 4.75x
 WEKNORA_MAIN_QA_MODEL_CONCURRENCY = min(OLLAMA_NUM_PARALLEL 或 VLLM_MAX_NUM_SEQS, 实测有效并发)
 WEKNORA_CHAT_RESERVED_CONCURRENCY = 2-3
 background_llm_slots = WEKNORA_MAIN_QA_MODEL_CONCURRENCY - WEKNORA_CHAT_RESERVED_CONCURRENCY
+WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS <= WEKNORA_CHAT_MODEL_CONTEXT_TOKENS - WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS - 512
 ```
 
 如果 `background_llm_slots < 1`，说明模型/上下文/显存组合不足以同时跑后台增强和聊天，应降低上下文、换小模型，或关闭/降低 Graph、Wiki、VLM 后台任务。
+
+最终答案输出预算也要跟上下文一起调。比如 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=18000`、`WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=768` 时，`WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=2048` 通常够用；如果把最终输出提高到 8k，会显著减少可放入的检索和工具结果上下文。配置超过可用窗口时，代码会自动夹紧，但不要依赖夹紧来掩盖模型上下文设置错误。
 
 6. 定 Embedding 并发。Embedding 模型最好独立服务。vLLM embedding 场景下，`CONCURRENCY_POOL_SIZE` 是文档 embedding 应用侧上限；如果希望聊天检索保留 2-3 个槽，就让 `CONCURRENCY_POOL_SIZE` 低于 embedding 服务侧总并发。Ollama 场景下优先分成 QA/VLM 容器和 embedding 容器。
 
@@ -250,7 +257,7 @@ BATCH_EMBED_SIZE=4
 
 ```bash
 docker inspect <app-container> --format '{{range .Config.Env}}{{println .}}{{end}}' \
-  | grep -E '^(WEKNORA_MAIN_QA_MODEL_CONCURRENCY|WEKNORA_CHAT_RESERVED_CONCURRENCY|WEKNORA_ASYNQ_(CORE|POSTPROCESS|ENRICHMENT|MAINTENANCE|SHARED)_CONCURRENCY|WEKNORA_WIKI_ASYNQ_CONCURRENCY|WEKNORA_MODEL_MAX_CONCURRENCY|WEKNORA_GRAPH_LLM_CONCURRENCY|WEKNORA_WIKI_INGEST_MAP_PARALLEL|WEKNORA_WIKI_INGEST_REDUCE_PARALLEL|WEKNORA_CHAT_MODEL_CONTEXT_TOKENS|CONCURRENCY_POOL_SIZE|BATCH_EMBED_SIZE)='
+  | grep -E '^(WEKNORA_MAIN_QA_MODEL_CONCURRENCY|WEKNORA_CHAT_RESERVED_CONCURRENCY|WEKNORA_ASYNQ_(CORE|POSTPROCESS|ENRICHMENT|MAINTENANCE|SHARED)_CONCURRENCY|WEKNORA_WIKI_ASYNQ_CONCURRENCY|WEKNORA_MODEL_MAX_CONCURRENCY|WEKNORA_GRAPH_LLM_CONCURRENCY|WEKNORA_WIKI_INGEST_MAP_PARALLEL|WEKNORA_WIKI_INGEST_REDUCE_PARALLEL|WEKNORA_CHAT_MODEL_CONTEXT_TOKENS|WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS|WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS|WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS|CONCURRENCY_POOL_SIZE|BATCH_EMBED_SIZE)='
 
 docker inspect <ollama-qa-container> --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep -E '^(OLLAMA_NUM_PARALLEL|OLLAMA_KEEP_ALIVE|OLLAMA_CONTEXT_LENGTH)='

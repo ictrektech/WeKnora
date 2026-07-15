@@ -247,6 +247,9 @@ WEKNORA_GRAPH_LLM_CONCURRENCY=2
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=2
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=2
 WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=16384
+WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=768
+WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=2048
+WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS=2048
 WEKNORA_REPARSE_WAIT_URLS=
 WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 ```
@@ -255,7 +258,7 @@ WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 
 单文档 Graph 抽取的 LLM 并发由 `WEKNORA_GRAPH_LLM_CONCURRENCY` 控制，并且会被 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY/2` 限制。Wiki map/reduce 先读知识库 `wiki_config.ingest_map_parallel` 和 `wiki_config.ingest_reduce_parallel`；知识库没填时使用 `WEKNORA_WIKI_INGEST_MAP_PARALLEL` / `WEKNORA_WIKI_INGEST_REDUCE_PARALLEL`。小机器建议 env 默认设为 `1` 或 `2`。
 
-最终答案合成会为输出预留 2048 tokens，并按 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` 估算输入预算。工具调用结果太长时，系统会优先裁掉较旧的工具结果，保留用户问题、系统提示、最新工具结果和最终答案指令，避免模型上下文被旧检索内容撑满后先输出失败占位再继续生成。这个值应小于或等于主 QA 模型实际上下文，修改后重启 app。
+最终答案合成会按 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` 估算总上下文，先预留 `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS`，再预留 `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS`。工具调用结果太长时，系统会优先裁掉较旧的工具结果，保留用户问题、系统提示、最新工具结果和最终答案指令，避免模型上下文被旧检索内容撑满后先输出失败占位再继续生成。最终输出 token 配得过大时，代码会按上下文窗口自动夹紧并保留至少 512 token 输入预算；但部署时仍应让 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` 小于或等于主 QA 模型实际上下文。`WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS` 控制普通知识库问答摘要/回答生成的输出 token，修改这些 env 后重启 app。
 
 部署模板默认设置 `WEKNORA_REPARSE_INCOMPLETE_ON_START=true`。app 重启后会先等待 `WEKNORA_REPARSE_WAIT_URLS` 中的模型服务 ready，再扫描 failed/pending/processing 文档；finalizing 只有在 `processed_at` 为空时才会整文档重新入队。启动扫描走 maintenance 池，每条知识重新解析前会清掉该知识残留的 queued/retry 任务，再提交新的文档处理任务。旧 attempt 里还显示 running 的 trace 是被新 attempt 覆盖后的历史行，不要按旧 attempt 判断当前进度。需要手动补救时，也可以运行 [trigger-reparse-incomplete.sh](trigger-reparse-incomplete.sh)。文档页工具栏的「重新解析失败文档」只扫描当前知识库的 failed 文档；pending/processing 和 `processed_at` 为空的 finalizing 交给启动钩子或部署脚本处理。
 
