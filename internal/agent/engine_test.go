@@ -371,6 +371,46 @@ func TestExecuteLoop_EndTurnTerminates(t *testing.T) {
 	assert.Equal(t, 1, mock.callCount, "end_turn must end the loop after the first model call")
 }
 
+func TestExecuteToolCalls_SkipsRepeatedFailedToolCall(t *testing.T) {
+	engine := newTestEngine(t, nil)
+	state := &types.AgentState{
+		RoundSteps: []types.AgentStep{
+			{
+				ToolCalls: []types.ToolCall{
+					{
+						Name: "list_knowledge_chunks",
+						Args: map[string]interface{}{"knowledge_id": "missing", "limit": float64(1)},
+						Result: &types.ToolResult{
+							Success: false,
+							Error:   "knowledge not found",
+						},
+					},
+				},
+			},
+		},
+	}
+	response := &types.ChatResponse{
+		ToolCalls: []types.LLMToolCall{
+			{
+				Function: types.FunctionCall{
+					Name:      "list_knowledge_chunks",
+					Arguments: `{"knowledge_id":"missing","limit":1}`,
+				},
+			},
+		},
+	}
+	step := types.AgentStep{ToolCalls: make([]types.ToolCall, 0)}
+
+	engine.executeToolCalls(context.Background(), response, &step, state, 1, "sess-1", "msg-1")
+
+	require.Len(t, step.ToolCalls, 1)
+	result := step.ToolCalls[0].Result
+	require.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.Contains(t, result.Error, "Skipped repeated failed tool call")
+	assert.Contains(t, result.Error, "list_knowledge_chunks")
+}
+
 func TestStreamFinalAnswerToEventBus_EmitsDoneWhenProviderEndsWithEmptyChunk(t *testing.T) {
 	mock := &mockChat{
 		responses: []mockResponse{

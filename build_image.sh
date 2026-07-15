@@ -342,26 +342,29 @@ def cell_text(v):
         return "".join(cell_text(x) for x in v).strip()
     return str(v).strip()
 
-last_component_col = 0
 max_len = max(len(row), len(repo_row))
+
+# First search the whole inspected header range. This preserves existing
+# service columns even if a previous manual/script mistake left them far to the
+# right of the compact component block.
 for i in range(2, max_len + 1):
     header = cell_text(row[i - 1]) if i <= len(row) else ""
     repo = cell_text(repo_row[i - 1]) if i <= len(repo_row) else ""
     if header == target:
         print(i)
         raise SystemExit(0)
-    if header or "swr.cn-southwest-2.myhuaweicloud.com/" in repo:
-        last_component_col = i
-# Do not bind new services to fixed column letters. Keep the sheet compact by
-# appending after the current component block, and leave column deletion to
-# manual maintenance outside this build script.
-for i in range(last_component_col + 1, min(last_component_col + 33, 703)):
+
+# If the service does not exist yet, append it after the compact component block
+# that starts at column B. Do not use distant stray columns when choosing the
+# insertion position; otherwise one accidental far-right column would make every
+# future component create a large blank gap again.
+for i in range(2, max_len + 2):
     header = cell_text(row[i - 1]) if i <= len(row) else ""
     repo = cell_text(repo_row[i - 1]) if i <= len(repo_row) else ""
     if not header and not repo:
         print(i)
         raise SystemExit(0)
-print(last_component_col + 1)
+print(max_len + 1)
 PY
   rm -f "$resp_file"
 }

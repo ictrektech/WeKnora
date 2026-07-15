@@ -87,6 +87,14 @@ func (s *processSyncKBService) UpdateKnowledgeBase(
 ) (*types.KnowledgeBase, error) {
 	return nil, nil
 }
+func (s *processSyncKBService) CancelDisabledFeatureTasks(
+	context.Context, *types.KnowledgeBase, bool, bool,
+) error {
+	return nil
+}
+func (s *processSyncKBService) RecoverEnabledMultimodalTasks(context.Context, *types.KnowledgeBase) (int, error) {
+	return 0, nil
+}
 func (s *processSyncKBService) DeleteKnowledgeBase(context.Context, string) error { return nil }
 func (s *processSyncKBService) TogglePinKnowledgeBase(context.Context, string) (*types.KnowledgeBase, error) {
 	return nil, nil

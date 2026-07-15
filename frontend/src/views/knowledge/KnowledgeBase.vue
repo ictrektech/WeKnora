@@ -660,6 +660,9 @@ const parseStatusOptions = computed(() => [
   { label: t('knowledgeBase.parseStatusProcessing'), value: 'processing' },
   { label: t('knowledgeBase.parseStatusCompleted'), value: 'completed' },
   { label: t('knowledgeBase.parseStatusFailed'), value: 'failed' },
+  { label: t('knowledgeBase.parseStatusCancelled'), value: 'cancelled' },
+  { label: t('knowledgeBase.parseStatusFinalizing'), value: 'finalizing' },
+  { label: t('knowledgeBase.parseStatusDraft'), value: 'draft' },
 ]);
 const selectedSource = ref('');
 // Source filter combines ingestion channels and the "manual"/"url" virtual
@@ -2320,6 +2323,14 @@ async function createNewSession(value: string): Promise<void> {
                   </t-tooltip>
                 </div>
                 <div v-if="canEdit" class="doc-filter-actions">
+                  <KbUploadSourceDropdown ref="uploadSourceRef" :accept-file-types="acceptFileTypes"
+                    :supported-file-types="[...supportedFileTypes]" include-manual trigger-icon="file-add"
+                      trigger-class="content-bar-icon-btn" data-guide="kb-detail-add-doc"
+                      :tooltip="t('knowledgeBase.addDocument')" placement="bottom-right" @files="handleUploadSourceFiles"
+                      @url="handleUploadSourceUrl" @manual="handleManualCreate" />
+                  </div>
+                </div>
+                <div v-if="canEdit" class="doc-filter-bar__actions-row">
                   <t-button variant="outline" size="medium" theme="danger" class="doc-reparse-failed-btn"
                     :loading="failedReparsing" :disabled="batchDeleting || batchReparsing || batchDownloading || downloadingKnowledgeBase"
                     @click="reparseFailedKnowledge">
@@ -2331,12 +2342,6 @@ async function createNewSession(value: string): Promise<void> {
                     <template #icon><t-icon name="download" size="16px" /></template>
                     {{ $t('knowledgeBase.downloadKnowledgeBaseDocuments') }}
                   </t-button>
-                  <KbUploadSourceDropdown ref="uploadSourceRef" :accept-file-types="acceptFileTypes"
-                    :supported-file-types="[...supportedFileTypes]" include-manual trigger-icon="file-add"
-                      trigger-class="content-bar-icon-btn" data-guide="kb-detail-add-doc"
-                      :tooltip="t('knowledgeBase.addDocument')" placement="bottom-right" @files="handleUploadSourceFiles"
-                      @url="handleUploadSourceUrl" @manual="handleManualCreate" />
-                  </div>
                 </div>
               </div>
               <div class="doc-scroll-container"
@@ -2810,7 +2815,8 @@ async function createNewSession(value: string): Promise<void> {
   grid-template-columns: 1fr auto;
   grid-template-areas:
     'search trailing'
-    'filters filters';
+    'filters filters'
+    'actions actions';
   gap: 8px 12px;
   align-items: center;
 
@@ -2850,14 +2856,41 @@ async function createNewSession(value: string): Promise<void> {
     flex-shrink: 0;
   }
 
-  @media (min-width: 1280px) {
+  &__actions-row {
+    grid-area: actions;
     display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+
+    &::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background-color: rgba(0, 0, 0, 0.15);
+      border-radius: 2px;
+    }
+
+    .doc-reparse-failed-btn,
+    .doc-download-kb-btn {
+      height: 32px;
+      white-space: nowrap;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    grid-template-columns: minmax(220px, 1fr) minmax(0, auto) auto;
+    grid-template-areas:
+      'search filters trailing'
+      'actions actions actions';
     gap: 12px;
 
     &__filters {
-      flex: 0 1 auto;
       overflow-x: visible;
     }
   }
@@ -3007,12 +3040,6 @@ async function createNewSession(value: string): Promise<void> {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-
-    .doc-reparse-failed-btn,
-    .doc-download-kb-btn {
-      height: 32px;
-      white-space: nowrap;
-    }
 
     :deep(.content-bar-icon-btn) {
       color: var(--td-text-color-secondary);

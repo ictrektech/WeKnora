@@ -272,6 +272,13 @@ func (t *spanTracker) OpenAttempt(ctx context.Context, knowledgeID, langfuseTrac
 		logger.Warnf(ctx, "[SpanTracker] OpenAttempt failed kid=%s: %v", knowledgeID, err)
 		return nil, attempt, err
 	}
+	if attempt > 1 {
+		if _, err := t.repo.CancelOpenSpansBeforeAttempt(ctx, knowledgeID, attempt,
+			"TASK_SUPERSEDED", "superseded by a newer parse attempt"); err != nil {
+			logger.Warnf(ctx, "[SpanTracker] superseded span cleanup failed kid=%s attempt=%d: %v",
+				knowledgeID, attempt, err)
+		}
+	}
 	t.recordStart(rootID, now)
 	t.touchKnowledgeHeartbeat(ctx, knowledgeID, types.SpanKindRoot)
 	return &Span{
@@ -311,8 +318,8 @@ func (t *spanTracker) BeginStage(ctx context.Context, knowledgeID string, attemp
 		return nil
 	}
 	var (
-		rootID    string
-		existing  *types.KnowledgeProcessingSpan
+		rootID   string
+		existing *types.KnowledgeProcessingSpan
 	)
 	for i := range rows {
 		r := rows[i]

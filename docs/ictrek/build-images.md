@@ -65,7 +65,8 @@ EOF
 - arm 目标默认更新 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`；
 - 每个服务镜像一列：`weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox`；
 - 第 1 行是服务名，第 2 行是镜像仓库地址，日期行写 tag，完整镜像是 `<row-2-repository>:<date-row-tag>`；
-- 脚本先复用已有服务列，不存在才追加下一空列；构建脚本不能删除或整理飞书列。
+- 脚本会先在已读取表头范围内查找同名服务列；服务列不存在时，只追加到从 B 列开始的连续组件块之后第一个空列，不能跳到远端空列继续写；
+- 构建脚本不能删除或整理飞书列。历史空列或误写远端列只能通过飞书 UI 或一次性维护脚本单独处理。
 
 如果镜像已经在 SWR 和飞书表中存在，部署时不要从源码根目录临时拼 compose 文件。到对应平台 sheet 中找到四个服务列，组合第 2 行仓库和日期行 tag，然后写入部署目录 `.env`：
 

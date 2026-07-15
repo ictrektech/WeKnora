@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -164,25 +165,150 @@ func formatToolHint(name string, args map[string]any) string {
 // When ParallelToolCalls is enabled and there are 2+ tool calls, they execute concurrently.
 func (e *AgentEngine) executeToolCalls(
 	ctx context.Context, response *types.ChatResponse,
-	step *types.AgentStep, iteration int, sessionID, assistantMessageID string,
+	step *types.AgentStep, state *types.AgentState,
+	iteration int, sessionID, assistantMessageID string,
 ) {
 	if len(response.ToolCalls) == 0 {
 		return
 	}
 
 	round := iteration + 1
-	n := len(response.ToolCalls)
+	pending := make([]types.LLMToolCall, 0, len(response.ToolCalls))
+	for i, tc := range response.ToolCalls {
+		if skipped, ok := e.skippedRepeatedFailedToolCall(ctx, tc, i, state, iteration, round, sessionID); ok {
+			step.ToolCalls = append(step.ToolCalls, skipped)
+			continue
+		}
+		tc.ID = agenttools.NormalizeToolCallID(tc.ID, tc.Function.Name, i)
+		pending = append(pending, tc)
+	}
+	if len(pending) == 0 {
+		return
+	}
+
+	n := len(pending)
 	logger.Infof(ctx, "[Agent][Round-%d] Executing %d tool call(s)", round, n)
 
 	// Use parallel execution when enabled and there are multiple tool calls
 	if e.config.ParallelToolCalls && n >= 2 {
-		e.executeToolCallsParallel(ctx, response, step, iteration, sessionID, assistantMessageID)
+		filtered := *response
+		filtered.ToolCalls = pending
+		e.executeToolCallsParallel(ctx, &filtered, step, iteration, sessionID, assistantMessageID)
 		return
 	}
 
-	for i, tc := range response.ToolCalls {
+	for i, tc := range pending {
 		e.executeSingleToolCall(ctx, tc, i, step, iteration, round, sessionID, assistantMessageID)
 	}
+}
+
+func (e *AgentEngine) skippedRepeatedFailedToolCall(
+	ctx context.Context,
+	tc types.LLMToolCall,
+	i int,
+	state *types.AgentState,
+	iteration, round int,
+	sessionID string,
+) (types.ToolCall, bool) {
+	args, ok := parseToolCallArgs(tc.Function.Arguments)
+	if !ok || !hasPreviousFailedToolCall(state, tc.Function.Name, args) {
+		return types.ToolCall{}, false
+	}
+
+	tc.ID = agenttools.NormalizeToolCallID(tc.ID, tc.Function.Name, i)
+	msg := fmt.Sprintf(
+		"Skipped repeated failed tool call: %s with the same arguments already failed earlier in this turn. "+
+			"Do not call it again with the same arguments; use a different query/tool or answer from the information already available.",
+		tc.Function.Name,
+	)
+	toolCall := types.ToolCall{
+		ID:               tc.ID,
+		Name:             tc.Function.Name,
+		Args:             args,
+		ProviderMetadata: tc.ProviderMetadata,
+		Result: &types.ToolResult{
+			Success: false,
+			Error:   msg,
+			Output:  msg,
+		},
+	}
+
+	logger.Warnf(ctx, "[Agent][Round-%d][Tool %s] %s", round, tc.Function.Name, msg)
+	common.PipelineWarn(ctx, "Agent", "tool_call_skipped_repeated_failure", map[string]interface{}{
+		"iteration":    iteration,
+		"round":        round,
+		"tool":         tc.Function.Name,
+		"tool_call_id": tc.ID,
+	})
+
+	e.eventBus.Emit(ctx, event.Event{
+		ID:        tc.ID + "-tool-hint",
+		Type:      event.EventAgentToolCall,
+		SessionID: sessionID,
+		Data: event.AgentToolCallData{
+			ToolCallID: tc.ID,
+			ToolName:   tc.Function.Name,
+			Arguments:  args,
+			Iteration:  iteration,
+			Hint:       formatToolHint(tc.Function.Name, args),
+		},
+	})
+	e.eventBus.Emit(ctx, event.Event{
+		ID:        tc.ID + "-tool-result",
+		Type:      event.EventAgentToolResult,
+		SessionID: sessionID,
+		Data: event.AgentToolResultData{
+			ToolCallID: tc.ID,
+			ToolName:   tc.Function.Name,
+			Output:     msg,
+			Error:      msg,
+			Success:    false,
+			Iteration:  iteration,
+		},
+	})
+	e.eventBus.Emit(ctx, event.Event{
+		ID:        tc.ID + "-tool-exec",
+		Type:      event.EventAgentTool,
+		SessionID: sessionID,
+		Data: event.AgentActionData{
+			Iteration:  iteration,
+			ToolName:   tc.Function.Name,
+			ToolInput:  args,
+			ToolOutput: msg,
+			Success:    false,
+			Error:      msg,
+		},
+	})
+
+	return toolCall, true
+}
+
+func parseToolCallArgs(argsStr string) (map[string]any, bool) {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(argsStr), &args); err != nil {
+		repaired := agenttools.RepairJSON(argsStr)
+		if repairErr := json.Unmarshal([]byte(repaired), &args); repairErr != nil {
+			return nil, false
+		}
+	}
+	return args, true
+}
+
+func hasPreviousFailedToolCall(state *types.AgentState, name string, args map[string]any) bool {
+	if state == nil {
+		return false
+	}
+	for _, step := range state.RoundSteps {
+		for _, prev := range step.ToolCalls {
+			if prev.Result == nil || prev.Result.Success || prev.Name != name {
+				continue
+			}
+			if reflect.DeepEqual(prev.Args, args) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // executeToolCallsParallel runs all tool calls concurrently using errgroup,
