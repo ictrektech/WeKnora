@@ -1,0 +1,58 @@
+name: Check VOS Feishu Access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-feishu-access:
+    runs-on: ubuntu-latest
+    env:
+      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      FEISHU_SPREADSHEET_TOKEN: ${{ secrets.FEISHU_SPREADSHEET_TOKEN }}
+    steps:
+      - name: Check Feishu spreadsheet access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${FEISHU_APP_ID:-}" || { echo "FEISHU_APP_ID is not set" >&2; exit 1; }
+          test -n "${FEISHU_APP_SECRET:-}" || { echo "FEISHU_APP_SECRET is not set" >&2; exit 1; }
+          SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
+
+          token_resp="$(
+            curl --fail -sS -X POST "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal" \
+              -H "Content-Type: application/json" \
+              -d "{\"app_id\":\"${FEISHU_APP_ID}\",\"app_secret\":\"${FEISHU_APP_SECRET}\"}"
+          )"
+
+          tenant_token="$(
+            python3 - "$token_resp" <<'PY'
+          import json, sys
+          data = json.loads(sys.argv[1])
+          if data.get("code") != 0:
+              raise SystemExit(f"get tenant token failed: code={data.get('code')} msg={data.get('msg')}")
+          print(data["tenant_access_token"])
+          PY
+          )"
+
+          sheets_resp="$(
+            curl --fail -sS \
+              "https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${SPREADSHEET_TOKEN}/sheets/query" \
+              -H "Authorization: Bearer ${tenant_token}"
+          )"
+
+          python3 - "$sheets_resp" <<'PY'
+          import json, sys
+          data = json.loads(sys.argv[1])
+          if data.get("code") != 0:
+              raise SystemExit(f"query sheets failed: code={data.get('code')} msg={data.get('msg')}")
+          titles = [sheet.get("title", "") for sheet in data.get("data", {}).get("sheets", [])]
+          required = {"AMD_with_cuda", "ARM_with_cuda", "l4t", "thor_spark"}
+          missing = sorted(required - set(titles))
+          if missing:
+              raise SystemExit(f"missing expected sheets: {', '.join(missing)}")
+          print("Feishu access ok. Visible required sheets: " + ", ".join(sorted(required)))
+          PY
