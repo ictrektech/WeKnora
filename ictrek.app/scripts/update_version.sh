@@ -45,6 +45,26 @@ bump_version() {
 }
 
 github_repo() {
+  local url repo=""
+  if [[ -n "${WEKNORA_RELEASE_REPO:-}" ]]; then
+    printf '%s\n' "$WEKNORA_RELEASE_REPO"
+    return 0
+  fi
+  url="$(git remote get-url origin 2>/dev/null || true)"
+  case "$url" in
+    git@github.com:*)
+      repo="${url#git@github.com:}"
+      repo="${repo%.git}"
+      ;;
+    https://github.com/*)
+      repo="${url#https://github.com/}"
+      repo="${repo%.git}"
+      ;;
+  esac
+  if [[ "$repo" =~ ^[^/]+/[^/]+$ ]]; then
+    printf '%s\n' "$repo"
+    return 0
+  fi
   gh repo view --json nameWithOwner -q .nameWithOwner
 }
 
@@ -57,7 +77,7 @@ latest_release_asset_version() {
   local repo="$1"
   local asset_prefix="$2"
   local resp
-  resp="$(gh api "repos/${repo}/releases?per_page=100")"
+  resp="$(gh api "repos/${repo}/releases?per_page=100" 2>&1)" || die "cannot query GitHub releases for ${repo}: ${resp}"
   python3 - "$asset_prefix" "$resp" <<'PY'
 import json
 import re
