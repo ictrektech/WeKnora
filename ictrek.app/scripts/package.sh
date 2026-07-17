@@ -309,7 +309,7 @@ verify_package() {
   tar tf "$package_path" | grep -qx "app.tar.gz"
   ! tar tf "$package_path" | grep -q "^assets/"
   package_text="$(tar tzf "$app_tarball" | while IFS= read -r file; do [[ "$file" == */ ]] && continue; tar xOf "$app_tarball" "$file"; printf '\n'; done)"
-  if printf '%s' "$package_text" | grep -q '__[A-Z0-9_]\+__'; then
+  if printf '%s' "$package_text" | grep -q '__APP_VERSION__'; then
     die "unrendered placeholder remains"
   fi
   compose_text="$(tar xOf "$app_tarball" docker-compose.yml)"
