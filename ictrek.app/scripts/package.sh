@@ -56,7 +56,7 @@ require_cmd() {
 
 validate_yaml_file() {
   local file="$1"
-  ruby -e 'require "yaml"; YAML.load_file(ARGV[0])' "$file" \
+  ruby -e 'require "psych"; Psych.parse_file(ARGV[0])' "$file" \
     || die "invalid YAML: ${file}"
 }
 
