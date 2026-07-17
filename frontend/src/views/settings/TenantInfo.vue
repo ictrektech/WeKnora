@@ -243,6 +243,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next'
 import { getCurrentUser, type TenantInfo } from '@/api/auth'
 import { deleteTenant as deleteTenantApi, updateTenant as updateTenantApi } from '@/api/tenant'
+import { withAppBasePath } from '@/utils/app-base'
 import {
   leaveTenant,
   fetchAllTenantMembers,
@@ -348,7 +349,7 @@ function confirmLeaveTenant() {
         if (resp.success) {
           MessagePlugin.success(t('tenantMember.leave.success'))
           authStore.logout()
-          window.location.href = '/login'
+          window.location.href = withAppBasePath('/login')
         } else {
           MessagePlugin.error(resp.message || t('tenantMember.errors.generic'))
         }
@@ -413,7 +414,7 @@ async function deleteCurrentTenant() {
         return
       }
       authStore.logout()
-      window.location.href = '/login'
+      window.location.href = withAppBasePath('/login')
     } else {
       MessagePlugin.error(resp.message || t('tenant.deleteDangerZone.failed'))
     }

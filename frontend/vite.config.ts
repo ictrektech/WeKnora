@@ -68,6 +68,10 @@ function resolveVueOfficePptxEntry(): string {
 }
 
 export default defineConfig({
+  // Keep generated asset URLs relative. index.html injects a runtime <base>
+  // tag so the same image works both at / and under the VOS app prefix
+  // /app/com.ictrek.hybrag/.
+  base: './',
   define: {
     __FRONTEND_VERSION__: JSON.stringify(FRONTEND_VERSION),
     __FRONTEND_COMMIT__: JSON.stringify(FRONTEND_COMMIT),

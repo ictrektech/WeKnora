@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, minimal-ui">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <meta name="renderer" content="webkit">
+    <script>
+    (function(){
+      var prefix = '/';
+      var marker = '/app/com.ictrek.hybrag/';
+      var path = window.location.pathname || '/';
+      var idx = path.indexOf(marker);
+      if (idx >= 0) prefix = path.slice(0, idx) + marker;
+      window.__HYBRAG_BASE_PATH__ = prefix;
+      document.write('<base href="' + prefix.replace(/"/g, '&quot;') + '">');
+    })();
+    </script>
     <link rel="shortcut icon" type="image/png" href="./public/favicon.ico"/>
     <style>
       html, body, #embed-app { height: 100%; margin: 0; }
@@ -19,8 +30,8 @@
   document.body.style.background = '#fff';
 })();
 </script>
-<script src="/config.js"></script>
-<script src="/tdesign-icons/0.4.1/fonts/index.js"></script>
+<script src="./config.js"></script>
+<script src="./tdesign-icons/0.4.1/fonts/index.js"></script>
 <div id="embed-app"></div>
 <script type="module" src="/src/embed-main.ts"></script>
 </body>

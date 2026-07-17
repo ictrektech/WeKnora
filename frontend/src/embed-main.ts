@@ -5,13 +5,14 @@ import TDesign from 'tdesign-vue-next'
 import 'tdesign-vue-next/es/style/index.css'
 import '@/assets/theme/theme.css'
 import { installTDesignIconOfflineGuard } from '@/utils/tdesign-icon-offline'
+import { getAppBasePath } from '@/utils/app-base'
 import i18n from './i18n/embed'
 import EmbedPage from '@/views/embed/EmbedPage.vue'
 
 installTDesignIconOfflineGuard()
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(getAppBasePath()),
   routes: [
     {
       path: '/embed/:channelId',

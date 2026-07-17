@@ -3,6 +3,7 @@ import type { RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { autoSetup, getCurrentUser, loginWithVOSSSO, userInfoFromApi } from '@/api/auth'
 import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
+import { getAppBasePath } from '@/utils/app-base'
 
 /** Lite /桌面 WebView 硬刷新时可能只打开 `/`，用 session 记住上次页面以便恢复 */
 const LITE_LAST_PATH_KEY = 'weknora_lite_last_path'
@@ -45,7 +46,7 @@ function hasPendingOIDCCallback() {
 }
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(getAppBasePath()),
   routes: [
     {
       path: "/",

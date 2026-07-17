@@ -3,6 +3,7 @@ import axios from "axios";
 import { generateRandomString, MAX_FILE_SIZE_MB } from "./index";
 import i18n from '@/i18n'
 import { getApiBaseUrl } from './api-base';
+import { withAppBasePath } from './app-base';
 
 const t = (key: string) => i18n.global.t(key)
 
@@ -154,7 +155,7 @@ function redirectToLogin() {
   if (window.location.pathname === '/login') return;
   // Embed 渠道用 Embed token 鉴权，匿名访问不应被踢到登录页
   if (isEmbedPage()) return;
-  window.location.href = '/login';
+  window.location.href = withAppBasePath('/login');
 }
 
 instance.interceptors.response.use(
