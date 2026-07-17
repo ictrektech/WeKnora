@@ -25,6 +25,14 @@ AMD 和 ARM 通用 profile 分别从 `AMD_with_cuda`、`ARM_with_cuda` 飞书表
 
 Postgres 通过 PGV 提供，默认连接 `shared-pgv:5432`，用户/密码/数据库为 `weknora` / `weknora` / `WeKnora`。这些字段也会在安装 UI 中暴露；如果 PGV 安装时改过用户名、密码或数据库名，需要在 HybRAG 安装表单里同步修改。
 
+## VOS 免登录
+
+当前包提供一个临时 VOS iframe 免登录适配层，不要求修改 VOS。前端会优先读取未来可能注入的 `window.__VOS_APP_CONTEXT__`，然后兼容读取 VOS 当前同源会话里的 access token；后端再调用 `HYBRAG_VOS_USERINFO_URL` 指向的 `/v1000/user/check` 校验 token。
+
+校验成功后，HybRAG 会按 VOS 用户名自动创建或登录 `username@local` 账户，并创建对应个人空间。`admin` 用户映射为 `admin@local`，会自动提升为 HybRAG 系统管理员并拥有跨空间管理权限。
+
+这个方案只是过渡层。后续 VOS 支持标准 OIDC 或直接向 iframe 注入用户信息时，可以关闭 `HYBRAG_VOS_SSO_ENABLED`，或只替换前端取 token / 后端验身份的适配，不需要重做 HybRAG 本地用户和空间的创建逻辑。
+
 ## 模型
 
 本包不在镜像中写死默认模型。安装后需要通过 HybRAG UI 添加模型，或后续挂载模型配置文件。默认网络端点为：

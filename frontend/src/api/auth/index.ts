@@ -220,6 +220,26 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
 }
 
 /**
+ * VOS 同源 iframe 临时 SSO。
+ *
+ * 前端只上传从 VOS 当前会话中读取到的 access token；HybRAG 后端必须调用
+ * VOS /v1000/user/check 验证后，才会自动创建 username@local 用户和空间。
+ */
+export async function loginWithVOSSSO(accessToken: string): Promise<LoginResponse> {
+  try {
+    const response = await post('/api/v1/auth/vos-sso', {
+      access_token: accessToken,
+    })
+    return response as unknown as LoginResponse
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error.message || 'VOS SSO unavailable',
+    }
+  }
+}
+
+/**
  * 获取 OIDC 登录跳转地址
  */
 export async function getOIDCAuthorizationURL(redirectURI: string): Promise<OIDCAuthURLResponse> {

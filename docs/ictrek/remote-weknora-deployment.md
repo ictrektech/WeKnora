@@ -60,6 +60,19 @@ docker inspect WeKnora-redis --format '{{json .Mounts}}'
 
 新部署直接使用 `docs/ictrek/deploy-template/docker-compose.yml`。`neo4j` profile 只在明确启用 GraphRAG/Wiki Graph 时启动。MinIO、Qdrant、Milvus、Weaviate、Searxng、Langfuse 等外部组件按各自组件文档独立部署，不放进默认模板。
 
+## VOS iframe 免登录
+
+VOS app 安装时可以启用临时免登录适配：
+
+```env
+HYBRAG_VOS_SSO_ENABLED=true
+HYBRAG_VOS_USERINFO_URL=http://172.17.0.1:8105/v1000/user/check
+```
+
+这个方案是为了兼容当前 VOS，不要求修改 VOS。HybRAG 前端会先读取未来可能由 VOS 注入的 `window.__VOS_APP_CONTEXT__`，再兼容读取当前同源 VOS store 中的 access token；后端调用 `/v1000/user/check` 校验后，自动创建或登录 `username@local` 用户并创建个人空间。VOS `admin` 映射为 `admin@local`，自动成为 HybRAG 系统管理员。
+
+这不是长期锁死的身份方案。未来 VOS 支持标准 OIDC 或正式 iframe 用户注入后，可以关闭 `HYBRAG_VOS_SSO_ENABLED`，或只替换这层身份适配。本地用户、空间和管理员权限仍走 HybRAG 的统一 provisioning 逻辑。非 VOS iframe 部署建议保持关闭，使用普通登录或 OIDC。
+
 ## 模型配置
 
 WeKnora app 镜像和 ictrek compose 默认不携带部署专用模型记录。新部署启动后没有内置 LLM、VLM、embedding、rerank 行。模型可在 Web UI 添加，或显式挂载由环境变量生成的 `config/builtin_models.yaml`。

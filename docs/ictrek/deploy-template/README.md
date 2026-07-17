@@ -135,6 +135,21 @@ WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED=false
 
 `tenantless` 只影响之后新注册或 OIDC 首次登录的用户；已有用户和已有空间不会迁移。用户没有有效空间时会进入「创建或加入空间」引导页。系统管理员可在系统设置的访问控制页配置这两个开关；页面保存值优先于 `.env`。管理员也可在系统设置中为其他用户重置密码，重置会立即撤销该用户全部现有会话，不能通过该入口重置自己的密码。
 
+### VOS iframe 免登录临时适配
+
+VOS app 包默认启用 `HYBRAG_VOS_SSO_ENABLED=true`。这是过渡方案，不要求修改 VOS：HybRAG 前端会先读取未来可能由 VOS 注入的 `window.__VOS_APP_CONTEXT__`，再兼容读取当前同源 VOS store 中的 access token；HybRAG 后端调用 `HYBRAG_VOS_USERINFO_URL` 指向的 `/v1000/user/check` 校验 token。
+
+校验成功后，首次打开应用的 VOS 用户会自动创建 `username@local` HybRAG 账户和个人空间。VOS `admin` 会映射为 `admin@local`，并自动成为 HybRAG 系统管理员，拥有系统设置、模型配置和跨空间管理权限。
+
+常用配置：
+
+```env
+HYBRAG_VOS_SSO_ENABLED=true
+HYBRAG_VOS_USERINFO_URL=http://172.17.0.1:8105/v1000/user/check
+```
+
+如果不是从 VOS iframe 打开，或目标 VOS 版本已经提供标准 OIDC / 官方 iframe 用户注入，可把 `HYBRAG_VOS_SSO_ENABLED=false`，再使用普通登录、OIDC 或新的身份适配方式。这个适配层只负责获取和校验外部身份；本地用户、空间和管理员权限仍走 HybRAG 的统一 provisioning 逻辑。
+
 模型编辑器新增 `Requesty` 供应商；它是标准 OpenAI-compatible endpoint，使用 Requesty API key。自建 vLLM、Ollama gateway 或其他兼容端点仍选择 `generic`，不需要改部署模板。
 
 确认不会拉上游镜像：

@@ -534,6 +534,124 @@ func (s *userService) LoginWithOIDC(
 	}, nil
 }
 
+// LoginWithTrustedIdentity completes login for an identity that has already
+// been verified by a hosting platform adapter. This keeps temporary VOS
+// same-origin SSO and future standard OIDC / iframe-injected user flows on the
+// same local provisioning path.
+func (s *userService) LoginWithTrustedIdentity(
+	ctx context.Context,
+	req *types.TrustedIdentityLoginRequest,
+	provisioning types.TenantProvisioningMode,
+) (*types.LoginResponse, error) {
+	if req == nil {
+		return nil, errors.New("trusted identity is required")
+	}
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	username := sanitizeUsernameCandidate(req.Username)
+	if username == "" {
+		username = sanitizeUsernameCandidate(req.Subject)
+	}
+	if username == "" && email != "" {
+		username = sanitizeUsernameCandidate(strings.Split(email, "@")[0])
+	}
+	if username == "" {
+		return nil, errors.New("trusted identity missing username")
+	}
+	if email == "" {
+		email = username + "@local"
+	}
+
+	user, err := s.userRepo.GetUserByEmail(ctx, email)
+	if err != nil && !isUserLookupNotFound(err) {
+		return nil, fmt.Errorf("failed to query trusted user: %w", err)
+	}
+	if isUserLookupNotFound(err) || user == nil {
+		user, err = s.provisionTrustedIdentityUser(ctx, username, email, provisioning)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !user.IsActive {
+		return &types.LoginResponse{Success: false, Message: "Account is disabled"}, nil
+	}
+
+	if strings.EqualFold(email, "admin@local") {
+		changed := false
+		if !user.IsSystemAdmin {
+			user.IsSystemAdmin = true
+			changed = true
+		}
+		if !user.CanAccessAllTenants {
+			user.CanAccessAllTenants = true
+			changed = true
+		}
+		if changed {
+			user.UpdatedAt = time.Now()
+			if err := s.userRepo.UpdateUser(ctx, user); err != nil {
+				return nil, fmt.Errorf("failed to promote local admin: %w", err)
+			}
+		}
+	}
+
+	activeTenantID := s.resolveLoginTenantID(ctx, user)
+	accessToken, refreshToken, err := s.generateTokensForTenant(ctx, user, activeTenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate local tokens: %w", err)
+	}
+
+	var tenant *types.Tenant
+	if activeTenantID > 0 {
+		if t, terr := s.tenantService.GetTenantByID(ctx, activeTenantID); terr == nil {
+			tenant = t
+		} else {
+			logger.Warnf(ctx, "Trusted identity login: failed to load tenant %d for user %s: %v",
+				activeTenantID, user.ID, terr)
+		}
+	}
+
+	return &types.LoginResponse{
+		Success:      true,
+		Message:      "Login successful",
+		User:         user,
+		ActiveTenant: tenant,
+		Memberships:  s.buildMembershipsForUser(ctx, user, tenant),
+		Token:        accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+func (s *userService) provisionTrustedIdentityUser(
+	ctx context.Context,
+	baseUsername string,
+	email string,
+	provisioning types.TenantProvisioningMode,
+) (*types.User, error) {
+	randomPassword, err := generateRandomString(32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate password for trusted user: %w", err)
+	}
+
+	username := baseUsername
+	for i := 0; i < 20; i++ {
+		user, err := s.Register(ctx, &types.RegisterRequest{
+			Username:           username,
+			Email:              email,
+			Password:           randomPassword,
+			TenantProvisioning: provisioning,
+		})
+		if err == nil {
+			return user, nil
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "username") &&
+			strings.Contains(strings.ToLower(err.Error()), "already exists") {
+			username = fmt.Sprintf("%s-%d", baseUsername, i+1)
+			continue
+		}
+		return nil, fmt.Errorf("failed to auto-provision trusted user: %w", err)
+	}
+	return nil, fmt.Errorf("failed to auto-provision trusted user: username %q is unavailable", baseUsername)
+}
+
 // GetUserByID gets a user by ID
 func (s *userService) GetUserByID(ctx context.Context, id string) (*types.User, error) {
 	return s.userRepo.GetUserByID(ctx, id)

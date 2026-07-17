@@ -335,6 +335,7 @@ import {
   getOIDCAuthorizationURL,
   getOIDCConfig,
   autoSetup,
+  loginWithVOSSSO,
   getAuthConfig,
   userInfoFromApi,
   getInvitationByToken,
@@ -343,6 +344,7 @@ import {
 } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
+import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
 
 // Import screenshot images
 import screenshot1 from '@/assets/img/screenshot-1.svg'
@@ -627,6 +629,19 @@ const handleOIDCLogin = async () => {
   }
 }
 
+const tryVOSSSOLogin = async () => {
+  const vosToken = getVOSAccessTokenForIframeSSO()
+  if (!vosToken) return false
+  try {
+    const response = await loginWithVOSSSO(vosToken)
+    if (!response.success) return false
+    await persistLoginResponse(response)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // Handle login
 const handleLogin = async () => {
   try {
@@ -751,6 +766,10 @@ onMounted(async () => {
 
   if (authStore.isLoggedIn) {
     router.replace('/platform/knowledge-bases')
+    return
+  }
+
+  if (await tryVOSSSOLogin()) {
     return
   }
 

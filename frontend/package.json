@@ -28,6 +28,7 @@
     "pagefind": "^1.5.2",
     "papaparse": "^5.5.3",
     "pinia": "^3.0.4",
+    "secure-ls": "^2.0.0",
     "swiper": "^12.1.4",
     "tdesign-icons-vue-next": "0.4.4",
     "tdesign-vue-next": "^1.19.2",

@@ -1,11 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { autoSetup, getCurrentUser, userInfoFromApi } from '@/api/auth'
+import { autoSetup, getCurrentUser, loginWithVOSSSO, userInfoFromApi } from '@/api/auth'
+import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
 
 /** Lite /桌面 WebView 硬刷新时可能只打开 `/`，用 session 记住上次页面以便恢复 */
 const LITE_LAST_PATH_KEY = 'weknora_lite_last_path'
 const AUTO_SETUP_FAILED_KEY = 'weknora_auto_setup_failed'
+const VOS_SSO_FAILED_KEY = 'weknora_vos_sso_failed'
 
 function shouldTryAutoSetup() {
   return localStorage.getItem(AUTO_SETUP_FAILED_KEY) !== 'true'
@@ -13,6 +15,10 @@ function shouldTryAutoSetup() {
 
 function markAutoSetupFailed() {
   localStorage.setItem(AUTO_SETUP_FAILED_KEY, 'true')
+}
+
+function markVOSSSOFailed() {
+  sessionStorage.setItem(VOS_SSO_FAILED_KEY, 'true')
 }
 
 function isLiteEdition(authStore: ReturnType<typeof useAuthStore>) {
@@ -312,6 +318,25 @@ async function tryAutoSetupSession(authStore: ReturnType<typeof useAuthStore>, f
   return false
 }
 
+async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>, force = false) {
+  if (!force && sessionStorage.getItem(VOS_SSO_FAILED_KEY) === 'true') return false
+  const vosToken = getVOSAccessTokenForIframeSSO()
+  if (!vosToken) return false
+
+  try {
+    const response = await loginWithVOSSSO(vosToken)
+    if (response.success) {
+      persistLoginResponse(authStore, response)
+      sessionStorage.removeItem(VOS_SSO_FAILED_KEY)
+      return true
+    }
+    markVOSSSOFailed()
+  } catch {
+    markVOSSSOFailed()
+  }
+  return false
+}
+
 let autoSetupAttempted = false
 let liteDeepLinkRestoreDone = false
 
@@ -364,6 +389,7 @@ router.beforeEach(async (to, from, next) => {
     if (to.path === '/login') {
       const restored = authStore.isLoggedIn ||
         await hydrateSessionFromToken(authStore) ||
+        await tryVOSSSOSession(authStore, true) ||
         await tryAutoSetupSession(authStore, true)
       if (restored) {
         next(authStore.hasValidTenant ? '/platform/knowledge-bases' : '/onboarding/workspace')
@@ -387,6 +413,10 @@ router.beforeEach(async (to, from, next) => {
         return
       }
 
+      if (await tryVOSSSOSession(authStore, true)) {
+        next(to.fullPath)
+        return
+      }
       if (await tryAutoSetupSession(authStore, true)) {
         next(to.fullPath)
         return

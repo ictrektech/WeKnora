@@ -100,6 +100,24 @@ configs:
       zh-CN: PGV 默认预置的 WeKnora 数据库为 `WeKnora`。如果安装 PGV 时改过数据库名，请在这里同步修改。
       en: PGV precreates database `WeKnora` by default. Change this if PGV was installed with a different database name.
     default: WeKnora
+  - name: HYBRAG_VOS_SSO_ENABLED
+    type: boolean
+    title:
+      zh-CN: 启用 VOS 免登录
+      en: Enable VOS SSO
+    description:
+      zh-CN: 临时 VOS 同源 iframe SSO。HybRAG 前端从 VOS 当前会话读取 access token，后端调用 VOS user/check 校验后自动创建 `username@local` 用户和空间。以后 VOS 支持标准 OIDC 或 iframe 注入用户信息时，可关闭或替换该适配。
+      en: Transitional same-origin VOS iframe SSO. HybRAG reads the current VOS access token, verifies it through VOS user/check, then provisions `username@local`. Disable or replace this adapter when VOS provides standard OIDC or iframe user injection.
+    default: true
+  - name: HYBRAG_VOS_USERINFO_URL
+    type: string
+    title:
+      zh-CN: VOS 用户校验地址
+      en: VOS User Check URL
+    description:
+      zh-CN: App 容器访问 VOS backend 的 `/v1000/user/check` 地址。默认适配 VOS backend 使用 host 网络且 `SITE_PORT=8105` 的安装方式；如果平台端口或网络不同，请修改。
+      en: `/v1000/user/check` URL reachable from the app container. The default matches VOS backend on host network with `SITE_PORT=8105`; change it when the platform port or network differs.
+    default: http://172.17.0.1:8105/v1000/user/check
   - name: OLLAMA_QA_MODEL
     type: string
     title:

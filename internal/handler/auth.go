@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -22,6 +24,7 @@ import (
 
 const oidcNonceCookieName = "weknora_oidc_nonce"
 const oidcNonceCookieMaxAge = 600
+const defaultVOSUserCheckURL = "http://172.17.0.1:8105/v1000/user/check"
 
 // AuthHandler implements HTTP request handlers for user authentication
 // Provides functionality for user registration, login, logout, and token management
@@ -248,6 +251,201 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	logger.Infof(ctx, "User logged in successfully, email: %s", email)
 	c.JSON(http.StatusOK, dto.NewAuthLoginResponse(response))
+}
+
+type vosSSORequest struct {
+	AccessToken string `json:"access_token"`
+}
+
+// LoginWithVOSSSO godoc
+// @Summary      VOS 同源 iframe 临时 SSO
+// @Description  接收前端从 VOS 同源 store 读取到的 VOS access token，后端调用 VOS /v1000/user/check 校验后自动创建/登录 username@local 用户。
+// @Tags         认证
+// @Accept       json
+// @Produce      json
+// @Param        request  body      vosSSORequest      true  "VOS access token"
+// @Success      200      {object}  types.LoginResponse
+// @Failure      401      {object}  errors.AppError  "VOS token 无效"
+// @Failure      403      {object}  errors.AppError  "VOS SSO 未启用"
+// @Router       /auth/vos-sso [post]
+func (h *AuthHandler) LoginWithVOSSSO(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	if !vosSSOEnabled() {
+		appErr := errors.NewForbiddenError("VOS SSO is disabled")
+		c.Error(appErr)
+		return
+	}
+
+	var req vosSSORequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		appErr := errors.NewValidationError("Invalid VOS SSO request").WithDetails(err.Error())
+		c.Error(appErr)
+		return
+	}
+	token := strings.TrimSpace(req.AccessToken)
+	if token == "" {
+		appErr := errors.NewValidationError("VOS access token is required")
+		c.Error(appErr)
+		return
+	}
+
+	identity, err := verifyVOSIdentity(ctx, token)
+	if err != nil {
+		logger.Warnf(ctx, "VOS SSO verification failed: %v", err)
+		appErr := errors.NewUnauthorizedError("VOS SSO verification failed").WithDetails(err.Error())
+		c.Error(appErr)
+		return
+	}
+
+	resp, err := h.userService.LoginWithTrustedIdentity(ctx, identity, h.resolveDefaultTenantMode(ctx))
+	if err != nil {
+		logger.Errorf(ctx, "VOS SSO local login failed for %s: %v", identity.Email, err)
+		appErr := errors.NewInternalServerError("VOS SSO login failed").WithDetails(err.Error())
+		c.Error(appErr)
+		return
+	}
+	if !resp.Success {
+		c.JSON(http.StatusUnauthorized, dto.NewAuthLoginResponse(resp))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewAuthLoginResponse(resp))
+}
+
+func vosSSOEnabled() bool {
+	v := strings.TrimSpace(os.Getenv("HYBRAG_VOS_SSO_ENABLED"))
+	if v == "" {
+		v = strings.TrimSpace(os.Getenv("WEKNORA_VOS_SSO_ENABLED"))
+	}
+	if v == "" {
+		return true
+	}
+	return strings.EqualFold(v, "true") || v == "1" || strings.EqualFold(v, "yes")
+}
+
+func vosUserCheckURL() string {
+	if v := strings.TrimSpace(os.Getenv("HYBRAG_VOS_USERINFO_URL")); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv("WEKNORA_VOS_USERINFO_URL")); v != "" {
+		return v
+	}
+	return defaultVOSUserCheckURL
+}
+
+func verifyVOSIdentity(ctx context.Context, accessToken string) (*types.TrustedIdentityLoginRequest, error) {
+	endpoint := vosUserCheckURL()
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+accessToken)
+	httpReq.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("VOS user check failed: status=%d", resp.StatusCode)
+	}
+
+	var payload map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	if code, ok := payload["code"].(float64); ok && code != 0 {
+		return nil, fmt.Errorf("VOS user check rejected token: code=%d", int(code))
+	}
+
+	data, _ := payload["data"].(map[string]interface{})
+	userObj, _ := data["user"].(map[string]interface{})
+	if len(userObj) == 0 {
+		userObj, _ = payload["user"].(map[string]interface{})
+	}
+	username := firstNonEmptyString(
+		mapString(userObj, "username"),
+		mapString(userObj, "name"),
+		mapString(userObj, "nickname"),
+		mapString(data, "username"),
+		mapString(data, "name"),
+		mapString(payload, "username"),
+		mapString(payload, "name"),
+	)
+	subject := firstNonEmptyString(
+		mapString(userObj, "id"),
+		mapString(userObj, "user_id"),
+		mapString(data, "id"),
+		mapString(data, "user_id"),
+		mapString(payload, "id"),
+		mapString(payload, "user_id"),
+		username,
+	)
+	if username == "" {
+		return nil, fmt.Errorf("VOS user check response missing username")
+	}
+
+	localUsername := sanitizeLocalIdentityName(username)
+	if localUsername == "" {
+		return nil, fmt.Errorf("VOS username %q cannot be mapped to a local account", username)
+	}
+	return &types.TrustedIdentityLoginRequest{
+		Provider: "vos",
+		Subject:  subject,
+		Username: localUsername,
+		Email:    localUsername + "@local",
+	}, nil
+}
+
+func mapString(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
+	}
+	switch v := m[key].(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	default:
+		if v == nil {
+			return ""
+		}
+		return strings.TrimSpace(fmt.Sprint(v))
+	}
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func sanitizeLocalIdentityName(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	var b strings.Builder
+	lastDash := false
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '.' {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	result := strings.Trim(b.String(), "-._")
+	if len(result) > 50 {
+		result = strings.Trim(result[:50], "-._")
+	}
+	return result
 }
 
 // GetOIDCAuthorizationURL godoc

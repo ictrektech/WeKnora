@@ -512,6 +512,15 @@ docker compose up -d app frontend
 
 5. 打开前端，注册或登录，添加模型行。默认 `create_personal` 会为新注册用户创建个人空间。若此实例只允许受邀用户访问，在首次对外开放前把 `.env` 改为 `DISABLE_REGISTRATION=true`、`WEKNORA_AUTH_DEFAULT_TENANT_MODE=tenantless`、`WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED=false`，然后执行 `docker compose up -d app`。`tenantless` 用户会进入创建或加入空间引导页；已有用户和空间不受影响。
 
+VOS app 安装场景可以启用临时 iframe 免登录：
+
+```env
+HYBRAG_VOS_SSO_ENABLED=true
+HYBRAG_VOS_USERINFO_URL=http://172.17.0.1:8105/v1000/user/check
+```
+
+这不是长期身份方案，只是兼容当前 VOS。前端会读取 VOS 同源会话 token，后端通过 `/v1000/user/check` 校验；首次打开会自动创建 `username@local` 用户和个人空间，`admin` 会成为 `admin@local` 系统管理员。未来 VOS 支持标准 OIDC 或 iframe 注入用户信息后，关闭 `HYBRAG_VOS_SSO_ENABLED` 或替换身份适配即可，HybRAG 本地用户和空间创建逻辑不需要改。
+
 只建议对外暴露 frontend。app、docreader、数据库、Redis、Neo4j 默认应保持私有，除非明确为了调试而开放。
 
 ## 组件测试
