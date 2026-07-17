@@ -521,6 +521,8 @@ HYBRAG_VOS_USERINFO_URL=http://172.17.0.1:8105/v1000/user/check
 
 这不是长期身份方案，只是兼容当前 VOS。前端会读取 VOS 同源会话 token，后端通过 `/v1000/user/check` 校验；首次打开会自动创建 `username@local` 用户和个人空间，`admin` 会成为 `admin@local` 系统管理员。未来 VOS 支持标准 OIDC 或 iframe 注入用户信息后，关闭 `HYBRAG_VOS_SSO_ENABLED` 或替换身份适配即可，HybRAG 本地用户和空间创建逻辑不需要改。
 
+VOS HybRAG 安装包默认自带实体关系 GraphRAG 所需的 Neo4j 服务，不需要再手工把普通 compose 里的 `neo4j` profile 加进去。安装 UI 中默认 `ENABLE_GRAPH_RAG=true`、`NEO4J_ENABLE=true`，App 内部连接 `bolt://hybrag-neo4j:7687`，数据写入 `/data/vos_workspace/hybrag/neo4j`，宿主机调试端口默认是 `27474` 和 `27687`。如果新建知识库页面提示“知识图谱数据库未启用”，先检查安装包版本是否包含 `hybrag-neo4j` 服务、Neo4j 容器是否 healthy、以及 App 容器环境变量是否仍为 true。
+
 只建议对外暴露 frontend。app、docreader、数据库、Redis、Neo4j 默认应保持私有，除非明确为了调试而开放。
 
 ## 组件测试
