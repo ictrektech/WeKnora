@@ -21,6 +21,8 @@ ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.oll
 /data/vos_workspace/model_hub/ollama
 ```
 
+VOS app profile 共有 6 个：`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`l4t`、`thor-spark`。其中 `amd-no-cuda` 和 `arm-no-cuda` 复用对应 CUDA profile 的镜像版本，但 Ollama 容器不配置 `runtime: nvidia`，用于没有 GPU runtime 的机器。
+
 ## 启动顺序
 
 每个 HybRAG Ollama 容器启动时都会执行同一类流程：
@@ -102,4 +104,3 @@ curl -fsS http://hybrag-ollama-embedding:11535/v1/embeddings \
 - Model Hub 拉取失败但 HybRAG 仍能启动：HybRAG Ollama 容器会退回本容器 `ollama pull`，模型文件仍写入共享目录。
 - 容器长时间不健康：看 Ollama 容器日志，通常是模型下载慢、网络不可达、磁盘不足或模型名写错。
 - `ollama ps` 没有模型：确认 `OLLAMA_KEEP_ALIVE=-1`，并检查 warmup 请求是否成功。
-

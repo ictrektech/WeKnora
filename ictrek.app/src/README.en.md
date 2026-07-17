@@ -15,9 +15,9 @@ HybRAG is an enterprise knowledge-base, RAG, Wiki graph, and agent platform. Thi
 
 ## Profiles
 
-Choose one profile at install time: `amd`, `arm`, `l4t`, or `thor-spark`.
+Choose one profile at install time: `amd`, `amd-no-cuda`, `arm`, `arm-no-cuda`, `l4t`, or `thor-spark`.
 
-AMD and ARM generic profiles read `weknora*` and `ollama_server` image versions from `AMD_with_cuda` and `ARM_with_cuda` respectively. `l4t` and `thor-spark` use their own Feishu sheets. This app publishes four profiles only.
+`amd-no-cuda` and `arm-no-cuda` reuse `weknora*` and `ollama_server` image versions from `AMD_with_cuda` and `ARM_with_cuda`, but run Ollama without `runtime: nvidia` for AMD64/ARM64 hosts without GPU. `l4t` and `thor-spark` use their own Feishu sheets.
 
 ## Install Settings
 

@@ -23,7 +23,9 @@ LOCK_DIR="${DIST_DIR}/.package.lock"
 # shared across AMD variants, and WeKnora ARM is shared across ARM variants.
 PROFILES=(
   "amd|AMD_with_cuda"
+  "amd-no-cuda|AMD_with_cuda"
   "arm|ARM_with_cuda"
+  "arm-no-cuda|ARM_with_cuda"
   "l4t|l4t"
   "thor-spark|thor_spark"
 )
@@ -156,7 +158,7 @@ PYCONFIG
 
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     local profile
-    for profile in amd arm l4t thor-spark; do
+    for profile in amd amd-no-cuda arm arm-no-cuda l4t thor-spark; do
       docker compose --env-file "${STAGE_DIR}/.env" -f "${STAGE_DIR}/docker-compose.yml" --profile "$profile" config >/dev/null \
         || die "docker compose config failed for profile ${profile}"
     done

@@ -309,6 +309,42 @@ x-hybrag-ollama-embedding-base: &hybrag-ollama-embedding-base
     retries: 5
     start_period: 60s
 
+x-hybrag-ollama-qa-base-no-cuda: &hybrag-ollama-qa-base-no-cuda
+  restart: unless-stopped
+  networks:
+    vos_default:
+      aliases:
+        - hybrag-ollama-qa
+  entrypoint: ["/bin/sh", "-lc"]
+  command: *hybrag-ollama-qa-command
+  environment: *hybrag-ollama-qa-env
+  volumes:
+    - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
+  healthcheck:
+    test: ["CMD-SHELL", "ollama list | grep -F \"$${OLLAMA_QA_MODEL:-qwen3.5:2b}\" >/dev/null 2>&1"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
+    start_period: 60s
+
+x-hybrag-ollama-embedding-base-no-cuda: &hybrag-ollama-embedding-base-no-cuda
+  restart: unless-stopped
+  networks:
+    vos_default:
+      aliases:
+        - hybrag-ollama-embedding
+  entrypoint: ["/bin/sh", "-lc"]
+  command: *hybrag-ollama-embedding-command
+  environment: *hybrag-ollama-embedding-env
+  volumes:
+    - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
+  healthcheck:
+    test: ["CMD-SHELL", "ollama list | grep -F \"$${OLLAMA_EMBEDDING_MODEL:-bge-m3}\" >/dev/null 2>&1"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
+    start_period: 60s
+
 x-hybrag-app-env: &hybrag-app-env
   GIN_MODE: ${GIN_MODE:-release}
   TZ: ${TZ:-Asia/Shanghai}
@@ -460,6 +496,51 @@ services:
     image: ${OLLAMA_SERVER_AMD_IMAGE}
     pull_policy: always
 
+  hybrag-frontend-amd-no-cuda:
+    <<: *hybrag-frontend-base
+    profiles: ["amd-no-cuda"]
+    image: ${WEKNORA_UI_AMD_NO_CUDA_IMAGE}
+    pull_policy: always
+    depends_on:
+      hybrag-app-amd-no-cuda:
+        condition: service_healthy
+
+  hybrag-app-amd-no-cuda:
+    <<: *hybrag-app-base
+    profiles: ["amd-no-cuda"]
+    image: ${WEKNORA_APP_AMD_NO_CUDA_IMAGE}
+    pull_policy: always
+    environment:
+      <<: *hybrag-app-env
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_NO_CUDA_IMAGE}
+    depends_on:
+      hybrag-redis:
+        condition: service_started
+      hybrag-docreader-amd-no-cuda:
+        condition: service_healthy
+      hybrag-ollama-qa-amd-no-cuda:
+        condition: service_healthy
+      hybrag-ollama-embedding-amd-no-cuda:
+        condition: service_healthy
+
+  hybrag-docreader-amd-no-cuda:
+    <<: *hybrag-docreader-base
+    profiles: ["amd-no-cuda"]
+    image: ${WEKNORA_DOCREADER_AMD_NO_CUDA_IMAGE}
+    pull_policy: always
+
+  hybrag-ollama-qa-amd-no-cuda:
+    <<: *hybrag-ollama-qa-base-no-cuda
+    profiles: ["amd-no-cuda"]
+    image: ${OLLAMA_SERVER_AMD_NO_CUDA_IMAGE}
+    pull_policy: always
+
+  hybrag-ollama-embedding-amd-no-cuda:
+    <<: *hybrag-ollama-embedding-base-no-cuda
+    profiles: ["amd-no-cuda"]
+    image: ${OLLAMA_SERVER_AMD_NO_CUDA_IMAGE}
+    pull_policy: always
+
   hybrag-frontend-arm-with-cuda:
     <<: *hybrag-frontend-base
     profiles: ["arm"]
@@ -503,6 +584,51 @@ services:
     <<: *hybrag-ollama-embedding-base
     profiles: ["arm"]
     image: ${OLLAMA_SERVER_ARM_IMAGE}
+    pull_policy: always
+
+  hybrag-frontend-arm-no-cuda:
+    <<: *hybrag-frontend-base
+    profiles: ["arm-no-cuda"]
+    image: ${WEKNORA_UI_ARM_NO_CUDA_IMAGE}
+    pull_policy: always
+    depends_on:
+      hybrag-app-arm-no-cuda:
+        condition: service_healthy
+
+  hybrag-app-arm-no-cuda:
+    <<: *hybrag-app-base
+    profiles: ["arm-no-cuda"]
+    image: ${WEKNORA_APP_ARM_NO_CUDA_IMAGE}
+    pull_policy: always
+    environment:
+      <<: *hybrag-app-env
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_NO_CUDA_IMAGE}
+    depends_on:
+      hybrag-redis:
+        condition: service_started
+      hybrag-docreader-arm-no-cuda:
+        condition: service_healthy
+      hybrag-ollama-qa-arm-no-cuda:
+        condition: service_healthy
+      hybrag-ollama-embedding-arm-no-cuda:
+        condition: service_healthy
+
+  hybrag-docreader-arm-no-cuda:
+    <<: *hybrag-docreader-base
+    profiles: ["arm-no-cuda"]
+    image: ${WEKNORA_DOCREADER_ARM_NO_CUDA_IMAGE}
+    pull_policy: always
+
+  hybrag-ollama-qa-arm-no-cuda:
+    <<: *hybrag-ollama-qa-base-no-cuda
+    profiles: ["arm-no-cuda"]
+    image: ${OLLAMA_SERVER_ARM_NO_CUDA_IMAGE}
+    pull_policy: always
+
+  hybrag-ollama-embedding-arm-no-cuda:
+    <<: *hybrag-ollama-embedding-base-no-cuda
+    profiles: ["arm-no-cuda"]
+    image: ${OLLAMA_SERVER_ARM_NO_CUDA_IMAGE}
     pull_policy: always
 
   hybrag-frontend-l4t:

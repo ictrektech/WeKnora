@@ -30,7 +30,15 @@ profiles:
     description:
       zh-CN: 使用 AMD_with_cuda 飞书标签页中的 HybRAG 和 Ollama 镜像。
       en: Use HybRAG and Ollama images from the AMD_with_cuda Feishu sheet.
-    conflicts: [arm, l4t, thor-spark]
+    conflicts: [amd-no-cuda, arm, arm-no-cuda, l4t, thor-spark]
+  - name: amd-no-cuda
+    title:
+      zh-CN: AMD64 无 GPU
+      en: AMD64 No CUDA
+    description:
+      zh-CN: 复用 AMD_with_cuda 飞书标签页中的 HybRAG 和 Ollama 镜像，但 Ollama 容器不启用 nvidia runtime，适合无 GPU 的 AMD64 机器。
+      en: Reuse HybRAG and Ollama images from the AMD_with_cuda Feishu sheet, but run Ollama without nvidia runtime for AMD64 hosts without GPU.
+    conflicts: [amd, arm, arm-no-cuda, l4t, thor-spark]
   - name: arm
     title:
       zh-CN: ARM CUDA
@@ -38,7 +46,15 @@ profiles:
     description:
       zh-CN: 使用 ARM_with_cuda 飞书标签页中的 HybRAG 和 Ollama 镜像。
       en: Use HybRAG and Ollama images from the ARM_with_cuda Feishu sheet.
-    conflicts: [amd, l4t, thor-spark]
+    conflicts: [amd, amd-no-cuda, arm-no-cuda, l4t, thor-spark]
+  - name: arm-no-cuda
+    title:
+      zh-CN: ARM 无 GPU
+      en: ARM No CUDA
+    description:
+      zh-CN: 复用 ARM_with_cuda 飞书标签页中的 HybRAG 和 Ollama 镜像，但 Ollama 容器不启用 nvidia runtime，适合无 GPU 的 ARM64 机器。
+      en: Reuse HybRAG and Ollama images from the ARM_with_cuda Feishu sheet, but run Ollama without nvidia runtime for ARM64 hosts without GPU.
+    conflicts: [amd, amd-no-cuda, arm, l4t, thor-spark]
   - name: l4t
     title:
       zh-CN: Jetson / L4T
@@ -46,7 +62,7 @@ profiles:
     description:
       zh-CN: 使用 l4t 飞书标签页中的 HybRAG 和 Ollama 镜像。
       en: Use HybRAG and Ollama images from the l4t Feishu sheet.
-    conflicts: [amd, arm, thor-spark]
+    conflicts: [amd, amd-no-cuda, arm, arm-no-cuda, thor-spark]
   - name: thor-spark
     title:
       zh-CN: Thor Spark
@@ -54,7 +70,7 @@ profiles:
     description:
       zh-CN: 使用 thor_spark 飞书标签页中的 HybRAG 和 Ollama 镜像。
       en: Use HybRAG and Ollama images from the thor_spark Feishu sheet.
-    conflicts: [amd, arm, l4t]
+    conflicts: [amd, amd-no-cuda, arm, arm-no-cuda, l4t]
 
 storage:
   directories:
