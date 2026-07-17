@@ -234,6 +234,9 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewWebSearchProviderRepository))
 	must(container.Provide(repository.NewVectorStoreRepository))
 	must(container.Provide(repository.NewStorageBackendRepository))
+	must(container.Provide(repository.NewResourceRepository))
+	must(container.Provide(repository.NewTemporaryDocumentRepository))
+	must(container.Provide(service.NewResourceCatalog))
 	// TenantStoreOwnership adapter used by the retriever factory functions
 	// to verify that a resolved VectorStore belongs to the caller's tenant.
 	must(container.Provide(retriever.NewVectorStoreRepoOwnership))
@@ -250,7 +253,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 		return sr, nil
 	}))
 	must(container.Provide(service.NewVectorStoreService))
-	must(container.Provide(service.NewStorageBackendService))
+	must(container.Provide(service.NewStorageBackendServiceWithResources))
 	must(container.Provide(func(s *service.StorageBackendService) interfaces.StorageBackendService { return s }))
 	must(container.Provide(func(s *service.StorageBackendService) interfaces.StorageBackendResolver { return s }))
 
@@ -303,6 +306,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 		// worker pool against one provider, so install an in-process governor.
 		must(container.Invoke(registerLiteModelConcurrencyLimiter))
 	}
+	must(container.Provide(service.NewTemporaryDocumentService))
+	must(container.Invoke(startTemporaryDocumentCleanup))
 
 	// Chat pipeline components for processing chat requests
 	logger.Debugf(ctx, "[Container] Registering chat pipeline plugins...")
@@ -449,20 +454,38 @@ func reconcileKnowledgeTasksOnStart(db *gorm.DB, inspector *asynq.Inspector) {
 // disk bytes requires rebuilding the FileService from that tenant's storage
 // config. The owning tenant is parsed from the URL's first path segment, which
 // correctly handles cross-tenant shared resources (e.g. shared KB images).
-func registerChatLocalImageResolver(tenantRepo interfaces.TenantRepository, storageResolver interfaces.StorageBackendResolver) {
+func registerChatLocalImageResolver(
+	tenantRepo interfaces.TenantRepository,
+	storageResolver interfaces.StorageBackendResolver,
+	resourceCatalog interfaces.ResourceCatalog,
+) {
 	chat.LocalImageResolver = func(storageURL string) ([]byte, bool) {
-		tenantID := secutils.ParseTenantIDFromStoragePath(storageURL)
+		ctx := context.Background()
+		physicalPath, resource, err := resourceCatalog.ResolvePath(ctx, storageURL)
+		if err != nil {
+			return nil, false
+		}
+		tenantID := secutils.ParseTenantIDFromStoragePath(physicalPath)
+		if resource != nil {
+			tenantID = resource.TenantID
+		}
 		if tenantID == 0 {
 			return nil, false
 		}
-		ctx := context.Background()
 		tenant, err := tenantRepo.GetTenantByID(ctx, tenantID)
 		if err != nil || tenant == nil {
 			return nil, false
 		}
 		baseDir := strings.TrimSpace(os.Getenv("LOCAL_STORAGE_BASE_DIR"))
-		backendID, inner, _ := types.ParseStorageBackendPath(storageURL)
-		provider := types.ParseProviderScheme(inner)
+		backendID, inner, scoped := types.ParseStorageBackendPath(physicalPath)
+		if resource != nil && resource.StorageBackendID != "" {
+			backendID = resource.StorageBackendID
+		}
+		providerPath := physicalPath
+		if scoped {
+			providerPath = inner
+		}
+		provider := types.ParseProviderScheme(providerPath)
 		if provider == "" {
 			provider = "local"
 		}
@@ -470,7 +493,7 @@ func registerChatLocalImageResolver(tenantRepo interfaces.TenantRepository, stor
 		if err != nil {
 			return nil, false
 		}
-		rc, err := fileSvc.GetFile(ctx, storageURL)
+		rc, err := fileSvc.GetFile(ctx, physicalPath)
 		if err != nil {
 			return nil, false
 		}
@@ -897,7 +920,15 @@ func syncSequences(db *gorm.DB) {
 // Returns:
 //   - Configured file service implementation
 //   - Error if initialization fails
-func initFileService(cfg *config.Config) (interfaces.FileService, error) {
+func initFileService(cfg *config.Config, catalog interfaces.ResourceCatalog) (interfaces.FileService, error) {
+	inner, err := initRawFileService(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return file.NewResourceCatalogFileService(inner, catalog), nil
+}
+
+func initRawFileService(_ *config.Config) (interfaces.FileService, error) {
 	storageType := strings.TrimSpace(os.Getenv("STORAGE_TYPE"))
 	if storageType == "" {
 		storageType = "local"
@@ -1891,6 +1922,31 @@ func envInt(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// startTemporaryDocumentCleanup removes expired session attachments and their
+// extracted images. The durable expiry timestamp is the source of truth; the
+// ticker only controls how quickly storage is reclaimed.
+func startTemporaryDocumentCleanup(svc interfaces.TemporaryDocumentService, cleaner interfaces.ResourceCleaner) {
+	stop := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := svc.CleanupExpired(context.Background()); err != nil {
+					logger.Warnf(context.Background(), "[TemporaryDocument] cleanup failed: %v", err)
+				}
+			case <-stop:
+				return
+			}
+		}
+	}()
+	cleaner.RegisterWithName("TemporaryDocumentCleanup", func() error {
+		close(stop)
+		return nil
+	})
 }
 
 // startAuditLogRetention spins up the daily audit_logs purge sweep

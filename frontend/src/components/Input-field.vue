@@ -1849,6 +1849,21 @@ const createSession = async (val: string) => {
   if (props.isReplying) {
     return MessagePlugin.error(t('input.messages.replying'));
   }
+  // Only block while the file is still uploading (no document ID yet). Once
+  // uploaded, sending is allowed even if parsing is still in progress: the
+  // backend shows a "parsing attachment" step on the timeline and waits.
+  const pendingAttachment = uploadedAttachments.value.find(item =>
+    item.status === 'uploading'
+  );
+  if (pendingAttachment) {
+    MessagePlugin.warning(t('chat.attachmentStillProcessing', { name: pendingAttachment.name }));
+    return;
+  }
+  const failedAttachment = uploadedAttachments.value.find(item => item.status === 'failed');
+  if (failedAttachment) {
+    MessagePlugin.error(failedAttachment.error || t('chat.attachmentParseFailed'));
+    return;
+  }
 
   // Embed 渠道由后端绑定 agent/KB，勿走平台侧 agent 列表与就绪校验
   if (props.embeddedMode) {
@@ -1856,6 +1871,19 @@ const createSession = async (val: string) => {
     if (textarea) textarea.blur();
     emit('send-msg', val, selectedModelId.value || '', [], [], []);
     clearvalue();
+    return;
+  }
+
+  // Images and non-embedded attachments both travel to the backend as
+  // `attachment_ids`, which enforces a combined cap (MaxTemporaryAttachmentsPerMessage).
+  // The per-picker limits (5 images / 5 attachments) are independent, so guard the
+  // merged total here to avoid a late 400 after the files are already uploaded.
+  const MAX_TOTAL_ATTACHMENTS = 5;
+  const combinedAttachmentCount =
+    uploadedImages.value.length +
+    uploadedAttachments.value.filter(item => item.status !== 'failed').length;
+  if (combinedAttachmentCount > MAX_TOTAL_ATTACHMENTS) {
+    MessagePlugin.warning(t('chat.attachmentTotalTooMany', { max: MAX_TOTAL_ATTACHMENTS }));
     return;
   }
 
@@ -2139,6 +2167,17 @@ const clearvalue = () => {
   query.value = "";
 }
 
+// Drop any pending images/attachments and stop their status polling. Used when
+// switching sessions: leftover documentIds belong to the previous session, so
+// keeping them would make polling 404 (falsely marking them failed) or send IDs
+// the new session does not own ("attachment ... not found in this session").
+const clearPendingUploads = () => {
+  uploadedImages.value.forEach(img => URL.revokeObjectURL(img.preview));
+  uploadedImages.value = [];
+  attachmentUploadRef.value?.clear();
+  uploadedAttachments.value = [];
+}
+
 const onKeydown = (val: string, event: { e: { preventDefault(): unknown; keyCode: number; shiftKey: any; ctrlKey: any; }; }) => {
   if (showMention.value) {
     if (event.e.keyCode === 38) { // Up
@@ -2418,6 +2457,7 @@ const handleStop = async () => {
 
 onBeforeRouteUpdate((to, from, next) => {
   clearvalue()
+  clearPendingUploads()
   next()
 })
 
@@ -2446,7 +2486,8 @@ defineExpose({
       </div>
 
       <!-- 附件列表区域 (由 AttachmentUpload 组件渲染) -->
-      <AttachmentUpload ref="attachmentUploadRef" :max-files="5" :max-size="20"
+      <AttachmentUpload ref="attachmentUploadRef" :max-files="5"
+        :session-id="sessionId" :agent-id="selectedAgentId"
         @update:files="uploadedAttachments = $event" />
 
       <!-- 选中的知识库和文件标签（显示在输入框内顶部） -->
