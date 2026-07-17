@@ -25,16 +25,18 @@ dist/hybrag_${VERSION}_pull.tar
 
 前端镜像还必须能在 VOS 子路径 `/app/com.ictrek.hybrag/` 下运行。HybRAG 前端构建使用相对静态资源路径，并在运行时按当前 URL 注入 base；API 请求、Vue Router history 和登录跳转都会复用同一个 base。这样同一个 `weknora-ui` 镜像既能在普通根路径部署，也能被 VOS iframe 作为 `/app/com.ictrek.hybrag/` 页面打开。若以后修改 `frontend/index.html`、`frontend/embed.html`、`frontend/vite.config.ts` 或 `frontend/src/utils/app-base.ts`，需要在 VOS 实机中验证 `/app/com.ictrek.hybrag/` 下的 `assets`、`config.js`、`tdesign-icons` 和 `/api/v1/auth/vos-sso` 均不再落到 VOS 根路径 404。
 
-脚本还会解析 `manifest.yml`、`configs.yml`、`routers.yml` 和 `docker-compose.yml`，防止生成 YAML 语法错误的安装包。`manifest.yml` 必须声明 VOS 安装 UI 使用的 `profiles`，profile 名只能使用小写字母、数字和连字符，并且必须与 `docker-compose.yml` 的 compose profile 完全一致；飞书 sheet 名只允许出现在打包脚本的映射关系中。如果运行环境有 Docker Compose，会额外对 `amd`、`arm`、`l4t`、`thor-spark` 四个 profile 执行 `docker compose config`，提前发现未展开镜像变量、profile 服务缺失或 compose 语法问题。
+脚本还会解析 `manifest.yml`、`configs.yml`、`routers.yml` 和 `docker-compose.yml`，防止生成 YAML 语法错误的安装包。`manifest.yml` 必须声明 VOS 安装 UI 使用的 `profiles`，profile 名只能使用小写字母、数字和连字符，并且必须与 `docker-compose.yml` 的 compose profile 完全一致；飞书 sheet 名只允许出现在打包脚本的映射关系中。如果运行环境有 Docker Compose，会额外对 `amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`l4t`、`thor-spark` 六个 profile 执行 `docker compose config`，提前发现未展开镜像变量、profile 服务缺失或 compose 语法问题。
 
 ## Profiles
 
-profile 按 `ollama_server` 的发布维度设置。HybRAG 自身 AMD 有无 CUDA 通用，ARM 有无 CUDA 通用，因此只查一个通用表；L4T 和 Thor Spark 单独查表。本应用只发布 4 个 profile。
+profile 按 `ollama_server` 的发布维度设置。HybRAG 自身 AMD 有无 CUDA 通用，ARM 有无 CUDA 通用，因此 `amd-no-cuda` 复用 `AMD_with_cuda` 表、`arm-no-cuda` 复用 `ARM_with_cuda` 表，只是在 compose 中不启用 `runtime: nvidia`；L4T 和 Thor Spark 单独查表。本应用发布 6 个 profile。
 
 | profile | 飞书 sheet | 说明 |
 | --- | --- | --- |
 | `amd` | `AMD_with_cuda` | x86_64 / AMD 通用 HybRAG + Ollama |
+| `amd-no-cuda` | `AMD_with_cuda` | x86_64 / AMD 无 GPU runtime，复用 AMD 镜像版本 |
 | `arm` | `ARM_with_cuda` | ARM 通用 HybRAG + Ollama |
+| `arm-no-cuda` | `ARM_with_cuda` | ARM64 无 GPU runtime，复用 ARM 镜像版本 |
 | `l4t` | `l4t` | Jetson / L4T |
 | `thor-spark` | `thor_spark` | Thor Spark |
 
@@ -42,12 +44,13 @@ profile 按 `ollama_server` 的发布维度设置。HybRAG 自身 AMD 有无 CUD
 
 ```bash
 docker compose --profile amd config
+docker compose --profile amd-no-cuda config
 docker compose --profile l4t config
 ```
 
 ## 资源默认值
 
-所有 profile 的 QA/VLM Ollama 模型默认都是 `qwen3.5:2b`，embedding 模型默认是 `bge-m3:latest`。普通 profile（`amd`、`arm`、`l4t`）默认按纯 Ollama 分离容器方案配置：
+所有 profile 的 QA/VLM Ollama 模型默认都是 `qwen3.5:2b`，embedding 模型默认是 `bge-m3`。普通 profile（`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`l4t`）默认按纯 Ollama 分离容器方案配置：
 
 | 资源项 | 默认值 | 含义 |
 | --- | ---: | --- |

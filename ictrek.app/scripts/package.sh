@@ -412,15 +412,21 @@ verify_package() {
   local package_path="$1"
   local app_tarball="$2"
   local package_text
+  local app_file_list
+  local package_file_list
   local routers_text
   local compose_text
   local router_iframe_src
   local sidebar_route
   log "Verify app.tar.gz contents"
-  tar tzf "$app_tarball" >/dev/null
-  tar tzf "$app_tarball" | grep -qx "manifest.yml"
-  tar tf "$package_path" | grep -qx "app.tar.gz"
-  ! tar tf "$package_path" | grep -q "^assets/"
+  app_file_list="$(mktemp)"
+  package_file_list="$(mktemp)"
+  tar tzf "$app_tarball" > "$app_file_list"
+  tar tf "$package_path" > "$package_file_list"
+  grep -qx "manifest.yml" "$app_file_list"
+  grep -qx "app.tar.gz" "$package_file_list"
+  ! grep -q "^assets/" "$package_file_list"
+  rm -f "$app_file_list" "$package_file_list"
   package_text="$(tar tzf "$app_tarball" | while IFS= read -r file; do [[ "$file" == */ ]] && continue; tar xOf "$app_tarball" "$file"; printf '\n'; done)"
   if printf '%s' "$package_text" | grep -q '__APP_VERSION__'; then
     die "unrendered placeholder remains"
