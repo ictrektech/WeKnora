@@ -221,8 +221,8 @@ services:
 
   hybrag-frontend-amd-with-cuda:
     <<: *hybrag-frontend-base
-    profiles: ["AMD_with_cuda"]
-    image: ${WEKNORA_UI_AMD_WITH_CUDA_IMAGE}
+    profiles: ["amd"]
+    image: ${WEKNORA_UI_AMD_IMAGE}
     pull_policy: always
     depends_on:
       hybrag-app-amd-with-cuda:
@@ -230,12 +230,12 @@ services:
 
   hybrag-app-amd-with-cuda:
     <<: *hybrag-app-base
-    profiles: ["AMD_with_cuda"]
-    image: ${WEKNORA_APP_AMD_WITH_CUDA_IMAGE}
+    profiles: ["amd"]
+    image: ${WEKNORA_APP_AMD_IMAGE}
     pull_policy: always
     environment:
       <<: *hybrag-app-env
-      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_WITH_CUDA_IMAGE}
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_IMAGE}
     depends_on:
       hybrag-redis:
         condition: service_started
@@ -248,26 +248,26 @@ services:
 
   hybrag-docreader-amd-with-cuda:
     <<: *hybrag-docreader-base
-    profiles: ["AMD_with_cuda"]
-    image: ${WEKNORA_DOCREADER_AMD_WITH_CUDA_IMAGE}
+    profiles: ["amd"]
+    image: ${WEKNORA_DOCREADER_AMD_IMAGE}
     pull_policy: always
 
   hybrag-ollama-qa-amd-with-cuda:
     <<: *hybrag-ollama-qa-base
-    profiles: ["AMD_with_cuda"]
-    image: ${OLLAMA_SERVER_AMD_WITH_CUDA_IMAGE}
+    profiles: ["amd"]
+    image: ${OLLAMA_SERVER_AMD_IMAGE}
     pull_policy: always
 
   hybrag-ollama-embedding-amd-with-cuda:
     <<: *hybrag-ollama-embedding-base
-    profiles: ["AMD_with_cuda"]
-    image: ${OLLAMA_SERVER_AMD_WITH_CUDA_IMAGE}
+    profiles: ["amd"]
+    image: ${OLLAMA_SERVER_AMD_IMAGE}
     pull_policy: always
 
   hybrag-frontend-arm-with-cuda:
     <<: *hybrag-frontend-base
-    profiles: ["ARM_with_cuda"]
-    image: ${WEKNORA_UI_ARM_WITH_CUDA_IMAGE}
+    profiles: ["arm"]
+    image: ${WEKNORA_UI_ARM_IMAGE}
     pull_policy: always
     depends_on:
       hybrag-app-arm-with-cuda:
@@ -275,12 +275,12 @@ services:
 
   hybrag-app-arm-with-cuda:
     <<: *hybrag-app-base
-    profiles: ["ARM_with_cuda"]
-    image: ${WEKNORA_APP_ARM_WITH_CUDA_IMAGE}
+    profiles: ["arm"]
+    image: ${WEKNORA_APP_ARM_IMAGE}
     pull_policy: always
     environment:
       <<: *hybrag-app-env
-      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_WITH_CUDA_IMAGE}
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_IMAGE}
     depends_on:
       hybrag-redis:
         condition: service_started
@@ -293,20 +293,20 @@ services:
 
   hybrag-docreader-arm-with-cuda:
     <<: *hybrag-docreader-base
-    profiles: ["ARM_with_cuda"]
-    image: ${WEKNORA_DOCREADER_ARM_WITH_CUDA_IMAGE}
+    profiles: ["arm"]
+    image: ${WEKNORA_DOCREADER_ARM_IMAGE}
     pull_policy: always
 
   hybrag-ollama-qa-arm-with-cuda:
     <<: *hybrag-ollama-qa-base
-    profiles: ["ARM_with_cuda"]
-    image: ${OLLAMA_SERVER_ARM_WITH_CUDA_IMAGE}
+    profiles: ["arm"]
+    image: ${OLLAMA_SERVER_ARM_IMAGE}
     pull_policy: always
 
   hybrag-ollama-embedding-arm-with-cuda:
     <<: *hybrag-ollama-embedding-base
-    profiles: ["ARM_with_cuda"]
-    image: ${OLLAMA_SERVER_ARM_WITH_CUDA_IMAGE}
+    profiles: ["arm"]
+    image: ${OLLAMA_SERVER_ARM_IMAGE}
     pull_policy: always
 
   hybrag-frontend-l4t:
@@ -356,7 +356,7 @@ services:
 
   hybrag-frontend-thor-spark:
     <<: *hybrag-frontend-base
-    profiles: ["thor_spark"]
+    profiles: ["thor-spark"]
     image: ${WEKNORA_UI_THOR_SPARK_IMAGE}
     pull_policy: always
     depends_on:
@@ -365,7 +365,7 @@ services:
 
   hybrag-app-thor-spark:
     <<: *hybrag-app-base
-    profiles: ["thor_spark"]
+    profiles: ["thor-spark"]
     image: ${WEKNORA_APP_THOR_SPARK_IMAGE}
     pull_policy: always
     environment:
@@ -383,13 +383,13 @@ services:
 
   hybrag-docreader-thor-spark:
     <<: *hybrag-docreader-base
-    profiles: ["thor_spark"]
+    profiles: ["thor-spark"]
     image: ${WEKNORA_DOCREADER_THOR_SPARK_IMAGE}
     pull_policy: always
 
   hybrag-ollama-qa-thor-spark:
     <<: *hybrag-ollama-qa-base
-    profiles: ["thor_spark"]
+    profiles: ["thor-spark"]
     image: ${OLLAMA_SERVER_THOR_SPARK_IMAGE}
     pull_policy: always
     environment:
@@ -399,7 +399,7 @@ services:
 
   hybrag-ollama-embedding-thor-spark:
     <<: *hybrag-ollama-embedding-base
-    profiles: ["thor_spark"]
+    profiles: ["thor-spark"]
     image: ${OLLAMA_SERVER_THOR_SPARK_IMAGE}
     pull_policy: always
     environment:

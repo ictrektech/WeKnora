@@ -459,8 +459,8 @@ configs:
       zh-CN: Thor QA/VLM Ollama 并发
       en: Thor QA/VLM Ollama Parallelism
     description:
-      zh-CN: thor_spark profile 的 QA/VLM Ollama 总槽位。
-      en: QA/VLM Ollama total slots for the thor_spark profile.
+      zh-CN: thor-spark profile 的 QA/VLM Ollama 总槽位。
+      en: QA/VLM Ollama total slots for the thor-spark profile.
     default: 20
     minimum: 1
     maximum: 64
@@ -470,8 +470,8 @@ configs:
       zh-CN: Thor QA 上下文长度
       en: Thor QA Context Length
     description:
-      zh-CN: thor_spark profile 的 QA/VLM Ollama 上下文长度。
-      en: QA/VLM Ollama context length for the thor_spark profile.
+      zh-CN: thor-spark profile 的 QA/VLM Ollama 上下文长度。
+      en: QA/VLM Ollama context length for the thor-spark profile.
     default: 65536
     minimum: 1024
     maximum: 131072
@@ -481,8 +481,8 @@ configs:
       zh-CN: Thor Embedding Ollama 并发
       en: Thor Embedding Ollama Parallelism
     description:
-      zh-CN: thor_spark profile 的 embedding Ollama 总槽位。
-      en: Embedding Ollama total slots for the thor_spark profile.
+      zh-CN: thor-spark profile 的 embedding Ollama 总槽位。
+      en: Embedding Ollama total slots for the thor-spark profile.
     default: 16
     minimum: 1
     maximum: 64
@@ -492,8 +492,8 @@ configs:
       zh-CN: Thor 聊天预留并发
       en: Thor Chat Reserved Concurrency
     description:
-      zh-CN: thor_spark profile 为在线聊天预留的主模型槽位。
-      en: Main-model slots reserved for chat in the thor_spark profile.
+      zh-CN: thor-spark profile 为在线聊天预留的主模型槽位。
+      en: Main-model slots reserved for chat in the thor-spark profile.
     default: 6
     minimum: 1
     maximum: 32
@@ -503,8 +503,8 @@ configs:
       zh-CN: Thor QA/VLM 总槽位
       en: Thor QA/VLM Total Slots
     description:
-      zh-CN: thor_spark profile 的应用侧 QA/VLM 总槽位。
-      en: App-side QA/VLM total capacity for the thor_spark profile.
+      zh-CN: thor-spark profile 的应用侧 QA/VLM 总槽位。
+      en: App-side QA/VLM total capacity for the thor-spark profile.
     default: 20
     minimum: 1
     maximum: 64
@@ -514,8 +514,8 @@ configs:
       zh-CN: Thor 后台模型共享槽位
       en: Thor Background Model Slots
     description:
-      zh-CN: thor_spark profile 的后台主模型共享槽位。
-      en: Background main-model shared slots for the thor_spark profile.
+      zh-CN: thor-spark profile 的后台主模型共享槽位。
+      en: Background main-model shared slots for the thor-spark profile.
     default: 14
     minimum: 0
     maximum: 64
@@ -525,8 +525,8 @@ configs:
       zh-CN: Thor Graph LLM 并发
       en: Thor Graph LLM Concurrency
     description:
-      zh-CN: thor_spark profile 的 GraphRAG 图相关 LLM 调用并发。
-      en: Graph-related LLM concurrency for the thor_spark profile.
+      zh-CN: thor-spark profile 的 GraphRAG 图相关 LLM 调用并发。
+      en: Graph-related LLM concurrency for the thor-spark profile.
     default: 2
     minimum: 1
     maximum: 32
@@ -536,8 +536,8 @@ configs:
       zh-CN: Thor 核心任务 Worker
       en: Thor Core Worker Concurrency
     description:
-      zh-CN: thor_spark profile 的核心异步任务 worker 并发。
-      en: Core async worker concurrency for the thor_spark profile.
+      zh-CN: thor-spark profile 的核心异步任务 worker 并发。
+      en: Core async worker concurrency for the thor-spark profile.
     default: 4
     minimum: 1
     maximum: 32
@@ -547,8 +547,8 @@ configs:
       zh-CN: Thor 后处理 Worker
       en: Thor Postprocess Worker Concurrency
     description:
-      zh-CN: thor_spark profile 的文档后处理 worker 并发。
-      en: Postprocess worker concurrency for the thor_spark profile.
+      zh-CN: thor-spark profile 的文档后处理 worker 并发。
+      en: Postprocess worker concurrency for the thor-spark profile.
     default: 2
     minimum: 1
     maximum: 32
@@ -558,8 +558,8 @@ configs:
       zh-CN: Thor 增强任务 Worker
       en: Thor Enrichment Worker Concurrency
     description:
-      zh-CN: thor_spark profile 的实体抽取、问题生成、摘要等增强任务 worker 并发。
-      en: Enrichment worker concurrency for the thor_spark profile.
+      zh-CN: thor-spark profile 的实体抽取、问题生成、摘要等增强任务 worker 并发。
+      en: Enrichment worker concurrency for the thor-spark profile.
     default: 2
     minimum: 1
     maximum: 32
@@ -569,8 +569,8 @@ configs:
       zh-CN: Thor 维护任务 Worker
       en: Thor Maintenance Worker Concurrency
     description:
-      zh-CN: thor_spark profile 的维护类任务 worker 并发。
-      en: Maintenance worker concurrency for the thor_spark profile.
+      zh-CN: thor-spark profile 的维护类任务 worker 并发。
+      en: Maintenance worker concurrency for the thor-spark profile.
     default: 1
     minimum: 1
     maximum: 32
@@ -580,8 +580,8 @@ configs:
       zh-CN: Thor 共享 Worker
       en: Thor Shared Worker Concurrency
     description:
-      zh-CN: thor_spark profile 的弹性共享 worker 池。默认 0 表示关闭。
-      en: Shared worker pool for the thor_spark profile. Default 0 disables it.
+      zh-CN: thor-spark profile 的弹性共享 worker 池。默认 0 表示关闭。
+      en: Shared worker pool for the thor-spark profile. Default 0 disables it.
     default: 0
     minimum: 0
     maximum: 32
@@ -591,8 +591,8 @@ configs:
       zh-CN: Thor Wiki 任务 Worker
       en: Thor Wiki Worker Concurrency
     description:
-      zh-CN: thor_spark profile 的 Wiki 生成与图谱相关异步任务 worker 并发。
-      en: Wiki and graph async worker concurrency for the thor_spark profile.
+      zh-CN: thor-spark profile 的 Wiki 生成与图谱相关异步任务 worker 并发。
+      en: Wiki and graph async worker concurrency for the thor-spark profile.
     default: 4
     minimum: 1
     maximum: 32
@@ -602,8 +602,8 @@ configs:
       zh-CN: Thor Wiki Map 并发
       en: Thor Wiki Map Parallelism
     description:
-      zh-CN: thor_spark profile 的 Wiki ingest map 阶段并发。
-      en: Wiki ingest map parallelism for the thor_spark profile.
+      zh-CN: thor-spark profile 的 Wiki ingest map 阶段并发。
+      en: Wiki ingest map parallelism for the thor-spark profile.
     default: 4
     minimum: 1
     maximum: 32
@@ -613,8 +613,8 @@ configs:
       zh-CN: Thor Wiki Reduce 并发
       en: Thor Wiki Reduce Parallelism
     description:
-      zh-CN: thor_spark profile 的 Wiki ingest reduce 阶段并发。
-      en: Wiki ingest reduce parallelism for the thor_spark profile.
+      zh-CN: thor-spark profile 的 Wiki ingest reduce 阶段并发。
+      en: Wiki ingest reduce parallelism for the thor-spark profile.
     default: 4
     minimum: 1
     maximum: 32
@@ -624,8 +624,8 @@ configs:
       zh-CN: Thor 文档 Embedding 槽位
       en: Thor Document Embedding Slots
     description:
-      zh-CN: thor_spark profile 的应用侧文档 embedding 并发。
-      en: App-side document embedding concurrency for the thor_spark profile.
+      zh-CN: thor-spark profile 的应用侧文档 embedding 并发。
+      en: App-side document embedding concurrency for the thor-spark profile.
     default: 8
     minimum: 1
     maximum: 64
@@ -635,8 +635,8 @@ configs:
       zh-CN: Thor Embedding 批量大小
       en: Thor Embedding Batch Size
     description:
-      zh-CN: thor_spark profile 的 embedding 批量大小。
-      en: Embedding batch size for the thor_spark profile.
+      zh-CN: thor-spark profile 的 embedding 批量大小。
+      en: Embedding batch size for the thor-spark profile.
     default: 8
     minimum: 1
     maximum: 128
@@ -646,8 +646,8 @@ configs:
       zh-CN: Thor QA 上下文总窗口
       en: Thor QA Context Window
     description:
-      zh-CN: thor_spark profile 的应用侧 QA 总上下文。
-      en: App-side QA context window for the thor_spark profile.
+      zh-CN: thor-spark profile 的应用侧 QA 总上下文。
+      en: App-side QA context window for the thor-spark profile.
     default: 65536
     minimum: 1024
     maximum: 131072
@@ -657,8 +657,8 @@ configs:
       zh-CN: Thor QA 上下文安全余量
       en: Thor QA Context Safety Tokens
     description:
-      zh-CN: thor_spark profile 从总上下文中额外预留的安全 token。
-      en: Extra safety tokens reserved from the thor_spark QA context window.
+      zh-CN: thor-spark profile 从总上下文中额外预留的安全 token。
+      en: Extra safety tokens reserved from the thor-spark QA context window.
     default: 768
     minimum: 0
     maximum: 8192
@@ -668,8 +668,8 @@ configs:
       zh-CN: Thor 智能体最终输出上限
       en: Thor Agent Final Answer Max Tokens
     description:
-      zh-CN: thor_spark profile 的智能体最终答案最大输出 token。
-      en: Agent final-answer output cap for the thor_spark profile.
+      zh-CN: thor-spark profile 的智能体最终答案最大输出 token。
+      en: Agent final-answer output cap for the thor-spark profile.
     default: 24576
     minimum: 512
     maximum: 65536
@@ -679,8 +679,8 @@ configs:
       zh-CN: Thor 普通问答输出上限
       en: Thor Conversation Max Completion Tokens
     description:
-      zh-CN: thor_spark profile 的普通问答最大输出 token。
-      en: Regular chat output cap for the thor_spark profile.
+      zh-CN: thor-spark profile 的普通问答最大输出 token。
+      en: Regular chat output cap for the thor-spark profile.
     default: 24576
     minimum: 512
     maximum: 65536

@@ -23,7 +23,7 @@ dist/hybrag_${VERSION}_pull.tar
 
 打包脚本会校验 VOS 入口契约：`routers.yml` 必须声明 `entry-point: true` 和 `embed: true`，`docker-compose.yml` 必须把顶层文档请求 `/app/com.ictrek.hybrag/` 重定向到 VOS 侧边栏内部路径。缺少这些字段时，VOS“我的应用”卡片的“打开”按钮可能只打开空白页或不能在侧边栏打开。
 
-脚本还会解析 `manifest.yml`、`configs.yml`、`routers.yml` 和 `docker-compose.yml`，防止生成 YAML 语法错误的安装包。如果运行环境有 Docker Compose，会额外对 `AMD_with_cuda`、`ARM_with_cuda`、`l4t`、`thor_spark` 四个 profile 执行 `docker compose config`，提前发现未展开镜像变量、profile 服务缺失或 compose 语法问题。
+脚本还会解析 `manifest.yml`、`configs.yml`、`routers.yml` 和 `docker-compose.yml`，防止生成 YAML 语法错误的安装包。`manifest.yml` 必须声明 VOS 安装 UI 使用的 `profiles`，profile 名只能使用小写字母、数字和连字符，并且必须与 `docker-compose.yml` 的 compose profile 完全一致；飞书 sheet 名只允许出现在打包脚本的映射关系中。如果运行环境有 Docker Compose，会额外对 `amd`、`arm`、`l4t`、`thor-spark` 四个 profile 执行 `docker compose config`，提前发现未展开镜像变量、profile 服务缺失或 compose 语法问题。
 
 ## Profiles
 
@@ -31,21 +31,21 @@ profile 按 `ollama_server` 的发布维度设置。HybRAG 自身 AMD 有无 CUD
 
 | profile | 飞书 sheet | 说明 |
 | --- | --- | --- |
-| `AMD_with_cuda` | `AMD_with_cuda` | x86_64 / AMD 通用 HybRAG + Ollama |
-| `ARM_with_cuda` | `ARM_with_cuda` | ARM 通用 HybRAG + Ollama |
+| `amd` | `AMD_with_cuda` | x86_64 / AMD 通用 HybRAG + Ollama |
+| `arm` | `ARM_with_cuda` | ARM 通用 HybRAG + Ollama |
 | `l4t` | `l4t` | Jetson / L4T |
-| `thor_spark` | `thor_spark` | Thor Spark |
+| `thor-spark` | `thor_spark` | Thor Spark |
 
 安装时由 VOS 指定其中一个 profile。手动检查 compose 时也必须只启用一个 profile：
 
 ```bash
-docker compose --profile AMD_with_cuda config
+docker compose --profile amd config
 docker compose --profile l4t config
 ```
 
 ## 资源默认值
 
-所有 profile 的 QA/VLM Ollama 模型默认都是 `qwen3.5:2b`，embedding 模型默认是 `bge-m3:latest`。普通 profile（`AMD_with_cuda`、`ARM_with_cuda`、`l4t`）默认按纯 Ollama 分离容器方案配置：
+所有 profile 的 QA/VLM Ollama 模型默认都是 `qwen3.5:2b`，embedding 模型默认是 `bge-m3:latest`。普通 profile（`amd`、`arm`、`l4t`）默认按纯 Ollama 分离容器方案配置：
 
 | 资源项 | 默认值 | 含义 |
 | --- | ---: | --- |
@@ -57,7 +57,7 @@ docker compose --profile l4t config
 | Embedding Ollama 总槽位 | `4` | `OLLAMA_EMBEDDING_NUM_PARALLEL=4`。 |
 | 文档 embedding 槽位 | `2` | `CONCURRENCY_POOL_SIZE=2`，另外约 `2` 个槽位留给聊天检索。 |
 
-`thor_spark` profile 按 LexAI thor 资源策略给更高默认值：QA/VLM 总槽位 `20`、聊天预留 `6`、后台主模型共享 `14`、QA 上下文 `65536`、输出预算 `24576`、embedding 服务总槽位 `16`、文档 embedding 槽位 `8`，worker 池为 `core/postprocess/enrichment/maintenance/shared/wiki = 4/2/2/1/0/4`。其中 shared 为 `0` 表示关闭弹性借用；其他 worker 池仍必须是正整数。
+`thor-spark` profile 按 LexAI thor 资源策略给更高默认值：QA/VLM 总槽位 `20`、聊天预留 `6`、后台主模型共享 `14`、QA 上下文 `65536`、输出预算 `24576`、embedding 服务总槽位 `16`、文档 embedding 槽位 `8`，worker 池为 `core/postprocess/enrichment/maintenance/shared/wiki = 4/2/2/1/0/4`。其中 shared 为 `0` 表示关闭弹性借用；其他 worker 池仍必须是正整数。
 
 ## 依赖和模型
 

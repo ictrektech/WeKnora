@@ -22,10 +22,10 @@ LOCK_DIR="${DIST_DIR}/.package.lock"
 # Profiles intentionally follow ollama_server release dimensions. WeKnora AMD is
 # shared across AMD variants, and WeKnora ARM is shared across ARM variants.
 PROFILES=(
-  "AMD_with_cuda|AMD_with_cuda"
-  "ARM_with_cuda|ARM_with_cuda"
+  "amd|AMD_with_cuda"
+  "arm|ARM_with_cuda"
   "l4t|l4t"
-  "thor_spark|thor_spark"
+  "thor-spark|thor_spark"
 )
 COMPONENTS=(
   "WEKNORA_APP|weknora|swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora"
@@ -56,8 +56,13 @@ require_cmd() {
 
 validate_yaml_file() {
   local file="$1"
-  ruby -e 'require "psych"; Psych.parse_file(ARGV[0])' "$file" \
+  python3 - "$file" <<'PYYAML' \
     || die "invalid YAML: ${file}"
+import sys
+import yaml
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    yaml.safe_load(f)
+PYYAML
 }
 
 validate_staged_files() {
@@ -66,9 +71,69 @@ validate_staged_files() {
     validate_yaml_file "${STAGE_DIR}/${file}"
   done
 
+  local expected_profiles=()
+  local profile_spec profile sheet_title
+  for profile_spec in "${PROFILES[@]}"; do
+    IFS='|' read -r profile sheet_title <<< "$profile_spec"
+    expected_profiles+=("$profile")
+  done
+  python3 - "${STAGE_DIR}/manifest.yml" "${STAGE_DIR}/docker-compose.yml" "${expected_profiles[@]}" <<'PYPROFILE' \
+    || die "manifest/docker-compose profile contract validation failed"
+import re
+import sys
+import yaml
+
+manifest_path, compose_path, *expected = sys.argv[1:]
+with open(manifest_path, "r", encoding="utf-8") as f:
+    manifest = yaml.safe_load(f) or {}
+profiles = manifest.get("profiles")
+if not isinstance(profiles, list) or not profiles:
+    raise SystemExit("manifest.yml must declare non-empty profiles for VOS install UI")
+
+names = []
+for profile in profiles:
+    if not isinstance(profile, dict) or "name" not in profile:
+        raise SystemExit("manifest profile missing name")
+    name = str(profile["name"])
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name):
+        raise SystemExit(f"invalid VOS profile name {name!r}; use lowercase letters, digits, and hyphens only")
+    names.append(name)
+
+if sorted(names) != sorted(expected):
+    raise SystemExit(f"manifest profiles {names!r} do not match package profiles {expected!r}")
+
+for profile in profiles:
+    name = str(profile["name"])
+    conflicts = profile.get("conflicts") or []
+    if not isinstance(conflicts, list):
+        raise SystemExit(f"manifest profile {name!r} conflicts must be a list")
+    missing = [other for other in names if other != name and other not in conflicts]
+    if missing:
+        raise SystemExit(f"manifest profile {name!r} conflicts missing {missing!r}")
+
+with open(compose_path, "r", encoding="utf-8") as f:
+    compose_text = f.read()
+compose = yaml.safe_load(compose_text) or {}
+services = compose.get("services") or {}
+compose_profiles = set()
+for service in services.values():
+    for profile in service.get("profiles") or []:
+        compose_profiles.add(str(profile))
+missing = [name for name in names if name not in compose_profiles]
+if missing:
+    raise SystemExit(f"docker-compose.yml has no service using profiles {missing!r}")
+
+bad_names = {"AMD_with_cuda", "ARM_with_cuda", "thor_spark", "SOPHON_bm1688"}
+if bad_names & set(names):
+    raise SystemExit(f"manifest profiles must not use Feishu sheet names: {sorted(bad_names & set(names))!r}")
+bad_compose = bad_names & compose_profiles
+if bad_compose:
+    raise SystemExit(f"docker-compose.yml profiles must not use Feishu sheet names: {sorted(bad_compose)!r}")
+PYPROFILE
+
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     local profile
-    for profile in AMD_with_cuda ARM_with_cuda l4t thor_spark; do
+    for profile in amd arm l4t thor-spark; do
       docker compose --env-file "${STAGE_DIR}/.env" -f "${STAGE_DIR}/docker-compose.yml" --profile "$profile" config >/dev/null \
         || die "docker compose config failed for profile ${profile}"
     done
@@ -397,7 +462,6 @@ done
 
 require_cmd curl
 require_cmd python3
-require_cmd ruby
 require_cmd tar
 mkdir -p "$DIST_DIR"
 acquire_lock

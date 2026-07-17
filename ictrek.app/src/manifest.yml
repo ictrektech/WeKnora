@@ -22,6 +22,40 @@ dependencies:
       version: ">=0.0.13"
       optional: false
 
+profiles:
+  - name: amd
+    title:
+      zh-CN: AMD64 CUDA
+      en: AMD64 CUDA
+    description:
+      zh-CN: 使用 AMD_with_cuda 飞书标签页中的 HybRAG 和 Ollama 镜像。
+      en: Use HybRAG and Ollama images from the AMD_with_cuda Feishu sheet.
+    conflicts: [arm, l4t, thor-spark]
+  - name: arm
+    title:
+      zh-CN: ARM CUDA
+      en: ARM CUDA
+    description:
+      zh-CN: 使用 ARM_with_cuda 飞书标签页中的 HybRAG 和 Ollama 镜像。
+      en: Use HybRAG and Ollama images from the ARM_with_cuda Feishu sheet.
+    conflicts: [amd, l4t, thor-spark]
+  - name: l4t
+    title:
+      zh-CN: Jetson / L4T
+      en: Jetson / L4T
+    description:
+      zh-CN: 使用 l4t 飞书标签页中的 HybRAG 和 Ollama 镜像。
+      en: Use HybRAG and Ollama images from the l4t Feishu sheet.
+    conflicts: [amd, arm, thor-spark]
+  - name: thor-spark
+    title:
+      zh-CN: Thor Spark
+      en: Thor Spark
+    description:
+      zh-CN: 使用 thor_spark 飞书标签页中的 HybRAG 和 Ollama 镜像。
+      en: Use HybRAG and Ollama images from the thor_spark Feishu sheet.
+    conflicts: [amd, arm, l4t]
+
 storage:
   directories:
     - path: files
