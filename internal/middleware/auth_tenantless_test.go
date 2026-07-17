@@ -8,6 +8,24 @@ import (
 	"github.com/Tencent/WeKnora/internal/types"
 )
 
+func TestNoAuthAPISurface(t *testing.T) {
+	tests := []struct {
+		method string
+		path   string
+		want   bool
+	}{
+		{http.MethodPost, "/api/v1/auth/vos-sso", true},
+		{http.MethodGet, "/api/v1/auth/vos-sso", false},
+		{http.MethodPost, "/api/v1/auth/login", true},
+		{http.MethodGet, "/api/v1/knowledge-bases", false},
+	}
+	for _, tt := range tests {
+		if got := isNoAuthAPI(tt.path, tt.method); got != tt.want {
+			t.Errorf("isNoAuthAPI(%s %s) = %v, want %v", tt.method, tt.path, got, tt.want)
+		}
+	}
+}
+
 func TestTenantOptionalAPISurface(t *testing.T) {
 	tests := []struct {
 		method string
