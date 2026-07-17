@@ -11,6 +11,7 @@ HybRAG is an enterprise knowledge-base, RAG, Wiki graph, and agent platform. Thi
 - Ollama QA/VLM container
 - Ollama embedding container
 - Redis
+- Neo4j knowledge graph database
 - External PGV/Postgres dependency
 
 ## Profiles
@@ -24,6 +25,8 @@ Choose one profile at install time: `amd`, `amd-no-cuda`, `arm`, `arm-no-cuda`, 
 The install UI exposes model, resource, and host-path settings. By default HybRAG stores runtime data under `/data/vos_workspace/hybrag` in `files`, `docreader`, and `redis` subdirectories. Ollama models reuse the Model Hub shared directory `/data/vos_workspace/model_hub/ollama` unless `MODEL_HUB_SHARED_MODELS_PATH` is changed during installation.
 
 Postgres is provided by PGV. The default connection is `shared-pgv:5432` with user/password/database `weknora` / `weknora` / `WeKnora`. These fields are exposed in the install UI; if PGV was installed with different credentials or database name, update them in the HybRAG install form.
+
+Entity/relation knowledge graph extraction is enabled by default. The VOS package starts an app-local `hybrag-neo4j` service, and the app connects to `bolt://hybrag-neo4j:7687` with default credentials `neo4j` / `hybrag-neo4j`. Neo4j data is stored at `/data/vos_workspace/hybrag/neo4j` by default. Host debug ports avoid the official defaults and use `27474` for Browser and `27687` for Bolt. To use an external Neo4j instance, adjust `NEO4J_URI`, `NEO4J_USERNAME`, and `NEO4J_PASSWORD` in the install UI.
 
 ## VOS SSO
 

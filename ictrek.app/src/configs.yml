@@ -44,6 +44,15 @@ configs:
       zh-CN: 映射到 Redis `/data`，保存 AOF 等 Redis 持久化数据。
       en: Mounted to Redis `/data` for AOF and Redis persistence.
     default: /data/vos_workspace/hybrag/redis
+  - name: HYBRAG_NEO4J_PATH
+    type: path
+    title:
+      zh-CN: Neo4j 数据目录
+      en: Neo4j Data Path
+    description:
+      zh-CN: 映射到 Neo4j `/data`，保存实体关系 GraphRAG 的图数据库数据。
+      en: Mounted to Neo4j `/data` for entity/relation GraphRAG graph data.
+    default: /data/vos_workspace/hybrag/neo4j
   - name: HYBRAG_DOCKER_SOCKET_PATH
     type: path
     title:
@@ -100,6 +109,73 @@ configs:
       zh-CN: PGV 默认预置的 WeKnora 数据库为 `WeKnora`。如果安装 PGV 时改过数据库名，请在这里同步修改。
       en: PGV precreates database `WeKnora` by default. Change this if PGV was installed with a different database name.
     default: WeKnora
+  - name: ENABLE_GRAPH_RAG
+    type: boolean
+    title:
+      zh-CN: 启用实体关系 GraphRAG
+      en: Enable Entity GraphRAG
+    description:
+      zh-CN: 控制知识库图谱中的实体-关系抽取功能。关闭后新建知识库会提示知识图谱数据库未启用。
+      en: Enables entity/relation extraction for knowledge graph indexing. If disabled, new knowledge bases report that the graph database is unavailable.
+    default: true
+  - name: NEO4J_ENABLE
+    type: boolean
+    title:
+      zh-CN: 启用 Neo4j
+      en: Enable Neo4j
+    description:
+      zh-CN: 控制 App 是否连接 Neo4j。VOS 包会随应用启动独立的 `hybrag-neo4j` 服务。
+      en: Controls whether the app connects to Neo4j. The VOS package starts an app-local `hybrag-neo4j` service.
+    default: true
+  - name: NEO4J_URI
+    type: string
+    title:
+      zh-CN: Neo4j Bolt 地址
+      en: Neo4j Bolt URI
+    description:
+      zh-CN: App 容器内访问 Neo4j 的 Bolt 地址。使用内置 Neo4j 时保持默认值。
+      en: Bolt URI reachable from the app container. Keep the default when using the bundled Neo4j service.
+    default: bolt://hybrag-neo4j:7687
+  - name: NEO4J_USERNAME
+    type: string
+    title:
+      zh-CN: Neo4j 用户名
+      en: Neo4j Username
+    description:
+      zh-CN: Neo4j 管理员用户名。Neo4j 官方镜像默认用户为 `neo4j`。
+      en: Neo4j admin username. The official Neo4j image defaults to `neo4j`.
+    default: neo4j
+  - name: NEO4J_PASSWORD
+    type: string
+    title:
+      zh-CN: Neo4j 密码
+      en: Neo4j Password
+    description:
+      zh-CN: Neo4j 初始密码，至少 8 个字符。首次安装后不要随意改动，除非同步迁移 Neo4j 数据或重置密码。
+      en: Initial Neo4j password, at least 8 characters. Do not change it after first install unless you also migrate data or reset the database password.
+    default: hybrag-neo4j
+  - name: NEO4J_HTTP_PORT
+    type: integer
+    title:
+      zh-CN: Neo4j 浏览器端口
+      en: Neo4j Browser Port
+    description:
+      zh-CN: 宿主机访问 Neo4j Browser 的端口，默认避开 7474。
+      en: Host port for Neo4j Browser, avoiding the default 7474.
+    default: 27474
+    minimum: 1
+    maximum: 65535
+  - name: NEO4J_BOLT_PORT
+    type: integer
+    title:
+      zh-CN: Neo4j Bolt 外部端口
+      en: Neo4j Bolt Host Port
+    description:
+      zh-CN: 宿主机访问 Neo4j Bolt 的端口，默认避开 7687。App 容器内部仍使用 `hybrag-neo4j:7687`。
+      en: Host port for Neo4j Bolt, avoiding the default 7687. The app container still uses `hybrag-neo4j:7687` internally.
+    default: 27687
+    minimum: 1
+    maximum: 65535
   - name: HYBRAG_VOS_SSO_ENABLED
     type: boolean
     title:

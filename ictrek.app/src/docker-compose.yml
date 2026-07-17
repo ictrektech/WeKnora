@@ -398,7 +398,7 @@ x-hybrag-app-env: &hybrag-app-env
   OLLAMA_BASE_URL: http://hybrag-ollama-qa:11434
   OLLAMA_QA_MODEL: ${OLLAMA_QA_MODEL:-qwen3.5:2b}
   OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-bge-m3}
-  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-hybrag-ollama-qa,hybrag-ollama-embedding,shared-pgv,ictrek-pgv}
+  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-hybrag-ollama-qa,hybrag-ollama-embedding,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
   BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
   WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -424,8 +424,11 @@ x-hybrag-app-env: &hybrag-app-env
   WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
   WEKNORA_RUN_AS_ROOT: ${WEKNORA_RUN_AS_ROOT:-true}
   WEKNORA_SANDBOX_DOCKER_IMAGE: ""
-  ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-false}
-  NEO4J_ENABLE: ${NEO4J_ENABLE:-false}
+  ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-true}
+  NEO4J_ENABLE: ${NEO4J_ENABLE:-true}
+  NEO4J_URI: ${NEO4J_URI:-bolt://hybrag-neo4j:7687}
+  NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:-hybrag-neo4j}
   MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
   DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
   WEKNORA_AUTH_DEFAULT_TENANT_MODE: ${WEKNORA_AUTH_DEFAULT_TENANT_MODE:-create_personal}
@@ -485,6 +488,34 @@ services:
       - vos_default
     restart: unless-stopped
 
+  hybrag-neo4j:
+    image: neo4j:2025.10.1
+    ports:
+      - "${NEO4J_HTTP_PORT:-27474}:7474"
+      - "${NEO4J_BOLT_PORT:-27687}:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-hybrag-neo4j}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-hybrag-neo4j}
+      NEO4J_apoc_export_file_enabled: "true"
+      NEO4J_apoc_import_file_enabled: "true"
+      NEO4J_apoc_import_file_use__neo4j__config: "true"
+      NEO4JLABS_PLUGINS: '["apoc"]'
+    volumes:
+      - ${HYBRAG_NEO4J_PATH:-/data/vos_workspace/hybrag/neo4j}:/data
+    networks:
+      vos_default:
+        aliases:
+          - hybrag-neo4j
+          - neo4j
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u \"$${NEO4J_USERNAME:-neo4j}\" -p \"$${NEO4J_PASSWORD:-hybrag-neo4j}\" 'RETURN 1;' >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
   hybrag-frontend-amd-with-cuda:
     <<: *hybrag-frontend-base
     profiles: ["amd"]
@@ -505,6 +536,8 @@ services:
     depends_on:
       hybrag-redis:
         condition: service_started
+      hybrag-neo4j:
+        condition: service_healthy
       hybrag-docreader-amd-with-cuda:
         condition: service_healthy
       hybrag-ollama-qa-amd-with-cuda:
@@ -550,6 +583,8 @@ services:
     depends_on:
       hybrag-redis:
         condition: service_started
+      hybrag-neo4j:
+        condition: service_healthy
       hybrag-docreader-amd-no-cuda:
         condition: service_healthy
       hybrag-ollama-qa-amd-no-cuda:
@@ -595,6 +630,8 @@ services:
     depends_on:
       hybrag-redis:
         condition: service_started
+      hybrag-neo4j:
+        condition: service_healthy
       hybrag-docreader-arm-with-cuda:
         condition: service_healthy
       hybrag-ollama-qa-arm-with-cuda:
@@ -640,6 +677,8 @@ services:
     depends_on:
       hybrag-redis:
         condition: service_started
+      hybrag-neo4j:
+        condition: service_healthy
       hybrag-docreader-arm-no-cuda:
         condition: service_healthy
       hybrag-ollama-qa-arm-no-cuda:
@@ -685,6 +724,8 @@ services:
     depends_on:
       hybrag-redis:
         condition: service_started
+      hybrag-neo4j:
+        condition: service_healthy
       hybrag-docreader-l4t:
         condition: service_healthy
       hybrag-ollama-qa-l4t:
@@ -730,6 +771,8 @@ services:
     depends_on:
       hybrag-redis:
         condition: service_started
+      hybrag-neo4j:
+        condition: service_healthy
       hybrag-docreader-thor-spark:
         condition: service_healthy
       hybrag-ollama-qa-thor-spark:
