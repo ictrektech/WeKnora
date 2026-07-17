@@ -130,15 +130,57 @@ const hasMore = computed(() => {
   return tenants.value.length < total.value
 })
 
+const localTenantOptions = computed<TenantInfo[]>(() => {
+  const byId = new Map<number, TenantInfo>()
+  const now = new Date(0).toISOString()
+
+  const addTenant = (id: number | null | undefined, name?: string | null) => {
+    if (!id || !Number.isFinite(id)) return
+    byId.set(id, {
+      id,
+      name: name?.trim() || `#${id}`,
+      created_at: now,
+      updated_at: now,
+    })
+  }
+
+  for (const membership of authStore.memberships ?? []) {
+    addTenant(Number(membership.tenant_id), membership.tenant_name)
+  }
+
+  addTenant(authStore.tenant?.id ? Number(authStore.tenant.id) : null, authStore.tenant?.name)
+  addTenant(selectedTenantId.value, authStore.selectedTenantName)
+
+  return Array.from(byId.values())
+})
+
 const isSelected = (tenantId: number) => {
   return currentTenantId.value === tenantId
+}
+
+const isCrossWorkspaceDisabled = (message?: string) => {
+  return (message || '').toLowerCase().includes('cross-workspace access is disabled')
+}
+
+const useLocalTenantOptions = () => {
+  const keyword = searchQuery.value.trim().toLowerCase()
+  const allTenants = localTenantOptions.value
+  const filtered = keyword
+    ? allTenants.filter((tenant) =>
+      tenant.name.toLowerCase().includes(keyword) || String(tenant.id).includes(keyword),
+    )
+    : allTenants
+
+  tenants.value = filtered
+  total.value = filtered.length
+  authStore.setAllTenants(allTenants)
 }
 
 const toggleDropdown = () => {
   showDropdown.value = !showDropdown.value
   if (showDropdown.value) {
     if (tenants.value.length === 0) {
-      loadTenants()
+      useLocalTenantOptions()
     }
     nextTick(() => {
       searchInput.value?.focus()
@@ -161,7 +203,7 @@ const clearSearch = () => {
   currentPage.value = 1
   tenants.value = []
   total.value = 0
-  loadTenants()
+  useLocalTenantOptions()
 }
 
 const selectTenant = (tenantId: number) => {
@@ -234,10 +276,18 @@ const loadTenants = async (append = false) => {
       total.value = response.data.total
       authStore.setAllTenants(tenants.value)
     } else {
+      if (isCrossWorkspaceDisabled(response.message)) {
+        useLocalTenantOptions()
+        return
+      }
       MessagePlugin.error(response.message || t('tenant.loadTenantsFailed'))
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to load tenants:', error)
+    if (isCrossWorkspaceDisabled(error?.message)) {
+      useLocalTenantOptions()
+      return
+    }
     MessagePlugin.error(t('tenant.loadTenantsFailed'))
   } finally {
     loading.value = false
@@ -299,8 +349,9 @@ const onTenantCreated = async (newTenant: TenantInfo) => {
 }
 
 onMounted(() => {
-  // 预加载空间列表
-  loadTenants()
+  // 单工作区部署默认关闭跨工作区搜索；首屏先使用 /auth/me 已返回的
+  // memberships/current tenant，避免无意义请求 /tenants/search 触发 403 toast。
+  useLocalTenantOptions()
 })
 
 onUnmounted(() => {
