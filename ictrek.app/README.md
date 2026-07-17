@@ -41,6 +41,22 @@ docker compose --profile AMD_with_cuda config
 docker compose --profile l4t config
 ```
 
+## 资源默认值
+
+所有 profile 的 QA/VLM Ollama 模型默认都是 `qwen3.5:2b`，embedding 模型默认是 `bge-m3:latest`。普通 profile（`AMD_with_cuda`、`ARM_with_cuda`、`l4t`）默认按纯 Ollama 分离容器方案配置：
+
+| 资源项 | 默认值 | 含义 |
+| --- | ---: | --- |
+| QA/VLM Ollama 总槽位 | `8` | `OLLAMA_QA_NUM_PARALLEL=8`，聊天和图片理解共用。 |
+| QA/VLM 聊天预留 | `2` | `WEKNORA_CHAT_RESERVED_CONCURRENCY=2`，后台任务最多共享剩余 `6` 个主模型槽位。 |
+| 后台主模型共享槽位 | `6` | `WEKNORA_MODEL_MAX_CONCURRENCY=6`，Graph/Wiki/VLM/摘要/问题生成等后台调用共用。 |
+| QA 上下文 | `24000` | 应用侧 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=24000`，Ollama 侧 `OLLAMA_CONTEXT_LENGTH=24000`。 |
+| QA 输入/输出预算 | `16000 / 8000` | `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=0`、`WEKNORA_*MAX*_TOKENS=8000`。 |
+| Embedding Ollama 总槽位 | `4` | `OLLAMA_EMBEDDING_NUM_PARALLEL=4`。 |
+| 文档 embedding 槽位 | `2` | `CONCURRENCY_POOL_SIZE=2`，另外约 `2` 个槽位留给聊天检索。 |
+
+`thor_spark` profile 按 LexAI thor 资源策略给更高默认值：QA/VLM 总槽位 `20`、聊天预留 `6`、后台主模型共享 `14`、QA 上下文 `65536`、输出预算 `24576`、embedding 服务总槽位 `16`、文档 embedding 槽位 `8`，worker 池为 `core/postprocess/enrichment/maintenance/shared/wiki = 4/2/2/1/0/4`。其中 shared 为 `0` 表示关闭弹性借用；其他 worker 池仍必须是正整数。
+
 ## 依赖和模型
 
 `manifest.yml` 声明依赖 `com.ictrek.model-hub >=0.0.17` 和 `com.ictrek.pgv`，但 `docker-compose.yml` 不启动 model_hub 或 Postgres 服务。`0.0.17` 是首个支持标准共享模型目录的 Model Hub 版本。WeKnora 包内只启动自身服务、Redis 和 `ollama_server` 容器；Postgres 通过 PGV 在 `vos_default` 网络上的 `shared-pgv:5432` 访问，Ollama 模型目录复用 Model Hub 管理的共享目录。

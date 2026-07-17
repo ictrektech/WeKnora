@@ -29,19 +29,19 @@ const (
 // name "low" so tasks enqueued by older releases remain consumable during a
 // rolling deployment. New code uses the business-semantic constant.
 const (
-	QueueDefault     = "default"
+	QueueDefault = "default"
 	// QueueChatAttachment carries session-scoped chat attachment parsing. It
 	// lives in the core pool but with a higher weight than QueueDefault so
 	// interactive chat uploads are not starved by knowledge-base batch imports.
 	QueueChatAttachment = "chat_attachment"
 	QueuePostProcess    = "postprocess"
-	QueueSummary     = "summary"
-	QueueMultimodal  = "multimodal"
-	QueueGraph       = "graph"
-	QueueQuestion    = "question"
-	QueueSync        = "sync"
-	QueueMaintenance = "low"
-	QueueWiki        = "wiki"
+	QueueSummary        = "summary"
+	QueueMultimodal     = "multimodal"
+	QueueGraph          = "graph"
+	QueueQuestion       = "question"
+	QueueSync           = "sync"
+	QueueMaintenance    = "low"
+	QueueWiki           = "wiki"
 )
 
 // QueueDefinition is the single source of truth for queue topology. Worker
@@ -157,7 +157,8 @@ func DefaultWorkerPoolConcurrency() WorkerPoolConcurrency {
 // ResolveWorkerPoolConcurrency centralizes setting keys, environment names,
 // defaults, and invalid-value fallback for both server construction and the
 // runtime API. The callback lets this package stay independent of the system
-// setting service interface.
+// setting service interface. Dedicated pools must stay positive; Shared is the
+// optional elastic tier and may be set to 0 to disable queue borrowing.
 func ResolveWorkerPoolConcurrency(read func(key, env string, fallback int) int) WorkerPoolConcurrency {
 	allocation := DefaultWorkerPoolConcurrency()
 	if read == nil {
@@ -170,11 +171,18 @@ func ResolveWorkerPoolConcurrency(read func(key, env string, fallback int) int) 
 		}
 		return value
 	}
+	nonNegative := func(key, env string, fallback int) int {
+		value := read(key, env, fallback)
+		if value < 0 {
+			return fallback
+		}
+		return value
+	}
 	allocation.Core = positive("asynq.core_concurrency", "WEKNORA_ASYNQ_CORE_CONCURRENCY", allocation.Core)
 	allocation.PostProcess = positive("asynq.postprocess_concurrency", "WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY", allocation.PostProcess)
 	allocation.Enrichment = positive("asynq.enrichment_concurrency", "WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY", allocation.Enrichment)
 	allocation.Maintenance = positive("asynq.maintenance_concurrency", "WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY", allocation.Maintenance)
-	allocation.Shared = positive("asynq.shared_concurrency", "WEKNORA_ASYNQ_SHARED_CONCURRENCY", allocation.Shared)
+	allocation.Shared = nonNegative("asynq.shared_concurrency", "WEKNORA_ASYNQ_SHARED_CONCURRENCY", allocation.Shared)
 	allocation.Wiki = positive("asynq.wiki_concurrency", "WEKNORA_WIKI_ASYNQ_CONCURRENCY", allocation.Wiki)
 	return allocation
 }

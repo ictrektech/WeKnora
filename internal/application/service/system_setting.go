@@ -1277,13 +1277,21 @@ func validateRegistryEntry(key string, rawValue any) error {
 	switch key {
 	case "asynq.core_concurrency", "asynq.postprocess_concurrency",
 		"asynq.enrichment_concurrency", "asynq.maintenance_concurrency",
-		"asynq.shared_concurrency", "asynq.wiki_concurrency":
+		"asynq.wiki_concurrency":
 		n, err := coerceToPositiveInt64(rawValue)
 		if err != nil {
 			return err
 		}
 		if n < 1 {
 			return errors.New("concurrency must be at least 1")
+		}
+	case "asynq.shared_concurrency":
+		n, err := coerceToPositiveInt64(rawValue)
+		if err != nil {
+			return err
+		}
+		if n < 0 {
+			return errors.New("shared concurrency must be at least 0")
 		}
 	case "ssrf.whitelist":
 		// Coerce into the same shape encodeForType produced. We don't

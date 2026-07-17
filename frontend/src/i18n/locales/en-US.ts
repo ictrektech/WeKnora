@@ -3858,7 +3858,7 @@ export default {
           postprocess_concurrency: 'Dedicated per-process concurrency for lightweight parse finalization and enrichment fan-out. Minimum 1; requires a service restart.',
           enrichment_concurrency: 'Guaranteed per-process concurrency for summaries, images, graph, and question generation. Enrichment may also borrow the shared elastic pool. Minimum 1; requires a service restart.',
           maintenance_concurrency: 'Per-process concurrency for source sync, batch work, and cleanup, hard-isolated from the user-facing pipeline. Minimum 1; requires a service restart.',
-          shared_concurrency: 'Per-process elastic concurrency shared by core parsing and enrichment; whichever side has backlog borrows it automatically. Minimum 1; requires a service restart.',
+          shared_concurrency: 'Per-process elastic concurrency shared by core parsing and enrichment; set 0 to disable borrowing. Requires a service restart.',
           wiki_concurrency:
             'Per-process concurrency for the dedicated Wiki worker pool, isolated from upstream tasks. Minimum 1; requires a service restart.',
         },

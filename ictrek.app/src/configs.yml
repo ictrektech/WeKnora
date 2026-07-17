@@ -34,7 +34,7 @@ configs:
     description:
       zh-CN: QA/VLM Ollama 容器的默认上下文长度。
       en: Default context length for the QA/VLM Ollama container.
-    default: 18000
+    default: 24000
     minimum: 1024
     maximum: 131072
   - name: OLLAMA_QA_NUM_PARALLEL
@@ -45,7 +45,7 @@ configs:
     description:
       zh-CN: QA/VLM Ollama 实例的 OLLAMA_NUM_PARALLEL。
       en: OLLAMA_NUM_PARALLEL for the QA/VLM Ollama instance.
-    default: 3
+    default: 8
     minimum: 1
     maximum: 32
   - name: OLLAMA_EMBEDDING_NUM_PARALLEL
@@ -70,3 +70,80 @@ configs:
     default: 2
     minimum: 1
     maximum: 16
+  - name: WEKNORA_MAIN_QA_MODEL_CONCURRENCY
+    type: integer
+    title:
+      zh-CN: QA/VLM 总槽位
+      en: QA/VLM Total Slots
+    description:
+      zh-CN: 应用侧认为 QA/VLM 模型服务可承载的总槽位。非 thor profile 默认 8，其中 2 个留给在线聊天，后台任务共享 6 个。
+      en: App-side total capacity for the QA/VLM model backend. Non-thor profiles default to 8, with 2 reserved for chat and 6 shared by background tasks.
+    default: 8
+    minimum: 1
+    maximum: 32
+  - name: WEKNORA_MODEL_MAX_CONCURRENCY
+    type: integer
+    title:
+      zh-CN: 后台模型共享槽位
+      en: Background Model Slots
+    description:
+      zh-CN: 同一模型 endpoint 的后台 Chat/VLM/Graph/Wiki/摘要任务共享上限。非 thor profile 默认 6。
+      en: Shared background cap for one model endpoint across Chat, VLM, Graph, Wiki, and summary tasks. Non-thor profiles default to 6.
+    default: 6
+    minimum: 0
+    maximum: 32
+  - name: CONCURRENCY_POOL_SIZE
+    type: integer
+    title:
+      zh-CN: 文档 Embedding 后台槽位
+      en: Document Embedding Slots
+    description:
+      zh-CN: 应用侧文档 embedding 并发。Embedding Ollama 总槽位默认为 4，本项默认 2，另外 2 个留给聊天检索。
+      en: App-side document embedding concurrency. Embedding Ollama defaults to 4 total slots; this defaults to 2 so 2 slots remain for chat retrieval.
+    default: 2
+    minimum: 1
+    maximum: 32
+  - name: WEKNORA_CHAT_MODEL_CONTEXT_TOKENS
+    type: integer
+    title:
+      zh-CN: QA 上下文总窗口
+      en: QA Context Window
+    description:
+      zh-CN: 应用侧用于裁剪 RAG/工具上下文的 QA 总上下文。非 thor profile 默认 24000。
+      en: App-side QA context window used to trim RAG/tool context. Non-thor profiles default to 24000.
+    default: 24000
+    minimum: 1024
+    maximum: 131072
+  - name: WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS
+    type: integer
+    title:
+      zh-CN: QA 上下文安全余量
+      en: QA Context Safety Tokens
+    description:
+      zh-CN: 从总上下文中额外预留的安全 token。默认 0，使 24000 总窗口按 16000 输入和 8000 输出预算分配。
+      en: Extra safety tokens reserved from the total context. Default 0 so a 24000 window maps to about 16000 input plus 8000 output.
+    default: 0
+    minimum: 0
+    maximum: 8192
+  - name: WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS
+    type: integer
+    title:
+      zh-CN: 智能体最终输出上限
+      en: Agent Final Answer Max Tokens
+    description:
+      zh-CN: 智能体最终答案最大输出 token。非 thor profile 默认 8000。
+      en: Max output tokens for agent final answers. Non-thor profiles default to 8000.
+    default: 8000
+    minimum: 512
+    maximum: 32768
+  - name: WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS
+    type: integer
+    title:
+      zh-CN: 普通问答输出上限
+      en: Conversation Max Completion Tokens
+    description:
+      zh-CN: 普通知识库问答和会话摘要的最大输出 token。非 thor profile 默认 8000。
+      en: Max output tokens for regular knowledge-base chat and conversation summaries. Non-thor profiles default to 8000.
+    default: 8000
+    minimum: 512
+    maximum: 32768

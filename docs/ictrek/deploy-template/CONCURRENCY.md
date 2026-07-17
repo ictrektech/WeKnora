@@ -19,18 +19,19 @@
 
 | 配置 | 控制对象 | 有效值与特殊行为 | 生效方式 |
 | --- | --- | --- | --- |
-| `WEKNORA_ASYNQ_CORE_CONCURRENCY`、`POSTPROCESS`、`ENRICHMENT`、`MAINTENANCE`、`SHARED`、`WEKNORA_WIKI_ASYNQ_CONCURRENCY` | 六个独立 Asynq worker 池 | 每项都必须是 `>=1`。缺失、`0` 或负数会回退代码默认值，**不会关闭该池**。模板六项都为 `1`，即单个 app 实例至少启动 6 个 worker。 | 系统设置保存值优先于 env；修改后重启 app。 |
+| `WEKNORA_ASYNQ_CORE_CONCURRENCY`、`POSTPROCESS`、`ENRICHMENT`、`MAINTENANCE`、`WEKNORA_WIKI_ASYNQ_CONCURRENCY` | 五个专用 Asynq worker 池 | 每项都必须是 `>=1`。缺失、`0` 或负数会回退代码默认值，**不会关闭该池**。 | 系统设置保存值优先于 env；修改后重启 app。 |
+| `WEKNORA_ASYNQ_SHARED_CONCURRENCY` | shared 弹性 worker 池 | `>=0`。设为 `0` 会关闭 shared 借用；负数或缺失回退默认值。普通 profile 默认 `1`，thor profile 默认 `0`。 | 系统设置保存值优先于 env；修改后重启 app。 |
 | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` + `WEKNORA_CHAT_RESERVED_CONCURRENCY` | 主 QA 模型的后台 LLM 槽位 | 两者都大于 `0` 才启用后台预留。后台槽位通常是 `main - reserved`；若 `main <= reserved`，实现仍保留 1 个后台槽，避免任务永久不执行。任一值为空或 `0` 时不启用这道限流。 | env 在 app 进程首次使用时读取；修改后重启 app。 |
 | `WEKNORA_MODEL_MAX_CONCURRENCY` 或模型行 `max_concurrency` | 同一模型 endpoint/served model 的后台 Chat、VLM、Embedding 调用 | `>0` 是每模型后台调用上限；`0` 或负数关闭全局默认闸门。模型行的显式 `max_concurrency` 可覆盖默认值。在线聊天不经过此闸门。 | 系统设置值会即时下发；修改 env 后重启 app。 |
 | `WEKNORA_GRAPH_LLM_CONCURRENCY` | 单文档 Graph 抽取的 LLM 调用 | 取正整数，且会被主 QA 并发的一半上限约束。 | 修改 env 后重启 app。 |
 | `WEKNORA_WIKI_INGEST_MAP_PARALLEL`、`WEKNORA_WIKI_INGEST_REDUCE_PARALLEL` | Wiki 生成阶段的 map/reduce LLM 调用 | 是部署级默认值；知识库的 `wiki_config.ingest_map_parallel` / `wiki_config.ingest_reduce_parallel` 优先。 | 修改 env 后重启 app；知识库配置在新任务开始时生效。 |
-| `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` | 最终答案合成的主模型上下文估算 | 默认 `16384`。应小于或等于模型实际上下文。 | 修改 env 后重启 app。 |
-| `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS` | 最终答案合成的上下文安全余量 | 默认 `768`。系统会先预留安全余量，再预留最终输出 token。工具结果太长时优先裁掉旧工具结果，保留最新结果。 | 修改 env 后重启 app。 |
-| `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS` | Agent 最终答案合成的最大输出 token | 默认 `2048`。如果配置过大，代码会按 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS - WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS - 512` 自动夹紧，至少保留 512 token 输入预算。 | 修改 env 后重启 app。 |
+| `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS` | 最终答案合成的主模型上下文估算 | VOS 普通 profile 默认 `24000`，thor profile 默认 `65536`。应小于或等于模型实际上下文。 | 修改 env 后重启 app。 |
+| `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS` | 最终答案合成的上下文安全余量 | VOS 普通 profile 默认 `0`，用于把 `24000` 窗口按约 `16000` 输入和 `8000` 输出分配；thor profile 默认 `768`。系统会先预留安全余量，再预留最终输出 token。 | 修改 env 后重启 app。 |
+| `WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS` | Agent 最终答案合成的最大输出 token | VOS 普通 profile 默认 `8000`，thor profile 默认 `24576`。如果配置过大，代码会按 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS - WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS - 512` 自动夹紧，至少保留 512 token 输入预算。 | 修改 env 后重启 app。 |
 | `WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS` | 普通知识库问答摘要/回答生成的最大输出 token | 正整数才生效，会覆盖 `conversation.summary.max_completion_tokens`。小模型或 Ollama 低并发机器不要盲目调大。 | 修改 env 后重启 app。 |
 | `CONCURRENCY_POOL_SIZE`、`BATCH_EMBED_SIZE` | 文档 embedding 请求数与单请求 batch 大小 | 前者限制应用侧 embedding 并发，后者增加单请求显存和吞吐。两者都不等于 Asynq worker 数。 | 修改 env 后重启 app。 |
 
-最小可用基线是六个 worker 池均为 `1`，再按模型服务容量设置模型限流。不要通过设置 worker 为 `0` 来停用 Graph、Wiki 或维护任务；应在对应知识库/功能配置中关闭功能或暂停任务，避免由于回退默认值而意外恢复执行。
+最小可用基线是五个专用 worker 池均为 `1`，普通 profile 再给 shared `1`；thor profile 可把 shared 设为 `0` 关闭弹性借用。不要通过设置 core、postprocess、enrichment、maintenance 或 wiki 为 `0` 来停用 Graph、Wiki 或维护任务；应在对应知识库/功能配置中关闭功能或暂停任务，避免由于回退默认值而意外恢复执行。
 
 ## 机器资源评估流程
 
@@ -38,7 +39,7 @@
 
 1. 先定在线体验目标。明确是否必须跑 VLM/Graph/Wiki、是否需要 16k 以上上下文、是否要在文档入库时还能稳定聊天。聊天必须最高优先级时，先预留 `2-3` 个主 QA 槽；多人同时使用再继续提高。
 2. 选候选模型。优先用目标硬件已经验证能稳定启动的量化模型；同等效果下先选更小模型或更低显存量化。模型启动后显存不能长期贴近上限，至少留出 KV cache、embedding、数据库和系统余量。
-3. 定上下文。上下文越大，KV cache 越多，满长并发越低。QA 模型需要超过 16k 上下文时，不要设成正好 `16384`；Orin NX 16G 起步用 `18000`。如果聊天或 Graph 变慢，优先把后台并发降到 1，再考虑换小模型或降低上下文。
+3. 定上下文。上下文越大，KV cache 越多，满长并发越低。VOS 普通 profile 当前按 `24000` 上下文、`8000` 输出预算配置，输入预算约 `16000`；如果目标机器撑不住，先降低后台并发，再考虑换小模型或降低上下文。
 4. 启动模型服务做实测。纯 Ollama 方案看 `OLLAMA_NUM_PARALLEL` 和 `OLLAMA_CONTEXT_LENGTH`；vLLM 方案看 `--max-model-len` 和 `--max-num-seqs`。二者本质都是“同一模型服务能同时接多少条请求”。vLLM 启动日志里的这行可以直接估算满长并发：
 
 ```text
@@ -58,7 +59,7 @@ WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS <= WEKNORA_CHAT_MODEL_CONTEXT_TOKENS - WEK
 
 如果 `background_llm_slots < 1`，说明模型/上下文/显存组合不足以同时跑后台增强和聊天，应降低上下文、换小模型，或关闭/降低 Graph、Wiki、VLM 后台任务。
 
-最终答案输出预算也要跟上下文一起调。比如 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=18000`、`WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=768` 时，`WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=2048` 通常够用；如果把最终输出提高到 8k，会显著减少可放入的检索和工具结果上下文。配置超过可用窗口时，代码会自动夹紧，但不要依赖夹紧来掩盖模型上下文设置错误。
+最终答案输出预算也要跟上下文一起调。VOS 普通 profile 使用 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=24000`、`WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=0`、`WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS=8000`，给合同审查等长答案保留 8k 输出，并留下约 16k 输入预算。配置超过可用窗口时，代码会自动夹紧，但不要依赖夹紧来掩盖模型上下文设置错误。
 
 6. 定 Embedding 并发。Embedding 模型最好独立服务。vLLM embedding 场景下，`CONCURRENCY_POOL_SIZE` 是文档 embedding 应用侧上限；如果希望聊天检索保留 2-3 个槽，就让 `CONCURRENCY_POOL_SIZE` 低于 embedding 服务侧总并发。Ollama 场景下优先分成 QA/VLM 容器和 embedding 容器。
 
@@ -91,8 +92,8 @@ docker logs --tail 50 <qwen-vllm-container> 2>&1 \
 
 | 容器 | 模型 | WeKnora 模型配置 | 资源限制 |
 | --- | --- | --- | --- |
-| `ollama-qa` | 聊天模型、VLM/图片理解模型 | `KnowledgeQA`、`VLLM` 使用 `source=remote`，`base_url=http://ollama-qa:11535/v1` | `OLLAMA_CONTEXT_LENGTH=18000`、`OLLAMA_QA_NUM_PARALLEL=3` 起步，`WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3`，`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` |
-| `ollama-embedding` | embedding 模型，例如 `bge-m3:latest` | `Embedding` 使用 `source=remote`，`base_url=http://ollama-embedding:11535/v1` | `OLLAMA_EMBEDDING_NUM_PARALLEL=4` 起步，`CONCURRENCY_POOL_SIZE=1` |
+| `ollama-qa` | 聊天模型、VLM/图片理解模型 | `KnowledgeQA`、`VLLM` 使用 `source=remote`，`base_url=http://ollama-qa:11535/v1` | `OLLAMA_CONTEXT_LENGTH=24000`、`OLLAMA_QA_NUM_PARALLEL=8` 起步，`WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8`，`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` |
+| `ollama-embedding` | embedding 模型，例如 `bge-m3:latest` | `Embedding` 使用 `source=remote`，`base_url=http://ollama-embedding:11535/v1` | `OLLAMA_EMBEDDING_NUM_PARALLEL=4` 起步，`CONCURRENCY_POOL_SIZE=2` |
 
 只有一个 Ollama 容器时，把 `CONCURRENCY_POOL_SIZE` 降到 `1`，Graph/Wiki 默认低并发，接受文档入库和聊天可能互相排队。单容器只是简化部署，不是稳定生产配置。
 
@@ -109,12 +110,12 @@ WEKNORA_REPARSE_WAIT_URLS=http://ollama-qa:11535/v1/models,http://ollama-embeddi
 对话、Graph 抽取、Wiki 生成、自动问题生成、文档摘要、多模态 VLM 可能共用同一个主 QA/LLM 模型。部署时按模型服务真实容量配置：
 
 ```dotenv
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
 WEKNORA_GRAPH_LLM_CONCURRENCY=1
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
 WEKNORA_WIKI_INGEST_REDUCE_PARALLEL=1
-WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=18000
+WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=24000
 ```
 
 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY` 应该对齐主 QA 模型服务的真实在线并发。Ollama 场景下通常和 QA Ollama 容器的 `OLLAMA_NUM_PARALLEL` 保持一致；vLLM 场景下通常和 `VLLM_MAX_NUM_SEQS` 保持一致。
@@ -144,13 +145,13 @@ WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY=1
 WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1
 WEKNORA_ASYNQ_SHARED_CONCURRENCY=1
 WEKNORA_WIKI_ASYNQ_CONCURRENCY=1
-WEKNORA_MODEL_MAX_CONCURRENCY=2
+WEKNORA_MODEL_MAX_CONCURRENCY=6
 WEKNORA_REPARSE_INCOMPLETE_ON_START=true
 WEKNORA_REPARSE_WAIT_URLS=
 WEKNORA_REPARSE_READY_WAIT_SECONDS=300
 ```
 
-每个变量是单个 app 实例对该池的保证 worker 数，不能再用一个总数推导分配。六项均为 `1` 时，单个 app 实例的 worker 基线是 `1 + 1 + 1 + 1 + 1 + 1 = 6`；这是 worker 数，不是六路模型调用。`shared` 只订阅 core 和 enrichment 队列，在这两个池有积压时提供弹性容量；maintenance 和 Wiki 不会借用 shared。小机器从所有池 `1` 开始。只有对应队列积压且下游服务有余量时，才单独提高该池；任何池的 `0` 或负数都只会回退默认值，不会禁用该池。
+每个变量是单个 app 实例对该池的保证 worker 数，不能再用一个总数推导分配。普通 profile 六项均为 `1` 时，单个 app 实例的 worker 基线是 `1 + 1 + 1 + 1 + 1 + 1 = 6`；thor profile 按 LexAI thor 资源策略把 shared 设为 `0`，基线是 `4 + 2 + 2 + 1 + 0 + 4 = 13`。这是 worker 数，不是模型调用数。`shared` 只订阅 core 和 enrichment 队列，在这两个池有积压时提供弹性容量；maintenance 和 Wiki 不会借用 shared。小机器从专用池 `1`、shared `1` 开始。只有对应队列积压且下游服务有余量时，才单独提高该池；除 shared 外，其他池的 `0` 或负数都会回退默认值，不会禁用该池。
 
 | worker 池 | 队列与任务 | 资源含义 |
 | --- | --- | --- |
@@ -192,8 +193,8 @@ Orin NX 这类机器上，如果 Ollama 一个实例同时跑 QA/VLM 和 embeddi
 
 | 容器 | 用途 | Ollama 并发 | WeKnora 侧配置 |
 | --- | --- | ---: | --- |
-| `ollama-qa` | KnowledgeQA 和 VLM | `OLLAMA_CONTEXT_LENGTH=18000`、`OLLAMA_QA_NUM_PARALLEL=3` | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3`、`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` |
-| `ollama-embedding` | bge-m3 embedding | `OLLAMA_EMBEDDING_NUM_PARALLEL=4` | `CONCURRENCY_POOL_SIZE=1`、`BATCH_EMBED_SIZE=4` |
+| `ollama-qa` | KnowledgeQA 和 VLM | `OLLAMA_CONTEXT_LENGTH=24000`、`OLLAMA_QA_NUM_PARALLEL=8` | `WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8`、`WEKNORA_CHAT_RESERVED_CONCURRENCY=2` |
+| `ollama-embedding` | bge-m3 embedding | `OLLAMA_EMBEDDING_NUM_PARALLEL=4` | `CONCURRENCY_POOL_SIZE=2`、`BATCH_EMBED_SIZE=4` |
 
 这样聊天/VLM 至少保留 2 个槽位，文档 embedding 只消耗 `ollama-embedding` 容器。Orin NX 16G 统一内存不要先追高 QA 并发；机器稳定、内存和等待队列都有余量时，再逐步提高 QA 并发。
 
@@ -205,14 +206,14 @@ VLLM         source=remote  base_url=http://ollama-qa:11535/v1
 Embedding    source=remote  base_url=http://ollama-embedding:11535/v1  dimension=1024
 ```
 
-只有单 Ollama 容器时，才把三类模型都建成 `source=local` 并统一使用 `OLLAMA_BASE_URL`。单实例降级值：
+只有单 Ollama 容器时，才把三类模型都建成 `source=local` 并统一使用 `OLLAMA_BASE_URL`。单实例降级值应按机器实测下调，例如：
 
 ```dotenv
-OLLAMA_CONTEXT_LENGTH=18000
-OLLAMA_NUM_PARALLEL=3
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3
+OLLAMA_CONTEXT_LENGTH=24000
+OLLAMA_NUM_PARALLEL=4
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=4
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
-CONCURRENCY_POOL_SIZE=1
+CONCURRENCY_POOL_SIZE=2
 BATCH_EMBED_SIZE=4
 ```
 
@@ -220,8 +221,8 @@ BATCH_EMBED_SIZE=4
 
 | 机器类型 | QA 服务并发 | 聊天保留 | Graph | Embedding 并发 | 说明 |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Orin NX / L4T 分离 Ollama | 3 | 2 | 1 | 1 | 首选。QA/VLM 与 embedding 分容器，所有 worker 池从 `1` 起步，QA 上下文用 `18000` 起步。 |
-| 通用 4 并发主机 | 4 | 2 | 1-2 | 2-4 | core/postprocess/enrichment/maintenance/shared/wiki 先各设 `1`；积压只提高对应池。 |
+| Orin NX / L4T 分离 Ollama | 8 | 2 | 1 | 2 | VOS 普通 profile 默认。QA/VLM 与 embedding 分容器，embedding Ollama 总槽位 4，文档 embedding 用 2，给聊天检索留 2。 |
+| 通用 4 并发单 Ollama 主机 | 4 | 2 | 1 | 1-2 | 只有单 Ollama 容器或机器实测撑不住 8 路时使用；需要同步降低 `OLLAMA_NUM_PARALLEL` 和 `WEKNORA_MAIN_QA_MODEL_CONCURRENCY`。 |
 | 9B vLLM 主机 | 按 `VLLM_MAX_NUM_SEQS` | 2-3 | 1-2 | 按 embedding 后端容量 | QA/Graph/Wiki/Question 共用主 QA 模型时，worker 不超过剩余后台槽。 |
 
 ## 调参判断

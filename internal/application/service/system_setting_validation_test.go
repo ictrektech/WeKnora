@@ -14,6 +14,7 @@ func TestValidateWorkerConcurrencyMinimums(t *testing.T) {
 		{name: "postprocess minimum", key: "asynq.postprocess_concurrency", value: 1},
 		{name: "enrichment minimum", key: "asynq.enrichment_concurrency", value: 1},
 		{name: "maintenance minimum", key: "asynq.maintenance_concurrency", value: 1},
+		{name: "shared disabled", key: "asynq.shared_concurrency", value: 0},
 		{name: "shared minimum", key: "asynq.shared_concurrency", value: 1},
 		{name: "wiki zero", key: "asynq.wiki_concurrency", value: 0, wantErr: true},
 		{name: "wiki minimum", key: "asynq.wiki_concurrency", value: 1},

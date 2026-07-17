@@ -2862,7 +2862,7 @@ export default {
           postprocess_concurrency: "解析完成后的轻量收尾和富化扇出专用并发；修改后需重启。",
           enrichment_concurrency: "摘要、图片、图谱与问题生成的每实例保底并发，可额外借用共享弹性池；修改后需重启。",
           maintenance_concurrency: "数据源同步、批处理和清理任务的每实例并发，与用户面流水线硬隔离；修改后需重启。",
-          shared_concurrency: "核心解析与内容富化共同使用的每实例弹性并发，由有积压的一侧自动借用；修改后需重启。",
+          shared_concurrency: "核心解析与内容富化共同使用的每实例弹性并发；设为 0 可关闭借用，修改后需重启。",
           wiki_concurrency:
             "每个服务实例的 Wiki 专用 Worker 并发数，与上游任务池相互隔离。" +
             "最小值为 1；修改后需重启服务进程方可生效。",

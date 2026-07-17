@@ -26,3 +26,5 @@ AMD 和 ARM 通用 profile 分别从 `AMD_with_cuda`、`ARM_with_cuda` 飞书表
 - Embedding: `http://weknora-ollama-embedding:11535/v1`
 
 如由 Model Hub 预先管理模型，请确保对应模型已经存在于 Ollama 数据目录中。
+
+QA/VLM Ollama 默认模型名为 `qwen3.5:2b`。普通 profile 默认 QA 总槽位 `8`、聊天预留 `2`、后台共享 `6`；embedding Ollama 总槽位 `4`、文档 embedding 使用 `2`。`thor_spark` 使用更高默认值：QA 总槽位 `20`、聊天预留 `6`、后台共享 `14`、embedding 总槽位 `16`、文档 embedding 使用 `8`。

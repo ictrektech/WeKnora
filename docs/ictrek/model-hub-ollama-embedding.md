@@ -171,10 +171,10 @@ Embedding    source=remote  name=bge-m3:latest base_url=http://ollama-embedding:
 起步并发：
 
 ```env
-OLLAMA_CONTEXT_LENGTH=18000
-OLLAMA_QA_NUM_PARALLEL=3
+OLLAMA_CONTEXT_LENGTH=24000
+OLLAMA_QA_NUM_PARALLEL=8
 OLLAMA_EMBEDDING_NUM_PARALLEL=4
-WEKNORA_MAIN_QA_MODEL_CONCURRENCY=3
+WEKNORA_MAIN_QA_MODEL_CONCURRENCY=8
 WEKNORA_CHAT_RESERVED_CONCURRENCY=2
 WEKNORA_GRAPH_LLM_CONCURRENCY=1
 WEKNORA_WIKI_INGEST_MAP_PARALLEL=1
@@ -186,13 +186,13 @@ WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY=1
 WEKNORA_ASYNQ_SHARED_CONCURRENCY=1
 WEKNORA_WIKI_ASYNQ_CONCURRENCY=1
 WEKNORA_MODEL_MAX_CONCURRENCY=1
-CONCURRENCY_POOL_SIZE=1
+CONCURRENCY_POOL_SIZE=2
 BATCH_EMBED_SIZE=4
 ```
 
 六个 worker 池都从 `1` 起步；这不是允许多个后台模型请求。这个方案的后台模型调用仍由 `WEKNORA_MODEL_MAX_CONCURRENCY=1` 限制。旧的 `WEKNORA_ASYNQ_CONCURRENCY` 不再生效。
 
-QA 上下文需要大于 16k 时不要设成正好 `16384`，Orin NX 16G 起步用 `18000`。如果只启动一个 Ollama 容器，可以用 `source=local` 和 `OLLAMA_BASE_URL`，但这只是简化方案。此时要把 `CONCURRENCY_POOL_SIZE` 降到 `1`，并接受文档 embedding 可能和聊天在 Ollama 内部排队。
+QA 上下文需要大于 16k 时不要设成正好 `16384`，VOS 普通 profile 默认用 `24000`。如果只启动一个 Ollama 容器，可以用 `source=local` 和 `OLLAMA_BASE_URL`，但这只是简化方案。此时要把 `CONCURRENCY_POOL_SIZE` 按实测降到 `1`，并接受文档 embedding 可能和聊天在 Ollama 内部排队。
 
 Rerank 需要单独的 rerank endpoint。原生 Ollama 不提供 `/v1/rerank`；如果 gateway 只提供 `/v1/models`、`/v1/chat/completions`、`/v1/embeddings`，就不要配置 rerank，或改用外部 rerank provider。
 
