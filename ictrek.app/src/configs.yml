@@ -83,7 +83,7 @@ configs:
       en: PGV precreates `weknora` by default. Change this if PGV was installed with a different user.
     default: weknora
   - name: WEKNORA_DB_PASSWORD
-    type: password
+    type: string
     title:
       zh-CN: HybRAG 数据库密码
       en: HybRAG Database Password

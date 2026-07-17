@@ -131,6 +131,29 @@ if bad_compose:
     raise SystemExit(f"docker-compose.yml profiles must not use Feishu sheet names: {sorted(bad_compose)!r}")
 PYPROFILE
 
+  python3 - "${STAGE_DIR}/configs.yml" <<'PYCONFIG' \
+    || die "configs.yml type validation failed"
+import sys
+import yaml
+
+allowed = {"string", "integer", "number", "boolean", "array", "path"}
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = yaml.safe_load(f) or {}
+configs = data.get("configs") or []
+if not isinstance(configs, list):
+    raise SystemExit("configs.yml `configs` must be a list")
+for index, item in enumerate(configs):
+    if not isinstance(item, dict):
+        raise SystemExit(f"configs[{index}] must be an object")
+    name = item.get("name", f"#{index}")
+    config_type = item.get("type")
+    if config_type not in allowed:
+        raise SystemExit(
+            f"configs[{index}] {name!r} type {config_type!r} is unsupported; "
+            f"allowed: {sorted(allowed)!r}"
+        )
+PYCONFIG
+
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     local profile
     for profile in amd arm l4t thor-spark; do
