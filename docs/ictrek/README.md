@@ -19,6 +19,7 @@
 - [空机器部署总指南](fresh-host-deployment.md)
 - [远程 vLLM 后端](remote-vllm-backend.md)
 - [Ollama embedding 后端](model-hub-ollama-embedding.md)
+- [VOS Ollama 模型预热与常驻](vos-ollama-prewarm.md)
 - [WeKnora 镜像构建](build-images.md)
 - [ictrek 部署模板](deploy-template/)
 - [部署模板脚本](deploy-template/deploy.sh)

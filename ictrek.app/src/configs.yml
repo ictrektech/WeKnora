@@ -135,7 +135,16 @@ configs:
     description:
       zh-CN: 需要预先在 embedding Ollama 容器中存在的多语言 embedding 模型名。
       en: Multilingual embedding model name expected to exist in the embedding Ollama container.
-    default: bge-m3:latest
+    default: bge-m3
+  - name: MODEL_HUB_BACKEND_URL
+    type: string
+    title:
+      zh-CN: Model Hub 后端地址
+      en: Model Hub Backend URL
+    description:
+      zh-CN: HybRAG 的两个 Ollama 容器启动时会优先通过该地址触发 Model Hub 拉取 `OLLAMA_QA_MODEL` 和 `OLLAMA_EMBEDDING_MODEL`，然后再本地校验并常驻模型。默认使用 Model Hub 在 `vos_default` 网络里的稳定别名。
+      en: During startup, both HybRAG Ollama containers first ask this Model Hub backend to pull `OLLAMA_QA_MODEL` and `OLLAMA_EMBEDDING_MODEL`, then verify and keep the models resident locally. Defaults to Model Hub's stable alias on `vos_default`.
+    default: http://model-hub-backend:5005
   - name: OLLAMA_CONTEXT_LENGTH
     type: integer
     title:
