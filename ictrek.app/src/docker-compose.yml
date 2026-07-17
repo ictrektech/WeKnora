@@ -490,7 +490,7 @@ services:
     pull_policy: always
     depends_on:
       hybrag-app-amd-with-cuda:
-        condition: service_healthy
+        condition: service_started
 
   hybrag-app-amd-with-cuda:
     <<: *hybrag-app-base
@@ -535,7 +535,7 @@ services:
     pull_policy: always
     depends_on:
       hybrag-app-amd-no-cuda:
-        condition: service_healthy
+        condition: service_started
 
   hybrag-app-amd-no-cuda:
     <<: *hybrag-app-base
@@ -580,7 +580,7 @@ services:
     pull_policy: always
     depends_on:
       hybrag-app-arm-with-cuda:
-        condition: service_healthy
+        condition: service_started
 
   hybrag-app-arm-with-cuda:
     <<: *hybrag-app-base
@@ -625,7 +625,7 @@ services:
     pull_policy: always
     depends_on:
       hybrag-app-arm-no-cuda:
-        condition: service_healthy
+        condition: service_started
 
   hybrag-app-arm-no-cuda:
     <<: *hybrag-app-base
@@ -670,7 +670,7 @@ services:
     pull_policy: always
     depends_on:
       hybrag-app-l4t:
-        condition: service_healthy
+        condition: service_started
 
   hybrag-app-l4t:
     <<: *hybrag-app-base
@@ -715,7 +715,7 @@ services:
     pull_policy: always
     depends_on:
       hybrag-app-thor-spark:
-        condition: service_healthy
+        condition: service_started
 
   hybrag-app-thor-spark:
     <<: *hybrag-app-base

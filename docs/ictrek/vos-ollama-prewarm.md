@@ -35,7 +35,7 @@ VOS app profile 共有 6 个：`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`
 6. 通过本容器 Ollama API 发起 warmup 请求，并带上 `keep_alive=-1m`，让模型常驻。
 7. 最后启动 `ollama_gateway`，对外提供 OpenAI-compatible `/v1` 接口。
 
-HybRAG app 容器通过 `depends_on` 等待两个 Ollama 容器健康后才启动，所以 app 启动前会先完成模型准备。
+HybRAG app 容器通过 `depends_on` 等待两个 Ollama 容器健康后才启动，所以 app 启动前会先完成模型准备。App 启动后的失败文档补交任务必须在后台执行，不能阻塞 `/health` 和 HTTP 监听；VOS 安装流程会在 app 健康前先启动 frontend，frontend 短暂 502 是可接受的，但不能因为 app 慢启动停在 `Created`。
 
 VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运行时生成 `builtin_models.yaml`。安装 UI 的 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 会自动创建三条默认模型行。界面里用 `display_name` 区分两个 Ollama 后端：`HybRAG Ollama QA (hybrag-ollama-qa)`、`HybRAG Ollama VLM (hybrag-ollama-qa)` 和 `HybRAG Ollama Embedding (hybrag-ollama-embedding)`。其中 QA/VLM 模型行的 `extra_config.thinking_control=think`，用于 Ollama Qwen3.5 关闭思考；vLLM / generic Qwen3.5 后端应使用 `chat_template_kwargs`，不要照搬 Ollama 的 `think`。如果需要覆盖默认模型行，在安装 UI 的 `HYBRAG_BUILTIN_MODELS_YAML` 填写完整 `builtin_models:` YAML。
 

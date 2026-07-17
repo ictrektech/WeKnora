@@ -1665,6 +1665,21 @@ func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer
 	if !envBool("WEKNORA_REPARSE_INCOMPLETE_ON_START", false) || db == nil || task == nil {
 		return
 	}
+	logger.Infof(context.Background(), "[startup-reparse] scheduled non-blocking startup reparse")
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Warnf(context.Background(), "[startup-reparse] recovered from panic: %v", r)
+			}
+		}()
+		reparseIncompleteKnowledgeOnStartBlocking(db, task)
+	}()
+}
+
+func reparseIncompleteKnowledgeOnStartBlocking(db *gorm.DB, task interfaces.TaskEnqueuer) {
+	if !envBool("WEKNORA_REPARSE_INCOMPLETE_ON_START", false) || db == nil || task == nil {
+		return
+	}
 	ctx := context.Background()
 	if !waitForStartupReparseDependencies(ctx) {
 		return
