@@ -102,12 +102,17 @@ volumes:
 
 这等价于 Ollama 容器内 `/root/.ollama/models`。挂载保持可写，因为 HybRAG 也有通过 Ollama 拉取模型的能力；这些模型会写回 Model Hub 的共享目录。HybRAG 不再用自己的 `/data/vos_workspace/hybrag/ollama/qa` 或 `/data/vos_workspace/hybrag/ollama/embedding` 存模型，避免与 Model Hub 下载目录分裂。安装时如 Model Hub 使用了非默认共享目录，需要把 HybRAG 的 `MODEL_HUB_SHARED_MODELS_PATH` 配成同一个宿主机路径。
 
-HybRAG 默认通过 OpenAI-compatible gateway 访问：
+VOS 安装包会挂载 `config/builtin_models.yaml`，自动创建三条 YAML 托管模型行，并在界面里用 `display_name` 区分两个 Ollama 后端：
 
-- QA/VLM: `http://hybrag-ollama-qa:11535/v1`
-- Embedding: `http://hybrag-ollama-embedding:11535/v1`
+| 类型 | display_name | endpoint |
+| --- | --- | --- |
+| KnowledgeQA | `HybRAG Ollama QA (hybrag-ollama-qa)` | `http://hybrag-ollama-qa:11535/v1` |
+| VLLM | `HybRAG Ollama VLM (hybrag-ollama-qa)` | `http://hybrag-ollama-qa:11535/v1` |
+| Embedding | `HybRAG Ollama Embedding (hybrag-ollama-embedding)` | `http://hybrag-ollama-embedding:11535/v1` |
 
-模型行仍建议通过 HybRAG UI 或后续配置文件显式添加；本包模板不在镜像中写死默认模型。
+这些模型行不写在镜像里，而是随 VOS 包以配置文件挂载。`name` 仍从安装 UI 的 `OLLAMA_QA_MODEL` / `OLLAMA_EMBEDDING_MODEL` 展开，默认分别是 `qwen3.5:2b` 和 `bge-m3`。运行后也可以在 HybRAG UI 中添加或修改其他模型；如果管理员手动接管某条 YAML 模型行，需要清空该行的 `managed_by`，否则后续安装包升级会按 YAML 继续同步。
+
+Ollama Qwen3.5 关闭思考使用 `extra_config.thinking_control=think`，请求会发送顶层 `think:false`。vLLM / generic Qwen3.5 后端关闭思考使用 `extra_config.thinking_control=chat_template_kwargs`，请求会发送 `chat_template_kwargs.enable_thinking=false`。两者不要混用。
 
 ## 版本更新与 Release
 

@@ -2862,6 +2862,14 @@ export default {
           label: 'thinking.type',
           hint: 'Volcengine Ark; Tencent LKEAP (DeepSeek V3 и др.; по умолчанию для LKEAP; для R1 — «Не отправлять»)',
         },
+        think: {
+          label: 'think',
+          hint: 'Ollama native/OpenAI-compatible chat API: send top-level think=false to disable Qwen thinking',
+        },
+        reasoningEffort: {
+          label: 'reasoning_effort',
+          hint: 'OpenAI-compatible APIs that use reasoning_effort=none to disable reasoning',
+        },
       },
       dimensionHint: 'Модель выбрана. Нажмите «Определить размерность», чтобы автоматически получить значение.',
       loadModelListFailed: 'Не удалось загрузить список моделей',

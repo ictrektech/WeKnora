@@ -19,12 +19,16 @@ export type ThinkingControlValue =
   | 'chat_template_kwargs'
   | 'enable_thinking'
   | 'thinking_type'
+  | 'think'
+  | 'reasoning_effort'
 
 const THINKING_CONTROL_VALUES: ThinkingControlValue[] = [
   'none',
   'chat_template_kwargs',
   'enable_thinking',
   'thinking_type',
+  'think',
+  'reasoning_effort',
 ]
 
 /**

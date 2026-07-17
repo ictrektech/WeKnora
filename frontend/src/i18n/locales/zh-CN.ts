@@ -3212,6 +3212,14 @@ export default {
           label: "thinking.type",
           hint: "火山引擎 Ark；腾讯云 LKEAP（DeepSeek V3 等，选 LKEAP 时默认此项；R1 请改「不写入」）",
         },
+        think: {
+          label: "think",
+          hint: "Ollama 原生/OpenAI 兼容聊天接口：发送顶层 think=false 关闭 Qwen 思考",
+        },
+        reasoningEffort: {
+          label: "reasoning_effort",
+          hint: "使用 reasoning_effort=none 关闭推理的 OpenAI 兼容接口",
+        },
       },
       dimensionHint: '模型已选择，点击"检测维度"按钮自动获取向量维度',
       loadModelListFailed: "加载模型列表失败",

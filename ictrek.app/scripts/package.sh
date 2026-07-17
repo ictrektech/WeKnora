@@ -424,6 +424,7 @@ verify_package() {
   tar tzf "$app_tarball" > "$app_file_list"
   tar tf "$package_path" > "$package_file_list"
   grep -qx "manifest.yml" "$app_file_list"
+  grep -qx "config/builtin_models.yaml" "$app_file_list"
   grep -qx "app.tar.gz" "$package_file_list"
   ! grep -q "^assets/" "$package_file_list"
   rm -f "$app_file_list" "$package_file_list"
@@ -519,6 +520,12 @@ for file in manifest.yml configs.yml routers.yml README.zh-CN.md README.en.md; d
     render_text_file "${SRC_DIR}/${file}" "${STAGE_DIR}/${file}"
   fi
 done
+if [[ -d "${SRC_DIR}/config" ]]; then
+  mkdir -p "${STAGE_DIR}/config"
+  find "${SRC_DIR}/config" -maxdepth 1 -type f -print0 | while IFS= read -r -d '' file; do
+    render_text_file "$file" "${STAGE_DIR}/config/$(basename "$file")"
+  done
+fi
 render_compose_file "${SRC_DIR}/docker-compose.yml" "${STAGE_DIR}/docker-compose.yml" "$ENV_FILE"
 if grep -q '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml"; then
   grep '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml" >&2
@@ -534,6 +541,7 @@ rm -rf "$PACKAGE_ROOT"
 mkdir -p "$PACKAGE_ROOT"
 TAR_FILES=(.env manifest.yml docker-compose.yml configs.yml routers.yml README.zh-CN.md)
 [[ -f "${STAGE_DIR}/README.en.md" ]] && TAR_FILES+=(README.en.md)
+[[ -d "${STAGE_DIR}/config" ]] && TAR_FILES+=(config)
 tar czf "$APP_TARBALL" -C "$STAGE_DIR" "${TAR_FILES[@]}"
 cp "$APP_TARBALL" "${PACKAGE_ROOT}/app.tar.gz"
 tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz

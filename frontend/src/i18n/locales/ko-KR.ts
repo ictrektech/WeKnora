@@ -3174,6 +3174,14 @@ export default {
           label: "thinking.type",
           hint: 'Volcengine Ark; Tencent LKEAP (DeepSeek V3 등, LKEAP 기본값; R1은 「전송 안 함」)',
         },
+        think: {
+          label: "think",
+          hint: "Ollama native/OpenAI-compatible chat API: send top-level think=false to disable Qwen thinking",
+        },
+        reasoningEffort: {
+          label: "reasoning_effort",
+          hint: "OpenAI-compatible APIs that use reasoning_effort=none to disable reasoning",
+        },
       },
       dimensionHint:
         '모델이 선택되었습니다. "차원 감지" 버튼을 클릭하여 벡터 차원을 자동으로 가져옵니다',

@@ -154,7 +154,11 @@ x-hybrag-ollama-qa-command: &hybrag-ollama-qa-command
       echo "fall back to local ollama pull for $${MODEL}" >&2
       ollama pull "$$MODEL"
     fi
-    ollama pull "$$MODEL"
+    if ollama show "$$MODEL" >/dev/null 2>&1; then
+      echo "ollama already has $${MODEL}"
+    else
+      ollama pull "$$MODEL"
+    fi
     "$$PYTHON_BIN" - "$$MODEL" "$$KEEP_ALIVE" <<'PY'
     import json
     import sys
@@ -265,7 +269,11 @@ x-hybrag-ollama-embedding-command: &hybrag-ollama-embedding-command
       echo "fall back to local ollama pull for $${MODEL}" >&2
       ollama pull "$$MODEL"
     fi
-    ollama pull "$$MODEL"
+    if ollama show "$$MODEL" >/dev/null 2>&1; then
+      echo "ollama already has $${MODEL}"
+    else
+      ollama pull "$$MODEL"
+    fi
     "$$PYTHON_BIN" - "$$MODEL" "$$KEEP_ALIVE" <<'PY'
     import json
     import sys
@@ -456,6 +464,7 @@ x-hybrag-app-base: &hybrag-app-base
     - ${HYBRAG_FILES_PATH:-/data/vos_workspace/hybrag/files}:/data/files
     - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader:ro
     - ${HYBRAG_DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+    - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
   healthcheck:
     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
     interval: 30s

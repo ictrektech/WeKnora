@@ -88,6 +88,7 @@ func TestLoadBuiltinModelsConfig_BasicUpsert(t *testing.T) {
 	dir := writeYAML(t, `builtin_models:
   - id: builtin-llm
     name: gpt-4o-mini
+    display_name: Builtin GPT-4o Mini
     type: KnowledgeQA
     is_default: true
     parameters:
@@ -99,6 +100,7 @@ func TestLoadBuiltinModelsConfig_BasicUpsert(t *testing.T) {
 	var m Model
 	require.NoError(t, db.Where("id = ?", "builtin-llm").First(&m).Error)
 	assert.Equal(t, "gpt-4o-mini", m.Name)
+	assert.Equal(t, "Builtin GPT-4o Mini", m.DisplayName)
 	assert.Equal(t, ModelTypeKnowledgeQA, m.Type)
 	assert.Equal(t, ModelSourceRemote, m.Source, "default source must be remote")
 	assert.Equal(t, ModelStatusActive, m.Status, "default status must be active")

@@ -11,7 +11,7 @@ import (
 // selecting how ChatOptions.Thinking is translated to provider HTTP fields.
 // The accepted values mirror the strings the frontend writes (see
 // ModelEditorDialog.vue): "none", "enable_thinking", "thinking_type",
-// "chat_template_kwargs".
+// "chat_template_kwargs", "think", "reasoning_effort".
 const ExtraConfigThinkingControl = "thinking_control"
 
 // Wire-format request bodies used by providers that express extended-thinking
@@ -43,8 +43,9 @@ type ThinkChatCompletionRequest struct {
 	Think *bool `json:"think,omitempty"`
 }
 
-// ReasoningEffortChatCompletionRequest adds Ollama's OpenAI-compatible
-// `reasoning_effort` field. Ollama uses "none" to disable thinking.
+// ReasoningEffortChatCompletionRequest adds the OpenAI-compatible
+// `reasoning_effort` field used by providers that accept "none" to disable
+// reasoning.
 type ReasoningEffortChatCompletionRequest struct {
 	openai.ChatCompletionRequest
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
@@ -127,7 +128,7 @@ func (thinkField) Apply(req *openai.ChatCompletionRequest, opts *ChatOptions, _ 
 	return r, true
 }
 
-// reasoningEffortField encodes thinking via Ollama's OpenAI-compatible
+// reasoningEffortField encodes thinking via the OpenAI-compatible
 // `reasoning_effort` field.
 type reasoningEffortField struct{}
 

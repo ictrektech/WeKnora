@@ -31,11 +31,13 @@ VOS app profile 共有 6 个：`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`
 2. 等待本容器 `ollama list` 可用。
 3. 通过 `MODEL_HUB_BACKEND_URL` 触发 Model Hub 拉取对应模型。
 4. 如果 Model Hub 不可用、返回失败或超时，则退回本容器执行 `ollama pull`。
-5. 再执行一次本容器 `ollama pull` 做本地一致性确认。
+5. 执行 `ollama show` 做本地一致性确认；只有共享目录中仍不存在模型时，才执行本容器 `ollama pull`。
 6. 通过本容器 Ollama API 发起 warmup 请求，并带上 `keep_alive=-1m`，让模型常驻。
 7. 最后启动 `ollama_gateway`，对外提供 OpenAI-compatible `/v1` 接口。
 
 HybRAG app 容器通过 `depends_on` 等待两个 Ollama 容器健康后才启动，所以 app 启动前会先完成模型准备。
+
+VOS 包还会挂载 `config/builtin_models.yaml`，自动创建三条默认模型行。界面里用 `display_name` 区分两个 Ollama 后端：`HybRAG Ollama QA (hybrag-ollama-qa)`、`HybRAG Ollama VLM (hybrag-ollama-qa)` 和 `HybRAG Ollama Embedding (hybrag-ollama-embedding)`。其中 QA/VLM 模型行的 `extra_config.thinking_control=think`，用于 Ollama Qwen3.5 关闭思考；vLLM / generic Qwen3.5 后端应使用 `chat_template_kwargs`，不要照搬 Ollama 的 `think`。
 
 ## Model Hub alias
 

@@ -35,14 +35,17 @@ This is intentionally replaceable. When VOS provides standard OIDC or official i
 
 ## Models
 
-The package does not bake model rows into images. Add models in the HybRAG UI after installation, or mount a model configuration later. Default in-network endpoints are:
+The package does not bake model rows into images, but the VOS package mounts `config/builtin_models.yaml` and creates three YAML-managed model rows. The UI display names distinguish the two Ollama backends:
 
-- QA/VLM: `http://hybrag-ollama-qa:11535/v1`
-- Embedding: `http://hybrag-ollama-embedding:11535/v1`
+- `HybRAG Ollama QA (hybrag-ollama-qa)`: KnowledgeQA, endpoint `http://hybrag-ollama-qa:11535/v1`
+- `HybRAG Ollama VLM (hybrag-ollama-qa)`: VLLM, endpoint `http://hybrag-ollama-qa:11535/v1`
+- `HybRAG Ollama Embedding (hybrag-ollama-embedding)`: Embedding, endpoint `http://hybrag-ollama-embedding:11535/v1`
 
-If Model Hub manages the model files, make sure the required models already exist in the Ollama model directories.
+Model names still come from the install UI values `OLLAMA_QA_MODEL` and `OLLAMA_EMBEDDING_MODEL`. Operators can add or edit additional models in the HybRAG UI after startup; clear `managed_by` first if taking over a YAML-managed row manually.
 
-On startup, both Ollama containers start local `ollama serve`, ask `MODEL_HUB_BACKEND_URL` to pull the required model through Model Hub, and fall back to local `ollama pull` if Model Hub is unavailable or the pull task fails. After the pull check, each container sends a warmup request with `OLLAMA_KEEP_ALIVE=-1m` so the model stays resident before the OpenAI-compatible gateway starts. The default `MODEL_HUB_BACKEND_URL` is `http://model-hub-backend:5005`, the Model Hub backend alias on the `vos_default` network.
+For Ollama Qwen3.5, disable thinking with `thinking_control=think`, which sends top-level `think:false`. For vLLM / generic Qwen3.5, use `thinking_control=chat_template_kwargs`, which sends `chat_template_kwargs.enable_thinking=false`.
+
+On startup, both Ollama containers start local `ollama serve`, ask `MODEL_HUB_BACKEND_URL` to pull the required model through Model Hub, and fall back to local `ollama pull` if Model Hub is unavailable or the pull task fails. The container then runs `ollama show` and only performs a local `ollama pull` when the shared model directory still lacks the model. After that check, each container sends a warmup request with `OLLAMA_KEEP_ALIVE=-1m` so the model stays resident before the OpenAI-compatible gateway starts. The default `MODEL_HUB_BACKEND_URL` is `http://model-hub-backend:5005`, the Model Hub backend alias on the `vos_default` network.
 
 QA/VLM defaults to `qwen3.5:2b`, and embedding defaults to `bge-m3`. Non-thor profiles default to 8 QA slots with 2 reserved for chat and 6 shared by background tasks; embedding defaults to 4 total slots with 2 used by document embedding. `thor-spark` uses higher defaults: 20 QA slots, 6 chat-reserved slots, 14 background slots, 16 embedding slots, and 8 document-embedding slots.
 

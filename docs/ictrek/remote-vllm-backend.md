@@ -26,6 +26,8 @@ KnowledgeQA  source=remote  name=qwen3.5-9b-awq  base_url=http://host.docker.int
 VLLM         source=remote  name=qwen3.5-9b-awq  base_url=http://host.docker.internal:18118/v1
 ```
 
+如果这个 vLLM 后端使用 Qwen3.5 且需要关闭思考，在模型高级参数中设置 `extra_config.thinking_control=chat_template_kwargs`。WeKnora 会发送 `chat_template_kwargs.enable_thinking=false`。这和 Ollama 的 `think:false` 不是同一个字段，不要把 Ollama 的 `thinking_control=think` 用到 vLLM 行上。
+
 只有 vLLM 容器实际运行并通过 `/v1/models` 验证后，才把这个地址写入模型配置或 `WEKNORA_REPARSE_WAIT_URLS`。纯 Ollama / model-hub 部署不要保留未运行的 `18118` 等待地址。
 
 如果 app 容器通过 `host.docker.internal` 访问这个宿主机端口，`SSRF_WHITELIST_EXTRA` 必须保留 `host.docker.internal`。基础 `docker-compose.yml` 已默认包含；如果部署覆盖了该变量，要显式写回：
@@ -150,6 +152,11 @@ These rows are not shipped by default in the WeKnora image or ictrek compose
 files. Add them through the Web UI or an operator-created
 `config/builtin_models.yaml` only for deployments that intentionally use this
 vLLM backend.
+
+For Qwen3.5 on vLLM, set `extra_config.thinking_control=chat_template_kwargs`
+to disable thinking. The request carries
+`chat_template_kwargs.enable_thinking=false`. Do not use the Ollama-specific
+`think` field for this vLLM backend.
 
 When the app container reaches this backend through `host.docker.internal`,
 `SSRF_WHITELIST_EXTRA` must keep `host.docker.internal`. The base
