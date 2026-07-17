@@ -478,41 +478,113 @@ x-hybrag-app-base: &hybrag-app-base
     retries: 3
     start_period: 60s
 
-services:
-  hybrag-redis:
-    image: docker.io/library/redis:7.0-alpine
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
-    volumes:
-      - ${HYBRAG_REDIS_PATH:-/data/vos_workspace/hybrag/redis}:/data
-    networks:
-      - vos_default
-    restart: unless-stopped
+x-hybrag-redis-base: &hybrag-redis-base
+  command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
+  volumes:
+    - ${HYBRAG_REDIS_PATH:-/data/vos_workspace/hybrag/redis}:/data
+  networks:
+    vos_default:
+      aliases:
+        - hybrag-redis
+  restart: unless-stopped
 
-  hybrag-neo4j:
-    image: docker.io/library/neo4j:2025.10.1
-    ports:
-      - "${NEO4J_HTTP_PORT:-27474}:7474"
-      - "${NEO4J_BOLT_PORT:-27687}:7687"
-    environment:
-      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-hybrag-neo4j}
-      NEO4J_apoc_export_file_enabled: "true"
-      NEO4J_apoc_import_file_enabled: "true"
-      NEO4J_apoc_import_file_use__neo4j__config: "true"
-      NEO4JLABS_PLUGINS: '["apoc"]'
-    volumes:
-      - ${HYBRAG_NEO4J_PATH:-/data/vos_workspace/hybrag/neo4j}:/data
-    networks:
-      vos_default:
-        aliases:
-          - hybrag-neo4j
-          - neo4j
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "auth=\"$${NEO4J_AUTH:-neo4j/hybrag-neo4j}\"; cypher-shell -u \"$${auth%%/*}\" -p \"$${auth#*/}\" 'RETURN 1;' >/dev/null 2>&1"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 90s
+x-hybrag-neo4j-base: &hybrag-neo4j-base
+  ports:
+    - "${NEO4J_HTTP_PORT:-27474}:7474"
+    - "${NEO4J_BOLT_PORT:-27687}:7687"
+  environment:
+    NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-hybrag-neo4j}
+    NEO4J_apoc_export_file_enabled: "true"
+    NEO4J_apoc_import_file_enabled: "true"
+    NEO4J_apoc_import_file_use__neo4j__config: "true"
+    NEO4JLABS_PLUGINS: '["apoc"]'
+  volumes:
+    - ${HYBRAG_NEO4J_PATH:-/data/vos_workspace/hybrag/neo4j}:/data
+  networks:
+    vos_default:
+      aliases:
+        - hybrag-neo4j
+        - neo4j
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "auth=\"$${NEO4J_AUTH:-neo4j/hybrag-neo4j}\"; cypher-shell -u \"$${auth%%/*}\" -p \"$${auth#*/}\" 'RETURN 1;' >/dev/null 2>&1"]
+    interval: 30s
+    timeout: 10s
+    retries: 10
+    start_period: 90s
+
+services:
+  hybrag-redis-amd-with-cuda:
+    <<: *hybrag-redis-base
+    profiles: ["amd"]
+    image: ${REDIS_AMD_IMAGE}
+    pull_policy: always
+
+  hybrag-neo4j-amd-with-cuda:
+    <<: *hybrag-neo4j-base
+    profiles: ["amd"]
+    image: ${NEO4J_AMD_IMAGE}
+    pull_policy: always
+
+  hybrag-redis-amd-no-cuda:
+    <<: *hybrag-redis-base
+    profiles: ["amd-no-cuda"]
+    image: ${REDIS_AMD_IMAGE}
+    pull_policy: always
+
+  hybrag-neo4j-amd-no-cuda:
+    <<: *hybrag-neo4j-base
+    profiles: ["amd-no-cuda"]
+    image: ${NEO4J_AMD_IMAGE}
+    pull_policy: always
+
+  hybrag-redis-arm-with-cuda:
+    <<: *hybrag-redis-base
+    profiles: ["arm"]
+    image: ${REDIS_ARM_IMAGE}
+    pull_policy: always
+
+  hybrag-neo4j-arm-with-cuda:
+    <<: *hybrag-neo4j-base
+    profiles: ["arm"]
+    image: ${NEO4J_ARM_IMAGE}
+    pull_policy: always
+
+  hybrag-redis-arm-no-cuda:
+    <<: *hybrag-redis-base
+    profiles: ["arm-no-cuda"]
+    image: ${REDIS_ARM_IMAGE}
+    pull_policy: always
+
+  hybrag-neo4j-arm-no-cuda:
+    <<: *hybrag-neo4j-base
+    profiles: ["arm-no-cuda"]
+    image: ${NEO4J_ARM_IMAGE}
+    pull_policy: always
+
+  hybrag-redis-l4t:
+    <<: *hybrag-redis-base
+    profiles: ["l4t"]
+    image: ${REDIS_ARM_IMAGE}
+    pull_policy: always
+
+  hybrag-neo4j-l4t:
+    <<: *hybrag-neo4j-base
+    profiles: ["l4t"]
+    image: ${NEO4J_ARM_IMAGE}
+    pull_policy: always
+
+  hybrag-redis-thor-spark:
+    <<: *hybrag-redis-base
+    profiles: ["thor-spark"]
+    image: ${REDIS_ARM_IMAGE}
+    pull_policy: always
+
+  hybrag-neo4j-thor-spark:
+    <<: *hybrag-neo4j-base
+    profiles: ["thor-spark"]
+    image: ${NEO4J_ARM_IMAGE}
+    pull_policy: always
 
   hybrag-frontend-amd-with-cuda:
     <<: *hybrag-frontend-base
@@ -532,9 +604,9 @@ services:
       <<: *hybrag-app-env
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_IMAGE}
     depends_on:
-      hybrag-redis:
+      hybrag-redis-amd-with-cuda:
         condition: service_started
-      hybrag-neo4j:
+      hybrag-neo4j-amd-with-cuda:
         condition: service_healthy
       hybrag-docreader-amd-with-cuda:
         condition: service_healthy
@@ -579,9 +651,9 @@ services:
       <<: *hybrag-app-env
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_NO_CUDA_IMAGE}
     depends_on:
-      hybrag-redis:
+      hybrag-redis-amd-no-cuda:
         condition: service_started
-      hybrag-neo4j:
+      hybrag-neo4j-amd-no-cuda:
         condition: service_healthy
       hybrag-docreader-amd-no-cuda:
         condition: service_healthy
@@ -626,9 +698,9 @@ services:
       <<: *hybrag-app-env
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_IMAGE}
     depends_on:
-      hybrag-redis:
+      hybrag-redis-arm-with-cuda:
         condition: service_started
-      hybrag-neo4j:
+      hybrag-neo4j-arm-with-cuda:
         condition: service_healthy
       hybrag-docreader-arm-with-cuda:
         condition: service_healthy
@@ -673,9 +745,9 @@ services:
       <<: *hybrag-app-env
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_NO_CUDA_IMAGE}
     depends_on:
-      hybrag-redis:
+      hybrag-redis-arm-no-cuda:
         condition: service_started
-      hybrag-neo4j:
+      hybrag-neo4j-arm-no-cuda:
         condition: service_healthy
       hybrag-docreader-arm-no-cuda:
         condition: service_healthy
@@ -720,9 +792,9 @@ services:
       <<: *hybrag-app-env
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_L4T_IMAGE}
     depends_on:
-      hybrag-redis:
+      hybrag-redis-l4t:
         condition: service_started
-      hybrag-neo4j:
+      hybrag-neo4j-l4t:
         condition: service_healthy
       hybrag-docreader-l4t:
         condition: service_healthy
@@ -767,9 +839,9 @@ services:
       <<: *hybrag-app-env-thor-spark
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_THOR_SPARK_IMAGE}
     depends_on:
-      hybrag-redis:
+      hybrag-redis-thor-spark:
         condition: service_started
-      hybrag-neo4j:
+      hybrag-neo4j-thor-spark:
         condition: service_healthy
       hybrag-docreader-thor-spark:
         condition: service_healthy

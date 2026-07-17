@@ -36,6 +36,12 @@ COMPONENTS=(
   "WEKNORA_SANDBOX|weknora-sandbox|swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox"
   "OLLAMA_SERVER|ollama_server|swr.cn-southwest-2.myhuaweicloud.com/ictrek/ollama_server"
 )
+BASE_IMAGES=(
+  "REDIS_AMD_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/redis:7.0-alpine"
+  "NEO4J_AMD_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/neo4j:2025.10.1"
+  "REDIS_ARM_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek-arm/redis:7.0-alpine"
+  "NEO4J_ARM_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek-arm/neo4j:2025.10.1"
+)
 
 usage() {
   cat <<'EOF'
@@ -356,6 +362,11 @@ latest_image() {
 resolve_image_versions() {
   local env_file="$1"
   : > "$env_file"
+  local base_image
+  for base_image in "${BASE_IMAGES[@]}"; do
+    log "base image -> ${base_image}"
+    printf '%s\n' "$base_image" >> "$env_file"
+  done
   for profile_spec in "${PROFILES[@]}"; do
     IFS='|' read -r profile sheet_title <<< "$profile_spec"
     profile_key="$(env_key "$profile")"
