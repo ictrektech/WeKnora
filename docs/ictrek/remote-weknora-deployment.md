@@ -13,7 +13,7 @@ frontend
 app
 docreader
 postgres  paradedb/paradedb:v0.22.2-pg17
-redis     redis:7.0-alpine
+redis     docker.io/library/redis:7.0-alpine
 ```
 
 基础 RAG 不需要额外 vector database 或对象存储 sidecar：
@@ -466,7 +466,7 @@ Use the default, non-lite WeKnora stack:
 - `app`
 - `docreader`
 - `postgres` (`paradedb/paradedb:v0.22.2-pg17`)
-- `redis` (`redis:7.0-alpine`)
+- `redis` (`docker.io/library/redis:7.0-alpine`)
 
 For the baseline RAG deployment, no extra vector database or object storage
 sidecar is required:
@@ -813,19 +813,19 @@ ssh tc232 'bash -s' <<'EOF'
 set -euo pipefail
 cd /data/jhu/deploy/weknora
 docker compose ps
-curl -i --max-time 10 http://127.0.0.1:30081/health
-curl -I --max-time 10 http://127.0.0.1:30080/
+curl -i --max-time 10 http://127.0.0.1:19081/health
+curl -I --max-time 10 http://127.0.0.1:19080/
 EOF
 ```
 
 Expected baseline:
 
-- `WeKnora-app` is `healthy` and bound to `0.0.0.0:30081->8080/tcp`
+- `WeKnora-app` is `healthy` and bound to `0.0.0.0:19081->8080/tcp`
 - `WeKnora-docreader` is `healthy`
 - `WeKnora-postgres` is `healthy`
-- `WeKnora-frontend` is bound to `0.0.0.0:30080->80/tcp`
-- `GET http://127.0.0.1:30081/health` returns `{"status":"ok"}`
-- `HEAD http://127.0.0.1:30080/` returns `HTTP/1.1 200 OK`
+- `WeKnora-frontend` is bound to `0.0.0.0:19080->80/tcp`
+- `GET http://127.0.0.1:19081/health` returns `{"status":"ok"}`
+- `HEAD http://127.0.0.1:19080/` returns `HTTP/1.1 200 OK`
 - `models` may be empty on a fresh deployment until the operator adds model
   rows through the Web UI or a mounted `config/builtin_models.yaml`
 
@@ -838,17 +838,17 @@ proxy in front of that host.
 The minimum external mapping is:
 
 ```text
-public HTTPS/HTTP port -> tc232:30080
+public HTTPS/HTTP port -> tc232:19080
 ```
 
 The frontend nginx container serves the UI and proxies application API traffic
 to the `app` service inside the Docker network, so normal browser usage only
-needs `30080` exposed externally.
+needs `19080` exposed externally.
 
 Expose these only when there is a separate operational need:
 
 ```text
-public API port -> tc232:30081    # direct app API access, optional
+public API port -> tc232:19081    # direct app API access, optional
 public model port -> <model-host>:<model-port>  # direct model backend access, optional
 ```
 
@@ -861,15 +861,15 @@ Keep these internal by default:
 21434  # Ollama native API, only when an Ollama backend is running
 ```
 
-If the external proxy terminates TLS, forward plain HTTP to `tc232:30080`.
+If the external proxy terminates TLS, forward plain HTTP to `tc232:19080`.
 
 For an operator-only check without public exposure, use an SSH tunnel:
 
 ```bash
-ssh -L 30080:127.0.0.1:30080 -L 30081:127.0.0.1:30081 tc232
+ssh -L 19080:127.0.0.1:19080 -L 19081:127.0.0.1:19081 tc232
 ```
 
-Then open `http://127.0.0.1:30080/` locally.
+Then open `http://127.0.0.1:19080/` locally.
 
 ## Login and Registration
 

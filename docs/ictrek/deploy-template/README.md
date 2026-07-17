@@ -191,6 +191,9 @@ Orin NX / L4T 纯 Ollama 部署：
 cp .env.example .env
 cp .env.orin-ollama.example .env.orin-ollama
 # 把 .env.orin-ollama 中的镜像 tag、密码、端口和模型目录改成目标机器实际值。
+# 默认模型目录复用 Model Hub 的 /data/vos_workspace/model_hub/ollama；
+# 只有不使用 Model Hub 共享目录时，才把 OLLAMA_QA_MODELS_DIR 和
+# OLLAMA_EMBEDDING_MODELS_DIR 改成 HybRAG 独立目录。
 set -a
 . ./.env
 . ./.env.orin-ollama

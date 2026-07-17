@@ -1,6 +1,6 @@
 # HybRAG VOS 应用打包说明
 
-本目录包含 VOS app `com.ictrek.hybrag` 的安装包模板。当前阶段只维护 pull 模式包骨架，后续调试稳定后再接入正式 CI 发布。
+本目录包含 VOS app `com.ictrek.hybrag` 的安装包模板。当前只发布 pull 模式安装包：本地 `update_version.sh` 只创建触发 tag，GitHub Actions 负责读取飞书和依赖 release、打包并发布正式 release。
 
 ## 打包
 
@@ -22,6 +22,8 @@ dist/hybrag_${VERSION}_pull.tar
 安装包内只有 `app.tar.gz`，不会内置镜像归档。脚本会优先读取 `~/.feishu.components.json`，失败时回退到 `~/.feishu.json`，从飞书发布表读取 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 和 `ollama_server` 的最新镜像版本，并写入包内 `.env`。这里仍读取 `weknora*` 镜像列，是因为本次只改 VOS 应用、容器和显示名称，不改已发布镜像仓库名。
 
 打包脚本会校验 VOS 入口契约：`routers.yml` 必须声明 `entry-point: true` 和 `embed: true`，`docker-compose.yml` 必须把顶层文档请求 `/app/com.ictrek.hybrag/` 重定向到 VOS 侧边栏内部路径。缺少这些字段时，VOS“我的应用”卡片的“打开”按钮可能只打开空白页或不能在侧边栏打开。
+
+脚本还会解析 `manifest.yml`、`configs.yml`、`routers.yml` 和 `docker-compose.yml`，防止生成 YAML 语法错误的安装包。如果运行环境有 Docker Compose，会额外对 `AMD_with_cuda`、`ARM_with_cuda`、`l4t`、`thor_spark` 四个 profile 执行 `docker compose config`，提前发现未展开镜像变量、profile 服务缺失或 compose 语法问题。
 
 ## Profiles
 

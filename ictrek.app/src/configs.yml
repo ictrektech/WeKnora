@@ -116,7 +116,7 @@ configs:
       en: VOS User Check URL
     description:
       zh-CN: App 容器访问 VOS backend 的 `/v1000/user/check` 地址。默认适配 VOS backend 使用 host 网络且 `SITE_PORT=8105` 的安装方式；如果平台端口或网络不同，请修改。
-      en: `/v1000/user/check` URL reachable from the app container. The default matches VOS backend on host network with `SITE_PORT=8105`; change it when the platform port or network differs.
+      en: "`/v1000/user/check` URL reachable from the app container. The default matches VOS backend on host network with `SITE_PORT=8105`; change it when the platform port or network differs."
     default: http://172.17.0.1:8105/v1000/user/check
   - name: OLLAMA_QA_MODEL
     type: string

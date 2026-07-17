@@ -48,7 +48,7 @@ services:
       OLLAMA_NUM_PARALLEL: ${OLLAMA_QA_NUM_PARALLEL:-8}
       OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-24000}
     volumes:
-      - ${OLLAMA_QA_MODELS_DIR:-./data/ollama-qa}:/root/.ollama
+      - ${OLLAMA_QA_MODELS_DIR:-/data/vos_workspace/model_hub/ollama}:/root/.ollama
     entrypoint: ["/bin/sh", "-lc"]
     command:
       - ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
@@ -76,7 +76,7 @@ services:
       OLLAMA_NUM_PARALLEL: ${OLLAMA_EMBEDDING_NUM_PARALLEL:-4}
       OLLAMA_CONTEXT_LENGTH: ${OLLAMA_EMBEDDING_CONTEXT_LENGTH:-8192}
     volumes:
-      - ${OLLAMA_EMBEDDING_MODELS_DIR:-./data/ollama-embedding}:/root/.ollama
+      - ${OLLAMA_EMBEDDING_MODELS_DIR:-/data/vos_workspace/model_hub/ollama}:/root/.ollama
     entrypoint: ["/bin/sh", "-lc"]
     command:
       - ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535

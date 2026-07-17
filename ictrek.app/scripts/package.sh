@@ -54,6 +54,29 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
 }
 
+validate_yaml_file() {
+  local file="$1"
+  ruby -e 'require "yaml"; YAML.load_file(ARGV[0])' "$file" \
+    || die "invalid YAML: ${file}"
+}
+
+validate_staged_files() {
+  local file
+  for file in manifest.yml configs.yml routers.yml docker-compose.yml; do
+    validate_yaml_file "${STAGE_DIR}/${file}"
+  done
+
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    local profile
+    for profile in AMD_with_cuda ARM_with_cuda l4t thor_spark; do
+      docker compose --env-file "${STAGE_DIR}/.env" -f "${STAGE_DIR}/docker-compose.yml" --profile "$profile" config >/dev/null \
+        || die "docker compose config failed for profile ${profile}"
+    done
+  else
+    log "Skip docker compose profile validation because docker compose is unavailable"
+  fi
+}
+
 acquire_lock() {
   while ! mkdir "$LOCK_DIR" 2>/dev/null; do
     sleep 1
@@ -374,6 +397,7 @@ done
 
 require_cmd curl
 require_cmd python3
+require_cmd ruby
 require_cmd tar
 mkdir -p "$DIST_DIR"
 acquire_lock
@@ -405,6 +429,7 @@ if grep -q '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml"; then
   grep '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml" >&2
   die "unresolved image placeholder remains in rendered docker-compose.yml"
 fi
+validate_staged_files
 
 APP_TARBALL="${DIST_DIR}/app.tar.gz"
 PACKAGE_NAME="${APP_NAME}_${APP_VERSION}_pull.tar"

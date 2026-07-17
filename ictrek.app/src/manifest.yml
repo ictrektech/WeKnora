@@ -22,11 +22,6 @@ dependencies:
       version: ">=0.0.13"
       optional: false
 
-frontend:
-  enabled: true
-  basePath: /app/com.ictrek.hybrag
-  service: hybrag-frontend-amd-with-cuda
-
 storage:
   directories:
     - path: files
