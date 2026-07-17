@@ -136,6 +136,35 @@ configs:
       zh-CN: 需要预先在 embedding Ollama 容器中存在的多语言 embedding 模型名。
       en: Multilingual embedding model name expected to exist in the embedding Ollama container.
     default: bge-m3
+  - name: HYBRAG_DEFAULT_BUILTIN_MODELS
+    type: boolean
+    title:
+      zh-CN: 自动创建 HybRAG 默认模型
+      en: Create HybRAG Default Models
+    description:
+      zh-CN: >-
+        启动 App 容器时生成三条 YAML 托管模型行：QA、VLM 和 embedding。默认开启，界面会用 display name 区分
+        `hybrag-ollama-qa` 与 `hybrag-ollama-embedding`。
+      en: >-
+        Generate three YAML-managed model rows at app startup: QA, VLM, and
+        embedding. Enabled by default; display names distinguish
+        `hybrag-ollama-qa` from `hybrag-ollama-embedding`.
+    default: true
+  - name: HYBRAG_BUILTIN_MODELS_YAML
+    type: string
+    title:
+      zh-CN: 自定义默认模型 YAML
+      en: Custom Built-in Models YAML
+    description:
+      zh-CN: >-
+        高级选项。留空时使用 HybRAG 默认三模型配置；填写后会覆盖默认生成内容。必须是完整
+        `builtin_models:` YAML，并可引用 `${OLLAMA_QA_MODEL}`、`${OLLAMA_EMBEDDING_MODEL}` 等环境变量。
+      en: >-
+        Advanced option. Leave empty to use HybRAG's default three-model config;
+        when set, it overrides the generated default. Must be full
+        `builtin_models:` YAML and may reference environment variables such as
+        `${OLLAMA_QA_MODEL}` and `${OLLAMA_EMBEDDING_MODEL}`.
+    default: ""
   - name: MODEL_HUB_BACKEND_URL
     type: string
     title:

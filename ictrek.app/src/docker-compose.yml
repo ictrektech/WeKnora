@@ -431,6 +431,8 @@ x-hybrag-app-env: &hybrag-app-env
   HYBRAG_VOS_SSO_ENABLED: ${HYBRAG_VOS_SSO_ENABLED:-true}
   HYBRAG_VOS_USERINFO_URL: ${HYBRAG_VOS_USERINFO_URL:-http://172.17.0.1:8105/v1000/user/check}
   WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
+  HYBRAG_DEFAULT_BUILTIN_MODELS: ${HYBRAG_DEFAULT_BUILTIN_MODELS:-true}
+  HYBRAG_BUILTIN_MODELS_YAML: ${HYBRAG_BUILTIN_MODELS_YAML:-}
 
 x-hybrag-app-env-thor-spark: &hybrag-app-env-thor-spark
   <<: *hybrag-app-env
@@ -464,7 +466,6 @@ x-hybrag-app-base: &hybrag-app-base
     - ${HYBRAG_FILES_PATH:-/data/vos_workspace/hybrag/files}:/data/files
     - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader:ro
     - ${HYBRAG_DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
-    - ./config/builtin_models.yaml:/app/config/builtin_models.yaml:ro
   healthcheck:
     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
     interval: 30s

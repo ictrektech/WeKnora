@@ -39,6 +39,71 @@ if [ -d "$BUILTIN_DIR" ]; then
     chown -R appuser:appuser "$PRELOADED_DIR"
 fi
 
+# ─── Optional runtime built-in model config ───
+# VOS app packages cannot ship arbitrary top-level directories in app.tar.gz.
+# Generate this file at container startup when the deployment explicitly asks
+# for the HybRAG Ollama defaults or provides a custom YAML payload.
+RUNTIME_CONFIG_DIR="${WEKNORA_RUNTIME_CONFIG_DIR:-/tmp/weknora-config}"
+RUNTIME_BUILTIN_MODELS_FILE="$RUNTIME_CONFIG_DIR/builtin_models.yaml"
+
+if [ -n "${HYBRAG_BUILTIN_MODELS_YAML:-}" ]; then
+    mkdir -p "$RUNTIME_CONFIG_DIR"
+    printf '%s\n' "$HYBRAG_BUILTIN_MODELS_YAML" > "$RUNTIME_BUILTIN_MODELS_FILE"
+    export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
+elif [ "${HYBRAG_DEFAULT_BUILTIN_MODELS:-false}" = "true" ]; then
+    mkdir -p "$RUNTIME_CONFIG_DIR"
+    cat > "$RUNTIME_BUILTIN_MODELS_FILE" <<'EOF'
+builtin_models:
+  - id: hybrag-ollama-qwen35-2b-qa
+    type: KnowledgeQA
+    source: remote
+    is_default: true
+    name: ${OLLAMA_QA_MODEL}
+    display_name: HybRAG Ollama QA (hybrag-ollama-qa)
+    parameters:
+      base_url: http://hybrag-ollama-qa:11535/v1
+      api_key: EMPTY
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: think
+
+  - id: hybrag-ollama-qwen35-2b-vlm
+    type: VLLM
+    source: remote
+    is_default: true
+    name: ${OLLAMA_QA_MODEL}
+    display_name: HybRAG Ollama VLM (hybrag-ollama-qa)
+    parameters:
+      base_url: http://hybrag-ollama-qa:11535/v1
+      api_key: EMPTY
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: think
+
+  - id: hybrag-ollama-bge-m3-embedding
+    type: Embedding
+    source: remote
+    is_default: true
+    name: ${OLLAMA_EMBEDDING_MODEL}
+    display_name: HybRAG Ollama Embedding (hybrag-ollama-embedding)
+    parameters:
+      base_url: http://hybrag-ollama-embedding:11535/v1
+      api_key: EMPTY
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false
+EOF
+    export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
+fi
+
+if [ -f "$RUNTIME_BUILTIN_MODELS_FILE" ]; then
+    chown -R appuser:appuser "$RUNTIME_CONFIG_DIR" 2>/dev/null || true
+fi
+
 # ─── Drop privileges and exec the main process ───
 if [ "${WEKNORA_RUN_AS_ROOT:-}" = "true" ]; then
     exec "$@"

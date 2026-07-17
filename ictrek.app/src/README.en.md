@@ -35,13 +35,15 @@ This is intentionally replaceable. When VOS provides standard OIDC or official i
 
 ## Models
 
-The package does not bake model rows into images, but the VOS package mounts `config/builtin_models.yaml` and creates three YAML-managed model rows. The UI display names distinguish the two Ollama backends:
+The package does not bake model rows into images and does not add an extra `config/` directory to the VOS package. With the default `HYBRAG_DEFAULT_BUILTIN_MODELS=true`, the app container entrypoint generates `builtin_models.yaml` at runtime and creates three YAML-managed model rows. The UI display names distinguish the two Ollama backends:
 
 - `HybRAG Ollama QA (hybrag-ollama-qa)`: KnowledgeQA, endpoint `http://hybrag-ollama-qa:11535/v1`
 - `HybRAG Ollama VLM (hybrag-ollama-qa)`: VLLM, endpoint `http://hybrag-ollama-qa:11535/v1`
 - `HybRAG Ollama Embedding (hybrag-ollama-embedding)`: Embedding, endpoint `http://hybrag-ollama-embedding:11535/v1`
 
 Model names still come from the install UI values `OLLAMA_QA_MODEL` and `OLLAMA_EMBEDDING_MODEL`. Operators can add or edit additional models in the HybRAG UI after startup; clear `managed_by` first if taking over a YAML-managed row manually.
+
+To fully customize these rows or add more rows, set `HYBRAG_BUILTIN_MODELS_YAML` in the install UI to a complete `builtin_models:` YAML document. When it is empty, the generated default is used; when set, it overrides the default.
 
 For Ollama Qwen3.5, disable thinking with `thinking_control=think`, which sends top-level `think:false`. For vLLM / generic Qwen3.5, use `thinking_control=chat_template_kwargs`, which sends `chat_template_kwargs.enable_thinking=false`.
 

@@ -14,7 +14,7 @@
 4. 启动并测试模型后端，例如 Ollama 或 vLLM。
 5. 启动 postgres、redis、docreader。
 6. 启动 app、frontend。
-7. 登录 Web UI 添加模型，或确认挂载的 `config/builtin_models.yaml` 已生效。
+7. 登录 Web UI 添加模型，或确认 VOS 运行时默认模型行已生效。
 8. 上传一个小文档，问一个能命中文档的问题。
 9. 再问“你是谁”，确认没有旧品牌 prompt 或模板文本泄露。
 
@@ -105,7 +105,7 @@ mkdir -p data/files data/docreader data/postgres data/redis config
 - 组合成 `<第 2 行仓库地址>:<日期行 tag>`；
 - 写入部署目录 `.env` 的 `WEKNORA_APP_IMAGE`、`WEKNORA_UI_IMAGE`、`WEKNORA_DOCREADER_IMAGE`、`WEKNORA_SANDBOX_DOCKER_IMAGE`。
 
-发布镜像不包含部署专用模型行。VOS HybRAG 安装包会随包挂载一份模型配置，自动创建 `HybRAG Ollama QA (hybrag-ollama-qa)`、`HybRAG Ollama VLM (hybrag-ollama-qa)` 和 `HybRAG Ollama Embedding (hybrag-ollama-embedding)` 三条模型行；普通 compose 部署则需要后续在 Web UI 添加，或者由运维人员显式挂载 `config/builtin_models.yaml`。
+发布镜像不包含部署专用模型行。VOS HybRAG 安装包通过 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 让 App 容器启动脚本在运行时生成模型配置，自动创建 `HybRAG Ollama QA (hybrag-ollama-qa)`、`HybRAG Ollama VLM (hybrag-ollama-qa)` 和 `HybRAG Ollama Embedding (hybrag-ollama-embedding)` 三条模型行；VOS 包内不要加入额外 `config/` 目录。普通 compose 部署则需要后续在 Web UI 添加，或者由运维人员显式挂载 `config/builtin_models.yaml`。
 
 如果目标平台没有可用镜像，先暂停部署，按 [build-images.md](build-images.md) 完成构建、推送和飞书记录后再回来继续。WeKnora app/frontend/docreader/sandbox 镜像本身没有 CUDA 依赖，tag 不应带 CUDA 标记。
 
@@ -739,8 +739,8 @@ continue after each step passes:
 4. Start and test model backends such as Ollama or vLLM.
 5. Start postgres, redis, and docreader.
 6. Start app and frontend.
-7. Add models in the Web UI, or confirm the mounted `config/builtin_models.yaml`
-   has been applied.
+7. Add models in the Web UI, or confirm the VOS runtime default model rows have
+   been applied.
 8. Upload a small document and ask a question that should hit that document.
 9. Ask "你是谁" and confirm the answer does not leak old branding or template
    text.
@@ -843,11 +843,13 @@ If images already exist, prefer the released-image path:
   `WEKNORA_DOCREADER_IMAGE`, and `WEKNORA_SANDBOX_DOCKER_IMAGE` in the deployment `.env`.
 
 The released WeKnora images do not include deployment-specific model rows.
-That is intentional. The VOS HybRAG package mounts its own model file and
-creates `HybRAG Ollama QA (hybrag-ollama-qa)`, `HybRAG Ollama VLM
-(hybrag-ollama-qa)`, and `HybRAG Ollama Embedding
-(hybrag-ollama-embedding)` rows. Plain compose deployments should still add
-models later in the UI, or mount an operator-created `config/builtin_models.yaml`.
+That is intentional. The VOS HybRAG package sets
+`HYBRAG_DEFAULT_BUILTIN_MODELS=true`, so the app entrypoint generates the model
+file at runtime and creates `HybRAG Ollama QA (hybrag-ollama-qa)`,
+`HybRAG Ollama VLM (hybrag-ollama-qa)`, and `HybRAG Ollama Embedding
+(hybrag-ollama-embedding)` rows. Do not add an extra `config/` directory to the
+VOS package. Plain compose deployments should still add models later in the UI,
+or mount an operator-created `config/builtin_models.yaml`.
 
 If images do not exist for the platform, stop the deployment first, complete the
 build, push, and Feishu release table update through [build-images.md](build-images.md),

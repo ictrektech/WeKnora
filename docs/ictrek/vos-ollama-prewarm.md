@@ -37,7 +37,7 @@ VOS app profile 共有 6 个：`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`
 
 HybRAG app 容器通过 `depends_on` 等待两个 Ollama 容器健康后才启动，所以 app 启动前会先完成模型准备。
 
-VOS 包还会挂载 `config/builtin_models.yaml`，自动创建三条默认模型行。界面里用 `display_name` 区分两个 Ollama 后端：`HybRAG Ollama QA (hybrag-ollama-qa)`、`HybRAG Ollama VLM (hybrag-ollama-qa)` 和 `HybRAG Ollama Embedding (hybrag-ollama-embedding)`。其中 QA/VLM 模型行的 `extra_config.thinking_control=think`，用于 Ollama Qwen3.5 关闭思考；vLLM / generic Qwen3.5 后端应使用 `chat_template_kwargs`，不要照搬 Ollama 的 `think`。
+VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运行时生成 `builtin_models.yaml`。安装 UI 的 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 会自动创建三条默认模型行。界面里用 `display_name` 区分两个 Ollama 后端：`HybRAG Ollama QA (hybrag-ollama-qa)`、`HybRAG Ollama VLM (hybrag-ollama-qa)` 和 `HybRAG Ollama Embedding (hybrag-ollama-embedding)`。其中 QA/VLM 模型行的 `extra_config.thinking_control=think`，用于 Ollama Qwen3.5 关闭思考；vLLM / generic Qwen3.5 后端应使用 `chat_template_kwargs`，不要照搬 Ollama 的 `think`。如果需要覆盖默认模型行，在安装 UI 的 `HYBRAG_BUILTIN_MODELS_YAML` 填写完整 `builtin_models:` YAML。
 
 ## Model Hub alias
 
