@@ -66,17 +66,6 @@ func temporaryDocumentOCRConcurrency() int {
 	return envPositiveInt("WEKNORA_CHAT_ATTACHMENT_OCR_CONCURRENCY", defaultTemporaryDocumentOCRConcurrency)
 }
 
-// envPositiveInt reads a positive integer from the environment, falling back to
-// def when the variable is unset, non-numeric, or non-positive.
-func envPositiveInt(key string, def int) int {
-	if raw := strings.TrimSpace(os.Getenv(key)); raw != "" {
-		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
-			return v
-		}
-	}
-	return def
-}
-
 // markdownImagePattern matches markdown image references so text-yield
 // estimation ignores image-only content (e.g. scanned PDFs).
 var markdownImagePattern = regexp.MustCompile(`!\[[^\]]*\]\([^)]*\)`)
