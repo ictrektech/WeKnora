@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="weknora"
-APP_ID="com.ictrek.weknora"
-ROUTER_GROUP_ID="com-ictrek-weknora"
-ROUTER_PAGE_ID="weknora"
-ROUTER_IFRAME_SRC="/app/com.ictrek.weknora/?v=__APP_VERSION__"
-ROUTER_HASH_PATH="#/app/com.ictrek.weknora/com-ictrek-weknora/weknora"
+APP_NAME="hybrag"
+APP_ID="com.ictrek.hybrag"
+ROUTER_GROUP_ID="com-ictrek-hybrag"
+ROUTER_PAGE_ID="hybrag"
+ROUTER_IFRAME_SRC="/app/com.ictrek.hybrag/?v=__APP_VERSION__"
+ROUTER_HASH_PATH="#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag"
 SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.components.json}"
 FEISHU_FALLBACK_CONFIG_FILE="${FEISHU_FALLBACK_CONFIG_FILE:-${HOME}/.feishu.json}"

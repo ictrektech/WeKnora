@@ -52,12 +52,12 @@ export default {
     reopen: 'Обучение',
     steps: {
       welcome: {
-        title: 'Добро пожаловать в WeKnora',
+        title: 'Добро пожаловать в HybRAG',
         desc: 'Несколько простых шагов познакомят вас с базами знаний, чатом и агентами. Нажмите «Далее», чтобы начать.',
       },
       knowledge: {
         title: 'Создайте базу знаний',
-        desc: 'С этого всё начинается: загружайте документы, веб-страницы или FAQ, и WeKnora автоматически разберёт и проиндексирует их. Нажмите здесь, чтобы открыть базы знаний.',
+        desc: 'С этого всё начинается: загружайте документы, веб-страницы или FAQ, и HybRAG автоматически разберёт и проиндексирует их. Нажмите здесь, чтобы открыть базы знаний.',
       },
       chat: {
         title: 'Начните чат с ИИ',
@@ -1646,7 +1646,7 @@ export default {
   },
   initialization: {
     title: 'Инициализация',
-    welcome: 'Добро пожаловать в WeKnora',
+    welcome: 'Добро пожаловать в HybRAG',
     description: 'Пожалуйста, настройте систему перед началом работы',
     step1: 'Шаг 1: Настройка LLM модели',
     step2: 'Шаг 2: Настройка модели встраивания',
@@ -1868,11 +1868,11 @@ export default {
     backToLogin: 'Вернуться ко входу',
     registerNow: 'Зарегистрироваться',
     loginHint: 'Войдите, чтобы продолжить, или создайте аккаунт ниже, если вы впервые здесь.',
-    firstTime: 'Впервые в WeKnora?',
+    firstTime: 'Впервые в HybRAG?',
     registerSuccess: 'Регистрация завершена. Войдите в систему',
     registerFailed: 'Ошибка регистрации',
     subtitle: 'RAG, ReAct-агент и Wiki — корпоративный фреймворк знаний на основе больших моделей',
-    registerSubtitle: 'Создайте аккаунт и начните работу с WeKnora',
+    registerSubtitle: 'Создайте аккаунт и начните работу с HybRAG',
     emailPlaceholder: 'Введите адрес электронной почты',
     passwordPlaceholder: 'Введите пароль (8-32 символа, включая буквы и цифры)',
     confirmPasswordPlaceholder: 'Введите пароль ещё раз',
@@ -2991,7 +2991,7 @@ export default {
     builtinTag: 'Built-in'
   },
   createChat: {
-    title: 'Привет, я WeKnora — ваши знания всегда под рукой',
+    title: 'Привет, я HybRAG — ваши знания всегда под рукой',
     newSessionTitle: 'Новая сессия',
     messages: {
       selectKnowledgeBase: 'Сначала выберите базу знаний',
@@ -6344,7 +6344,7 @@ export default {
     claw: {
       title: 'WeKnora Skill',
       subtitle:
-        'Импорт документов и гибридный поиск (вектор + ключевые слова) через REST API WeKnora — загрузки, URL, Markdown и поиск.',
+        'Импорт документов и гибридный поиск (вектор + ключевые слова) через REST API HybRAG — загрузки, URL, Markdown и поиск.',
       capabilitiesTitle: 'Возможности Skill',
       capabilities: {
         upload: { title: 'Загрузка файлов', desc: 'PDF, Word, Excel и др. с автоматическим разбором.' },

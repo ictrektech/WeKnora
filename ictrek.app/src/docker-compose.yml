@@ -1,37 +1,37 @@
-x-weknora-frontend-base: &weknora-frontend-base
+x-hybrag-frontend-base: &hybrag-frontend-base
   restart: unless-stopped
   networks:
     - vos_default
   environment:
     MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
-    APP_HOST: weknora-app
+    APP_HOST: hybrag-app
     APP_PORT: 8080
     APP_SCHEME: http
   labels:
     - "traefik.enable=true"
     - "traefik.docker.network=vos_default"
-    - "traefik.http.routers.weknora-top-open.rule=PathPrefix(`/app/com.ictrek.weknora`) && HeadersRegexp(`Sec-Fetch-Dest`, `document`)"
-    - "traefik.http.routers.weknora-top-open.priority=1000"
-    - "traefik.http.routers.weknora-top-open.service=weknora-web"
-    - "traefik.http.routers.weknora-top-open.middlewares=weknora-top-open-redirect"
-    - "traefik.http.middlewares.weknora-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\\.ictrek\\.weknora/?(?:\\?.*)?$"
-    - "traefik.http.middlewares.weknora-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.weknora/com-ictrek-weknora/weknora"
-    - "traefik.http.middlewares.weknora-top-open-redirect.redirectregex.permanent=false"
-    - "traefik.http.routers.weknora-web.rule=PathPrefix(`/app/com.ictrek.weknora`)"
-    - "traefik.http.routers.weknora-web.service=weknora-web"
-    - "traefik.http.routers.weknora-web.middlewares=weknora-web-slash,weknora-web-strip"
-    - "traefik.http.middlewares.weknora-web-slash.redirectregex.regex=^(.*)/app/com\\.ictrek\\.weknora$"
-    - "traefik.http.middlewares.weknora-web-slash.redirectregex.replacement=$${1}/app/com.ictrek.weknora/"
-    - "traefik.http.middlewares.weknora-web-slash.redirectregex.permanent=true"
-    - "traefik.http.middlewares.weknora-web-strip.stripprefix.prefixes=/app/com.ictrek.weknora"
-    - "traefik.http.services.weknora-web.loadbalancer.server.port=80"
+    - "traefik.http.routers.hybrag-top-open.rule=PathPrefix(`/app/com.ictrek.hybrag`) && HeadersRegexp(`Sec-Fetch-Dest`, `document`)"
+    - "traefik.http.routers.hybrag-top-open.priority=1000"
+    - "traefik.http.routers.hybrag-top-open.service=hybrag-web"
+    - "traefik.http.routers.hybrag-top-open.middlewares=hybrag-top-open-redirect"
+    - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\\.ictrek\\.hybrag/?(?:\\?.*)?$"
+    - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag"
+    - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.permanent=false"
+    - "traefik.http.routers.hybrag-web.rule=PathPrefix(`/app/com.ictrek.hybrag`)"
+    - "traefik.http.routers.hybrag-web.service=hybrag-web"
+    - "traefik.http.routers.hybrag-web.middlewares=hybrag-web-slash,hybrag-web-strip"
+    - "traefik.http.middlewares.hybrag-web-slash.redirectregex.regex=^(.*)/app/com\\.ictrek\\.hybrag$"
+    - "traefik.http.middlewares.hybrag-web-slash.redirectregex.replacement=$${1}/app/com.ictrek.hybrag/"
+    - "traefik.http.middlewares.hybrag-web-slash.redirectregex.permanent=true"
+    - "traefik.http.middlewares.hybrag-web-strip.stripprefix.prefixes=/app/com.ictrek.hybrag"
+    - "traefik.http.services.hybrag-web.loadbalancer.server.port=80"
 
-x-weknora-docreader-base: &weknora-docreader-base
+x-hybrag-docreader-base: &hybrag-docreader-base
   restart: unless-stopped
   networks:
     vos_default:
       aliases:
-        - weknora-docreader
+        - hybrag-docreader
   expose:
     - "50051"
   environment:
@@ -47,7 +47,7 @@ x-weknora-docreader-base: &weknora-docreader-base
     GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
     GRPC_AUTH_TOKEN: ${GRPC_AUTH_TOKEN:-}
   volumes:
-    - ${VOS_APP_STORAGE_PATH}/docreader:/tmp/docreader
+    - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader
   healthcheck:
     test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
     interval: 30s
@@ -55,7 +55,7 @@ x-weknora-docreader-base: &weknora-docreader-base
     retries: 3
     start_period: 60s
 
-x-weknora-ollama-qa-env: &weknora-ollama-qa-env
+x-hybrag-ollama-qa-env: &hybrag-ollama-qa-env
   NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
   NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
   OLLAMA_HOST: 0.0.0.0:11434
@@ -64,7 +64,7 @@ x-weknora-ollama-qa-env: &weknora-ollama-qa-env
   OLLAMA_NUM_PARALLEL: ${OLLAMA_QA_NUM_PARALLEL:-8}
   OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-24000}
 
-x-weknora-ollama-embedding-env: &weknora-ollama-embedding-env
+x-hybrag-ollama-embedding-env: &hybrag-ollama-embedding-env
   NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
   NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
   OLLAMA_HOST: 0.0.0.0:11434
@@ -73,17 +73,17 @@ x-weknora-ollama-embedding-env: &weknora-ollama-embedding-env
   OLLAMA_NUM_PARALLEL: ${OLLAMA_EMBEDDING_NUM_PARALLEL:-4}
   OLLAMA_CONTEXT_LENGTH: ${OLLAMA_EMBEDDING_CONTEXT_LENGTH:-8192}
 
-x-weknora-ollama-qa-base: &weknora-ollama-qa-base
+x-hybrag-ollama-qa-base: &hybrag-ollama-qa-base
   restart: unless-stopped
   runtime: nvidia
   networks:
     vos_default:
       aliases:
-        - weknora-ollama-qa
+        - hybrag-ollama-qa
   entrypoint: ["/bin/sh", "-lc"]
   command:
     - ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
-  environment: *weknora-ollama-qa-env
+  environment: *hybrag-ollama-qa-env
   volumes:
     - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
   healthcheck:
@@ -93,17 +93,17 @@ x-weknora-ollama-qa-base: &weknora-ollama-qa-base
     retries: 5
     start_period: 60s
 
-x-weknora-ollama-embedding-base: &weknora-ollama-embedding-base
+x-hybrag-ollama-embedding-base: &hybrag-ollama-embedding-base
   restart: unless-stopped
   runtime: nvidia
   networks:
     vos_default:
       aliases:
-        - weknora-ollama-embedding
+        - hybrag-ollama-embedding
   entrypoint: ["/bin/sh", "-lc"]
   command:
     - ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
-  environment: *weknora-ollama-embedding-env
+  environment: *hybrag-ollama-embedding-env
   volumes:
     - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
   healthcheck:
@@ -113,7 +113,7 @@ x-weknora-ollama-embedding-base: &weknora-ollama-embedding-base
     retries: 5
     start_period: 60s
 
-x-weknora-app-env: &weknora-app-env
+x-hybrag-app-env: &hybrag-app-env
   GIN_MODE: ${GIN_MODE:-release}
   TZ: ${TZ:-Asia/Shanghai}
   WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
@@ -127,14 +127,14 @@ x-weknora-app-env: &weknora-app-env
   STORAGE_TYPE: ${STORAGE_TYPE:-local}
   LOCAL_STORAGE_BASE_DIR: ${LOCAL_STORAGE_BASE_DIR:-/data/files}
   STREAM_MANAGER_TYPE: ${STREAM_MANAGER_TYPE:-redis}
-  REDIS_ADDR: weknora-redis:6379
-  REDIS_PASSWORD: ${REDIS_PASSWORD:-weknora-redis}
+  REDIS_ADDR: hybrag-redis:6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-hybrag-redis}
   REDIS_DB: ${REDIS_DB:-0}
   REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
-  DOCREADER_ADDR: weknora-docreader:50051
+  DOCREADER_ADDR: hybrag-docreader:50051
   DOCREADER_TRANSPORT: grpc
-  OLLAMA_BASE_URL: http://weknora-ollama-qa:11434
-  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-weknora-ollama-qa,weknora-ollama-embedding,shared-pgv,ictrek-pgv}
+  OLLAMA_BASE_URL: http://hybrag-ollama-qa:11434
+  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-hybrag-ollama-qa,hybrag-ollama-embedding,shared-pgv,ictrek-pgv}
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
   BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
   WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -154,7 +154,7 @@ x-weknora-app-env: &weknora-app-env
   WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS:-8000}
   WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS:-8000}
   WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
-  WEKNORA_REPARSE_WAIT_URLS: http://weknora-ollama-qa:11535/v1/models,http://weknora-ollama-embedding:11535/v1/models
+  WEKNORA_REPARSE_WAIT_URLS: http://hybrag-ollama-qa:11535/v1/models,http://hybrag-ollama-embedding:11535/v1/models
   WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
   WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
   WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
@@ -168,8 +168,8 @@ x-weknora-app-env: &weknora-app-env
   WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED: ${WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED:-true}
   WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
 
-x-weknora-app-env-thor-spark: &weknora-app-env-thor-spark
-  <<: *weknora-app-env
+x-hybrag-app-env-thor-spark: &hybrag-app-env-thor-spark
+  <<: *hybrag-app-env
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE_THOR_SPARK:-8}
   BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE_THOR_SPARK:-8}
   WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY_THOR_SPARK:-4}
@@ -189,17 +189,17 @@ x-weknora-app-env-thor-spark: &weknora-app-env-thor-spark
   WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS_THOR_SPARK:-24576}
   WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS_THOR_SPARK:-24576}
 
-x-weknora-app-base: &weknora-app-base
+x-hybrag-app-base: &hybrag-app-base
   restart: unless-stopped
   networks:
     vos_default:
       aliases:
-        - weknora-app
-  environment: *weknora-app-env
+        - hybrag-app
+  environment: *hybrag-app-env
   volumes:
-    - ${VOS_APP_STORAGE_PATH}/files:/data/files
-    - ${VOS_APP_STORAGE_PATH}/docreader:/tmp/docreader:ro
-    - /var/run/docker.sock:/var/run/docker.sock
+    - ${HYBRAG_FILES_PATH:-/data/vos_workspace/hybrag/files}:/data/files
+    - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader:ro
+    - ${HYBRAG_DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
   healthcheck:
     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
     interval: 30s
@@ -208,200 +208,200 @@ x-weknora-app-base: &weknora-app-base
     start_period: 60s
 
 services:
-  weknora-redis:
+  hybrag-redis:
     image: docker.io/library/redis:7.0-alpine
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-weknora-redis}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
     volumes:
-      - ${VOS_APP_STORAGE_PATH}/redis:/data
+      - ${HYBRAG_REDIS_PATH:-/data/vos_workspace/hybrag/redis}:/data
     networks:
       - vos_default
     restart: unless-stopped
 
-  weknora-frontend-amd-with-cuda:
-    <<: *weknora-frontend-base
+  hybrag-frontend-amd-with-cuda:
+    <<: *hybrag-frontend-base
     profiles: ["AMD_with_cuda"]
     image: ${WEKNORA_UI_AMD_WITH_CUDA_IMAGE}
     pull_policy: always
     depends_on:
-      weknora-app-amd-with-cuda:
+      hybrag-app-amd-with-cuda:
         condition: service_healthy
 
-  weknora-app-amd-with-cuda:
-    <<: *weknora-app-base
+  hybrag-app-amd-with-cuda:
+    <<: *hybrag-app-base
     profiles: ["AMD_with_cuda"]
     image: ${WEKNORA_APP_AMD_WITH_CUDA_IMAGE}
     pull_policy: always
     environment:
-      <<: *weknora-app-env
+      <<: *hybrag-app-env
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_WITH_CUDA_IMAGE}
     depends_on:
-      weknora-redis:
+      hybrag-redis:
         condition: service_started
-      weknora-docreader-amd-with-cuda:
+      hybrag-docreader-amd-with-cuda:
         condition: service_healthy
-      weknora-ollama-qa-amd-with-cuda:
+      hybrag-ollama-qa-amd-with-cuda:
         condition: service_healthy
-      weknora-ollama-embedding-amd-with-cuda:
+      hybrag-ollama-embedding-amd-with-cuda:
         condition: service_healthy
 
-  weknora-docreader-amd-with-cuda:
-    <<: *weknora-docreader-base
+  hybrag-docreader-amd-with-cuda:
+    <<: *hybrag-docreader-base
     profiles: ["AMD_with_cuda"]
     image: ${WEKNORA_DOCREADER_AMD_WITH_CUDA_IMAGE}
     pull_policy: always
 
-  weknora-ollama-qa-amd-with-cuda:
-    <<: *weknora-ollama-qa-base
+  hybrag-ollama-qa-amd-with-cuda:
+    <<: *hybrag-ollama-qa-base
     profiles: ["AMD_with_cuda"]
     image: ${OLLAMA_SERVER_AMD_WITH_CUDA_IMAGE}
     pull_policy: always
 
-  weknora-ollama-embedding-amd-with-cuda:
-    <<: *weknora-ollama-embedding-base
+  hybrag-ollama-embedding-amd-with-cuda:
+    <<: *hybrag-ollama-embedding-base
     profiles: ["AMD_with_cuda"]
     image: ${OLLAMA_SERVER_AMD_WITH_CUDA_IMAGE}
     pull_policy: always
 
-  weknora-frontend-arm-with-cuda:
-    <<: *weknora-frontend-base
+  hybrag-frontend-arm-with-cuda:
+    <<: *hybrag-frontend-base
     profiles: ["ARM_with_cuda"]
     image: ${WEKNORA_UI_ARM_WITH_CUDA_IMAGE}
     pull_policy: always
     depends_on:
-      weknora-app-arm-with-cuda:
+      hybrag-app-arm-with-cuda:
         condition: service_healthy
 
-  weknora-app-arm-with-cuda:
-    <<: *weknora-app-base
+  hybrag-app-arm-with-cuda:
+    <<: *hybrag-app-base
     profiles: ["ARM_with_cuda"]
     image: ${WEKNORA_APP_ARM_WITH_CUDA_IMAGE}
     pull_policy: always
     environment:
-      <<: *weknora-app-env
+      <<: *hybrag-app-env
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_WITH_CUDA_IMAGE}
     depends_on:
-      weknora-redis:
+      hybrag-redis:
         condition: service_started
-      weknora-docreader-arm-with-cuda:
+      hybrag-docreader-arm-with-cuda:
         condition: service_healthy
-      weknora-ollama-qa-arm-with-cuda:
+      hybrag-ollama-qa-arm-with-cuda:
         condition: service_healthy
-      weknora-ollama-embedding-arm-with-cuda:
+      hybrag-ollama-embedding-arm-with-cuda:
         condition: service_healthy
 
-  weknora-docreader-arm-with-cuda:
-    <<: *weknora-docreader-base
+  hybrag-docreader-arm-with-cuda:
+    <<: *hybrag-docreader-base
     profiles: ["ARM_with_cuda"]
     image: ${WEKNORA_DOCREADER_ARM_WITH_CUDA_IMAGE}
     pull_policy: always
 
-  weknora-ollama-qa-arm-with-cuda:
-    <<: *weknora-ollama-qa-base
+  hybrag-ollama-qa-arm-with-cuda:
+    <<: *hybrag-ollama-qa-base
     profiles: ["ARM_with_cuda"]
     image: ${OLLAMA_SERVER_ARM_WITH_CUDA_IMAGE}
     pull_policy: always
 
-  weknora-ollama-embedding-arm-with-cuda:
-    <<: *weknora-ollama-embedding-base
+  hybrag-ollama-embedding-arm-with-cuda:
+    <<: *hybrag-ollama-embedding-base
     profiles: ["ARM_with_cuda"]
     image: ${OLLAMA_SERVER_ARM_WITH_CUDA_IMAGE}
     pull_policy: always
 
-  weknora-frontend-l4t:
-    <<: *weknora-frontend-base
+  hybrag-frontend-l4t:
+    <<: *hybrag-frontend-base
     profiles: ["l4t"]
     image: ${WEKNORA_UI_L4T_IMAGE}
     pull_policy: always
     depends_on:
-      weknora-app-l4t:
+      hybrag-app-l4t:
         condition: service_healthy
 
-  weknora-app-l4t:
-    <<: *weknora-app-base
+  hybrag-app-l4t:
+    <<: *hybrag-app-base
     profiles: ["l4t"]
     image: ${WEKNORA_APP_L4T_IMAGE}
     pull_policy: always
     environment:
-      <<: *weknora-app-env
+      <<: *hybrag-app-env
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_L4T_IMAGE}
     depends_on:
-      weknora-redis:
+      hybrag-redis:
         condition: service_started
-      weknora-docreader-l4t:
+      hybrag-docreader-l4t:
         condition: service_healthy
-      weknora-ollama-qa-l4t:
+      hybrag-ollama-qa-l4t:
         condition: service_healthy
-      weknora-ollama-embedding-l4t:
+      hybrag-ollama-embedding-l4t:
         condition: service_healthy
 
-  weknora-docreader-l4t:
-    <<: *weknora-docreader-base
+  hybrag-docreader-l4t:
+    <<: *hybrag-docreader-base
     profiles: ["l4t"]
     image: ${WEKNORA_DOCREADER_L4T_IMAGE}
     pull_policy: always
 
-  weknora-ollama-qa-l4t:
-    <<: *weknora-ollama-qa-base
+  hybrag-ollama-qa-l4t:
+    <<: *hybrag-ollama-qa-base
     profiles: ["l4t"]
     image: ${OLLAMA_SERVER_L4T_IMAGE}
     pull_policy: always
 
-  weknora-ollama-embedding-l4t:
-    <<: *weknora-ollama-embedding-base
+  hybrag-ollama-embedding-l4t:
+    <<: *hybrag-ollama-embedding-base
     profiles: ["l4t"]
     image: ${OLLAMA_SERVER_L4T_IMAGE}
     pull_policy: always
 
-  weknora-frontend-thor-spark:
-    <<: *weknora-frontend-base
+  hybrag-frontend-thor-spark:
+    <<: *hybrag-frontend-base
     profiles: ["thor_spark"]
     image: ${WEKNORA_UI_THOR_SPARK_IMAGE}
     pull_policy: always
     depends_on:
-      weknora-app-thor-spark:
+      hybrag-app-thor-spark:
         condition: service_healthy
 
-  weknora-app-thor-spark:
-    <<: *weknora-app-base
+  hybrag-app-thor-spark:
+    <<: *hybrag-app-base
     profiles: ["thor_spark"]
     image: ${WEKNORA_APP_THOR_SPARK_IMAGE}
     pull_policy: always
     environment:
-      <<: *weknora-app-env-thor-spark
+      <<: *hybrag-app-env-thor-spark
       WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_THOR_SPARK_IMAGE}
     depends_on:
-      weknora-redis:
+      hybrag-redis:
         condition: service_started
-      weknora-docreader-thor-spark:
+      hybrag-docreader-thor-spark:
         condition: service_healthy
-      weknora-ollama-qa-thor-spark:
+      hybrag-ollama-qa-thor-spark:
         condition: service_healthy
-      weknora-ollama-embedding-thor-spark:
+      hybrag-ollama-embedding-thor-spark:
         condition: service_healthy
 
-  weknora-docreader-thor-spark:
-    <<: *weknora-docreader-base
+  hybrag-docreader-thor-spark:
+    <<: *hybrag-docreader-base
     profiles: ["thor_spark"]
     image: ${WEKNORA_DOCREADER_THOR_SPARK_IMAGE}
     pull_policy: always
 
-  weknora-ollama-qa-thor-spark:
-    <<: *weknora-ollama-qa-base
+  hybrag-ollama-qa-thor-spark:
+    <<: *hybrag-ollama-qa-base
     profiles: ["thor_spark"]
     image: ${OLLAMA_SERVER_THOR_SPARK_IMAGE}
     pull_policy: always
     environment:
-      <<: *weknora-ollama-qa-env
+      <<: *hybrag-ollama-qa-env
       OLLAMA_NUM_PARALLEL: ${OLLAMA_QA_NUM_PARALLEL_THOR_SPARK:-20}
       OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH_THOR_SPARK:-65536}
 
-  weknora-ollama-embedding-thor-spark:
-    <<: *weknora-ollama-embedding-base
+  hybrag-ollama-embedding-thor-spark:
+    <<: *hybrag-ollama-embedding-base
     profiles: ["thor_spark"]
     image: ${OLLAMA_SERVER_THOR_SPARK_IMAGE}
     pull_policy: always
     environment:
-      <<: *weknora-ollama-embedding-env
+      <<: *hybrag-ollama-embedding-env
       OLLAMA_NUM_PARALLEL: ${OLLAMA_EMBEDDING_NUM_PARALLEL_THOR_SPARK:-16}
 
 networks:

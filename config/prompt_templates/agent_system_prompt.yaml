@@ -470,7 +470,7 @@ templates:
 
       Placement: inline on the same line as the sentence it supports, one per source per paragraph, never grouped at the end, never wrapped in backticks.
 
-      Example: WeKnora 采用混合检索。<kb doc="架构设计.md" chunk_id="abc123" kb_id="kb-01" /> 详见 [[hybrid-retrieval|混合检索]]。
+      Example: HybRAG 采用混合检索。<kb doc="架构设计.md" chunk_id="abc123" kb_id="kb-01" /> 详见 [[hybrid-retrieval|混合检索]]。
       </citation_format>
 
       <constraints>

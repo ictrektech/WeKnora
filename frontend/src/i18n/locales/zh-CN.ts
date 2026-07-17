@@ -52,12 +52,12 @@ export default {
     reopen: "新手引导",
     steps: {
       welcome: {
-        title: "欢迎使用 WeKnora",
+        title: "欢迎使用 HybRAG",
         desc: "只需几步，带你快速了解知识库、对话与智能体的核心用法。点击「下一步」开始。",
       },
       knowledge: {
         title: "创建你的知识库",
-        desc: "知识库是一切的起点：上传文档、网页或 FAQ，WeKnora 会自动解析并建立索引。点击这里进入知识库。",
+        desc: "知识库是一切的起点：上传文档、网页或 FAQ，HybRAG 会自动解析并建立索引。点击这里进入知识库。",
       },
       chat: {
         title: "发起智能对话",
@@ -1627,7 +1627,7 @@ export default {
   },
   initialization: {
     title: "初始化",
-    welcome: "欢迎使用WeKnora",
+    welcome: "欢迎使用HybRAG",
     description: "请先配置系统以开始使用",
     step1: "步骤1：配置LLM模型",
     step2: "步骤2：配置嵌入模型",
@@ -1879,11 +1879,11 @@ export default {
     backToLogin: "返回登录",
     registerNow: "立即注册",
     loginHint: "登录以继续使用；首次使用请在下方创建账户。",
-    firstTime: "首次使用 WeKnora？",
+    firstTime: "首次使用 HybRAG？",
     registerSuccess: "注册成功，请登录",
     registerFailed: "注册失败",
     subtitle: "RAG 问答、ReAct 智能体与 Wiki 知识库，大模型驱动的企业级知识框架",
-    registerSubtitle: "创建账户并开始使用 WeKnora",
+    registerSubtitle: "创建账户并开始使用 HybRAG",
     emailPlaceholder: "输入邮箱地址",
     passwordPlaceholder: "输入密码（8-32个字符，包含字母和数字）",
     confirmPasswordPlaceholder: "再次输入密码",
@@ -3790,7 +3790,7 @@ export default {
     allowFileUploadDesc: "开启后，访客可上传图片与文档附件。仅当绑定的智能体已启用图片上传时才会生效。",
     webhookUrl: "Webhook 地址",
     webhookUrlPlaceholder: "https://your-server.example.com/weknora/embed-events",
-    webhookUrlDesc: "可选。访客发消息与助手回复完成时，WeKnora 会向该 HTTPS 地址 POST 事件（message_sent / message_received）。",
+    webhookUrlDesc: "可选。访客发消息与助手回复完成时，HybRAG 会向该 HTTPS 地址 POST 事件（message_sent / message_received）。",
     webhookSecret: "Webhook 签名密钥",
     webhookSecretPlaceholder: "用于 HMAC-SHA256 签名（X-WeKnora-Signature）",
     webhookSecretKeep: "留空表示不修改已保存的密钥",
@@ -6406,7 +6406,7 @@ export default {
         "任何持有 API Key 的调用方都可以通过修改用户 ID 请求头冒充其他外部用户，从而共用或劫持其 MCP OAuth 授权。请勿用于浏览器或不可信客户端；面向终端用户请使用「签名 Token」。",
       signedRecommended: "推荐给面向用户的应用：由你的业务后端为外部用户签发短期 HS256 JWT。",
       signedFlowDetail:
-        "HMAC 密钥仅保存在 WeKnora 与你的可信后端，切勿放入请求或下发给浏览器。请求头里传的是用该密钥签出的 JWT 字符串（每次签发或过期后会变），不是密钥本身。JWT 须包含 sub（外部用户 ID）、tenant_id、aud=weknora、exp（有效期不超过 24 小时）。",
+        "HMAC 密钥仅保存在 HybRAG 与你的可信后端，切勿放入请求或下发给浏览器。请求头里传的是用该密钥签出的 JWT 字符串（每次签发或过期后会变），不是密钥本身。JWT 须包含 sub（外部用户 ID）、tenant_id、aud=weknora、exp（有效期不超过 24 小时）。",
       directHeader: "用户 ID 请求头",
       requireDirectHeader: "必须携带用户 ID",
       requireDirectHeaderDesc:

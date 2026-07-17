@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_LABEL="weknora"
-TAG_PREFIX="vos-weknora-v"
+APP_LABEL="hybrag"
+TAG_PREFIX="vos-hybrag-v"
 VERSION_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/VERSION"
 REPO_ROOT="$(git -C "$(dirname "$VERSION_FILE")" rev-parse --show-toplevel)"
 

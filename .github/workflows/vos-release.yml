@@ -3,7 +3,7 @@ name: VOS Pull Package Release
 on:
   push:
     tags:
-      - "vos-weknora-v*"
+      - "vos-hybrag-v*"
 
 permissions:
   contents: write
@@ -38,7 +38,7 @@ jobs:
             echo "VOS_DEPENDENCY_RELEASE_TOKEN is required to read dependency releases." >&2
             exit 1
           }
-          VERSION="${GITHUB_REF_NAME#vos-weknora-v}"
+          VERSION="${GITHUB_REF_NAME#vos-hybrag-v}"
           python3 - <<'PY'
           import json
           import os
@@ -89,21 +89,21 @@ jobs:
               print(f"{dep_id} {version}")
           PY
           PACKAGE_VERSION="$VERSION" ./ictrek.app/scripts/package.sh
-          test -f "ictrek.app/dist/weknora_${VERSION}_pull.tar"
+          test -f "ictrek.app/dist/hybrag_${VERSION}_pull.tar"
 
       - name: Create release notes
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_PREFIX: vos-weknora-v
+          TAG_PREFIX: vos-hybrag-v
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#vos-weknora-v}"
+          VERSION="${GITHUB_REF_NAME#vos-hybrag-v}"
           CURRENT="${GITHUB_REF_NAME}"
           PUBLIC_TAG="v${VERSION}"
           export PUBLIC_TAG
           PREVIOUS="$(gh release list --limit 100 --json tagName,publishedAt --jq '[.[] | select(.tagName != env.PUBLIC_TAG) | select((.tagName | startswith("v")) or (.tagName | startswith(env.TAG_PREFIX)))] | sort_by(.publishedAt) | reverse | .[0].tagName // ""')"
           {
-            echo "Pull-mode VOS app package for com.ictrek.weknora."
+            echo "Pull-mode VOS app package for com.ictrek.hybrag."
             echo
             if [[ -n "$PREVIOUS" ]]; then
               echo "Changes since ${PREVIOUS}:"
@@ -118,13 +118,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${GITHUB_REF_NAME#vos-weknora-v}"
+          VERSION="${GITHUB_REF_NAME#vos-hybrag-v}"
           PUBLIC_TAG="v${VERSION}"
           if ! git ls-remote --exit-code --tags origin "refs/tags/${PUBLIC_TAG}" >/dev/null 2>&1; then
             git tag "$PUBLIC_TAG" "$GITHUB_SHA"
             git push origin "$PUBLIC_TAG"
           fi
-          gh release create "$PUBLIC_TAG" "ictrek.app/dist/weknora_${VERSION}_pull.tar" \
+          gh release create "$PUBLIC_TAG" "ictrek.app/dist/hybrag_${VERSION}_pull.tar" \
             --verify-tag \
             --latest \
             --title "v${VERSION}" \
