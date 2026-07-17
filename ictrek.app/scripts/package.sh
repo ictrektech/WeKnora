@@ -56,9 +56,32 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
 }
 
+select_python() {
+  local candidate
+  if [[ -n "${PYTHON_BIN:-}" ]]; then
+    require_cmd "$PYTHON_BIN"
+    "$PYTHON_BIN" - <<'PYCHECK' || die "PYTHON_BIN cannot import yaml: ${PYTHON_BIN}"
+import yaml
+PYCHECK
+    return
+  fi
+
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" - <<'PYCHECK' >/dev/null 2>&1; then
+import yaml
+PYCHECK
+      PYTHON_BIN="$candidate"
+      log "Python runtime: ${PYTHON_BIN}"
+      return
+    fi
+  done
+
+  die "missing Python runtime with PyYAML; install PyYAML or set PYTHON_BIN to a Python that can import yaml"
+}
+
 validate_yaml_file() {
   local file="$1"
-  python3 - "$file" <<'PYYAML' \
+  "${PYTHON_BIN}" - "$file" <<'PYYAML' \
     || die "invalid YAML: ${file}"
 import sys
 import yaml
@@ -79,7 +102,7 @@ validate_staged_files() {
     IFS='|' read -r profile sheet_title <<< "$profile_spec"
     expected_profiles+=("$profile")
   done
-  python3 - "${STAGE_DIR}/manifest.yml" "${STAGE_DIR}/docker-compose.yml" "${expected_profiles[@]}" <<'PYPROFILE' \
+  "${PYTHON_BIN}" - "${STAGE_DIR}/manifest.yml" "${STAGE_DIR}/docker-compose.yml" "${expected_profiles[@]}" <<'PYPROFILE' \
     || die "manifest/docker-compose profile contract validation failed"
 import re
 import sys
@@ -133,7 +156,7 @@ if bad_compose:
     raise SystemExit(f"docker-compose.yml profiles must not use Feishu sheet names: {sorted(bad_compose)!r}")
 PYPROFILE
 
-  python3 - "${STAGE_DIR}/configs.yml" <<'PYCONFIG' \
+  "${PYTHON_BIN}" - "${STAGE_DIR}/configs.yml" <<'PYCONFIG' \
     || die "configs.yml type validation failed"
 import sys
 import yaml
@@ -182,7 +205,7 @@ read_version() {
 read_feishu_field() {
   local config_file="$1"
   local field="$2"
-  python3 - "$config_file" "$field" <<'PYJSON'
+  "${PYTHON_BIN}" - "$config_file" "$field" <<'PYJSON'
 import json
 import sys
 path, field = sys.argv[1], sys.argv[2]
@@ -209,7 +232,7 @@ get_feishu_token() {
       -H "Content-Type: application/json" \
       -d "{\"app_id\":\"${app_id}\",\"app_secret\":\"${app_secret}\"}"
   )"
-  python3 - "$resp" <<'PYJSON'
+  "${PYTHON_BIN}" - "$resp" <<'PYJSON'
 import json
 import sys
 data = json.loads(sys.argv[1])
@@ -226,7 +249,7 @@ get_sheet_id_by_title() {
   resp="$(feishu_api_json "GET" \
     "https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${SPREADSHEET_TOKEN}/sheets/query" \
     "$token")"
-  python3 - "$target_title" "$resp" <<'PYJSON'
+  "${PYTHON_BIN}" - "$target_title" "$resp" <<'PYJSON'
 import json
 import sys
 target, resp = sys.argv[1], sys.argv[2]
@@ -255,7 +278,7 @@ find_component_column_letter() {
   local component="$3"
   local resp
   resp="$(get_range_values "$token" "${sheet_id}!A1:ZZ1")"
-  python3 - "$component" "$resp" <<'PYJSON'
+  "${PYTHON_BIN}" - "$component" "$resp" <<'PYJSON'
 import json
 import sys
 target, resp = sys.argv[1], sys.argv[2]
@@ -297,7 +320,7 @@ find_latest_tag() {
   local column="$3"
   local resp
   resp="$(get_range_values "$token" "${sheet_id}!${column}4:${column}2000")"
-  python3 - "$resp" <<'PYJSON'
+  "${PYTHON_BIN}" - "$resp" <<'PYJSON'
 import json
 import sys
 data = json.loads(sys.argv[1])
@@ -368,7 +391,7 @@ load_feishu_auth() {
 render_text_file() {
   local src="$1"
   local dst="$2"
-  python3 - "$src" "$dst" "$APP_VERSION" <<'PYRENDER'
+  "${PYTHON_BIN}" - "$src" "$dst" "$APP_VERSION" <<'PYRENDER'
 import sys
 from pathlib import Path
 src, dst = Path(sys.argv[1]), Path(sys.argv[2])
@@ -381,7 +404,7 @@ render_compose_file() {
   local src="$1"
   local dst="$2"
   local env_file="$3"
-  python3 - "$src" "$dst" "$APP_VERSION" "$env_file" <<'PYRENDER'
+  "${PYTHON_BIN}" - "$src" "$dst" "$APP_VERSION" "$env_file" <<'PYRENDER'
 import re
 import sys
 from pathlib import Path
@@ -493,7 +516,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 require_cmd curl
-require_cmd python3
+select_python
 require_cmd tar
 mkdir -p "$DIST_DIR"
 acquire_lock

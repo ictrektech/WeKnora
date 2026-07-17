@@ -489,7 +489,7 @@ services:
     restart: unless-stopped
 
   hybrag-neo4j:
-    image: neo4j:2025.10.1
+    image: docker.io/library/neo4j:2025.10.1
     ports:
       - "${NEO4J_HTTP_PORT:-27474}:7474"
       - "${NEO4J_BOLT_PORT:-27687}:7687"
