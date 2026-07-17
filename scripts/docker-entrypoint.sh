@@ -48,11 +48,23 @@ RUNTIME_BUILTIN_MODELS_FILE="$RUNTIME_CONFIG_DIR/builtin_models.yaml"
 
 if [ -n "${HYBRAG_BUILTIN_MODELS_YAML:-}" ]; then
     mkdir -p "$RUNTIME_CONFIG_DIR"
-    printf '%s\n' "$HYBRAG_BUILTIN_MODELS_YAML" > "$RUNTIME_BUILTIN_MODELS_FILE"
+    python3 - "$RUNTIME_BUILTIN_MODELS_FILE" <<'PY'
+import os
+import sys
+
+output = sys.argv[1]
+payload = os.environ.get("HYBRAG_BUILTIN_MODELS_YAML", "")
+with open(output, "w", encoding="utf-8") as f:
+    f.write(os.path.expandvars(payload))
+    if not payload.endswith("\n"):
+        f.write("\n")
+PY
     export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
 elif [ "${HYBRAG_DEFAULT_BUILTIN_MODELS:-false}" = "true" ]; then
     mkdir -p "$RUNTIME_CONFIG_DIR"
-    cat > "$RUNTIME_BUILTIN_MODELS_FILE" <<'EOF'
+    OLLAMA_QA_MODEL="${OLLAMA_QA_MODEL:-qwen3.5:2b}"
+    OLLAMA_EMBEDDING_MODEL="${OLLAMA_EMBEDDING_MODEL:-bge-m3}"
+    cat > "$RUNTIME_BUILTIN_MODELS_FILE" <<EOF
 builtin_models:
   - id: hybrag-ollama-qwen35-2b-qa
     type: KnowledgeQA

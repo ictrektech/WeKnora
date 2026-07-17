@@ -396,6 +396,8 @@ x-hybrag-app-env: &hybrag-app-env
   DOCREADER_ADDR: hybrag-docreader:50051
   DOCREADER_TRANSPORT: grpc
   OLLAMA_BASE_URL: http://hybrag-ollama-qa:11434
+  OLLAMA_QA_MODEL: ${OLLAMA_QA_MODEL:-qwen3.5:2b}
+  OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-bge-m3}
   SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-hybrag-ollama-qa,hybrag-ollama-embedding,shared-pgv,ictrek-pgv}
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
   BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}

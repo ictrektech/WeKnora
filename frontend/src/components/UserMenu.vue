@@ -270,13 +270,13 @@ let tenantSubmenuHideTimer: ReturnType<typeof setTimeout> | null = null
 
 // 用户信息
 const userInfo = ref({
-  username: t('common.defaultUser'),
-  email: 'user@example.com',
-  avatar: ''
+  username: authStore.user?.username || '',
+  email: authStore.user?.email || '',
+  avatar: authStore.user?.avatar || ''
 })
 
-const userName = computed(() => userInfo.value.username)
-const userEmail = computed(() => userInfo.value.email)
+const userName = computed(() => userInfo.value.username || authStore.user?.username || '')
+const userEmail = computed(() => userInfo.value.email || authStore.user?.email || '')
 const userAvatar = computed(() => userInfo.value.avatar)
 
 // 用户名首字母（用于无头像时显示）
