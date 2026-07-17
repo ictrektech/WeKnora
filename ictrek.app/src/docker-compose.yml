@@ -59,7 +59,7 @@ x-hybrag-ollama-qa-env: &hybrag-ollama-qa-env
   NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
   NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
   OLLAMA_HOST: 0.0.0.0:11434
-  OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+  OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1m}
   OLLAMA_QA_MODEL: ${OLLAMA_QA_MODEL:-qwen3.5:2b}
   OLLAMA_MODELS: /root/.ollama/models
   OLLAMA_NUM_PARALLEL: ${OLLAMA_QA_NUM_PARALLEL:-8}
@@ -70,7 +70,7 @@ x-hybrag-ollama-embedding-env: &hybrag-ollama-embedding-env
   NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
   NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
   OLLAMA_HOST: 0.0.0.0:11434
-  OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+  OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1m}
   OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-bge-m3}
   OLLAMA_MODELS: /root/.ollama/models
   OLLAMA_NUM_PARALLEL: ${OLLAMA_EMBEDDING_NUM_PARALLEL:-4}
@@ -81,7 +81,7 @@ x-hybrag-ollama-qa-command: &hybrag-ollama-qa-command
   - |
     set -eu
     MODEL="$${OLLAMA_QA_MODEL:-qwen3.5:2b}"
-    KEEP_ALIVE="$${OLLAMA_KEEP_ALIVE:--1}"
+    KEEP_ALIVE="$${OLLAMA_KEEP_ALIVE:--1m}"
     READY_WAIT="$${OLLAMA_READY_WAIT_SECONDS:-300}"
     MODEL_HUB_URL="$${MODEL_HUB_BACKEND_URL:-http://model-hub-backend:5005}"
     ollama serve >/tmp/ollama.log 2>&1 &
@@ -161,15 +161,29 @@ x-hybrag-ollama-qa-command: &hybrag-ollama-qa-command
     import urllib.request
 
     model, keep_alive = sys.argv[1], sys.argv[2]
-    payload = {"model": model, "prompt": "HybRAG warmup", "stream": False, "keep_alive": keep_alive}
+    payload = {
+        "model": model,
+        "prompt": "HybRAG warmup",
+        "stream": False,
+        "keep_alive": keep_alive,
+        "options": {"num_predict": 1},
+    }
     req = urllib.request.Request(
         "http://127.0.0.1:11434/api/generate",
         data=json.dumps(payload).encode("utf-8"),
         method="POST",
         headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=600) as resp:
-        resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            resp.read()
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        print(f"ollama QA warmup failed for {model}: HTTP {exc.code} {body}", file=sys.stderr)
+        raise
+    except Exception as exc:
+        print(f"ollama QA warmup failed for {model}: {exc}", file=sys.stderr)
+        raise
     print(f"ollama QA model resident: {model}")
     PY
     exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
@@ -178,7 +192,7 @@ x-hybrag-ollama-embedding-command: &hybrag-ollama-embedding-command
   - |
     set -eu
     MODEL="$${OLLAMA_EMBEDDING_MODEL:-bge-m3}"
-    KEEP_ALIVE="$${OLLAMA_KEEP_ALIVE:--1}"
+    KEEP_ALIVE="$${OLLAMA_KEEP_ALIVE:--1m}"
     READY_WAIT="$${OLLAMA_READY_WAIT_SECONDS:-300}"
     MODEL_HUB_URL="$${MODEL_HUB_BACKEND_URL:-http://model-hub-backend:5005}"
     ollama serve >/tmp/ollama.log 2>&1 &
@@ -265,8 +279,16 @@ x-hybrag-ollama-embedding-command: &hybrag-ollama-embedding-command
         method="POST",
         headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=600) as resp:
-        resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            resp.read()
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        print(f"ollama embedding warmup failed for {model}: HTTP {exc.code} {body}", file=sys.stderr)
+        raise
+    except Exception as exc:
+        print(f"ollama embedding warmup failed for {model}: {exc}", file=sys.stderr)
+        raise
     print(f"ollama embedding model resident: {model}")
     PY
     exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535

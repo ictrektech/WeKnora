@@ -15,7 +15,7 @@
 - 容器模型目录：`/root/.ollama`
 - embedding 模型：`bge-m3:latest`
 - embedding 维度：`1024`
-- 常驻模型：`OLLAMA_KEEP_ALIVE=-1`
+- 常驻模型：`OLLAMA_KEEP_ALIVE=-1m`
 
 ## 启动 Ollama 后端
 
@@ -45,7 +45,7 @@ docker run -d \
   -p 21535:11535 \
   -v "$OLLAMA_ROOT:/root/.ollama" \
   "$OLLAMA_SERVER_IMAGE" \
-  -lc 'export OLLAMA_HOST=0.0.0.0:11434 OLLAMA_KEEP_ALIVE=-1; ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535'
+  -lc 'export OLLAMA_HOST=0.0.0.0:11434 OLLAMA_KEEP_ALIVE=-1m; ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535'
 EOF
 ```
 
@@ -82,7 +82,7 @@ curl -fsS http://127.0.0.1:21434/api/ps
 EOF
 ```
 
-`bge-m3` 是多语言文本 embedding 模型，适合 WeKnora 的 Ollama embedding 路径，不需要多模态 embedding。`OLLAMA_KEEP_ALIVE=-1` 会让 warmup 后的模型保持常驻。
+`bge-m3` 是多语言文本 embedding 模型，适合 WeKnora 的 Ollama embedding 路径，不需要多模态 embedding。`OLLAMA_KEEP_ALIVE=-1m` 会让 warmup 后的模型保持常驻。
 
 ## 验证
 
@@ -216,7 +216,7 @@ This note records the Ollama embedding backend prepared on the remote machine re
 - Container Ollama model directory: `/root/.ollama`
 - Embedding model: `bge-m3:latest`
 - Embedding dimensions: `1024`
-- Ollama keep-alive: `OLLAMA_KEEP_ALIVE=-1`
+- Ollama keep-alive: `OLLAMA_KEEP_ALIVE=-1m`
 
 The `model-hub:amd_20260625` image exists, but it is not required as a persistent runtime dependency for WeKnora embedding after the Ollama model has been downloaded. Keep only the Ollama container running unless the operator explicitly needs the model-hub management UI/API.
 
@@ -249,13 +249,13 @@ docker run -d \
   -p 21535:11535 \
   -v "$OLLAMA_ROOT:/root/.ollama" \
   "$OLLAMA_SERVER_IMAGE" \
-  -lc 'export OLLAMA_HOST=0.0.0.0:11434 OLLAMA_KEEP_ALIVE=-1; ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535'
+  -lc 'export OLLAMA_HOST=0.0.0.0:11434 OLLAMA_KEEP_ALIVE=-1m; ollama serve >/tmp/ollama.log 2>&1 & exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535'
 EOF
 ```
 
 The `ollama_server` image's default `/app/start.sh` hardcodes `OLLAMA_HOST=127.0.0.1:11434`. Use the explicit `/bin/sh -lc ...` command above so the Ollama native API is reachable on the mapped host port and from other containers on the Docker network.
 
-`OLLAMA_KEEP_ALIVE=-1` keeps models resident after they are loaded. This matters for WeKnora because embedding calls are latency-sensitive and repeated document indexing should not reload the embedding model between batches.
+`OLLAMA_KEEP_ALIVE=-1m` keeps models resident after they are loaded. This matters for WeKnora because embedding calls are latency-sensitive and repeated document indexing should not reload the embedding model between batches.
 
 ## Ensure Resident Embedding Model
 
@@ -293,7 +293,7 @@ EOF
 
 `bge-m3` is a multilingual text embedding model. It is suitable for WeKnora's Ollama embedding path and does not require multimodal embedding support.
 
-With `OLLAMA_KEEP_ALIVE=-1`, the warmup embedding call above loads `bge-m3:latest` and keeps it resident. On the prepared host, `GET /api/ps` showed `bge-m3:latest` loaded with a far-future `expires_at`.
+With `OLLAMA_KEEP_ALIVE=-1m`, the warmup embedding call above loads `bge-m3:latest` and keeps it resident. On the prepared host, `GET /api/ps` showed `bge-m3:latest` loaded with a far-future `expires_at`.
 
 ## Verify
 
@@ -535,4 +535,4 @@ docker compose logs app | grep -i builtin-models
 - `ollama/ollama:latest` could not be pulled on the prepared remote host because Docker Hub timed out, so `ollama_server:amd_0.30.6` was used as the Ollama engine.
 - The downloaded `bge-m3:latest` files are under `/data/jhu/models/ollama`; current disk usage after pull is about `1.1G`.
 - `bge-m3:latest` reports `embedding_length=1024` and `capabilities=["embedding"]` from Ollama.
-- `OLLAMA_KEEP_ALIVE=-1` was verified on the prepared host: after a warmup embedding request, `GET /api/ps` reported `bge-m3:latest` resident in VRAM.
+- `OLLAMA_KEEP_ALIVE=-1m` was verified on the prepared host: after a warmup embedding request, `GET /api/ps` reported `bge-m3:latest` resident in VRAM.

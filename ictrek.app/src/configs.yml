@@ -195,9 +195,9 @@ configs:
       zh-CN: Ollama 模型常驻时间
       en: Ollama Keep Alive
     description:
-      zh-CN: 传给两个 Ollama 容器的 OLLAMA_KEEP_ALIVE。默认 `-1` 表示模型常驻，避免 HybRAG 调用前反复加载。
-      en: OLLAMA_KEEP_ALIVE for both Ollama containers. Default `-1` keeps models loaded.
-    default: "-1"
+      zh-CN: 传给两个 Ollama 容器的 OLLAMA_KEEP_ALIVE。默认 `-1m` 表示模型常驻，避免 HybRAG 调用前反复加载。
+      en: OLLAMA_KEEP_ALIVE for both Ollama containers. Default `-1m` keeps models loaded.
+    default: "-1m"
   - name: WEKNORA_CHAT_RESERVED_CONCURRENCY
     type: integer
     title:

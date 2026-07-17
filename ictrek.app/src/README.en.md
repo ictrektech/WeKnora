@@ -42,7 +42,7 @@ The package does not bake model rows into images. Add models in the HybRAG UI af
 
 If Model Hub manages the model files, make sure the required models already exist in the Ollama model directories.
 
-On startup, both Ollama containers start local `ollama serve`, ask `MODEL_HUB_BACKEND_URL` to pull the required model through Model Hub, and fall back to local `ollama pull` if Model Hub is unavailable or the pull task fails. After the pull check, each container sends a warmup request with `OLLAMA_KEEP_ALIVE=-1` so the model stays resident before the OpenAI-compatible gateway starts. The default `MODEL_HUB_BACKEND_URL` is `http://model-hub-backend:5005`, the Model Hub backend alias on the `vos_default` network.
+On startup, both Ollama containers start local `ollama serve`, ask `MODEL_HUB_BACKEND_URL` to pull the required model through Model Hub, and fall back to local `ollama pull` if Model Hub is unavailable or the pull task fails. After the pull check, each container sends a warmup request with `OLLAMA_KEEP_ALIVE=-1m` so the model stays resident before the OpenAI-compatible gateway starts. The default `MODEL_HUB_BACKEND_URL` is `http://model-hub-backend:5005`, the Model Hub backend alias on the `vos_default` network.
 
 QA/VLM defaults to `qwen3.5:2b`, and embedding defaults to `bge-m3`. Non-thor profiles default to 8 QA slots with 2 reserved for chat and 6 shared by background tasks; embedding defaults to 4 total slots with 2 used by document embedding. `thor-spark` uses higher defaults: 20 QA slots, 6 chat-reserved slots, 14 background slots, 16 embedding slots, and 8 document-embedding slots.
 

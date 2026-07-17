@@ -32,7 +32,7 @@ VOS app profile 共有 6 个：`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`
 3. 通过 `MODEL_HUB_BACKEND_URL` 触发 Model Hub 拉取对应模型。
 4. 如果 Model Hub 不可用、返回失败或超时，则退回本容器执行 `ollama pull`。
 5. 再执行一次本容器 `ollama pull` 做本地一致性确认。
-6. 通过本容器 Ollama API 发起 warmup 请求，并带上 `keep_alive=-1`，让模型常驻。
+6. 通过本容器 Ollama API 发起 warmup 请求，并带上 `keep_alive=-1m`，让模型常驻。
 7. 最后启动 `ollama_gateway`，对外提供 OpenAI-compatible `/v1` 接口。
 
 HybRAG app 容器通过 `depends_on` 等待两个 Ollama 容器健康后才启动，所以 app 启动前会先完成模型准备。
@@ -62,14 +62,14 @@ MODEL_HUB_SHARED_MODELS_PATH=/data/vos_workspace/model_hub
 MODEL_HUB_BACKEND_URL=http://model-hub-backend:5005
 OLLAMA_QA_MODEL=qwen3.5:2b
 OLLAMA_EMBEDDING_MODEL=bge-m3
-OLLAMA_KEEP_ALIVE=-1
+OLLAMA_KEEP_ALIVE=-1m
 OLLAMA_QA_NUM_PARALLEL=8
 OLLAMA_EMBEDDING_NUM_PARALLEL=4
 OLLAMA_CONTEXT_LENGTH=24000
 OLLAMA_EMBEDDING_CONTEXT_LENGTH=8192
 ```
 
-`OLLAMA_KEEP_ALIVE=-1` 表示 warmup 后模型不卸载。普通 profile 默认 QA Ollama 总并发 8，embedding Ollama 总并发 4；应用侧默认给在线聊天预留 2 个 QA 槽位，文档 embedding 使用 2 个 embedding 槽位。
+`OLLAMA_KEEP_ALIVE=-1m` 表示 warmup 后模型不卸载。普通 profile 默认 QA Ollama 总并发 8，embedding Ollama 总并发 4；应用侧默认给在线聊天预留 2 个 QA 槽位，文档 embedding 使用 2 个 embedding 槽位。
 
 ## 验证命令
 
@@ -103,4 +103,4 @@ curl -fsS http://hybrag-ollama-embedding:11535/v1/embeddings \
 - `model-hub-backend` 解析失败：确认 Model Hub app 已安装、后端容器在 `vos_default` 网络中，且其 compose 模板保留 `model-hub-backend` alias。
 - Model Hub 拉取失败但 HybRAG 仍能启动：HybRAG Ollama 容器会退回本容器 `ollama pull`，模型文件仍写入共享目录。
 - 容器长时间不健康：看 Ollama 容器日志，通常是模型下载慢、网络不可达、磁盘不足或模型名写错。
-- `ollama ps` 没有模型：确认 `OLLAMA_KEEP_ALIVE=-1`，并检查 warmup 请求是否成功。
+- `ollama ps` 没有模型：确认 `OLLAMA_KEEP_ALIVE=-1m`，并检查 warmup 请求是否成功。
