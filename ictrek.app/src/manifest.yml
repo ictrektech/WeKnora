@@ -16,7 +16,7 @@ platform:
 dependencies:
   apps:
     - id: com.ictrek.model-hub
-      version: ">=0.0.13"
+      version: ">=0.0.17"
       optional: false
     - id: com.ictrek.pgv
       version: ">=0.0.13"
@@ -34,8 +34,4 @@ storage:
     - path: docreader
       mode: "0755"
     - path: redis
-      mode: "0755"
-    - path: ollama/qa
-      mode: "0755"
-    - path: ollama/embedding
       mode: "0755"

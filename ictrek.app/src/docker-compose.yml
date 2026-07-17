@@ -70,10 +70,11 @@ x-weknora-ollama-qa-base: &weknora-ollama-qa-base
     NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
     OLLAMA_HOST: 0.0.0.0:11434
     OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+    OLLAMA_MODELS: /root/.ollama/models
     OLLAMA_NUM_PARALLEL: ${OLLAMA_QA_NUM_PARALLEL:-3}
     OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-18000}
   volumes:
-    - ${VOS_APP_STORAGE_PATH}/ollama/qa:/root/.ollama
+    - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
   healthcheck:
     test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
     interval: 30s
@@ -96,10 +97,11 @@ x-weknora-ollama-embedding-base: &weknora-ollama-embedding-base
     NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
     OLLAMA_HOST: 0.0.0.0:11434
     OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+    OLLAMA_MODELS: /root/.ollama/models
     OLLAMA_NUM_PARALLEL: ${OLLAMA_EMBEDDING_NUM_PARALLEL:-4}
     OLLAMA_CONTEXT_LENGTH: ${OLLAMA_EMBEDDING_CONTEXT_LENGTH:-8192}
   volumes:
-    - ${VOS_APP_STORAGE_PATH}/ollama/embedding:/root/.ollama
+    - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
   healthcheck:
     test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
     interval: 30s

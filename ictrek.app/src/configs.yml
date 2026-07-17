@@ -1,4 +1,13 @@
 configs:
+  - name: MODEL_HUB_SHARED_MODELS_PATH
+    type: path
+    title:
+      zh-CN: Model Hub 共享模型目录
+      en: Model Hub Shared Models Path
+    description:
+      zh-CN: Model Hub VOS 应用管理的宿主机模型根目录。WeKnora 的两个 Ollama 容器会复用其中的 ollama 模型目录，并允许 WeKnora 触发 ollama pull 写入模型。
+      en: Host-side model root managed by the Model Hub VOS app. Both WeKnora Ollama containers reuse its ollama model directory and may write models when WeKnora triggers ollama pull.
+    default: /data/vos_workspace/model_hub
   - name: OLLAMA_QA_MODEL
     type: string
     title:
