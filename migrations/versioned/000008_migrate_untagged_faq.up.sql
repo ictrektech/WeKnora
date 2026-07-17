@@ -7,7 +7,12 @@ BEGIN
         RETURN;
     END IF;
 
-    ALTER EXTENSION pg_search UPDATE;
+    BEGIN
+        ALTER EXTENSION pg_search UPDATE;
+    EXCEPTION
+        WHEN insufficient_privilege THEN
+            RAISE NOTICE 'Skipping pg_search extension update: current database user is not the extension owner';
+    END;
 END $$;
 
 DO $$

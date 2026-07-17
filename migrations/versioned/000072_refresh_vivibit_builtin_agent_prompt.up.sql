@@ -1,8 +1,8 @@
--- Migration: 000067_refresh_vivibit_builtin_agent_prompt
+-- Migration: 000072_refresh_vivibit_builtin_agent_prompt
 -- Description: Refresh legacy builtin quick-answer prompt rows that still carry
 -- the upstream Tencent/WeKnora identity after the deployment prompt template was
 -- changed to Vivibit AI小助手.
-DO $$ BEGIN RAISE NOTICE '[Migration 000067] Refreshing legacy builtin quick-answer prompt rows...'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000072] Refreshing legacy builtin quick-answer prompt rows...'; END $$;
 
 UPDATE custom_agents
 SET config = jsonb_set(
@@ -40,4 +40,4 @@ WHERE id = 'builtin-quick-answer'
       OR config->>'system_prompt' ILIKE '%professional intelligent information retrieval assistant developed by Tencent%'
   );
 
-DO $$ BEGIN RAISE NOTICE '[Migration 000067] Legacy builtin quick-answer prompt refresh complete'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000072] Legacy builtin quick-answer prompt refresh complete'; END $$;
