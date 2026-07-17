@@ -16,3 +16,5 @@ routers:
         iframe-src: /app/com.ictrek.weknora/?v=__APP_VERSION__
         order: 10
         keep-alive: true
+        entry-point: true
+        embed: true

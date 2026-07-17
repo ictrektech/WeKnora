@@ -4,6 +4,10 @@
 
 ## 打包
 
+正式发布入口是 `scripts/update_version.sh`。它只负责自增 `VERSION`、提交版本 commit、创建并推送 `vos-weknora-v${VERSION}` 触发 tag；GitHub Actions 收到 tag 后会读取飞书组件版本、生成 pull 包并发布 release。
+
+本地 `package.sh` 只用于调试模板或手动验证。未设置 `PACKAGE_VERSION` 时读取当前 `ictrek.app/VERSION`，CI 会显式传入 tag 中解析出的 `PACKAGE_VERSION`。
+
 ```bash
 cd apps/WeKnora/ictrek.app
 ./scripts/package.sh
@@ -16,6 +20,8 @@ dist/weknora_${VERSION}_pull.tar
 ```
 
 安装包内只有 `app.tar.gz`，不会内置镜像归档。脚本会优先读取 `~/.feishu.components.json`，失败时回退到 `~/.feishu.json`，从飞书发布表读取 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 和 `ollama_server` 的最新镜像版本，并写入包内 `.env`。
+
+打包脚本会校验 VOS 入口契约：`routers.yml` 必须声明 `entry-point: true` 和 `embed: true`，`docker-compose.yml` 必须把顶层文档请求 `/app/com.ictrek.weknora/` 重定向到 VOS 侧边栏内部路径。缺少这些字段时，VOS“我的应用”卡片的“打开”按钮可能只打开空白页或不能在侧边栏打开。
 
 ## Profiles
 
@@ -108,6 +114,20 @@ GitHub secrets：
 | `FEISHU_SPREADSHEET_TOKEN` | 可选；覆盖默认飞书表 token | Organization secret 或 repository secret |
 
 WeKnora 是 public repo，因此当前组织级 Feishu secrets 可被 GitHub Actions 读取。其他没有私有依赖 release 的 VOS app 可继续沿用各自现有流程，不需要套用 WeKnora 的依赖 token 逻辑。
+
+## 路由入口
+
+`routers.yml` 使用固定的 group/page 入口。真实页面作为 VOS iframe 页面加载，并保留 `entry-point: true` 和 `embed: true`。为兼容仍读取 `frontend_base_path` 的旧“打开”按钮，Compose/Traefik 会把顶层文档请求 `/app/com.ictrek.weknora/` 重定向到 VOS hash；iframe 请求继续进入真实应用页面，不会被重定向。
+
+WeKnora 的固定入口契约是：
+
+- `app id`: `com.ictrek.weknora`
+- `group.id`: `com-ictrek-weknora`
+- `page.id`: `weknora`
+- `iframe-src`: `/app/com.ictrek.weknora/?v=${VERSION}`
+- VOS 内部侧边栏路径：`#/app/com.ictrek.weknora/com-ictrek-weknora/weknora`
+
+`scripts/package.sh` 会在生成 `app.tar.gz` 后校验以上字段；不匹配时直接失败。新增或修改入口时必须同步更新模板和脚本校验值。
 
 当前这条说明里的“其他 VOS app”包括 `model_hub`、`pgv`、`motrix-next`、`cc_setup`。这些 app 暂不因为 WeKnora 的私有依赖查询需求改变发布流程。
 

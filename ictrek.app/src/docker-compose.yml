@@ -10,6 +10,13 @@ x-weknora-frontend-base: &weknora-frontend-base
   labels:
     - "traefik.enable=true"
     - "traefik.docker.network=vos_default"
+    - "traefik.http.routers.weknora-top-open.rule=PathPrefix(`/app/com.ictrek.weknora`) && HeadersRegexp(`Sec-Fetch-Dest`, `document`)"
+    - "traefik.http.routers.weknora-top-open.priority=1000"
+    - "traefik.http.routers.weknora-top-open.service=weknora-web"
+    - "traefik.http.routers.weknora-top-open.middlewares=weknora-top-open-redirect"
+    - "traefik.http.middlewares.weknora-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\\.ictrek\\.weknora/?(?:\\?.*)?$"
+    - "traefik.http.middlewares.weknora-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.weknora/com-ictrek-weknora/weknora"
+    - "traefik.http.middlewares.weknora-top-open-redirect.redirectregex.permanent=false"
     - "traefik.http.routers.weknora-web.rule=PathPrefix(`/app/com.ictrek.weknora`)"
     - "traefik.http.routers.weknora-web.service=weknora-web"
     - "traefik.http.routers.weknora-web.middlewares=weknora-web-slash,weknora-web-strip"
@@ -175,7 +182,7 @@ x-weknora-app-base: &weknora-app-base
 
 services:
   weknora-redis:
-    image: redis:7.0-alpine
+    image: docker.io/library/redis:7.0-alpine
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-weknora-redis}
     volumes:
       - ${VOS_APP_STORAGE_PATH}/redis:/data

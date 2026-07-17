@@ -3,6 +3,10 @@ set -euo pipefail
 
 APP_NAME="weknora"
 APP_ID="com.ictrek.weknora"
+ROUTER_GROUP_ID="com-ictrek-weknora"
+ROUTER_PAGE_ID="weknora"
+ROUTER_IFRAME_SRC="/app/com.ictrek.weknora/?v=__APP_VERSION__"
+ROUTER_HASH_PATH="#/app/com.ictrek.weknora/com-ictrek-weknora/weknora"
 SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.components.json}"
 FEISHU_FALLBACK_CONFIG_FILE="${FEISHU_FALLBACK_CONFIG_FILE:-${HOME}/.feishu.json}"
@@ -286,7 +290,7 @@ def replace_image_var(match):
         return env[key]
     return match.group(0)
 
-text = re.sub(r"\$\{([A-Z0-9_]+)\}", replace_image_var, text)
+text = re.sub(r"\$\{([A-Z0-9_]+)(?::-[^}]*)?\}", replace_image_var, text)
 dst.write_text(text, encoding="utf-8")
 PYRENDER
 }
@@ -294,14 +298,55 @@ PYRENDER
 verify_package() {
   local package_path="$1"
   local app_tarball="$2"
+  local package_text
+  local routers_text
+  local compose_text
+  local router_iframe_src
+  local sidebar_route
   log "Verify app.tar.gz contents"
   tar tzf "$app_tarball" >/dev/null
   tar tzf "$app_tarball" | grep -qx "manifest.yml"
   tar tf "$package_path" | grep -qx "app.tar.gz"
   ! tar tf "$package_path" | grep -q "^assets/"
-  if tar xOf "$package_path" app.tar.gz | tar tzf - | grep -q '__APP_VERSION__'; then
-    die "unrendered __APP_VERSION__ placeholder remains"
+  package_text="$(tar tzf "$app_tarball" | while IFS= read -r file; do [[ "$file" == */ ]] && continue; tar xOf "$app_tarball" "$file"; printf '\n'; done)"
+  if printf '%s' "$package_text" | grep -q '__[A-Z0-9_]\+__'; then
+    die "unrendered placeholder remains"
   fi
+  compose_text="$(tar xOf "$app_tarball" docker-compose.yml)"
+  if printf '%s\n' "$compose_text" | grep -q '\${[^}]*_IMAGE[^}]*}'; then
+    die "unrendered image variable remains in docker-compose.yml"
+  fi
+  if printf '%s\n' "$compose_text" | awk '/^[[:space:]]*image:/ {print $2}' | grep -v '^[^/[:space:]]\+\.[^/[:space:]]\+/' | grep -q .; then
+    die "docker-compose.yml contains short image reference"
+  fi
+  if ! printf '%s\n' "$compose_text" | grep -Fq 'HeadersRegexp(`Sec-Fetch-Dest`, `document`)'; then
+    die "docker-compose.yml must redirect top-level document opens to VOS hash route"
+  fi
+  if ! printf '%s\n' "$compose_text" | grep -Fq "${ROUTER_HASH_PATH}"; then
+    die "docker-compose.yml redirect must target ${ROUTER_HASH_PATH}"
+  fi
+  routers_text="$(tar xOf "$app_tarball" routers.yml)"
+  router_iframe_src="${ROUTER_IFRAME_SRC/__APP_VERSION__/${APP_VERSION}}"
+  if ! printf '%s\n' "$routers_text" | grep -Fq "  - id: ${ROUTER_GROUP_ID}"; then
+    die "routers.yml must declare top-level group id ${ROUTER_GROUP_ID}"
+  fi
+  if ! printf '%s\n' "$routers_text" | grep -Fq "      - id: ${ROUTER_PAGE_ID}"; then
+    die "routers.yml must declare sidebar page id ${ROUTER_PAGE_ID}"
+  fi
+  if ! printf '%s\n' "$routers_text" | grep -Fq "        iframe-src: ${router_iframe_src}"; then
+    die "routers.yml sidebar iframe-src must be ${router_iframe_src}"
+  fi
+  if printf '%s\n' "$routers_text" | grep -Eq 'iframe-src:[[:space:]]*https?://'; then
+    die "routers.yml iframe-src must use a VOS same-origin /app/<app-id>/ path"
+  fi
+  if ! printf '%s\n' "$routers_text" | grep -q 'entry-point:[[:space:]]*true'; then
+    die "routers.yml sidebar page must declare entry-point: true"
+  fi
+  if ! printf '%s\n' "$routers_text" | grep -q 'embed:[[:space:]]*true'; then
+    die "routers.yml must declare embed: true for sidebar iframe"
+  fi
+  sidebar_route="#/app/${APP_ID}/${ROUTER_GROUP_ID}/${ROUTER_PAGE_ID}"
+  log "VOS sidebar route: ${sidebar_route}"
 }
 
 env_key() {
