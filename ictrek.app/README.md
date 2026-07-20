@@ -19,7 +19,7 @@ cd apps/WeKnora/ictrek.app
 dist/hybrag_${VERSION}_pull.tar
 ```
 
-安装包内只有 `app.tar.gz`，不会内置镜像归档。脚本会优先读取 `~/.feishu.components.json`，失败时回退到 `~/.feishu.json`，从飞书发布表读取 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 和 `ollama_server` 的最新镜像版本，并写入包内 `.env`。这里仍读取 `weknora*` 镜像列，是因为本次只改 VOS 应用、容器和显示名称，不改已发布镜像仓库名。
+安装包内只有 `app.tar.gz`，不会内置镜像归档。脚本会优先读取 `~/.feishu.components.json`，失败时回退到 `~/.feishu.json`，从飞书发布表读取 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 的最新镜像版本，并写入包内 `.env`。这里仍读取 `weknora*` 镜像列，是因为本次只改 VOS 应用、容器和显示名称，不改已发布镜像仓库名。
 
 打包脚本会校验 VOS 入口契约：`routers.yml` 必须声明 `entry-point: true` 和 `embed: true`，`docker-compose.yml` 必须把顶层文档请求 `/app/com.ictrek.hybrag/` 重定向到 VOS 侧边栏内部路径。缺少这些字段时，VOS“我的应用”卡片的“打开”按钮可能只打开空白页或不能在侧边栏打开。
 
@@ -29,14 +29,14 @@ dist/hybrag_${VERSION}_pull.tar
 
 ## Profiles
 
-profile 按 `ollama_server` 的发布维度设置。HybRAG 自身 AMD 有无 CUDA 通用，ARM 有无 CUDA 通用，因此 `amd-no-cuda` 复用 `AMD_with_cuda` 表、`arm-no-cuda` 复用 `ARM_with_cuda` 表，只是在 compose 中不启用 `runtime: nvidia`；L4T 和 Thor Spark 单独查表。本应用发布 6 个 profile。
+profile 按 Model Hub/Ollama 运行环境的发布维度设置。HybRAG 自身 AMD 有无 CUDA 通用，ARM 有无 CUDA 通用，因此 `amd-no-cuda` 复用 `AMD_with_cuda` 表、`arm-no-cuda` 复用 `ARM_with_cuda` 表；L4T 和 Thor Spark 单独查表。本应用发布 6 个 profile。
 
 | profile | 飞书 sheet | 说明 |
 | --- | --- | --- |
-| `amd` | `AMD_with_cuda` | x86_64 / AMD 通用 HybRAG + Ollama |
-| `amd-no-cuda` | `AMD_with_cuda` | x86_64 / AMD 无 GPU runtime，复用 AMD 镜像版本 |
-| `arm` | `ARM_with_cuda` | ARM 通用 HybRAG + Ollama |
-| `arm-no-cuda` | `ARM_with_cuda` | ARM64 无 GPU runtime，复用 ARM 镜像版本 |
+| `amd` | `AMD_with_cuda` | x86_64 / AMD 通用 HybRAG |
+| `amd-no-cuda` | `AMD_with_cuda` | x86_64 / AMD 无 GPU，复用 AMD 镜像版本 |
+| `arm` | `ARM_with_cuda` | ARM 通用 HybRAG |
+| `arm-no-cuda` | `ARM_with_cuda` | ARM64 无 GPU，复用 ARM 镜像版本 |
 | `l4t` | `l4t` | Jetson / L4T |
 | `thor-spark` | `thor_spark` | Thor Spark |
 
@@ -50,23 +50,23 @@ docker compose --profile l4t config
 
 ## 资源默认值
 
-所有 profile 的 QA/VLM Ollama 模型默认都是 `qwen3.5:2b`，embedding 模型默认是 `bge-m3`。普通 profile（`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`l4t`）默认按纯 Ollama 分离容器方案配置：
+默认模型引用 Model Hub 的两个预热 Ollama 运行时：QA/VLM 模型为 `qwen3.5:2b`，embedding 模型为 `bge-m3`。普通 profile（`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`l4t`）默认按 Model Hub 分离运行时配置：
 
 | 资源项 | 默认值 | 含义 |
 | --- | ---: | --- |
-| QA/VLM Ollama 总槽位 | `8` | `OLLAMA_QA_NUM_PARALLEL=8`，聊天和图片理解共用。 |
+| Model Hub QA/VLM 总槽位 | `8` | 由 Model Hub QA Ollama 提供；HybRAG 侧按 8 个主模型槽位调度。 |
 | QA/VLM 聊天预留 | `2` | `WEKNORA_CHAT_RESERVED_CONCURRENCY=2`，后台任务最多共享剩余 `6` 个主模型槽位。 |
 | 后台主模型共享槽位 | `6` | `WEKNORA_MODEL_MAX_CONCURRENCY=6`，Graph/Wiki/VLM/摘要/问题生成等后台调用共用。 |
-| QA 上下文 | `24000` | 应用侧 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=24000`，Ollama 侧 `OLLAMA_CONTEXT_LENGTH=24000`。 |
+| QA 上下文 | `24000` | 应用侧 `WEKNORA_CHAT_MODEL_CONTEXT_TOKENS=24000`；Model Hub QA 默认上下文为 `24576`。 |
 | QA 输入/输出预算 | `16000 / 8000` | `WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS=0`、`WEKNORA_*MAX*_TOKENS=8000`。 |
-| Embedding Ollama 总槽位 | `4` | `OLLAMA_EMBEDDING_NUM_PARALLEL=4`。 |
+| Model Hub Embedding 总槽位 | `4` | 由 Model Hub embedding Ollama 提供；HybRAG 文档 embedding 默认只使用 2 个。 |
 | 文档 embedding 槽位 | `2` | `CONCURRENCY_POOL_SIZE=2`，另外约 `2` 个槽位留给聊天检索。 |
 
 `thor-spark` profile 按 LexAI thor 资源策略给更高默认值：QA/VLM 总槽位 `20`、聊天预留 `6`、后台主模型共享 `14`、QA 上下文 `65536`、输出预算 `24576`、embedding 服务总槽位 `16`、文档 embedding 槽位 `8`，worker 池为 `core/postprocess/enrichment/maintenance/shared/wiki = 4/2/2/1/0/4`。其中 shared 为 `0` 表示关闭弹性借用；其他 worker 池仍必须是正整数。
 
 ## 依赖和模型
 
-`manifest.yml` 声明依赖 `com.ictrek.model-hub >=0.0.17` 和 `com.ictrek.pgv`，但 `docker-compose.yml` 不启动 model_hub 或 Postgres 服务。`0.0.17` 是首个支持标准共享模型目录的 Model Hub 版本。HybRAG 包内只启动自身服务、Redis 和 `ollama_server` 容器；Postgres 通过 PGV 在 `vos_default` 网络上的 `shared-pgv:5432` 访问，Ollama 模型目录复用 Model Hub 管理的共享目录。
+`manifest.yml` 声明依赖 `com.ictrek.model-hub >=0.0.27` 和 `com.ictrek.pgv`，但 `docker-compose.yml` 不启动 model_hub 或 Postgres 服务。`0.0.27` 起 Model Hub 提供独立的 QA 与 embedding Ollama 预热运行时。HybRAG 包内只启动自身服务、Redis 和 Neo4j；Postgres 通过 PGV 在 `vos_default` 网络上的 `shared-pgv:5432` 访问，模型调用通过 Model Hub 暴露的两个 gateway。
 
 PGV 文档中默认预置给 WeKnora/HybRAG 使用的连接信息是：
 
@@ -80,37 +80,26 @@ DB_NAME=WeKnora
 
 这里数据库名和用户仍使用 `weknora/WeKnora`，是为了兼容 PGV 默认初始化结果；VOS 应用显示名、容器名和 app id 改为 HybRAG 不要求改数据库名。安装 UI 会暴露 `WEKNORA_DB_HOST`、`WEKNORA_DB_PORT`、`WEKNORA_DB_USER`、`WEKNORA_DB_PASSWORD`、`WEKNORA_DB_NAME`，如果 PGV 安装时改过用户、密码或数据库名，在安装 HybRAG 时同步改这些值即可。
 
-compose 使用两个 Ollama 容器：
+HybRAG 不再启动自己的 Ollama 容器，也不再挂载 Model Hub 模型目录。Model Hub 应先安装并运行在同一个 `vos_default` 网络中，并提供两个稳定服务名：
 
-- `hybrag-ollama-qa-*`：聊天、图片理解/VLM。
-- `hybrag-ollama-embedding-*`：embedding。
+| 用途 | 服务名 | Gateway | 默认模型 |
+| --- | --- | --- | --- |
+| QA / VLM | `model-hub-ollama-qa` | `http://model-hub-ollama-qa:11535/v1` | `qwen3.5:2b` |
+| Embedding | `model-hub-ollama-embedding` | `http://model-hub-ollama-embedding:11535/v1` | `bge-m3` |
 
-两个容器都按 Model Hub 文档复用同一个宿主机模型目录：
+模型下载、预热、常驻、上下文和 Ollama 并发由 Model Hub 安装配置负责。HybRAG 安装 UI 只配置要引用的模型名和 gateway 地址；如果 Model Hub 修改了服务名或端口，需要同步修改 `MODEL_HUB_OLLAMA_QA_GATEWAY_URL`、`MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL` 和 `OLLAMA_BASE_URL`。
 
-```yaml
-environment:
-  OLLAMA_MODELS: /root/.ollama/models
-volumes:
-  - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
-```
-
-默认宿主机路径为 `/data/vos_workspace/model_hub`。其中 Ollama 模型实际位于：
-
-```text
-/data/vos_workspace/model_hub/ollama/models
-```
-
-这等价于 Ollama 容器内 `/root/.ollama/models`。挂载保持可写，因为 HybRAG 也有通过 Ollama 拉取模型的能力；这些模型会写回 Model Hub 的共享目录。HybRAG 不再用自己的 `/data/vos_workspace/hybrag/ollama/qa` 或 `/data/vos_workspace/hybrag/ollama/embedding` 存模型，避免与 Model Hub 下载目录分裂。安装时如 Model Hub 使用了非默认共享目录，需要把 HybRAG 的 `MODEL_HUB_SHARED_MODELS_PATH` 配成同一个宿主机路径。
+HybRAG 默认模型行必须指向 Model Hub Ollama Gateway，也就是 `http://<ollama-service>:11535/v1`。不要把 QA、VLM 或 embedding 模型行配到原生 Ollama `11434`，否则请求不会经过 Gateway，Model Hub 看不到槽位、阶段、token/s 等统计信息。`OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434` 只用于兼容本地 Ollama 状态检查，不作为默认模型调用地址。
 
 VOS 安装包不会放额外 `config/` 目录。默认安装时 `HYBRAG_DEFAULT_BUILTIN_MODELS=true`，App 容器启动脚本会在运行时生成 `builtin_models.yaml`，自动创建三条 YAML 托管模型行，并在界面里用 `display_name` 区分两个 Ollama 后端：
 
 | 类型 | display_name | endpoint |
 | --- | --- | --- |
-| KnowledgeQA | `HybRAG Ollama QA (hybrag-ollama-qa)` | `http://hybrag-ollama-qa:11535/v1` |
-| VLLM | `HybRAG Ollama VLM (hybrag-ollama-qa)` | `http://hybrag-ollama-qa:11535/v1` |
-| Embedding | `HybRAG Ollama Embedding (hybrag-ollama-embedding)` | `http://hybrag-ollama-embedding:11535/v1` |
+| KnowledgeQA | `Model Hub Ollama QA (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11535/v1` |
+| VLLM | `Model Hub Ollama VLM (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11535/v1` |
+| Embedding | `Model Hub Ollama Embedding (model-hub-ollama-embedding)` | `http://model-hub-ollama-embedding:11535/v1` |
 
-这些模型行不写在镜像里，也不随 VOS 包以目录形式挂载；当前 VOS parser 只接受固定顶层文件，包内不要加入 `config/`。`name` 仍从安装 UI 的 `OLLAMA_QA_MODEL` / `OLLAMA_EMBEDDING_MODEL` 展开，默认分别是 `qwen3.5:2b` 和 `bge-m3`。如需完全自定义，可在安装 UI 的 `HYBRAG_BUILTIN_MODELS_YAML` 填写完整 `builtin_models:` YAML。运行后也可以在 HybRAG UI 中添加或修改其他模型；如果管理员手动接管某条 YAML 模型行，需要清空该行的 `managed_by`，否则后续安装包升级会按 YAML 继续同步。
+这些模型行不写在镜像里，也不随 VOS 包以目录形式挂载；当前 VOS parser 只接受固定顶层文件，包内不要加入 `config/`。`name` 仍从安装 UI 的 `OLLAMA_QA_MODEL` / `OLLAMA_EMBEDDING_MODEL` 展开，默认分别是 `qwen3.5:2b` 和 `bge-m3`；endpoint 默认从 `MODEL_HUB_OLLAMA_QA_GATEWAY_URL` / `MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL` 展开。如需完全自定义，可在安装 UI 的 `HYBRAG_BUILTIN_MODELS_YAML` 填写完整 `builtin_models:` YAML。运行后也可以在 HybRAG UI 中添加或修改其他模型；如果管理员手动接管某条 YAML 模型行，需要清空该行的 `managed_by`，否则后续安装包升级会按 YAML 继续同步。
 
 Ollama Qwen3.5 关闭思考使用 `extra_config.thinking_control=think`，请求会发送顶层 `think:false`。vLLM / generic Qwen3.5 后端关闭思考使用 `extra_config.thinking_control=chat_template_kwargs`，请求会发送 `chat_template_kwargs.enable_thinking=false`。两者不要混用。
 
@@ -141,7 +130,7 @@ GitHub Actions 会：
 
 1. 使用 `VOS_DEPENDENCY_RELEASE_TOKEN` 查询 `model_hub_*_pull.tar` 与 `pgv_*_pull.tar` 的最新版本，并写入 CI 工作区内的 `manifest.yml`。
 2. 使用 `FEISHU_APP_ID`、`FEISHU_APP_SECRET` 和可选 `FEISHU_SPREADSHEET_TOKEN` 写出 `~/.feishu.components.json`。
-3. 调用 `scripts/package.sh`，从飞书发布表读取 `weknora*` 四镜像和 `ollama_server` 的最新版本，生成 `dist/hybrag_${VERSION}_pull.tar`。
+3. 调用 `scripts/package.sh`，从飞书发布表读取 `weknora*` 四镜像的最新版本，生成 `dist/hybrag_${VERSION}_pull.tar`。
 4. 生成 release notes。
 5. 创建公开 release tag `v${VERSION}`，并上传 pull 模式 tar 包。`vos-hybrag-v${VERSION}` 只用于触发 CI，不作为公开 release tag。
 
@@ -209,7 +198,7 @@ git tag --list "vos-hybrag-v${VERSION}" "v${VERSION}" --format='%(refname:short)
 
 - 本地脚本失败：通常是工作区不干净、版本号非法、触发 tag 或公开 release tag 已存在。先用 `git status --short`、`git tag --list 'vos-hybrag-v*' 'v*'` 检查。
 - CI 依赖 release 查询失败：检查 `VOS_DEPENDENCY_RELEASE_TOKEN` 是否可用，是否有同组织仓库 `Contents: Read-only` 权限。
-- CI 飞书查表失败：检查 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_SPREADSHEET_TOKEN`，以及目标 profile 的 sheet 里是否存在 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox`、`ollama_server` 列，并且最新行有 tag。
+- CI 飞书查表失败：检查 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_SPREADSHEET_TOKEN`，以及目标 profile 的 sheet 里是否存在 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 列，并且最新行有 tag。
 - CI release 创建失败：查看 `VOS Pull Package Release` workflow 日志。若 package 已生成但 release 未创建，可在本地确认后补执行：
 
 ```bash

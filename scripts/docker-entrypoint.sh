@@ -42,7 +42,7 @@ fi
 # ─── Optional runtime built-in model config ───
 # VOS app packages cannot ship arbitrary top-level directories in app.tar.gz.
 # Generate this file at container startup when the deployment explicitly asks
-# for the HybRAG Ollama defaults or provides a custom YAML payload.
+# for the HybRAG Model Hub defaults or provides a custom YAML payload.
 RUNTIME_CONFIG_DIR="${WEKNORA_RUNTIME_CONFIG_DIR:-/tmp/weknora-config}"
 RUNTIME_BUILTIN_MODELS_FILE="$RUNTIME_CONFIG_DIR/builtin_models.yaml"
 
@@ -64,6 +64,8 @@ elif [ "${HYBRAG_DEFAULT_BUILTIN_MODELS:-false}" = "true" ]; then
     mkdir -p "$RUNTIME_CONFIG_DIR"
     OLLAMA_QA_MODEL="${OLLAMA_QA_MODEL:-qwen3.5:2b}"
     OLLAMA_EMBEDDING_MODEL="${OLLAMA_EMBEDDING_MODEL:-bge-m3}"
+    MODEL_HUB_OLLAMA_QA_GATEWAY_URL="${MODEL_HUB_OLLAMA_QA_GATEWAY_URL:-http://model-hub-ollama-qa:11535/v1}"
+    MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL="${MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL:-http://model-hub-ollama-embedding:11535/v1}"
     cat > "$RUNTIME_BUILTIN_MODELS_FILE" <<EOF
 builtin_models:
   - id: hybrag-ollama-qwen35-2b-qa
@@ -71,9 +73,9 @@ builtin_models:
     source: remote
     is_default: true
     name: ${OLLAMA_QA_MODEL}
-    display_name: HybRAG Ollama QA (hybrag-ollama-qa)
+    display_name: Model Hub Ollama QA (model-hub-ollama-qa)
     parameters:
-      base_url: http://hybrag-ollama-qa:11535/v1
+      base_url: ${MODEL_HUB_OLLAMA_QA_GATEWAY_URL}
       api_key: EMPTY
       provider: generic
       supports_vision: true
@@ -85,9 +87,9 @@ builtin_models:
     source: remote
     is_default: true
     name: ${OLLAMA_QA_MODEL}
-    display_name: HybRAG Ollama VLM (hybrag-ollama-qa)
+    display_name: Model Hub Ollama VLM (model-hub-ollama-qa)
     parameters:
-      base_url: http://hybrag-ollama-qa:11535/v1
+      base_url: ${MODEL_HUB_OLLAMA_QA_GATEWAY_URL}
       api_key: EMPTY
       provider: generic
       supports_vision: true
@@ -99,9 +101,9 @@ builtin_models:
     source: remote
     is_default: true
     name: ${OLLAMA_EMBEDDING_MODEL}
-    display_name: HybRAG Ollama Embedding (hybrag-ollama-embedding)
+    display_name: Model Hub Ollama Embedding (model-hub-ollama-embedding)
     parameters:
-      base_url: http://hybrag-ollama-embedding:11535/v1
+      base_url: ${MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL}
       api_key: EMPTY
       provider: generic
       embedding_parameters:

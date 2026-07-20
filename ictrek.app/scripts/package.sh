@@ -19,7 +19,7 @@ PACKAGE_ROOT="${DIST_DIR}/package-root"
 VERSION_FILE="${ROOT_DIR}/VERSION"
 LOCK_DIR="${DIST_DIR}/.package.lock"
 
-# Profiles intentionally follow ollama_server release dimensions. WeKnora AMD is
+# Profiles follow Model Hub runtime dimensions. WeKnora AMD is
 # shared across AMD variants, and WeKnora ARM is shared across ARM variants.
 PROFILES=(
   "amd|AMD_with_cuda"
@@ -34,7 +34,6 @@ COMPONENTS=(
   "WEKNORA_UI|weknora-ui|swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-ui"
   "WEKNORA_DOCREADER|weknora-docreader|swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader"
   "WEKNORA_SANDBOX|weknora-sandbox|swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox"
-  "OLLAMA_SERVER|ollama_server|swr.cn-southwest-2.myhuaweicloud.com/ictrek/ollama_server"
 )
 BASE_IMAGES=(
   "REDIS_AMD_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/redis:7.0-alpine"

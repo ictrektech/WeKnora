@@ -1,57 +1,51 @@
 # HybRAG
 
-HybRAG is an enterprise knowledge-base, RAG, Wiki graph, and agent platform. This VOS package installs the HybRAG runtime components in pull mode and starts the selected-profile `ollama_server` images for chat, vision, and embedding. To avoid extra rebuilds and Feishu column migration, image repositories still use the published `weknora*` names; the VOS app name, app id, routes, and container services use HybRAG.
+本文档与 `README.zh-CN.md` 保持同一套部署说明。当前 VOS 包默认复用 Model Hub 已预热并常驻的两个 Ollama 运行时，不再启动 HybRAG 自己的 Ollama 容器。
 
-## Components
+## 组件
 
-- HybRAG web frontend
-- HybRAG app API
-- DocReader document parser
-- Agent Skills sandbox image
-- Ollama QA/VLM container
-- Ollama embedding container
+- HybRAG Web 前端
+- HybRAG App API
+- DocReader 文档解析服务
+- Agent Skills sandbox 镜像
 - Redis
-- Neo4j knowledge graph database
-- External PGV/Postgres dependency
+- Neo4j 知识图谱数据库
+- 外部 PGV/Postgres 依赖
+- 外部 Model Hub 依赖
 
-## Profiles
+## 依赖
 
-Choose one profile at install time: `amd`, `amd-no-cuda`, `arm`, `arm-no-cuda`, `l4t`, or `thor-spark`.
+`manifest.yml` 要求：
 
-`amd-no-cuda` and `arm-no-cuda` reuse `weknora*` and `ollama_server` image versions from `AMD_with_cuda` and `ARM_with_cuda`, but run Ollama without `runtime: nvidia` for AMD64/ARM64 hosts without GPU. `l4t` and `thor-spark` use their own Feishu sheets.
+- `com.ictrek.model-hub >= 0.0.27`：提供 `model-hub-ollama-qa` 和 `model-hub-ollama-embedding` 两个预热运行时。
+- `com.ictrek.pgv >= 0.0.13`：提供 `shared-pgv:5432` Postgres/pgvector 服务。
 
-## Install Settings
+HybRAG 的 `docker-compose.yml` 不启动 Model Hub 或 Postgres。
 
-The install UI exposes model, resource, and host-path settings. By default HybRAG stores runtime data under `/data/vos_workspace/hybrag` in `files`, `docreader`, and `redis` subdirectories. Ollama models reuse the Model Hub shared directory `/data/vos_workspace/model_hub/ollama` unless `MODEL_HUB_SHARED_MODELS_PATH` is changed during installation.
+## 默认模型
 
-Postgres is provided by PGV. The default connection is `shared-pgv:5432` with user/password/database `weknora` / `weknora` / `WeKnora`. These fields are exposed in the install UI; if PGV was installed with different credentials or database name, update them in the HybRAG install form.
+默认安装时 `HYBRAG_DEFAULT_BUILTIN_MODELS=true`，App 容器入口脚本会生成三条 YAML 托管模型行：
 
-Entity/relation knowledge graph extraction is enabled by default. The VOS package starts an app-local `hybrag-neo4j` service, and the app connects to `bolt://hybrag-neo4j:7687` with default credentials `neo4j` / `hybrag-neo4j`. Neo4j data is stored at `/data/vos_workspace/hybrag/neo4j` by default. Host debug ports avoid the official defaults and use `27474` for Browser and `27687` for Bolt. To use an external Neo4j instance, adjust `NEO4J_URI`, `NEO4J_USERNAME`, and `NEO4J_PASSWORD` in the install UI.
+| 类型 | display_name | endpoint | 默认模型 |
+| --- | --- | --- | --- |
+| KnowledgeQA | `Model Hub Ollama QA (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11535/v1` | `qwen3.5:2b` |
+| VLLM | `Model Hub Ollama VLM (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11535/v1` | `qwen3.5:2b` |
+| Embedding | `Model Hub Ollama Embedding (model-hub-ollama-embedding)` | `http://model-hub-ollama-embedding:11535/v1` | `bge-m3` |
 
-## VOS SSO
+安装 UI 可调整：
 
-This package currently ships a transitional VOS iframe SSO adapter and does not require VOS-side changes. The frontend first reads a future-style `window.__VOS_APP_CONTEXT__`, then falls back to the current same-origin VOS access-token store. The backend verifies that token through the `/v1000/user/check` endpoint configured by `HYBRAG_VOS_USERINFO_URL`.
+```env
+OLLAMA_QA_MODEL=qwen3.5:2b
+OLLAMA_EMBEDDING_MODEL=bge-m3
+MODEL_HUB_OLLAMA_QA_API_URL=http://model-hub-ollama-qa:11434
+MODEL_HUB_OLLAMA_QA_GATEWAY_URL=http://model-hub-ollama-qa:11535/v1
+MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL=http://model-hub-ollama-embedding:11535/v1
+```
 
-After verification, HybRAG provisions or logs in `username@local` and creates the user's personal workspace. VOS `admin` maps to `admin@local`, which is promoted to HybRAG system admin with cross-tenant administration rights.
+模型行必须使用 `11535/v1` Gateway 地址，不能改成 Ollama 原生 `11434`。只有经过 Gateway 的请求才会被 Model Hub 统计槽位、运行阶段和 token/s。
 
-This is intentionally replaceable. When VOS provides standard OIDC or official iframe user injection, disable `HYBRAG_VOS_SSO_ENABLED` or replace only the identity adapter; the local user and workspace provisioning path can stay unchanged.
+Model Hub 负责模型下载、预热、常驻、上下文和 Ollama 并发；HybRAG 只负责引用 gateway 并做应用侧并发调度。
 
-## Models
+## 排错
 
-The package does not bake model rows into images and does not add an extra `config/` directory to the VOS package. With the default `HYBRAG_DEFAULT_BUILTIN_MODELS=true`, the app container entrypoint generates `builtin_models.yaml` at runtime and creates three YAML-managed model rows. The UI display names distinguish the two Ollama backends:
-
-- `HybRAG Ollama QA (hybrag-ollama-qa)`: KnowledgeQA, endpoint `http://hybrag-ollama-qa:11535/v1`
-- `HybRAG Ollama VLM (hybrag-ollama-qa)`: VLLM, endpoint `http://hybrag-ollama-qa:11535/v1`
-- `HybRAG Ollama Embedding (hybrag-ollama-embedding)`: Embedding, endpoint `http://hybrag-ollama-embedding:11535/v1`
-
-Model names still come from the install UI values `OLLAMA_QA_MODEL` and `OLLAMA_EMBEDDING_MODEL`. Operators can add or edit additional models in the HybRAG UI after startup; clear `managed_by` first if taking over a YAML-managed row manually.
-
-To fully customize these rows or add more rows, set `HYBRAG_BUILTIN_MODELS_YAML` in the install UI to a complete `builtin_models:` YAML document. When it is empty, the generated default is used; when set, it overrides the default.
-
-For Ollama Qwen3.5, disable thinking with `thinking_control=think`, which sends top-level `think:false`. For vLLM / generic Qwen3.5, use `thinking_control=chat_template_kwargs`, which sends `chat_template_kwargs.enable_thinking=false`.
-
-On startup, both Ollama containers start local `ollama serve`, ask `MODEL_HUB_BACKEND_URL` to pull the required model through Model Hub, and fall back to local `ollama pull` if Model Hub is unavailable or the pull task fails. The container then runs `ollama show` and only performs a local `ollama pull` when the shared model directory still lacks the model. After that check, each container sends a warmup request with `OLLAMA_KEEP_ALIVE=-1m` so the model stays resident before the OpenAI-compatible gateway starts. The default `MODEL_HUB_BACKEND_URL` is `http://model-hub-backend:5005`, the Model Hub backend alias on the `vos_default` network.
-
-QA/VLM defaults to `qwen3.5:2b`, and embedding defaults to `bge-m3`. Non-thor profiles default to 8 QA slots with 2 reserved for chat and 6 shared by background tasks; embedding defaults to 4 total slots with 2 used by document embedding. `thor-spark` uses higher defaults: 20 QA slots, 6 chat-reserved slots, 14 background slots, 16 embedding slots, and 8 document-embedding slots.
-
-See `docs/ictrek/vos-ollama-prewarm.md` in the repository for detailed warmup, residency, and troubleshooting notes.
+详细预热、常驻和排错说明见 `docs/ictrek/vos-ollama-prewarm.md`。

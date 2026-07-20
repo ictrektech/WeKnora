@@ -1,13 +1,4 @@
 configs:
-  - name: MODEL_HUB_SHARED_MODELS_PATH
-    type: path
-    title:
-      zh-CN: Model Hub 共享模型目录
-      en: Model Hub Shared Models Path
-    description:
-      zh-CN: Model Hub VOS 应用管理的宿主机模型根目录。HybRAG 的两个 Ollama 容器会复用其中的 ollama 模型目录，并允许 HybRAG 触发 ollama pull 写入模型。
-      en: Host-side model root managed by the Model Hub VOS app. Both HybRAG Ollama containers reuse its ollama model directory and may write models when HybRAG triggers ollama pull.
-    default: /data/vos_workspace/model_hub
   - name: HYBRAG_WORKSPACE_PATH
     type: path
     title:
@@ -200,8 +191,8 @@ configs:
       zh-CN: QA/VLM 模型
       en: QA/VLM Model
     description:
-      zh-CN: 需要预先在 QA Ollama 容器中存在的聊天和图片理解模型名。
-      en: Chat and vision model name expected to exist in the QA Ollama container.
+      zh-CN: Model Hub QA Ollama 服务中已预热并常驻的聊天和图片理解模型名。
+      en: Chat and vision model prewarmed and kept resident by the Model Hub QA Ollama service.
     default: qwen3.5:2b
   - name: OLLAMA_EMBEDDING_MODEL
     type: string
@@ -209,9 +200,36 @@ configs:
       zh-CN: Embedding 模型
       en: Embedding Model
     description:
-      zh-CN: 需要预先在 embedding Ollama 容器中存在的多语言 embedding 模型名。
-      en: Multilingual embedding model name expected to exist in the embedding Ollama container.
+      zh-CN: Model Hub embedding Ollama 服务中已预热并常驻的多语言 embedding 模型名。
+      en: Multilingual embedding model prewarmed and kept resident by the Model Hub embedding Ollama service.
     default: bge-m3
+  - name: MODEL_HUB_OLLAMA_QA_API_URL
+    type: string
+    title:
+      zh-CN: Model Hub QA API
+      en: Model Hub QA API
+    description:
+      zh-CN: HybRAG 兼容本地 Ollama 状态检查时使用的原生 Ollama API 地址。默认指向 Model Hub QA Ollama 服务。
+      en: Native Ollama API used for local-Ollama compatibility and status checks. Defaults to the Model Hub QA Ollama service.
+    default: http://model-hub-ollama-qa:11434
+  - name: MODEL_HUB_OLLAMA_QA_GATEWAY_URL
+    type: string
+    title:
+      zh-CN: Model Hub QA Gateway
+      en: Model Hub QA Gateway
+    description:
+      zh-CN: HybRAG 默认 QA/VLM 模型行使用的 OpenAI-compatible 地址。默认指向 Model Hub 预热并常驻的 QA Ollama Gateway；应使用 11535/v1，这样请求会被 Model Hub 统计。
+      en: OpenAI-compatible endpoint for the default QA/VLM model rows. Defaults to Model Hub's prewarmed QA Ollama Gateway; use 11535/v1 so Model Hub can collect slot and token metrics.
+    default: http://model-hub-ollama-qa:11535/v1
+  - name: MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL
+    type: string
+    title:
+      zh-CN: Model Hub Embedding Gateway
+      en: Model Hub Embedding Gateway
+    description:
+      zh-CN: HybRAG 默认 embedding 模型行使用的 OpenAI-compatible 地址。默认指向 Model Hub 预热并常驻的 embedding Ollama Gateway；应使用 11535/v1，这样请求会被 Model Hub 统计。
+      en: OpenAI-compatible endpoint for the default embedding model row. Defaults to Model Hub's prewarmed embedding Ollama Gateway; use 11535/v1 so Model Hub can collect slot and token metrics.
+    default: http://model-hub-ollama-embedding:11535/v1
   - name: HYBRAG_DEFAULT_BUILTIN_MODELS
     type: boolean
     title:
@@ -219,12 +237,11 @@ configs:
       en: Create HybRAG Default Models
     description:
       zh-CN: >-
-        启动 App 容器时生成三条 YAML 托管模型行：QA、VLM 和 embedding。默认开启，界面会用 display name 区分
-        `hybrag-ollama-qa` 与 `hybrag-ollama-embedding`。
+        启动 App 容器时生成三条 YAML 托管模型行：QA、VLM 和 embedding。默认开启，endpoint 指向 Model Hub 的两个预热 Ollama Gateway。
       en: >-
         Generate three YAML-managed model rows at app startup: QA, VLM, and
-        embedding. Enabled by default; display names distinguish
-        `hybrag-ollama-qa` from `hybrag-ollama-embedding`.
+        embedding. Enabled by default; endpoints point to Model Hub's two
+        prewarmed Ollama gateways.
     default: true
   - name: HYBRAG_BUILTIN_MODELS_YAML
     type: string
@@ -234,75 +251,14 @@ configs:
     description:
       zh-CN: >-
         高级选项。留空时使用 HybRAG 默认三模型配置；填写后会覆盖默认生成内容。必须是完整
-        `builtin_models:` YAML，并可引用 `${OLLAMA_QA_MODEL}`、`${OLLAMA_EMBEDDING_MODEL}` 等环境变量。
+        `builtin_models:` YAML，并可引用 `${OLLAMA_QA_MODEL}`、`${OLLAMA_EMBEDDING_MODEL}`、`${MODEL_HUB_OLLAMA_QA_GATEWAY_URL}`、`${MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL}` 等环境变量。
       en: >-
         Advanced option. Leave empty to use HybRAG's default three-model config;
         when set, it overrides the generated default. Must be full
         `builtin_models:` YAML and may reference environment variables such as
-        `${OLLAMA_QA_MODEL}` and `${OLLAMA_EMBEDDING_MODEL}`.
+        `${OLLAMA_QA_MODEL}`, `${OLLAMA_EMBEDDING_MODEL}`, and Model Hub gateway
+        variables.
     default: ""
-  - name: MODEL_HUB_BACKEND_URL
-    type: string
-    title:
-      zh-CN: Model Hub 后端地址
-      en: Model Hub Backend URL
-    description:
-      zh-CN: HybRAG 的两个 Ollama 容器启动时会优先通过该地址触发 Model Hub 拉取 `OLLAMA_QA_MODEL` 和 `OLLAMA_EMBEDDING_MODEL`，然后再本地校验并常驻模型。默认使用 Model Hub 在 `vos_default` 网络里的稳定别名。
-      en: During startup, both HybRAG Ollama containers first ask this Model Hub backend to pull `OLLAMA_QA_MODEL` and `OLLAMA_EMBEDDING_MODEL`, then verify and keep the models resident locally. Defaults to Model Hub's stable alias on `vos_default`.
-    default: http://model-hub-backend:5005
-  - name: OLLAMA_CONTEXT_LENGTH
-    type: integer
-    title:
-      zh-CN: Ollama QA 上下文长度
-      en: Ollama QA Context Length
-    description:
-      zh-CN: QA/VLM Ollama 容器的默认上下文长度。
-      en: Default context length for the QA/VLM Ollama container.
-    default: 24000
-    minimum: 1024
-    maximum: 131072
-  - name: OLLAMA_QA_NUM_PARALLEL
-    type: integer
-    title:
-      zh-CN: QA/VLM Ollama 并发
-      en: QA/VLM Ollama Parallelism
-    description:
-      zh-CN: QA/VLM Ollama 实例的 OLLAMA_NUM_PARALLEL。
-      en: OLLAMA_NUM_PARALLEL for the QA/VLM Ollama instance.
-    default: 8
-    minimum: 1
-    maximum: 32
-  - name: OLLAMA_EMBEDDING_NUM_PARALLEL
-    type: integer
-    title:
-      zh-CN: Embedding Ollama 并发
-      en: Embedding Ollama Parallelism
-    description:
-      zh-CN: Embedding Ollama 实例的 OLLAMA_NUM_PARALLEL。
-      en: OLLAMA_NUM_PARALLEL for the embedding Ollama instance.
-    default: 4
-    minimum: 1
-    maximum: 32
-  - name: OLLAMA_EMBEDDING_CONTEXT_LENGTH
-    type: integer
-    title:
-      zh-CN: Embedding Ollama 上下文长度
-      en: Embedding Ollama Context Length
-    description:
-      zh-CN: Embedding Ollama 容器的上下文长度。默认 8192，通常不需要与 QA 容器保持一致。
-      en: Context length for the embedding Ollama container. Defaults to 8192 and usually does not need to match the QA container.
-    default: 8192
-    minimum: 1024
-    maximum: 32768
-  - name: OLLAMA_KEEP_ALIVE
-    type: string
-    title:
-      zh-CN: Ollama 模型常驻时间
-      en: Ollama Keep Alive
-    description:
-      zh-CN: 传给两个 Ollama 容器的 OLLAMA_KEEP_ALIVE。默认 `-1m` 表示模型常驻，避免 HybRAG 调用前反复加载。
-      en: OLLAMA_KEEP_ALIVE for both Ollama containers. Default `-1m` keeps models loaded.
-    default: "-1m"
   - name: WEKNORA_CHAT_RESERVED_CONCURRENCY
     type: integer
     title:
@@ -567,39 +523,6 @@ configs:
     default: 90
     minimum: 30
     maximum: 100
-  - name: OLLAMA_QA_NUM_PARALLEL_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor QA/VLM Ollama 并发
-      en: Thor QA/VLM Ollama Parallelism
-    description:
-      zh-CN: thor-spark profile 的 QA/VLM Ollama 总槽位。
-      en: QA/VLM Ollama total slots for the thor-spark profile.
-    default: 20
-    minimum: 1
-    maximum: 64
-  - name: OLLAMA_CONTEXT_LENGTH_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor QA 上下文长度
-      en: Thor QA Context Length
-    description:
-      zh-CN: thor-spark profile 的 QA/VLM Ollama 上下文长度。
-      en: QA/VLM Ollama context length for the thor-spark profile.
-    default: 65536
-    minimum: 1024
-    maximum: 131072
-  - name: OLLAMA_EMBEDDING_NUM_PARALLEL_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor Embedding Ollama 并发
-      en: Thor Embedding Ollama Parallelism
-    description:
-      zh-CN: thor-spark profile 的 embedding Ollama 总槽位。
-      en: Embedding Ollama total slots for the thor-spark profile.
-    default: 16
-    minimum: 1
-    maximum: 64
   - name: WEKNORA_CHAT_RESERVED_CONCURRENCY_THOR_SPARK
     type: integer
     title:

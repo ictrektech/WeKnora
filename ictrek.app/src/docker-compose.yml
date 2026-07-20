@@ -1,39 +1,40 @@
 x-hybrag-frontend-base: &hybrag-frontend-base
   restart: unless-stopped
   networks:
-    - vos_default
+  - vos_default
   environment:
     MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
     APP_HOST: hybrag-app
     APP_PORT: 8080
     APP_SCHEME: http
   labels:
-    - "traefik.enable=true"
-    - "traefik.docker.network=vos_default"
-    - "traefik.http.routers.hybrag-top-open.rule=PathPrefix(`/app/com.ictrek.hybrag`) && HeadersRegexp(`Sec-Fetch-Dest`, `document`)"
-    - "traefik.http.routers.hybrag-top-open.priority=1000"
-    - "traefik.http.routers.hybrag-top-open.service=hybrag-web"
-    - "traefik.http.routers.hybrag-top-open.middlewares=hybrag-top-open-redirect"
-    - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\\.ictrek\\.hybrag/?(?:\\?.*)?$"
-    - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag"
-    - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.permanent=false"
-    - "traefik.http.routers.hybrag-web.rule=PathPrefix(`/app/com.ictrek.hybrag`)"
-    - "traefik.http.routers.hybrag-web.service=hybrag-web"
-    - "traefik.http.routers.hybrag-web.middlewares=hybrag-web-slash,hybrag-web-strip"
-    - "traefik.http.middlewares.hybrag-web-slash.redirectregex.regex=^(.*)/app/com\\.ictrek\\.hybrag$"
-    - "traefik.http.middlewares.hybrag-web-slash.redirectregex.replacement=$${1}/app/com.ictrek.hybrag/"
-    - "traefik.http.middlewares.hybrag-web-slash.redirectregex.permanent=true"
-    - "traefik.http.middlewares.hybrag-web-strip.stripprefix.prefixes=/app/com.ictrek.hybrag"
-    - "traefik.http.services.hybrag-web.loadbalancer.server.port=80"
+  - "traefik.enable=true"
+  - "traefik.docker.network=vos_default"
+  - "traefik.http.routers.hybrag-top-open.rule=PathPrefix(`/app/com.ictrek.hybrag`) && HeadersRegexp(`Sec-Fetch-Dest`, `document`)"
+  - "traefik.http.routers.hybrag-top-open.priority=1000"
+  - "traefik.http.routers.hybrag-top-open.service=hybrag-web"
+  - "traefik.http.routers.hybrag-top-open.middlewares=hybrag-top-open-redirect"
+  - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\\.ictrek\\.hybrag/?(?:\\\
+    ?.*)?$"
+  - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag"
+  - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.permanent=false"
+  - "traefik.http.routers.hybrag-web.rule=PathPrefix(`/app/com.ictrek.hybrag`)"
+  - "traefik.http.routers.hybrag-web.service=hybrag-web"
+  - "traefik.http.routers.hybrag-web.middlewares=hybrag-web-slash,hybrag-web-strip"
+  - "traefik.http.middlewares.hybrag-web-slash.redirectregex.regex=^(.*)/app/com\\.ictrek\\.hybrag$"
+  - "traefik.http.middlewares.hybrag-web-slash.redirectregex.replacement=$${1}/app/com.ictrek.hybrag/"
+  - "traefik.http.middlewares.hybrag-web-slash.redirectregex.permanent=true"
+  - "traefik.http.middlewares.hybrag-web-strip.stripprefix.prefixes=/app/com.ictrek.hybrag"
+  - "traefik.http.services.hybrag-web.loadbalancer.server.port=80"
 
 x-hybrag-docreader-base: &hybrag-docreader-base
   restart: unless-stopped
   networks:
     vos_default:
       aliases:
-        - hybrag-docreader
+      - hybrag-docreader
   expose:
-    - "50051"
+  - "50051"
   environment:
     DOCREADER_IMAGE_OUTPUT_DIR: /tmp/docreader
     DOCREADER_PDF_FORCE_SCANNED: ${DOCREADER_PDF_FORCE_SCANNED:-false}
@@ -47,332 +48,12 @@ x-hybrag-docreader-base: &hybrag-docreader-base
     GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
     GRPC_AUTH_TOKEN: ${GRPC_AUTH_TOKEN:-}
   volumes:
-    - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader
+  - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader
   healthcheck:
     test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
     interval: 30s
     timeout: 10s
     retries: 3
-    start_period: 60s
-
-x-hybrag-ollama-qa-env: &hybrag-ollama-qa-env
-  NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
-  NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
-  OLLAMA_HOST: 0.0.0.0:11434
-  OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1m}
-  OLLAMA_QA_MODEL: ${OLLAMA_QA_MODEL:-qwen3.5:2b}
-  OLLAMA_MODELS: /root/.ollama/models
-  OLLAMA_NUM_PARALLEL: ${OLLAMA_QA_NUM_PARALLEL:-8}
-  OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-24000}
-  MODEL_HUB_BACKEND_URL: ${MODEL_HUB_BACKEND_URL:-http://model-hub-backend:5005}
-
-x-hybrag-ollama-embedding-env: &hybrag-ollama-embedding-env
-  NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
-  NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
-  OLLAMA_HOST: 0.0.0.0:11434
-  OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1m}
-  OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-bge-m3}
-  OLLAMA_MODELS: /root/.ollama/models
-  OLLAMA_NUM_PARALLEL: ${OLLAMA_EMBEDDING_NUM_PARALLEL:-4}
-  OLLAMA_CONTEXT_LENGTH: ${OLLAMA_EMBEDDING_CONTEXT_LENGTH:-8192}
-  MODEL_HUB_BACKEND_URL: ${MODEL_HUB_BACKEND_URL:-http://model-hub-backend:5005}
-
-x-hybrag-ollama-qa-command: &hybrag-ollama-qa-command
-  - |
-    set -eu
-    MODEL="$${OLLAMA_QA_MODEL:-qwen3.5:2b}"
-    KEEP_ALIVE="$${OLLAMA_KEEP_ALIVE:--1m}"
-    READY_WAIT="$${OLLAMA_READY_WAIT_SECONDS:-300}"
-    MODEL_HUB_URL="$${MODEL_HUB_BACKEND_URL:-http://model-hub-backend:5005}"
-    ollama serve >/tmp/ollama.log 2>&1 &
-    i=0
-    until ollama list >/dev/null 2>&1; do
-      i=$$((i + 1))
-      if [ "$$i" -ge "$$READY_WAIT" ]; then
-        echo "ollama did not become ready within $${READY_WAIT}s" >&2
-        exit 1
-      fi
-      sleep 1
-    done
-    PYTHON_BIN="$$(command -v python3 || command -v python)"
-    if "$$PYTHON_BIN" - "$$MODEL_HUB_URL" "$$MODEL" <<'PY'
-    import json
-    import sys
-    import time
-    import urllib.error
-    import urllib.request
-
-    base = sys.argv[1].rstrip("/")
-    model = sys.argv[2]
-    payload = {"model_id": f"ollama://{model}", "source": "ollama", "name": model}
-
-    def request(method, path, body=None, timeout=10):
-        data = None if body is None else json.dumps(body).encode("utf-8")
-        req = urllib.request.Request(
-            base + path,
-            data=data,
-            method=method,
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8")
-            return json.loads(raw) if raw else {}
-
-    try:
-        result = request("POST", "/api/v1/models/pull", payload)
-        task_id = result.get("task_id")
-        print(f"model-hub pull task started for {model}: {task_id}")
-    except urllib.error.HTTPError as exc:
-        if exc.code == 409:
-            print(f"model-hub already has or is pulling {model}")
-            sys.exit(0)
-        print(f"model-hub pull request failed for {model}: HTTP {exc.code}", file=sys.stderr)
-        sys.exit(1)
-    except Exception as exc:
-        print(f"model-hub is unavailable for {model}: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    if not task_id:
-        sys.exit(0)
-    deadline = time.monotonic() + 3600
-    while time.monotonic() < deadline:
-        task = request("GET", f"/api/v1/tasks/detail/{task_id}", timeout=10)
-        phase = str(task.get("phase", ""))
-        if phase == "READY":
-            print(f"model-hub pull ready for {model}")
-            sys.exit(0)
-        if phase == "FAILED":
-            print(f"model-hub pull failed for {model}: {task.get('error_msg')}", file=sys.stderr)
-            sys.exit(1)
-        time.sleep(5)
-    print(f"model-hub pull timed out for {model}", file=sys.stderr)
-    sys.exit(1)
-    PY
-    then
-      echo "model-hub ensured $${MODEL}"
-    else
-      echo "fall back to local ollama pull for $${MODEL}" >&2
-      ollama pull "$$MODEL"
-    fi
-    if ollama show "$$MODEL" >/dev/null 2>&1; then
-      echo "ollama already has $${MODEL}"
-    else
-      ollama pull "$$MODEL"
-    fi
-    "$$PYTHON_BIN" - "$$MODEL" "$$KEEP_ALIVE" <<'PY'
-    import json
-    import sys
-    import urllib.request
-
-    model, keep_alive = sys.argv[1], sys.argv[2]
-    payload = {
-        "model": model,
-        "prompt": "HybRAG warmup",
-        "stream": False,
-        "keep_alive": keep_alive,
-        "options": {"num_predict": 1},
-    }
-    req = urllib.request.Request(
-        "http://127.0.0.1:11434/api/generate",
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={"Content-Type": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=600) as resp:
-            resp.read()
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        print(f"ollama QA warmup failed for {model}: HTTP {exc.code} {body}", file=sys.stderr)
-        raise
-    except Exception as exc:
-        print(f"ollama QA warmup failed for {model}: {exc}", file=sys.stderr)
-        raise
-    print(f"ollama QA model resident: {model}")
-    PY
-    exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
-
-x-hybrag-ollama-embedding-command: &hybrag-ollama-embedding-command
-  - |
-    set -eu
-    MODEL="$${OLLAMA_EMBEDDING_MODEL:-bge-m3}"
-    KEEP_ALIVE="$${OLLAMA_KEEP_ALIVE:--1m}"
-    READY_WAIT="$${OLLAMA_READY_WAIT_SECONDS:-300}"
-    MODEL_HUB_URL="$${MODEL_HUB_BACKEND_URL:-http://model-hub-backend:5005}"
-    ollama serve >/tmp/ollama.log 2>&1 &
-    i=0
-    until ollama list >/dev/null 2>&1; do
-      i=$$((i + 1))
-      if [ "$$i" -ge "$$READY_WAIT" ]; then
-        echo "ollama did not become ready within $${READY_WAIT}s" >&2
-        exit 1
-      fi
-      sleep 1
-    done
-    PYTHON_BIN="$$(command -v python3 || command -v python)"
-    if "$$PYTHON_BIN" - "$$MODEL_HUB_URL" "$$MODEL" <<'PY'
-    import json
-    import sys
-    import time
-    import urllib.error
-    import urllib.request
-
-    base = sys.argv[1].rstrip("/")
-    model = sys.argv[2]
-    payload = {"model_id": f"ollama://{model}", "source": "ollama", "name": model}
-
-    def request(method, path, body=None, timeout=10):
-        data = None if body is None else json.dumps(body).encode("utf-8")
-        req = urllib.request.Request(
-            base + path,
-            data=data,
-            method=method,
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8")
-            return json.loads(raw) if raw else {}
-
-    try:
-        result = request("POST", "/api/v1/models/pull", payload)
-        task_id = result.get("task_id")
-        print(f"model-hub pull task started for {model}: {task_id}")
-    except urllib.error.HTTPError as exc:
-        if exc.code == 409:
-            print(f"model-hub already has or is pulling {model}")
-            sys.exit(0)
-        print(f"model-hub pull request failed for {model}: HTTP {exc.code}", file=sys.stderr)
-        sys.exit(1)
-    except Exception as exc:
-        print(f"model-hub is unavailable for {model}: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    if not task_id:
-        sys.exit(0)
-    deadline = time.monotonic() + 3600
-    while time.monotonic() < deadline:
-        task = request("GET", f"/api/v1/tasks/detail/{task_id}", timeout=10)
-        phase = str(task.get("phase", ""))
-        if phase == "READY":
-            print(f"model-hub pull ready for {model}")
-            sys.exit(0)
-        if phase == "FAILED":
-            print(f"model-hub pull failed for {model}: {task.get('error_msg')}", file=sys.stderr)
-            sys.exit(1)
-        time.sleep(5)
-    print(f"model-hub pull timed out for {model}", file=sys.stderr)
-    sys.exit(1)
-    PY
-    then
-      echo "model-hub ensured $${MODEL}"
-    else
-      echo "fall back to local ollama pull for $${MODEL}" >&2
-      ollama pull "$$MODEL"
-    fi
-    if ollama show "$$MODEL" >/dev/null 2>&1; then
-      echo "ollama already has $${MODEL}"
-    else
-      ollama pull "$$MODEL"
-    fi
-    "$$PYTHON_BIN" - "$$MODEL" "$$KEEP_ALIVE" <<'PY'
-    import json
-    import sys
-    import urllib.request
-
-    model, keep_alive = sys.argv[1], sys.argv[2]
-    payload = {"model": model, "input": "HybRAG warmup", "keep_alive": keep_alive}
-    req = urllib.request.Request(
-        "http://127.0.0.1:11434/api/embed",
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={"Content-Type": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=600) as resp:
-            resp.read()
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        print(f"ollama embedding warmup failed for {model}: HTTP {exc.code} {body}", file=sys.stderr)
-        raise
-    except Exception as exc:
-        print(f"ollama embedding warmup failed for {model}: {exc}", file=sys.stderr)
-        raise
-    print(f"ollama embedding model resident: {model}")
-    PY
-    exec uvicorn ollama_gateway.gateway:app --host 0.0.0.0 --port 11535
-
-x-hybrag-ollama-qa-base: &hybrag-ollama-qa-base
-  restart: unless-stopped
-  runtime: nvidia
-  networks:
-    vos_default:
-      aliases:
-        - hybrag-ollama-qa
-  entrypoint: ["/bin/sh", "-lc"]
-  command: *hybrag-ollama-qa-command
-  environment: *hybrag-ollama-qa-env
-  volumes:
-    - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
-  healthcheck:
-    test: ["CMD-SHELL", "ollama list | grep -F \"$${OLLAMA_QA_MODEL:-qwen3.5:2b}\" >/dev/null 2>&1"]
-    interval: 30s
-    timeout: 10s
-    retries: 5
-    start_period: 60s
-
-x-hybrag-ollama-embedding-base: &hybrag-ollama-embedding-base
-  restart: unless-stopped
-  runtime: nvidia
-  networks:
-    vos_default:
-      aliases:
-        - hybrag-ollama-embedding
-  entrypoint: ["/bin/sh", "-lc"]
-  command: *hybrag-ollama-embedding-command
-  environment: *hybrag-ollama-embedding-env
-  volumes:
-    - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
-  healthcheck:
-    test: ["CMD-SHELL", "ollama list | grep -F \"$${OLLAMA_EMBEDDING_MODEL:-bge-m3}\" >/dev/null 2>&1"]
-    interval: 30s
-    timeout: 10s
-    retries: 5
-    start_period: 60s
-
-x-hybrag-ollama-qa-base-no-cuda: &hybrag-ollama-qa-base-no-cuda
-  restart: unless-stopped
-  networks:
-    vos_default:
-      aliases:
-        - hybrag-ollama-qa
-  entrypoint: ["/bin/sh", "-lc"]
-  command: *hybrag-ollama-qa-command
-  environment: *hybrag-ollama-qa-env
-  volumes:
-    - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
-  healthcheck:
-    test: ["CMD-SHELL", "ollama list | grep -F \"$${OLLAMA_QA_MODEL:-qwen3.5:2b}\" >/dev/null 2>&1"]
-    interval: 30s
-    timeout: 10s
-    retries: 5
-    start_period: 60s
-
-x-hybrag-ollama-embedding-base-no-cuda: &hybrag-ollama-embedding-base-no-cuda
-  restart: unless-stopped
-  networks:
-    vos_default:
-      aliases:
-        - hybrag-ollama-embedding
-  entrypoint: ["/bin/sh", "-lc"]
-  command: *hybrag-ollama-embedding-command
-  environment: *hybrag-ollama-embedding-env
-  volumes:
-    - ${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
-  healthcheck:
-    test: ["CMD-SHELL", "ollama list | grep -F \"$${OLLAMA_EMBEDDING_MODEL:-bge-m3}\" >/dev/null 2>&1"]
-    interval: 30s
-    timeout: 10s
-    retries: 5
     start_period: 60s
 
 x-hybrag-app-env: &hybrag-app-env
@@ -395,10 +76,10 @@ x-hybrag-app-env: &hybrag-app-env
   REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
   DOCREADER_ADDR: hybrag-docreader:50051
   DOCREADER_TRANSPORT: grpc
-  OLLAMA_BASE_URL: http://hybrag-ollama-qa:11434
+  OLLAMA_BASE_URL: ${MODEL_HUB_OLLAMA_QA_API_URL:-http://model-hub-ollama-qa:11434}
   OLLAMA_QA_MODEL: ${OLLAMA_QA_MODEL:-qwen3.5:2b}
   OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-bge-m3}
-  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-hybrag-ollama-qa,hybrag-ollama-embedding,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
   BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
   WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -418,7 +99,7 @@ x-hybrag-app-env: &hybrag-app-env
   WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS:-8000}
   WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS:-8000}
   WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
-  WEKNORA_REPARSE_WAIT_URLS: http://hybrag-ollama-qa:11535/v1/models,http://hybrag-ollama-embedding:11535/v1/models
+  WEKNORA_REPARSE_WAIT_URLS: ${WEKNORA_REPARSE_WAIT_URLS:-http://model-hub-ollama-qa:11535/v1/models,http://model-hub-ollama-embedding:11535/v1/models}
   WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
   WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
   WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
@@ -439,6 +120,8 @@ x-hybrag-app-env: &hybrag-app-env
   HYBRAG_DEFAULT_BUILTIN_MODELS: ${HYBRAG_DEFAULT_BUILTIN_MODELS:-true}
   HYBRAG_BUILTIN_MODELS_YAML: ${HYBRAG_BUILTIN_MODELS_YAML:-}
 
+  MODEL_HUB_OLLAMA_QA_GATEWAY_URL: ${MODEL_HUB_OLLAMA_QA_GATEWAY_URL:-http://model-hub-ollama-qa:11535/v1}
+  MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL: ${MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL:-http://model-hub-ollama-embedding:11535/v1}
 x-hybrag-app-env-thor-spark: &hybrag-app-env-thor-spark
   <<: *hybrag-app-env
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE_THOR_SPARK:-8}
@@ -465,12 +148,12 @@ x-hybrag-app-base: &hybrag-app-base
   networks:
     vos_default:
       aliases:
-        - hybrag-app
+      - hybrag-app
   environment: *hybrag-app-env
   volumes:
-    - ${HYBRAG_FILES_PATH:-/data/vos_workspace/hybrag/files}:/data/files
-    - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader:ro
-    - ${HYBRAG_DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+  - ${HYBRAG_FILES_PATH:-/data/vos_workspace/hybrag/files}:/data/files
+  - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader:ro
+  - ${HYBRAG_DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
   healthcheck:
     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
     interval: 30s
@@ -481,17 +164,17 @@ x-hybrag-app-base: &hybrag-app-base
 x-hybrag-redis-base: &hybrag-redis-base
   command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
   volumes:
-    - ${HYBRAG_REDIS_PATH:-/data/vos_workspace/hybrag/redis}:/data
+  - ${HYBRAG_REDIS_PATH:-/data/vos_workspace/hybrag/redis}:/data
   networks:
     vos_default:
       aliases:
-        - hybrag-redis
+      - hybrag-redis
   restart: unless-stopped
 
 x-hybrag-neo4j-base: &hybrag-neo4j-base
   ports:
-    - "${NEO4J_HTTP_PORT:-27474}:7474"
-    - "${NEO4J_BOLT_PORT:-27687}:7687"
+  - "${NEO4J_HTTP_PORT:-27474}:7474"
+  - "${NEO4J_BOLT_PORT:-27687}:7687"
   environment:
     NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-hybrag-neo4j}
     NEO4J_apoc_export_file_enabled: "true"
@@ -499,15 +182,16 @@ x-hybrag-neo4j-base: &hybrag-neo4j-base
     NEO4J_apoc_import_file_use__neo4j__config: "true"
     NEO4JLABS_PLUGINS: '["apoc"]'
   volumes:
-    - ${HYBRAG_NEO4J_PATH:-/data/vos_workspace/hybrag/neo4j}:/data
+  - ${HYBRAG_NEO4J_PATH:-/data/vos_workspace/hybrag/neo4j}:/data
   networks:
     vos_default:
       aliases:
-        - hybrag-neo4j
-        - neo4j
+      - hybrag-neo4j
+      - neo4j
   restart: unless-stopped
   healthcheck:
-    test: ["CMD-SHELL", "auth=\"$${NEO4J_AUTH:-neo4j/hybrag-neo4j}\"; cypher-shell -u \"$${auth%%/*}\" -p \"$${auth#*/}\" 'RETURN 1;' >/dev/null 2>&1"]
+    test: ["CMD-SHELL", "auth=\"$${NEO4J_AUTH:-neo4j/hybrag-neo4j}\"; cypher-shell -u \"$${auth%%/*}\" -p \"$${auth#*/}\"\
+        \ 'RETURN 1;' >/dev/null 2>&1"]
     interval: 30s
     timeout: 10s
     retries: 10
@@ -610,27 +294,10 @@ services:
         condition: service_healthy
       hybrag-docreader-amd-with-cuda:
         condition: service_healthy
-      hybrag-ollama-qa-amd-with-cuda:
-        condition: service_healthy
-      hybrag-ollama-embedding-amd-with-cuda:
-        condition: service_healthy
-
   hybrag-docreader-amd-with-cuda:
     <<: *hybrag-docreader-base
     profiles: ["amd"]
     image: ${WEKNORA_DOCREADER_AMD_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-qa-amd-with-cuda:
-    <<: *hybrag-ollama-qa-base
-    profiles: ["amd"]
-    image: ${OLLAMA_SERVER_AMD_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-embedding-amd-with-cuda:
-    <<: *hybrag-ollama-embedding-base
-    profiles: ["amd"]
-    image: ${OLLAMA_SERVER_AMD_IMAGE}
     pull_policy: always
 
   hybrag-frontend-amd-no-cuda:
@@ -657,27 +324,10 @@ services:
         condition: service_healthy
       hybrag-docreader-amd-no-cuda:
         condition: service_healthy
-      hybrag-ollama-qa-amd-no-cuda:
-        condition: service_healthy
-      hybrag-ollama-embedding-amd-no-cuda:
-        condition: service_healthy
-
   hybrag-docreader-amd-no-cuda:
     <<: *hybrag-docreader-base
     profiles: ["amd-no-cuda"]
     image: ${WEKNORA_DOCREADER_AMD_NO_CUDA_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-qa-amd-no-cuda:
-    <<: *hybrag-ollama-qa-base-no-cuda
-    profiles: ["amd-no-cuda"]
-    image: ${OLLAMA_SERVER_AMD_NO_CUDA_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-embedding-amd-no-cuda:
-    <<: *hybrag-ollama-embedding-base-no-cuda
-    profiles: ["amd-no-cuda"]
-    image: ${OLLAMA_SERVER_AMD_NO_CUDA_IMAGE}
     pull_policy: always
 
   hybrag-frontend-arm-with-cuda:
@@ -704,27 +354,10 @@ services:
         condition: service_healthy
       hybrag-docreader-arm-with-cuda:
         condition: service_healthy
-      hybrag-ollama-qa-arm-with-cuda:
-        condition: service_healthy
-      hybrag-ollama-embedding-arm-with-cuda:
-        condition: service_healthy
-
   hybrag-docreader-arm-with-cuda:
     <<: *hybrag-docreader-base
     profiles: ["arm"]
     image: ${WEKNORA_DOCREADER_ARM_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-qa-arm-with-cuda:
-    <<: *hybrag-ollama-qa-base
-    profiles: ["arm"]
-    image: ${OLLAMA_SERVER_ARM_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-embedding-arm-with-cuda:
-    <<: *hybrag-ollama-embedding-base
-    profiles: ["arm"]
-    image: ${OLLAMA_SERVER_ARM_IMAGE}
     pull_policy: always
 
   hybrag-frontend-arm-no-cuda:
@@ -751,27 +384,10 @@ services:
         condition: service_healthy
       hybrag-docreader-arm-no-cuda:
         condition: service_healthy
-      hybrag-ollama-qa-arm-no-cuda:
-        condition: service_healthy
-      hybrag-ollama-embedding-arm-no-cuda:
-        condition: service_healthy
-
   hybrag-docreader-arm-no-cuda:
     <<: *hybrag-docreader-base
     profiles: ["arm-no-cuda"]
     image: ${WEKNORA_DOCREADER_ARM_NO_CUDA_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-qa-arm-no-cuda:
-    <<: *hybrag-ollama-qa-base-no-cuda
-    profiles: ["arm-no-cuda"]
-    image: ${OLLAMA_SERVER_ARM_NO_CUDA_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-embedding-arm-no-cuda:
-    <<: *hybrag-ollama-embedding-base-no-cuda
-    profiles: ["arm-no-cuda"]
-    image: ${OLLAMA_SERVER_ARM_NO_CUDA_IMAGE}
     pull_policy: always
 
   hybrag-frontend-l4t:
@@ -798,27 +414,10 @@ services:
         condition: service_healthy
       hybrag-docreader-l4t:
         condition: service_healthy
-      hybrag-ollama-qa-l4t:
-        condition: service_healthy
-      hybrag-ollama-embedding-l4t:
-        condition: service_healthy
-
   hybrag-docreader-l4t:
     <<: *hybrag-docreader-base
     profiles: ["l4t"]
     image: ${WEKNORA_DOCREADER_L4T_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-qa-l4t:
-    <<: *hybrag-ollama-qa-base
-    profiles: ["l4t"]
-    image: ${OLLAMA_SERVER_L4T_IMAGE}
-    pull_policy: always
-
-  hybrag-ollama-embedding-l4t:
-    <<: *hybrag-ollama-embedding-base
-    profiles: ["l4t"]
-    image: ${OLLAMA_SERVER_L4T_IMAGE}
     pull_policy: always
 
   hybrag-frontend-thor-spark:
@@ -845,35 +444,11 @@ services:
         condition: service_healthy
       hybrag-docreader-thor-spark:
         condition: service_healthy
-      hybrag-ollama-qa-thor-spark:
-        condition: service_healthy
-      hybrag-ollama-embedding-thor-spark:
-        condition: service_healthy
-
   hybrag-docreader-thor-spark:
     <<: *hybrag-docreader-base
     profiles: ["thor-spark"]
     image: ${WEKNORA_DOCREADER_THOR_SPARK_IMAGE}
     pull_policy: always
-
-  hybrag-ollama-qa-thor-spark:
-    <<: *hybrag-ollama-qa-base
-    profiles: ["thor-spark"]
-    image: ${OLLAMA_SERVER_THOR_SPARK_IMAGE}
-    pull_policy: always
-    environment:
-      <<: *hybrag-ollama-qa-env
-      OLLAMA_NUM_PARALLEL: ${OLLAMA_QA_NUM_PARALLEL_THOR_SPARK:-20}
-      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH_THOR_SPARK:-65536}
-
-  hybrag-ollama-embedding-thor-spark:
-    <<: *hybrag-ollama-embedding-base
-    profiles: ["thor-spark"]
-    image: ${OLLAMA_SERVER_THOR_SPARK_IMAGE}
-    pull_policy: always
-    environment:
-      <<: *hybrag-ollama-embedding-env
-      OLLAMA_NUM_PARALLEL: ${OLLAMA_EMBEDDING_NUM_PARALLEL_THOR_SPARK:-16}
 
 networks:
   vos_default:

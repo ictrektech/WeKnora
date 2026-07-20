@@ -1,108 +1,69 @@
-# VOS Ollama 模型预热与常驻
+# VOS Model Hub 模型预热与常驻
 
-本文说明 HybRAG VOS app 在启动时如何确保 Ollama 模型已经下载、加载并常驻。
+本文说明 HybRAG VOS app 如何复用 Model Hub 的两个预热 Ollama 运行时。HybRAG 现在不再启动自己的 Ollama 容器。
 
 ## 默认行为
 
-HybRAG VOS app 会启动两个独立的 Ollama 容器：
+Model Hub 应先安装并运行在同一个 `vos_default` 网络中。当前 HybRAG 默认引用两个 Model Hub 服务：
 
-- `hybrag-ollama-qa`：聊天和图片理解，默认模型 `qwen3.5:2b`。
-- `hybrag-ollama-embedding`：向量化，默认模型 `bge-m3`。
+| 用途 | 服务名 | API | Gateway | 默认模型 |
+| --- | --- | --- | --- | --- |
+| QA / 聊天 / 图片理解 | `model-hub-ollama-qa` | `http://model-hub-ollama-qa:11434` | `http://model-hub-ollama-qa:11535` | `qwen3.5:2b` |
+| Embedding | `model-hub-ollama-embedding` | `http://model-hub-ollama-embedding:11434` | `http://model-hub-ollama-embedding:11535` | `bge-m3` |
 
-两个容器都挂载 Model Hub 的共享 Ollama 目录：
+Model Hub 负责模型下载、预热、常驻、上下文长度和 Ollama 并发。HybRAG 只在默认模型行里引用 OpenAI-compatible gateway：
 
-```yaml
-${MODEL_HUB_SHARED_MODELS_PATH:-/data/vos_workspace/model_hub}/ollama:/root/.ollama
+```env
+MODEL_HUB_OLLAMA_QA_GATEWAY_URL=http://model-hub-ollama-qa:11535/v1
+MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL=http://model-hub-ollama-embedding:11535/v1
+OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434
+OLLAMA_QA_MODEL=qwen3.5:2b
+OLLAMA_EMBEDDING_MODEL=bge-m3
 ```
 
-因此 HybRAG 拉取或校验的模型文件会落在 Model Hub 约定的宿主机路径中，默认是：
+QA、VLM 和 embedding 模型行必须配置到 `11535/v1` Gateway。不要配置到 Ollama 原生 `11434`，否则 Model Hub 只能看到服务在线，看不到 WeKnora 请求的槽位、阶段和 token/s。
 
-```text
-/data/vos_workspace/model_hub/ollama
-```
-
-VOS app profile 共有 6 个：`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`l4t`、`thor-spark`。其中 `amd-no-cuda` 和 `arm-no-cuda` 复用对应 CUDA profile 的镜像版本，但 Ollama 容器不配置 `runtime: nvidia`，用于没有 GPU runtime 的机器。
+`OLLAMA_BASE_URL` 只用于兼容本地 Ollama 类配置和服务状态检查；默认聊天、VLM、embedding 三条模型行都使用 gateway 地址。
 
 ## 启动顺序
 
-每个 HybRAG Ollama 容器启动时都会执行同一类流程：
+1. 先安装并启动 Model Hub。
+2. 在 Model Hub 运行管理页确认 `model-hub-ollama-qa` 和 `model-hub-ollama-embedding` 在线。
+3. 确认 `qwen3.5:2b` 和 `bge-m3` 已下载并处于运行中。
+4. 再安装或启动 HybRAG。
 
-1. 先启动本容器内的 `ollama serve`。
-2. 等待本容器 `ollama list` 可用。
-3. 通过 `MODEL_HUB_BACKEND_URL` 触发 Model Hub 拉取对应模型。
-4. 如果 Model Hub 不可用、返回失败或超时，则退回本容器执行 `ollama pull`。
-5. 执行 `ollama show` 做本地一致性确认；只有共享目录中仍不存在模型时，才执行本容器 `ollama pull`。
-6. 通过本容器 Ollama API 发起 warmup 请求，并带上 `keep_alive=-1m`，让模型常驻。
-7. 最后启动 `ollama_gateway`，对外提供 OpenAI-compatible `/v1` 接口。
+HybRAG app 启动后会用 `WEKNORA_REPARSE_WAIT_URLS` 等待两个 Model Hub gateway 的 `/v1/models` 可用，再执行失败文档补交。这个等待只影响后台补交，不应该阻塞 HybRAG HTTP 服务启动。
 
-HybRAG app 容器通过 `depends_on` 等待两个 Ollama 容器健康后才启动，所以 app 启动前会先完成模型准备。App 启动后的失败文档补交任务必须在后台执行，不能阻塞 `/health` 和 HTTP 监听；VOS 安装流程会在 app 健康前先启动 frontend，frontend 短暂 502 是可接受的，但不能因为 app 慢启动停在 `Created`。
+## 默认模型行
 
-VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运行时生成 `builtin_models.yaml`。安装 UI 的 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 会自动创建三条默认模型行。界面里用 `display_name` 区分两个 Ollama 后端：`HybRAG Ollama QA (hybrag-ollama-qa)`、`HybRAG Ollama VLM (hybrag-ollama-qa)` 和 `HybRAG Ollama Embedding (hybrag-ollama-embedding)`。其中 QA/VLM 模型行的 `extra_config.thinking_control=think`，用于 Ollama Qwen3.5 关闭思考；vLLM / generic Qwen3.5 后端应使用 `chat_template_kwargs`，不要照搬 Ollama 的 `think`。如果需要覆盖默认模型行，在安装 UI 的 `HYBRAG_BUILTIN_MODELS_YAML` 填写完整 `builtin_models:` YAML。
+VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运行时生成 `builtin_models.yaml`。安装 UI 的 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 会自动创建三条默认模型行：
 
-## Model Hub alias
+- `Model Hub Ollama QA (model-hub-ollama-qa)`：KnowledgeQA，endpoint `http://model-hub-ollama-qa:11535/v1`。
+- `Model Hub Ollama VLM (model-hub-ollama-qa)`：VLLM，endpoint `http://model-hub-ollama-qa:11535/v1`。
+- `Model Hub Ollama Embedding (model-hub-ollama-embedding)`：Embedding，endpoint `http://model-hub-ollama-embedding:11535/v1`。
 
-默认配置是：
+为了升级时不破坏已有引用，默认模型行的内部 `id` 会保持兼容；界面显示名和 endpoint 会跟随当前 YAML 托管配置同步。
 
-```env
-MODEL_HUB_BACKEND_URL=http://model-hub-backend:5005
-```
-
-这个地址必须能在 `vos_default` 网络内解析。Model Hub VOS app 的 compose 模板已经给后端服务配置了稳定 alias `model-hub-backend`。在 tc232 上已验证 HybRAG 容器内可以解析：
-
-```bash
-docker exec <hybrag-container> getent hosts model-hub-backend
-```
-
-如果其他机器上解析不到，优先检查 Model Hub 是否通过 VOS app 安装并运行在同一个 `vos_default` 网络中，而不是把 HybRAG 改成宿主机 IP。
-
-## 可配置项
-
-这些配置会在 HybRAG VOS 安装 UI 中暴露：
-
-```env
-MODEL_HUB_SHARED_MODELS_PATH=/data/vos_workspace/model_hub
-MODEL_HUB_BACKEND_URL=http://model-hub-backend:5005
-OLLAMA_QA_MODEL=qwen3.5:2b
-OLLAMA_EMBEDDING_MODEL=bge-m3
-OLLAMA_KEEP_ALIVE=-1m
-OLLAMA_QA_NUM_PARALLEL=8
-OLLAMA_EMBEDDING_NUM_PARALLEL=4
-OLLAMA_CONTEXT_LENGTH=24000
-OLLAMA_EMBEDDING_CONTEXT_LENGTH=8192
-```
-
-`OLLAMA_KEEP_ALIVE=-1m` 表示 warmup 后模型不卸载。普通 profile 默认 QA Ollama 总并发 8，embedding Ollama 总并发 4；应用侧默认给在线聊天预留 2 个 QA 槽位，文档 embedding 使用 2 个 embedding 槽位。
+Ollama Qwen3.5 关闭思考使用 `extra_config.thinking_control=think`，请求会发送顶层 `think:false`。vLLM / generic Qwen3.5 后端应使用 `chat_template_kwargs`，不要照搬 Ollama 的 `think`。
 
 ## 验证命令
 
-在安装完成后，可以进入对应容器检查模型是否已经下载和常驻：
+在同一 Docker 网络中测试：
 
 ```bash
-docker exec <hybrag-ollama-qa-container> ollama list
-docker exec <hybrag-ollama-qa-container> ollama ps
+curl -fsS http://model-hub-ollama-qa:11535/v1/models
+curl -fsS http://model-hub-ollama-embedding:11535/v1/models
 
-docker exec <hybrag-ollama-embedding-container> ollama list
-docker exec <hybrag-ollama-embedding-container> ollama ps
-```
-
-也可以从 HybRAG app 容器或同网络容器测试 gateway：
-
-```bash
-curl -fsS http://hybrag-ollama-qa:11535/v1/models
-curl -fsS http://hybrag-ollama-embedding:11535/v1/models
-```
-
-测试 embedding：
-
-```bash
-curl -fsS http://hybrag-ollama-embedding:11535/v1/embeddings \
+curl -fsS http://model-hub-ollama-embedding:11535/v1/embeddings \
   -H 'Content-Type: application/json' \
   -d '{"model":"bge-m3","input":["中文知识库检索测试"]}'
 ```
 
+如果在宿主机上测试，需要使用 Model Hub 对外映射的端口或进入任意 `vos_default` 网络内的容器执行。
+
 ## 常见问题
 
-- `model-hub-backend` 解析失败：确认 Model Hub app 已安装、后端容器在 `vos_default` 网络中，且其 compose 模板保留 `model-hub-backend` alias。
-- Model Hub 拉取失败但 HybRAG 仍能启动：HybRAG Ollama 容器会退回本容器 `ollama pull`，模型文件仍写入共享目录。
-- 容器长时间不健康：看 Ollama 容器日志，通常是模型下载慢、网络不可达、磁盘不足或模型名写错。
-- `ollama ps` 没有模型：确认 `OLLAMA_KEEP_ALIVE=-1m`，并检查 warmup 请求是否成功。
+- `model-hub-ollama-qa` 或 `model-hub-ollama-embedding` 解析失败：确认 Model Hub 已安装、容器在 `vos_default` 网络中，并保留这两个服务 alias。
+- HybRAG 模型列表为空：先检查 Model Hub 两个 gateway 的 `/v1/models`，再检查 HybRAG 默认模型 YAML 是否被 `HYBRAG_BUILTIN_MODELS_YAML` 覆盖。
+- 聊天一直“正在思考”：先在 Model Hub QA 容器内确认模型是否常驻并有可用槽位，再检查 HybRAG 模型行是否使用 `thinking_control=think`。
+- 文档解析 embedding 失败：测试 `model-hub-ollama-embedding:11535/v1/embeddings`，确认模型名与 HybRAG 模型行一致。
