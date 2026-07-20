@@ -171,8 +171,22 @@
     <!-- Right Form Section -->
     <div class="form-section">
       <div class="form-panel">
+        <div class="form-card vos-sso-card" v-if="vosOnlyMode">
+          <div class="form-header">
+            <h2 class="form-title">正在进入 HybRAG</h2>
+            <p class="form-welcome">正在使用 VOS 当前用户自动登录</p>
+            <p class="form-hint" :class="{ 'form-hint--error': !!vosSSOError }">
+              {{ vosSSOError || '如果服务刚启动，请稍候。' }}
+            </p>
+          </div>
+          <div class="vos-sso-status">
+            <div class="vos-sso-spinner" />
+            <span>{{ vosSSOError ? '等待 VOS 用户信息' : '正在验证用户身份...' }}</span>
+          </div>
+        </div>
+
         <!-- Login Card -->
-        <div class="form-card" v-if="!isRegisterMode">
+        <div class="form-card" v-if="!vosOnlyMode && !isRegisterMode">
           <div class="form-header">
             <h2 class="form-title">{{ $t('auth.login') }}</h2>
             <p class="form-welcome">{{ $t('auth.subtitle') }}</p>
@@ -237,7 +251,7 @@
              AND either self-service registration is enabled OR they
              arrived with a valid share-link token (which bypasses the
              invite_only gate). -->
-        <div class="form-card" v-if="isRegisterMode && (registrationEnabled || inviteLookup)">
+        <div class="form-card" v-if="!vosOnlyMode && isRegisterMode && (registrationEnabled || inviteLookup)">
           <!-- Share-link banner: shown only when ?token= resolved to a
                real invitation row. Sits above the form header so the
                invitee instantly sees who invited them and into which
@@ -396,6 +410,8 @@ const isRegisterMode = ref(false)
 const showLanguageMenu = ref(false)
 const oidcEnabled = ref(false)
 const oidcProviderName = ref('')
+const vosOnlyMode = ref(true)
+const vosSSOError = ref('')
 // registrationEnabled defaults to true so that on first paint the Register
 // link is visible; the actual mode is fetched from /auth/config in onMounted.
 // In invite_only mode the link/card are hidden.
@@ -645,16 +661,22 @@ const tryVOSSSOLogin = async () => {
 const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms))
 
 const tryVOSSSOLoginWithRetry = async () => {
-  if (!getVOSAccessTokenForIframeSSO()) return false
+  if (!getVOSAccessTokenForIframeSSO()) {
+    vosSSOError.value = '未读取到 VOS 用户会话，请从 VOS 应用入口打开。'
+    return false
+  }
   loading.value = true
+  vosSSOError.value = ''
   try {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
       if (await tryVOSSSOLogin()) return true
-      await sleep(attempt < 5 ? 1000 : 2000)
+      vosSSOError.value = attempt > 10 ? '正在等待 HybRAG 后端就绪，请稍候。' : ''
+      await sleep(attempt < 10 ? 1000 : 2000)
     }
   } finally {
     loading.value = false
   }
+  vosSSOError.value = '自动登录暂未完成，请刷新应用后重试。'
   return false
 }
 
@@ -785,28 +807,7 @@ onMounted(async () => {
     return
   }
 
-  if (await tryVOSSSOLoginWithRetry()) {
-    return
-  }
-
-  const AUTO_SETUP_FAILED_KEY = 'weknora_auto_setup_failed'
-  if (localStorage.getItem(AUTO_SETUP_FAILED_KEY) !== 'true') {
-    try {
-      const response = await autoSetup()
-      if (response.success) {
-        authStore.setLiteMode(true)
-        await persistLoginResponse(response)
-        return
-      } else {
-        localStorage.setItem(AUTO_SETUP_FAILED_KEY, 'true')
-      }
-    } catch {
-      localStorage.setItem(AUTO_SETUP_FAILED_KEY, 'true')
-    }
-  }
-
-  loadOIDCConfig()
-  loadAuthConfig()
+  await tryVOSSSOLoginWithRetry()
 })
 </script>
 
@@ -1379,6 +1380,41 @@ onMounted(async () => {
   font-size: 12.5px;
   line-height: 1.5;
   font-family: var(--app-font-family);
+}
+
+.form-hint--error {
+  background: rgba(213, 73, 65, 0.08);
+  color: #d54941;
+}
+
+.vos-sso-card {
+  min-height: 220px;
+}
+
+.vos-sso-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 92px;
+  color: var(--td-text-color-secondary);
+  font-size: 15px;
+  font-family: var(--app-font-family);
+}
+
+.vos-sso-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(7, 192, 95, 0.2);
+  border-top-color: var(--td-brand-color);
+  border-radius: 50%;
+  animation: vos-sso-spin 0.8s linear infinite;
+}
+
+@keyframes vos-sso-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 注册入口：从底部小字链接升级为带分隔线的醒目次级按钮，
