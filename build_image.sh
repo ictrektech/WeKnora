@@ -471,6 +471,8 @@ update_feishu() {
     [[ "$BUILD_DOCREADER" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "weknora-docreader" "$DOCREADER_IMAGE" "$date_row" "$tag"
     [[ "$BUILD_SANDBOX" == "1" ]] && update_feishu_cell "$token" "$sheet_id" "$sheet_title" "weknora-sandbox" "$SANDBOX_IMAGE" "$date_row" "$tag"
   done
+
+  return 0
 }
 
 TAG_OVERRIDE=""
