@@ -1,41 +1,40 @@
-x-hybrag-frontend-base: &hybrag-frontend-base
+x-hybrag-frontend-base:
   restart: unless-stopped
-  networks:
+  networks: &id009
   - vos_default
-  environment:
+  environment: &id010
     MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
     APP_HOST: hybrag-app
     APP_PORT: 8080
     APP_SCHEME: http
-  labels:
-  - "traefik.enable=true"
-  - "traefik.docker.network=vos_default"
-  - "traefik.http.routers.hybrag-top-open.rule=PathPrefix(`/app/com.ictrek.hybrag`) && HeadersRegexp(`Sec-Fetch-Dest`, `document`)"
-  - "traefik.http.routers.hybrag-top-open.priority=1000"
-  - "traefik.http.routers.hybrag-top-open.service=hybrag-web"
-  - "traefik.http.routers.hybrag-top-open.middlewares=hybrag-top-open-redirect"
-  - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\\.ictrek\\.hybrag/?(?:\\\
-    ?.*)?$"
-  - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag"
-  - "traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.permanent=false"
-  - "traefik.http.routers.hybrag-web.rule=PathPrefix(`/app/com.ictrek.hybrag`)"
-  - "traefik.http.routers.hybrag-web.service=hybrag-web"
-  - "traefik.http.routers.hybrag-web.middlewares=hybrag-web-slash,hybrag-web-strip"
-  - "traefik.http.middlewares.hybrag-web-slash.redirectregex.regex=^(.*)/app/com\\.ictrek\\.hybrag$"
-  - "traefik.http.middlewares.hybrag-web-slash.redirectregex.replacement=$${1}/app/com.ictrek.hybrag/"
-  - "traefik.http.middlewares.hybrag-web-slash.redirectregex.permanent=true"
-  - "traefik.http.middlewares.hybrag-web-strip.stripprefix.prefixes=/app/com.ictrek.hybrag"
-  - "traefik.http.services.hybrag-web.loadbalancer.server.port=80"
-
-x-hybrag-docreader-base: &hybrag-docreader-base
+  labels: &id011
+  - traefik.enable=true
+  - traefik.docker.network=vos_default
+  - traefik.http.routers.hybrag-top-open.rule=PathPrefix(`/app/com.ictrek.hybrag`)
+    && HeadersRegexp(`Sec-Fetch-Dest`, `document`)
+  - traefik.http.routers.hybrag-top-open.priority=1000
+  - traefik.http.routers.hybrag-top-open.service=hybrag-web
+  - traefik.http.routers.hybrag-top-open.middlewares=hybrag-top-open-redirect
+  - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\.ictrek\.hybrag/?(?:\?.*)?$
+  - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag
+  - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.permanent=false
+  - traefik.http.routers.hybrag-web.rule=PathPrefix(`/app/com.ictrek.hybrag`)
+  - traefik.http.routers.hybrag-web.service=hybrag-web
+  - traefik.http.routers.hybrag-web.middlewares=hybrag-web-slash,hybrag-web-strip
+  - traefik.http.middlewares.hybrag-web-slash.redirectregex.regex=^(.*)/app/com\.ictrek\.hybrag$
+  - traefik.http.middlewares.hybrag-web-slash.redirectregex.replacement=$${1}/app/com.ictrek.hybrag/
+  - traefik.http.middlewares.hybrag-web-slash.redirectregex.permanent=true
+  - traefik.http.middlewares.hybrag-web-strip.stripprefix.prefixes=/app/com.ictrek.hybrag
+  - traefik.http.services.hybrag-web.loadbalancer.server.port=80
+x-hybrag-docreader-base:
   restart: unless-stopped
-  networks:
+  networks: &id015
     vos_default:
       aliases:
       - hybrag-docreader
-  expose:
-  - "50051"
-  environment:
+  expose: &id016
+  - '50051'
+  environment: &id017
     DOCREADER_IMAGE_OUTPUT_DIR: /tmp/docreader
     DOCREADER_PDF_FORCE_SCANNED: ${DOCREADER_PDF_FORCE_SCANNED:-false}
     MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
@@ -47,16 +46,18 @@ x-hybrag-docreader-base: &hybrag-docreader-base
     DOCREADER_PDF_JPEG_QUALITY: ${DOCREADER_PDF_JPEG_QUALITY:-90}
     GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
     GRPC_AUTH_TOKEN: ${GRPC_AUTH_TOKEN:-}
-  volumes:
+  volumes: &id018
   - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader
-  healthcheck:
-    test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+  healthcheck: &id019
+    test:
+    - CMD
+    - grpc_health_probe
+    - -addr=localhost:50051
     interval: 30s
     timeout: 10s
     retries: 3
     start_period: 60s
-
-x-hybrag-app-env: &hybrag-app-env
+x-hybrag-app-env: &id001
   GIN_MODE: ${GIN_MODE:-release}
   TZ: ${TZ:-Asia/Shanghai}
   WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
@@ -76,9 +77,7 @@ x-hybrag-app-env: &hybrag-app-env
   REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
   DOCREADER_ADDR: hybrag-docreader:50051
   DOCREADER_TRANSPORT: grpc
-  OLLAMA_BASE_URL: ${MODEL_HUB_OLLAMA_QA_API_URL:-http://model-hub-ollama-qa:11434}
-  OLLAMA_QA_MODEL: ${OLLAMA_QA_MODEL:-qwen3.5:2b}
-  OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-bge-m3}
+  OLLAMA_BASE_URL: http://model-hub-ollama-qa:11434
   SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
   BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
@@ -99,12 +98,12 @@ x-hybrag-app-env: &hybrag-app-env
   WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS:-8000}
   WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS:-8000}
   WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
-  WEKNORA_REPARSE_WAIT_URLS: ${WEKNORA_REPARSE_WAIT_URLS:-http://model-hub-ollama-qa:11535/v1/models,http://model-hub-ollama-embedding:11535/v1/models}
+  WEKNORA_REPARSE_WAIT_URLS: http://model-hub-ollama-qa:11535/v1/models,http://model-hub-ollama-embedding:11535/v1/models
   WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
   WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
   WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
   WEKNORA_RUN_AS_ROOT: ${WEKNORA_RUN_AS_ROOT:-true}
-  WEKNORA_SANDBOX_DOCKER_IMAGE: ""
+  WEKNORA_SANDBOX_DOCKER_IMAGE: ''
   ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-true}
   NEO4J_ENABLE: ${NEO4J_ENABLE:-true}
   NEO4J_URI: ${NEO4J_URI:-bolt://hybrag-neo4j:7687}
@@ -117,339 +116,303 @@ x-hybrag-app-env: &hybrag-app-env
   HYBRAG_VOS_SSO_ENABLED: ${HYBRAG_VOS_SSO_ENABLED:-true}
   HYBRAG_VOS_USERINFO_URL: ${HYBRAG_VOS_USERINFO_URL:-http://172.17.0.1:8105/v1000/user/check}
   WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
-  HYBRAG_DEFAULT_BUILTIN_MODELS: ${HYBRAG_DEFAULT_BUILTIN_MODELS:-true}
-  HYBRAG_BUILTIN_MODELS_YAML: ${HYBRAG_BUILTIN_MODELS_YAML:-}
-
-  MODEL_HUB_OLLAMA_QA_GATEWAY_URL: ${MODEL_HUB_OLLAMA_QA_GATEWAY_URL:-http://model-hub-ollama-qa:11535/v1}
-  MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL: ${MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL:-http://model-hub-ollama-embedding:11535/v1}
-x-hybrag-app-env-thor-spark: &hybrag-app-env-thor-spark
-  <<: *hybrag-app-env
-  CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE_THOR_SPARK:-8}
-  BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE_THOR_SPARK:-8}
-  WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY_THOR_SPARK:-4}
-  WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY: ${WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY_THOR_SPARK:-2}
-  WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY: ${WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY_THOR_SPARK:-2}
-  WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY: ${WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY_THOR_SPARK:-1}
-  WEKNORA_ASYNQ_SHARED_CONCURRENCY: ${WEKNORA_ASYNQ_SHARED_CONCURRENCY_THOR_SPARK:-0}
-  WEKNORA_WIKI_ASYNQ_CONCURRENCY: ${WEKNORA_WIKI_ASYNQ_CONCURRENCY_THOR_SPARK:-4}
-  WEKNORA_MODEL_MAX_CONCURRENCY: ${WEKNORA_MODEL_MAX_CONCURRENCY_THOR_SPARK:-14}
-  WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY_THOR_SPARK:-20}
-  WEKNORA_CHAT_RESERVED_CONCURRENCY: ${WEKNORA_CHAT_RESERVED_CONCURRENCY_THOR_SPARK:-6}
-  WEKNORA_GRAPH_LLM_CONCURRENCY: ${WEKNORA_GRAPH_LLM_CONCURRENCY_THOR_SPARK:-2}
-  WEKNORA_WIKI_INGEST_MAP_PARALLEL: ${WEKNORA_WIKI_INGEST_MAP_PARALLEL_THOR_SPARK:-4}
-  WEKNORA_WIKI_INGEST_REDUCE_PARALLEL: ${WEKNORA_WIKI_INGEST_REDUCE_PARALLEL_THOR_SPARK:-4}
-  WEKNORA_CHAT_MODEL_CONTEXT_TOKENS: ${WEKNORA_CHAT_MODEL_CONTEXT_TOKENS_THOR_SPARK:-65536}
-  WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS: ${WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS_THOR_SPARK:-768}
-  WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS_THOR_SPARK:-24576}
-  WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS_THOR_SPARK:-24576}
-
-x-hybrag-app-base: &hybrag-app-base
+  HYBRAG_DEFAULT_BUILTIN_MODELS: 'true'
+x-hybrag-app-base:
   restart: unless-stopped
-  networks:
+  networks: &id012
     vos_default:
       aliases:
       - hybrag-app
-  environment: *hybrag-app-env
-  volumes:
+  environment: *id001
+  volumes: &id013
   - ${HYBRAG_FILES_PATH:-/data/vos_workspace/hybrag/files}:/data/files
   - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader:ro
   - ${HYBRAG_DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
-  healthcheck:
-    test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+  healthcheck: &id014
+    test:
+    - CMD
+    - curl
+    - -f
+    - http://localhost:8080/health
     interval: 30s
     timeout: 10s
     retries: 3
     start_period: 60s
-
-x-hybrag-redis-base: &hybrag-redis-base
+x-hybrag-redis-base:
   command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
-  volumes:
+  volumes: &id002
   - ${HYBRAG_REDIS_PATH:-/data/vos_workspace/hybrag/redis}:/data
-  networks:
+  networks: &id003
     vos_default:
       aliases:
       - hybrag-redis
   restart: unless-stopped
-
-x-hybrag-neo4j-base: &hybrag-neo4j-base
-  ports:
-  - "${NEO4J_HTTP_PORT:-27474}:7474"
-  - "${NEO4J_BOLT_PORT:-27687}:7687"
-  environment:
+x-hybrag-neo4j-base:
+  ports: &id004
+  - ${NEO4J_HTTP_PORT:-27474}:7474
+  - ${NEO4J_BOLT_PORT:-27687}:7687
+  environment: &id005
     NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-hybrag-neo4j}
-    NEO4J_apoc_export_file_enabled: "true"
-    NEO4J_apoc_import_file_enabled: "true"
-    NEO4J_apoc_import_file_use__neo4j__config: "true"
+    NEO4J_apoc_export_file_enabled: 'true'
+    NEO4J_apoc_import_file_enabled: 'true'
+    NEO4J_apoc_import_file_use__neo4j__config: 'true'
     NEO4JLABS_PLUGINS: '["apoc"]'
-  volumes:
+  volumes: &id006
   - ${HYBRAG_NEO4J_PATH:-/data/vos_workspace/hybrag/neo4j}:/data
-  networks:
+  networks: &id007
     vos_default:
       aliases:
       - hybrag-neo4j
       - neo4j
   restart: unless-stopped
-  healthcheck:
-    test: ["CMD-SHELL", "auth=\"$${NEO4J_AUTH:-neo4j/hybrag-neo4j}\"; cypher-shell -u \"$${auth%%/*}\" -p \"$${auth#*/}\"\
-        \ 'RETURN 1;' >/dev/null 2>&1"]
+  healthcheck: &id008
+    test:
+    - CMD-SHELL
+    - auth="$${NEO4J_AUTH:-neo4j/hybrag-neo4j}"; cypher-shell -u "$${auth%%/*}" -p
+      "$${auth#*/}" 'RETURN 1;' >/dev/null 2>&1
     interval: 30s
     timeout: 10s
     retries: 10
     start_period: 90s
-
 services:
-  hybrag-redis-amd-with-cuda:
-    <<: *hybrag-redis-base
-    profiles: ["amd"]
+  hybrag-redis-amd:
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
+    volumes: *id002
+    networks: *id003
+    restart: unless-stopped
+    profiles:
+    - amd
     image: ${REDIS_AMD_IMAGE}
     pull_policy: always
-
-  hybrag-neo4j-amd-with-cuda:
-    <<: *hybrag-neo4j-base
-    profiles: ["amd"]
+  hybrag-neo4j-amd:
+    ports: *id004
+    environment: *id005
+    volumes: *id006
+    networks: *id007
+    restart: unless-stopped
+    healthcheck: *id008
+    profiles:
+    - amd
     image: ${NEO4J_AMD_IMAGE}
     pull_policy: always
-
-  hybrag-redis-amd-no-cuda:
-    <<: *hybrag-redis-base
-    profiles: ["amd-no-cuda"]
-    image: ${REDIS_AMD_IMAGE}
-    pull_policy: always
-
-  hybrag-neo4j-amd-no-cuda:
-    <<: *hybrag-neo4j-base
-    profiles: ["amd-no-cuda"]
-    image: ${NEO4J_AMD_IMAGE}
-    pull_policy: always
-
-  hybrag-redis-arm-with-cuda:
-    <<: *hybrag-redis-base
-    profiles: ["arm"]
+  hybrag-redis-arm:
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
+    volumes: *id002
+    networks: *id003
+    restart: unless-stopped
+    profiles:
+    - arm
     image: ${REDIS_ARM_IMAGE}
     pull_policy: always
-
-  hybrag-neo4j-arm-with-cuda:
-    <<: *hybrag-neo4j-base
-    profiles: ["arm"]
+  hybrag-neo4j-arm:
+    ports: *id004
+    environment: *id005
+    volumes: *id006
+    networks: *id007
+    restart: unless-stopped
+    healthcheck: *id008
+    profiles:
+    - arm
     image: ${NEO4J_ARM_IMAGE}
     pull_policy: always
-
-  hybrag-redis-arm-no-cuda:
-    <<: *hybrag-redis-base
-    profiles: ["arm-no-cuda"]
-    image: ${REDIS_ARM_IMAGE}
-    pull_policy: always
-
-  hybrag-neo4j-arm-no-cuda:
-    <<: *hybrag-neo4j-base
-    profiles: ["arm-no-cuda"]
-    image: ${NEO4J_ARM_IMAGE}
-    pull_policy: always
-
-  hybrag-redis-l4t:
-    <<: *hybrag-redis-base
-    profiles: ["l4t"]
-    image: ${REDIS_ARM_IMAGE}
-    pull_policy: always
-
-  hybrag-neo4j-l4t:
-    <<: *hybrag-neo4j-base
-    profiles: ["l4t"]
-    image: ${NEO4J_ARM_IMAGE}
-    pull_policy: always
-
-  hybrag-redis-thor-spark:
-    <<: *hybrag-redis-base
-    profiles: ["thor-spark"]
-    image: ${REDIS_ARM_IMAGE}
-    pull_policy: always
-
-  hybrag-neo4j-thor-spark:
-    <<: *hybrag-neo4j-base
-    profiles: ["thor-spark"]
-    image: ${NEO4J_ARM_IMAGE}
-    pull_policy: always
-
-  hybrag-frontend-amd-with-cuda:
-    <<: *hybrag-frontend-base
-    profiles: ["amd"]
+  hybrag-frontend-amd:
+    restart: unless-stopped
+    networks: *id009
+    environment: *id010
+    labels: *id011
+    profiles:
+    - amd
     image: ${WEKNORA_UI_AMD_IMAGE}
     pull_policy: always
     depends_on:
-      hybrag-app-amd-with-cuda:
+      hybrag-app-amd:
         condition: service_started
-
-  hybrag-app-amd-with-cuda:
-    <<: *hybrag-app-base
-    profiles: ["amd"]
+  hybrag-app-amd:
+    restart: unless-stopped
+    networks: *id012
+    environment:
+      GIN_MODE: ${GIN_MODE:-release}
+      TZ: ${TZ:-Asia/Shanghai}
+      WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
+      DB_DRIVER: postgres
+      DB_HOST: ${WEKNORA_DB_HOST:-shared-pgv}
+      DB_PORT: ${WEKNORA_DB_PORT:-5432}
+      DB_USER: ${WEKNORA_DB_USER:-weknora}
+      DB_PASSWORD: ${WEKNORA_DB_PASSWORD:-weknora}
+      DB_NAME: ${WEKNORA_DB_NAME:-WeKnora}
+      RETRIEVE_DRIVER: ${RETRIEVE_DRIVER:-postgres}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      LOCAL_STORAGE_BASE_DIR: ${LOCAL_STORAGE_BASE_DIR:-/data/files}
+      STREAM_MANAGER_TYPE: ${STREAM_MANAGER_TYPE:-redis}
+      REDIS_ADDR: hybrag-redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-hybrag-redis}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
+      DOCREADER_ADDR: hybrag-docreader:50051
+      DOCREADER_TRANSPORT: grpc
+      OLLAMA_BASE_URL: http://model-hub-ollama-qa:11434
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+      CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
+      BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
+      WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
+      WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY: ${WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY:-1}
+      WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY: ${WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY:-1}
+      WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY: ${WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY:-1}
+      WEKNORA_ASYNQ_SHARED_CONCURRENCY: ${WEKNORA_ASYNQ_SHARED_CONCURRENCY:-1}
+      WEKNORA_WIKI_ASYNQ_CONCURRENCY: ${WEKNORA_WIKI_ASYNQ_CONCURRENCY:-1}
+      WEKNORA_MODEL_MAX_CONCURRENCY: ${WEKNORA_MODEL_MAX_CONCURRENCY:-6}
+      WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-8}
+      WEKNORA_CHAT_RESERVED_CONCURRENCY: ${WEKNORA_CHAT_RESERVED_CONCURRENCY:-2}
+      WEKNORA_GRAPH_LLM_CONCURRENCY: ${WEKNORA_GRAPH_LLM_CONCURRENCY:-1}
+      WEKNORA_WIKI_INGEST_MAP_PARALLEL: ${WEKNORA_WIKI_INGEST_MAP_PARALLEL:-1}
+      WEKNORA_WIKI_INGEST_REDUCE_PARALLEL: ${WEKNORA_WIKI_INGEST_REDUCE_PARALLEL:-1}
+      WEKNORA_CHAT_MODEL_CONTEXT_TOKENS: ${WEKNORA_CHAT_MODEL_CONTEXT_TOKENS:-24000}
+      WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS: ${WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS:-0}
+      WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS:-8000}
+      WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS:-8000}
+      WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
+      WEKNORA_REPARSE_WAIT_URLS: http://model-hub-ollama-qa:11535/v1/models,http://model-hub-ollama-embedding:11535/v1/models
+      WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
+      WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
+      WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
+      WEKNORA_RUN_AS_ROOT: ${WEKNORA_RUN_AS_ROOT:-true}
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_IMAGE}
+      ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-true}
+      NEO4J_ENABLE: ${NEO4J_ENABLE:-true}
+      NEO4J_URI: ${NEO4J_URI:-bolt://hybrag-neo4j:7687}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-hybrag-neo4j}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+      DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
+      WEKNORA_AUTH_DEFAULT_TENANT_MODE: ${WEKNORA_AUTH_DEFAULT_TENANT_MODE:-create_personal}
+      WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED: ${WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED:-true}
+      HYBRAG_VOS_SSO_ENABLED: ${HYBRAG_VOS_SSO_ENABLED:-true}
+      HYBRAG_VOS_USERINFO_URL: ${HYBRAG_VOS_USERINFO_URL:-http://172.17.0.1:8105/v1000/user/check}
+      WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
+      HYBRAG_DEFAULT_BUILTIN_MODELS: 'true'
+    volumes: *id013
+    healthcheck: *id014
+    profiles:
+    - amd
     image: ${WEKNORA_APP_AMD_IMAGE}
     pull_policy: always
-    environment:
-      <<: *hybrag-app-env
-      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_IMAGE}
     depends_on:
-      hybrag-redis-amd-with-cuda:
+      hybrag-redis-amd:
         condition: service_started
-      hybrag-neo4j-amd-with-cuda:
+      hybrag-neo4j-amd:
         condition: service_healthy
-      hybrag-docreader-amd-with-cuda:
+      hybrag-docreader-amd:
         condition: service_healthy
-  hybrag-docreader-amd-with-cuda:
-    <<: *hybrag-docreader-base
-    profiles: ["amd"]
+  hybrag-docreader-amd:
+    restart: unless-stopped
+    networks: *id015
+    expose: *id016
+    environment: *id017
+    volumes: *id018
+    healthcheck: *id019
+    profiles:
+    - amd
     image: ${WEKNORA_DOCREADER_AMD_IMAGE}
     pull_policy: always
-
-  hybrag-frontend-amd-no-cuda:
-    <<: *hybrag-frontend-base
-    profiles: ["amd-no-cuda"]
-    image: ${WEKNORA_UI_AMD_NO_CUDA_IMAGE}
-    pull_policy: always
-    depends_on:
-      hybrag-app-amd-no-cuda:
-        condition: service_started
-
-  hybrag-app-amd-no-cuda:
-    <<: *hybrag-app-base
-    profiles: ["amd-no-cuda"]
-    image: ${WEKNORA_APP_AMD_NO_CUDA_IMAGE}
-    pull_policy: always
-    environment:
-      <<: *hybrag-app-env
-      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_AMD_NO_CUDA_IMAGE}
-    depends_on:
-      hybrag-redis-amd-no-cuda:
-        condition: service_started
-      hybrag-neo4j-amd-no-cuda:
-        condition: service_healthy
-      hybrag-docreader-amd-no-cuda:
-        condition: service_healthy
-  hybrag-docreader-amd-no-cuda:
-    <<: *hybrag-docreader-base
-    profiles: ["amd-no-cuda"]
-    image: ${WEKNORA_DOCREADER_AMD_NO_CUDA_IMAGE}
-    pull_policy: always
-
-  hybrag-frontend-arm-with-cuda:
-    <<: *hybrag-frontend-base
-    profiles: ["arm"]
+  hybrag-frontend-arm:
+    restart: unless-stopped
+    networks: *id009
+    environment: *id010
+    labels: *id011
+    profiles:
+    - arm
     image: ${WEKNORA_UI_ARM_IMAGE}
     pull_policy: always
     depends_on:
-      hybrag-app-arm-with-cuda:
+      hybrag-app-arm:
         condition: service_started
-
-  hybrag-app-arm-with-cuda:
-    <<: *hybrag-app-base
-    profiles: ["arm"]
+  hybrag-app-arm:
+    restart: unless-stopped
+    networks: *id012
+    environment:
+      GIN_MODE: ${GIN_MODE:-release}
+      TZ: ${TZ:-Asia/Shanghai}
+      WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
+      DB_DRIVER: postgres
+      DB_HOST: ${WEKNORA_DB_HOST:-shared-pgv}
+      DB_PORT: ${WEKNORA_DB_PORT:-5432}
+      DB_USER: ${WEKNORA_DB_USER:-weknora}
+      DB_PASSWORD: ${WEKNORA_DB_PASSWORD:-weknora}
+      DB_NAME: ${WEKNORA_DB_NAME:-WeKnora}
+      RETRIEVE_DRIVER: ${RETRIEVE_DRIVER:-postgres}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      LOCAL_STORAGE_BASE_DIR: ${LOCAL_STORAGE_BASE_DIR:-/data/files}
+      STREAM_MANAGER_TYPE: ${STREAM_MANAGER_TYPE:-redis}
+      REDIS_ADDR: hybrag-redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-hybrag-redis}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
+      DOCREADER_ADDR: hybrag-docreader:50051
+      DOCREADER_TRANSPORT: grpc
+      OLLAMA_BASE_URL: http://model-hub-ollama-qa:11434
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+      CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
+      BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
+      WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
+      WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY: ${WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY:-1}
+      WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY: ${WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY:-1}
+      WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY: ${WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY:-1}
+      WEKNORA_ASYNQ_SHARED_CONCURRENCY: ${WEKNORA_ASYNQ_SHARED_CONCURRENCY:-1}
+      WEKNORA_WIKI_ASYNQ_CONCURRENCY: ${WEKNORA_WIKI_ASYNQ_CONCURRENCY:-1}
+      WEKNORA_MODEL_MAX_CONCURRENCY: ${WEKNORA_MODEL_MAX_CONCURRENCY:-6}
+      WEKNORA_MAIN_QA_MODEL_CONCURRENCY: ${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-8}
+      WEKNORA_CHAT_RESERVED_CONCURRENCY: ${WEKNORA_CHAT_RESERVED_CONCURRENCY:-2}
+      WEKNORA_GRAPH_LLM_CONCURRENCY: ${WEKNORA_GRAPH_LLM_CONCURRENCY:-1}
+      WEKNORA_WIKI_INGEST_MAP_PARALLEL: ${WEKNORA_WIKI_INGEST_MAP_PARALLEL:-1}
+      WEKNORA_WIKI_INGEST_REDUCE_PARALLEL: ${WEKNORA_WIKI_INGEST_REDUCE_PARALLEL:-1}
+      WEKNORA_CHAT_MODEL_CONTEXT_TOKENS: ${WEKNORA_CHAT_MODEL_CONTEXT_TOKENS:-24000}
+      WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS: ${WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS:-0}
+      WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS:-8000}
+      WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS:-8000}
+      WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
+      WEKNORA_REPARSE_WAIT_URLS: http://model-hub-ollama-qa:11535/v1/models,http://model-hub-ollama-embedding:11535/v1/models
+      WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
+      WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
+      WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
+      WEKNORA_RUN_AS_ROOT: ${WEKNORA_RUN_AS_ROOT:-true}
+      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_IMAGE}
+      ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-true}
+      NEO4J_ENABLE: ${NEO4J_ENABLE:-true}
+      NEO4J_URI: ${NEO4J_URI:-bolt://hybrag-neo4j:7687}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-hybrag-neo4j}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+      DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
+      WEKNORA_AUTH_DEFAULT_TENANT_MODE: ${WEKNORA_AUTH_DEFAULT_TENANT_MODE:-create_personal}
+      WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED: ${WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED:-true}
+      HYBRAG_VOS_SSO_ENABLED: ${HYBRAG_VOS_SSO_ENABLED:-true}
+      HYBRAG_VOS_USERINFO_URL: ${HYBRAG_VOS_USERINFO_URL:-http://172.17.0.1:8105/v1000/user/check}
+      WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
+      HYBRAG_DEFAULT_BUILTIN_MODELS: 'true'
+    volumes: *id013
+    healthcheck: *id014
+    profiles:
+    - arm
     image: ${WEKNORA_APP_ARM_IMAGE}
     pull_policy: always
-    environment:
-      <<: *hybrag-app-env
-      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_IMAGE}
     depends_on:
-      hybrag-redis-arm-with-cuda:
+      hybrag-redis-arm:
         condition: service_started
-      hybrag-neo4j-arm-with-cuda:
+      hybrag-neo4j-arm:
         condition: service_healthy
-      hybrag-docreader-arm-with-cuda:
+      hybrag-docreader-arm:
         condition: service_healthy
-  hybrag-docreader-arm-with-cuda:
-    <<: *hybrag-docreader-base
-    profiles: ["arm"]
+  hybrag-docreader-arm:
+    restart: unless-stopped
+    networks: *id015
+    expose: *id016
+    environment: *id017
+    volumes: *id018
+    healthcheck: *id019
+    profiles:
+    - arm
     image: ${WEKNORA_DOCREADER_ARM_IMAGE}
     pull_policy: always
-
-  hybrag-frontend-arm-no-cuda:
-    <<: *hybrag-frontend-base
-    profiles: ["arm-no-cuda"]
-    image: ${WEKNORA_UI_ARM_NO_CUDA_IMAGE}
-    pull_policy: always
-    depends_on:
-      hybrag-app-arm-no-cuda:
-        condition: service_started
-
-  hybrag-app-arm-no-cuda:
-    <<: *hybrag-app-base
-    profiles: ["arm-no-cuda"]
-    image: ${WEKNORA_APP_ARM_NO_CUDA_IMAGE}
-    pull_policy: always
-    environment:
-      <<: *hybrag-app-env
-      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_ARM_NO_CUDA_IMAGE}
-    depends_on:
-      hybrag-redis-arm-no-cuda:
-        condition: service_started
-      hybrag-neo4j-arm-no-cuda:
-        condition: service_healthy
-      hybrag-docreader-arm-no-cuda:
-        condition: service_healthy
-  hybrag-docreader-arm-no-cuda:
-    <<: *hybrag-docreader-base
-    profiles: ["arm-no-cuda"]
-    image: ${WEKNORA_DOCREADER_ARM_NO_CUDA_IMAGE}
-    pull_policy: always
-
-  hybrag-frontend-l4t:
-    <<: *hybrag-frontend-base
-    profiles: ["l4t"]
-    image: ${WEKNORA_UI_L4T_IMAGE}
-    pull_policy: always
-    depends_on:
-      hybrag-app-l4t:
-        condition: service_started
-
-  hybrag-app-l4t:
-    <<: *hybrag-app-base
-    profiles: ["l4t"]
-    image: ${WEKNORA_APP_L4T_IMAGE}
-    pull_policy: always
-    environment:
-      <<: *hybrag-app-env
-      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_L4T_IMAGE}
-    depends_on:
-      hybrag-redis-l4t:
-        condition: service_started
-      hybrag-neo4j-l4t:
-        condition: service_healthy
-      hybrag-docreader-l4t:
-        condition: service_healthy
-  hybrag-docreader-l4t:
-    <<: *hybrag-docreader-base
-    profiles: ["l4t"]
-    image: ${WEKNORA_DOCREADER_L4T_IMAGE}
-    pull_policy: always
-
-  hybrag-frontend-thor-spark:
-    <<: *hybrag-frontend-base
-    profiles: ["thor-spark"]
-    image: ${WEKNORA_UI_THOR_SPARK_IMAGE}
-    pull_policy: always
-    depends_on:
-      hybrag-app-thor-spark:
-        condition: service_started
-
-  hybrag-app-thor-spark:
-    <<: *hybrag-app-base
-    profiles: ["thor-spark"]
-    image: ${WEKNORA_APP_THOR_SPARK_IMAGE}
-    pull_policy: always
-    environment:
-      <<: *hybrag-app-env-thor-spark
-      WEKNORA_SANDBOX_DOCKER_IMAGE: ${WEKNORA_SANDBOX_THOR_SPARK_IMAGE}
-    depends_on:
-      hybrag-redis-thor-spark:
-        condition: service_started
-      hybrag-neo4j-thor-spark:
-        condition: service_healthy
-      hybrag-docreader-thor-spark:
-        condition: service_healthy
-  hybrag-docreader-thor-spark:
-    <<: *hybrag-docreader-base
-    profiles: ["thor-spark"]
-    image: ${WEKNORA_DOCREADER_THOR_SPARK_IMAGE}
-    pull_policy: always
-
 networks:
   vos_default:
     external: true

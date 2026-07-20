@@ -11,14 +11,10 @@ Model Hub 应先安装并运行在同一个 `vos_default` 网络中。当前 Hyb
 | QA / 聊天 / 图片理解 | `model-hub-ollama-qa` | `http://model-hub-ollama-qa:11434` | `http://model-hub-ollama-qa:11535` | `qwen3.5:2b` |
 | Embedding | `model-hub-ollama-embedding` | `http://model-hub-ollama-embedding:11434` | `http://model-hub-ollama-embedding:11535` | `bge-m3` |
 
-Model Hub 负责模型下载、预热、常驻、上下文长度和 Ollama 并发。HybRAG 只在默认模型行里引用 OpenAI-compatible gateway：
+Model Hub 负责模型下载、预热、常驻、上下文长度和 Ollama 并发。HybRAG 只在默认模型行里引用 OpenAI-compatible gateway。默认模型名和地址由 HybRAG 包模板固定，不再作为安装表单参数暴露：
 
 ```env
-MODEL_HUB_OLLAMA_QA_GATEWAY_URL=http://model-hub-ollama-qa:11535/v1
-MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL=http://model-hub-ollama-embedding:11535/v1
 OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434
-OLLAMA_QA_MODEL=qwen3.5:2b
-OLLAMA_EMBEDDING_MODEL=bge-m3
 ```
 
 QA、VLM 和 embedding 模型行必须配置到 `11535/v1` Gateway。不要配置到 Ollama 原生 `11434`，否则 Model Hub 只能看到服务在线，看不到 WeKnora 请求的槽位、阶段和 token/s。
@@ -36,7 +32,7 @@ HybRAG app 启动后会用 `WEKNORA_REPARSE_WAIT_URLS` 等待两个 Model Hub ga
 
 ## 默认模型行
 
-VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运行时生成 `builtin_models.yaml`。安装 UI 的 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 会自动创建三条默认模型行：
+VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运行时生成 `builtin_models.yaml`，并自动创建三条默认模型行：
 
 - `Model Hub Ollama QA (model-hub-ollama-qa)`：KnowledgeQA，endpoint `http://model-hub-ollama-qa:11535/v1`。
 - `Model Hub Ollama VLM (model-hub-ollama-qa)`：VLLM，endpoint `http://model-hub-ollama-qa:11535/v1`。
@@ -64,6 +60,6 @@ curl -fsS http://model-hub-ollama-embedding:11535/v1/embeddings \
 ## 常见问题
 
 - `model-hub-ollama-qa` 或 `model-hub-ollama-embedding` 解析失败：确认 Model Hub 已安装、容器在 `vos_default` 网络中，并保留这两个服务 alias。
-- HybRAG 模型列表为空：先检查 Model Hub 两个 gateway 的 `/v1/models`，再检查 HybRAG 默认模型 YAML 是否被 `HYBRAG_BUILTIN_MODELS_YAML` 覆盖。
+- HybRAG 模型列表为空：先检查 Model Hub 两个 gateway 的 `/v1/models`，再检查 App 容器启动日志中默认 `builtin_models.yaml` 是否生成。
 - 聊天一直“正在思考”：先在 Model Hub QA 容器内确认模型是否常驻并有可用槽位，再检查 HybRAG 模型行是否使用 `thinking_control=think`。
 - 文档解析 embedding 失败：测试 `model-hub-ollama-embedding:11535/v1/embeddings`，确认模型名与 HybRAG 模型行一致。

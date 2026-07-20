@@ -1,723 +1,482 @@
 configs:
-  - name: HYBRAG_WORKSPACE_PATH
-    type: path
-    title:
-      zh-CN: HybRAG 工作目录
-      en: HybRAG Workspace Path
-    description:
-      zh-CN: HybRAG 独立持久化根目录。默认只作为安装 UI 中的路径约定提示；如需整体迁移目录，请同步调整下方 files/docreader/redis 路径。
-      en: Host-side persistence root for HybRAG. This is a UI-level convention; if you move the root, also update the files/docreader/redis paths below.
-    default: /data/vos_workspace/hybrag
-  - name: HYBRAG_FILES_PATH
-    type: path
-    title:
-      zh-CN: 文档原文目录
-      en: Uploaded Files Path
-    description:
-      zh-CN: 映射到 App 容器 `/data/files`，保存上传文档、知识库原文和本地存储文件。
-      en: Mounted to `/data/files` in the app container for uploaded documents and local storage files.
-    default: /data/vos_workspace/hybrag/files
-  - name: HYBRAG_DOCREADER_PATH
-    type: path
-    title:
-      zh-CN: 文档解析中间文件目录
-      en: DocReader Working Path
-    description:
-      zh-CN: 映射到 DocReader `/tmp/docreader`，并只读挂载给 App，用于 PDF 渲染图片等解析中间产物。
-      en: Mounted to DocReader `/tmp/docreader` and read-only into App for parse intermediates such as rendered PDF images.
-    default: /data/vos_workspace/hybrag/docreader
-  - name: HYBRAG_REDIS_PATH
-    type: path
-    title:
-      zh-CN: Redis 数据目录
-      en: Redis Data Path
-    description:
-      zh-CN: 映射到 Redis `/data`，保存 AOF 等 Redis 持久化数据。
-      en: Mounted to Redis `/data` for AOF and Redis persistence.
-    default: /data/vos_workspace/hybrag/redis
-  - name: HYBRAG_NEO4J_PATH
-    type: path
-    title:
-      zh-CN: Neo4j 数据目录
-      en: Neo4j Data Path
-    description:
-      zh-CN: 映射到 Neo4j `/data`，保存实体关系 GraphRAG 的图数据库数据。
-      en: Mounted to Neo4j `/data` for entity/relation GraphRAG graph data.
-    default: /data/vos_workspace/hybrag/neo4j
-  - name: HYBRAG_DOCKER_SOCKET_PATH
-    type: path
-    title:
-      zh-CN: Docker Socket 路径
-      en: Docker Socket Path
-    description:
-      zh-CN: 映射到 App 容器 `/var/run/docker.sock`，用于 docker sandbox 模式。生产环境应确认该授权边界可接受。
-      en: Mounted to app `/var/run/docker.sock` for docker sandbox mode. Confirm this trust boundary before production use.
-    default: /var/run/docker.sock
-  - name: WEKNORA_DB_HOST
-    type: string
-    title:
-      zh-CN: PGV/Postgres 服务地址
-      en: PGV/Postgres Host
-    description:
-      zh-CN: HybRAG 连接的 Postgres 服务名。默认使用 PGV 在 `vos_default` 网络中的稳定别名 `shared-pgv`。
-      en: Postgres service host used by HybRAG. Defaults to PGV's stable `shared-pgv` alias on `vos_default`.
-    default: shared-pgv
-  - name: WEKNORA_DB_PORT
-    type: integer
-    title:
-      zh-CN: PGV/Postgres 端口
-      en: PGV/Postgres Port
-    description:
-      zh-CN: 容器网络内的 Postgres 端口。PGV 默认内部端口为 5432，即使宿主机调试端口改成 25432 也不影响这里。
-      en: In-network Postgres port. PGV defaults to container port 5432 even when the host debug port is changed to 25432.
-    default: 5432
-    minimum: 1
-    maximum: 65535
-  - name: WEKNORA_DB_USER
-    type: string
-    title:
-      zh-CN: HybRAG 数据库用户
-      en: HybRAG Database User
-    description:
-      zh-CN: PGV 默认预置的 WeKnora 用户为 `weknora`。如果安装 PGV 时改过用户，请在这里同步修改。
-      en: PGV precreates `weknora` by default. Change this if PGV was installed with a different user.
-    default: weknora
-  - name: WEKNORA_DB_PASSWORD
-    type: string
-    title:
-      zh-CN: HybRAG 数据库密码
-      en: HybRAG Database Password
-    description:
-      zh-CN: PGV 默认预置的 WeKnora 密码为 `weknora`。如果安装 PGV 时改过密码，请在这里同步修改。
-      en: PGV precreates password `weknora` by default. Change this if PGV was installed with a different password.
-    default: weknora
-  - name: WEKNORA_DB_NAME
-    type: string
-    title:
-      zh-CN: HybRAG 数据库名
-      en: HybRAG Database Name
-    description:
-      zh-CN: PGV 默认预置的 WeKnora 数据库为 `WeKnora`。如果安装 PGV 时改过数据库名，请在这里同步修改。
-      en: PGV precreates database `WeKnora` by default. Change this if PGV was installed with a different database name.
-    default: WeKnora
-  - name: ENABLE_GRAPH_RAG
-    type: boolean
-    title:
-      zh-CN: 启用实体关系 GraphRAG
-      en: Enable Entity GraphRAG
-    description:
-      zh-CN: 控制知识库图谱中的实体-关系抽取功能。关闭后新建知识库会提示知识图谱数据库未启用。
-      en: Enables entity/relation extraction for knowledge graph indexing. If disabled, new knowledge bases report that the graph database is unavailable.
-    default: true
-  - name: NEO4J_ENABLE
-    type: boolean
-    title:
-      zh-CN: 启用 Neo4j
-      en: Enable Neo4j
-    description:
-      zh-CN: 控制 App 是否连接 Neo4j。VOS 包会随应用启动独立的 `hybrag-neo4j` 服务。
-      en: Controls whether the app connects to Neo4j. The VOS package starts an app-local `hybrag-neo4j` service.
-    default: true
-  - name: NEO4J_URI
-    type: string
-    title:
-      zh-CN: Neo4j Bolt 地址
-      en: Neo4j Bolt URI
-    description:
-      zh-CN: App 容器内访问 Neo4j 的 Bolt 地址。使用内置 Neo4j 时保持默认值。
-      en: Bolt URI reachable from the app container. Keep the default when using the bundled Neo4j service.
-    default: bolt://hybrag-neo4j:7687
-  - name: NEO4J_USERNAME
-    type: string
-    title:
-      zh-CN: Neo4j 用户名
-      en: Neo4j Username
-    description:
-      zh-CN: Neo4j 管理员用户名。Neo4j 官方镜像默认用户为 `neo4j`。
-      en: Neo4j admin username. The official Neo4j image defaults to `neo4j`.
-    default: neo4j
-  - name: NEO4J_PASSWORD
-    type: string
-    title:
-      zh-CN: Neo4j 密码
-      en: Neo4j Password
-    description:
-      zh-CN: Neo4j 初始密码，至少 8 个字符。首次安装后不要随意改动，除非同步迁移 Neo4j 数据或重置密码。
-      en: Initial Neo4j password, at least 8 characters. Do not change it after first install unless you also migrate data or reset the database password.
-    default: hybrag-neo4j
-  - name: NEO4J_HTTP_PORT
-    type: integer
-    title:
-      zh-CN: Neo4j 浏览器端口
-      en: Neo4j Browser Port
-    description:
-      zh-CN: 宿主机访问 Neo4j Browser 的端口，默认避开 7474。
-      en: Host port for Neo4j Browser, avoiding the default 7474.
-    default: 27474
-    minimum: 1
-    maximum: 65535
-  - name: NEO4J_BOLT_PORT
-    type: integer
-    title:
-      zh-CN: Neo4j Bolt 外部端口
-      en: Neo4j Bolt Host Port
-    description:
-      zh-CN: 宿主机访问 Neo4j Bolt 的端口，默认避开 7687。App 容器内部仍使用 `hybrag-neo4j:7687`。
-      en: Host port for Neo4j Bolt, avoiding the default 7687. The app container still uses `hybrag-neo4j:7687` internally.
-    default: 27687
-    minimum: 1
-    maximum: 65535
-  - name: HYBRAG_VOS_SSO_ENABLED
-    type: boolean
-    title:
-      zh-CN: 启用 VOS 免登录
-      en: Enable VOS SSO
-    description:
-      zh-CN: 临时 VOS 同源 iframe SSO。HybRAG 前端从 VOS 当前会话读取 access token，后端调用 VOS user/check 校验后自动创建 `username@local` 用户和空间。以后 VOS 支持标准 OIDC 或 iframe 注入用户信息时，可关闭或替换该适配。
-      en: Transitional same-origin VOS iframe SSO. HybRAG reads the current VOS access token, verifies it through VOS user/check, then provisions `username@local`. Disable or replace this adapter when VOS provides standard OIDC or iframe user injection.
-    default: true
-  - name: HYBRAG_VOS_USERINFO_URL
-    type: string
-    title:
-      zh-CN: VOS 用户校验地址
-      en: VOS User Check URL
-    description:
-      zh-CN: App 容器访问 VOS backend 的 `/v1000/user/check` 地址。默认适配 VOS backend 使用 host 网络且 `SITE_PORT=8105` 的安装方式；如果平台端口或网络不同，请修改。
-      en: "`/v1000/user/check` URL reachable from the app container. The default matches VOS backend on host network with `SITE_PORT=8105`; change it when the platform port or network differs."
-    default: http://172.17.0.1:8105/v1000/user/check
-  - name: OLLAMA_QA_MODEL
-    type: string
-    title:
-      zh-CN: QA/VLM 模型
-      en: QA/VLM Model
-    description:
-      zh-CN: Model Hub QA Ollama 服务中已预热并常驻的聊天和图片理解模型名。
-      en: Chat and vision model prewarmed and kept resident by the Model Hub QA Ollama service.
-    default: qwen3.5:2b
-  - name: OLLAMA_EMBEDDING_MODEL
-    type: string
-    title:
-      zh-CN: Embedding 模型
-      en: Embedding Model
-    description:
-      zh-CN: Model Hub embedding Ollama 服务中已预热并常驻的多语言 embedding 模型名。
-      en: Multilingual embedding model prewarmed and kept resident by the Model Hub embedding Ollama service.
-    default: bge-m3
-  - name: MODEL_HUB_OLLAMA_QA_API_URL
-    type: string
-    title:
-      zh-CN: Model Hub QA API
-      en: Model Hub QA API
-    description:
-      zh-CN: HybRAG 兼容本地 Ollama 状态检查时使用的原生 Ollama API 地址。默认指向 Model Hub QA Ollama 服务。
-      en: Native Ollama API used for local-Ollama compatibility and status checks. Defaults to the Model Hub QA Ollama service.
-    default: http://model-hub-ollama-qa:11434
-  - name: MODEL_HUB_OLLAMA_QA_GATEWAY_URL
-    type: string
-    title:
-      zh-CN: Model Hub QA Gateway
-      en: Model Hub QA Gateway
-    description:
-      zh-CN: HybRAG 默认 QA/VLM 模型行使用的 OpenAI-compatible 地址。默认指向 Model Hub 预热并常驻的 QA Ollama Gateway；应使用 11535/v1，这样请求会被 Model Hub 统计。
-      en: OpenAI-compatible endpoint for the default QA/VLM model rows. Defaults to Model Hub's prewarmed QA Ollama Gateway; use 11535/v1 so Model Hub can collect slot and token metrics.
-    default: http://model-hub-ollama-qa:11535/v1
-  - name: MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL
-    type: string
-    title:
-      zh-CN: Model Hub Embedding Gateway
-      en: Model Hub Embedding Gateway
-    description:
-      zh-CN: HybRAG 默认 embedding 模型行使用的 OpenAI-compatible 地址。默认指向 Model Hub 预热并常驻的 embedding Ollama Gateway；应使用 11535/v1，这样请求会被 Model Hub 统计。
-      en: OpenAI-compatible endpoint for the default embedding model row. Defaults to Model Hub's prewarmed embedding Ollama Gateway; use 11535/v1 so Model Hub can collect slot and token metrics.
-    default: http://model-hub-ollama-embedding:11535/v1
-  - name: HYBRAG_DEFAULT_BUILTIN_MODELS
-    type: boolean
-    title:
-      zh-CN: 自动创建 HybRAG 默认模型
-      en: Create HybRAG Default Models
-    description:
-      zh-CN: >-
-        启动 App 容器时生成三条 YAML 托管模型行：QA、VLM 和 embedding。默认开启，endpoint 指向 Model Hub 的两个预热 Ollama Gateway。
-      en: >-
-        Generate three YAML-managed model rows at app startup: QA, VLM, and
-        embedding. Enabled by default; endpoints point to Model Hub's two
-        prewarmed Ollama gateways.
-    default: true
-  - name: HYBRAG_BUILTIN_MODELS_YAML
-    type: string
-    title:
-      zh-CN: 自定义默认模型 YAML
-      en: Custom Built-in Models YAML
-    description:
-      zh-CN: >-
-        高级选项。留空时使用 HybRAG 默认三模型配置；填写后会覆盖默认生成内容。必须是完整
-        `builtin_models:` YAML，并可引用 `${OLLAMA_QA_MODEL}`、`${OLLAMA_EMBEDDING_MODEL}`、`${MODEL_HUB_OLLAMA_QA_GATEWAY_URL}`、`${MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL}` 等环境变量。
-      en: >-
-        Advanced option. Leave empty to use HybRAG's default three-model config;
-        when set, it overrides the generated default. Must be full
-        `builtin_models:` YAML and may reference environment variables such as
-        `${OLLAMA_QA_MODEL}`, `${OLLAMA_EMBEDDING_MODEL}`, and Model Hub gateway
-        variables.
-    default: ""
-  - name: WEKNORA_CHAT_RESERVED_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: 聊天预留并发
-      en: Chat Reserved Concurrency
-    description:
-      zh-CN: 为在线聊天预留的主模型槽位，后台 Graph/Wiki/VLM/摘要任务不会占满所有 QA/VLM 并发。
-      en: Main-model slots reserved for interactive chat.
-    default: 2
-    minimum: 1
-    maximum: 16
-  - name: WEKNORA_MAIN_QA_MODEL_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: QA/VLM 总槽位
-      en: QA/VLM Total Slots
-    description:
-      zh-CN: 应用侧认为 QA/VLM 模型服务可承载的总槽位。非 thor profile 默认 8，其中 2 个留给在线聊天，后台任务共享 6 个。
-      en: App-side total capacity for the QA/VLM model backend. Non-thor profiles default to 8, with 2 reserved for chat and 6 shared by background tasks.
-    default: 8
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_MODEL_MAX_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: 后台模型共享槽位
-      en: Background Model Slots
-    description:
-      zh-CN: 同一模型 endpoint 的后台 Chat/VLM/Graph/Wiki/摘要任务共享上限。非 thor profile 默认 6。
-      en: Shared background cap for one model endpoint across Chat, VLM, Graph, Wiki, and summary tasks. Non-thor profiles default to 6.
-    default: 6
-    minimum: 0
-    maximum: 32
-  - name: CONCURRENCY_POOL_SIZE
-    type: integer
-    title:
-      zh-CN: 文档 Embedding 后台槽位
-      en: Document Embedding Slots
-    description:
-      zh-CN: 应用侧文档 embedding 并发。Embedding Ollama 总槽位默认为 4，本项默认 2，另外 2 个留给聊天检索。
-      en: App-side document embedding concurrency. Embedding Ollama defaults to 4 total slots; this defaults to 2 so 2 slots remain for chat retrieval.
-    default: 2
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_CHAT_MODEL_CONTEXT_TOKENS
-    type: integer
-    title:
-      zh-CN: QA 上下文总窗口
-      en: QA Context Window
-    description:
-      zh-CN: 应用侧用于裁剪 RAG/工具上下文的 QA 总上下文。非 thor profile 默认 24000。
-      en: App-side QA context window used to trim RAG/tool context. Non-thor profiles default to 24000.
-    default: 24000
-    minimum: 1024
-    maximum: 131072
-  - name: WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS
-    type: integer
-    title:
-      zh-CN: QA 上下文安全余量
-      en: QA Context Safety Tokens
-    description:
-      zh-CN: 从总上下文中额外预留的安全 token。默认 0，使 24000 总窗口按 16000 输入和 8000 输出预算分配。
-      en: Extra safety tokens reserved from the total context. Default 0 so a 24000 window maps to about 16000 input plus 8000 output.
-    default: 0
-    minimum: 0
-    maximum: 8192
-  - name: WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS
-    type: integer
-    title:
-      zh-CN: 智能体最终输出上限
-      en: Agent Final Answer Max Tokens
-    description:
-      zh-CN: 智能体最终答案最大输出 token。非 thor profile 默认 8000。
-      en: Max output tokens for agent final answers. Non-thor profiles default to 8000.
-    default: 8000
-    minimum: 512
-    maximum: 32768
-  - name: WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS
-    type: integer
-    title:
-      zh-CN: 普通问答输出上限
-      en: Conversation Max Completion Tokens
-    description:
-      zh-CN: 普通知识库问答和会话摘要的最大输出 token。非 thor profile 默认 8000。
-      en: Max output tokens for regular knowledge-base chat and conversation summaries. Non-thor profiles default to 8000.
-    default: 8000
-    minimum: 512
-    maximum: 32768
-  - name: BATCH_EMBED_SIZE
-    type: integer
-    title:
-      zh-CN: Embedding 批量大小
-      en: Embedding Batch Size
-    description:
-      zh-CN: 文档 embedding 批量大小。普通 profile 默认 4；显存紧张时可降低。
-      en: Batch size for document embedding. Non-thor profiles default to 4; lower it when memory is constrained.
-    default: 4
-    minimum: 1
-    maximum: 64
-  - name: WEKNORA_ASYNQ_CORE_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: 核心任务 Worker
-      en: Core Worker Concurrency
-    description:
-      zh-CN: 核心异步任务 worker 并发。上游要求除 shared 外的池至少为 1。
-      en: Core async worker concurrency. Upstream requires pools other than shared to be at least 1.
-    default: 1
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: 后处理 Worker
-      en: Postprocess Worker Concurrency
-    description:
-      zh-CN: 文档后处理任务 worker 并发。
-      en: Worker concurrency for postprocess tasks.
-    default: 1
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: 增强任务 Worker
-      en: Enrichment Worker Concurrency
-    description:
-      zh-CN: 实体抽取、问题生成、摘要等增强任务 worker 并发。
-      en: Worker concurrency for enrichment tasks such as entity extraction, question generation, and summaries.
-    default: 1
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: 维护任务 Worker
-      en: Maintenance Worker Concurrency
-    description:
-      zh-CN: 清理、重试、维护类任务 worker 并发。
-      en: Worker concurrency for cleanup, retry, and maintenance tasks.
-    default: 1
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_ASYNQ_SHARED_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: 共享 Worker
-      en: Shared Worker Concurrency
-    description:
-      zh-CN: 弹性共享 worker 池。允许为 0；thor 默认关闭该池。
-      en: Elastic shared worker pool. May be 0; thor disables it by default.
-    default: 1
-    minimum: 0
-    maximum: 32
-  - name: WEKNORA_WIKI_ASYNQ_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: Wiki 任务 Worker
-      en: Wiki Worker Concurrency
-    description:
-      zh-CN: Wiki 生成与图谱相关异步任务 worker 并发。
-      en: Worker concurrency for wiki generation and graph-related async tasks.
-    default: 1
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_GRAPH_LLM_CONCURRENCY
-    type: integer
-    title:
-      zh-CN: Graph LLM 并发
-      en: Graph LLM Concurrency
-    description:
-      zh-CN: GraphRAG 实体关系抽取等图相关 LLM 调用并发。
-      en: LLM concurrency for graph-related work such as entity and relation extraction.
-    default: 1
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_WIKI_INGEST_MAP_PARALLEL
-    type: integer
-    title:
-      zh-CN: Wiki Map 并发
-      en: Wiki Map Parallelism
-    description:
-      zh-CN: Wiki ingest map 阶段并发。
-      en: Parallelism for the wiki ingest map stage.
-    default: 1
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_WIKI_INGEST_REDUCE_PARALLEL
-    type: integer
-    title:
-      zh-CN: Wiki Reduce 并发
-      en: Wiki Reduce Parallelism
-    description:
-      zh-CN: Wiki ingest reduce 阶段并发。
-      en: Parallelism for the wiki ingest reduce stage.
-    default: 1
-    minimum: 1
-    maximum: 32
-  - name: MAX_FILE_SIZE_MB
-    type: integer
-    title:
-      zh-CN: 最大上传文件 MB
-      en: Max Upload File MB
-    description:
-      zh-CN: 前端、App 和 DocReader 共用的单文件大小上限。
-      en: Per-file upload limit shared by frontend, app, and DocReader.
-    default: 500
-    minimum: 1
-    maximum: 10240
-  - name: DOCREADER_ODL_MAX_WORKERS
-    type: integer
-    title:
-      zh-CN: Docling Worker
-      en: Docling Workers
-    description:
-      zh-CN: DocReader 中 Docling/ODL 解析 worker 数。
-      en: Docling/ODL worker count in DocReader.
-    default: 1
-    minimum: 1
-    maximum: 16
-  - name: DOCREADER_MARKITDOWN_MAX_WORKERS
-    type: integer
-    title:
-      zh-CN: MarkItDown Worker
-      en: MarkItDown Workers
-    description:
-      zh-CN: DocReader 中 MarkItDown 解析 worker 数。
-      en: MarkItDown worker count in DocReader.
-    default: 1
-    minimum: 1
-    maximum: 16
-  - name: DOCREADER_PDF_RENDER_MAX_WORKERS
-    type: integer
-    title:
-      zh-CN: PDF 渲染 Worker
-      en: PDF Render Workers
-    description:
-      zh-CN: PDF 页面转图 worker 数，主要影响图片描述/VLM 解析前处理。
-      en: PDF-to-image worker count, mainly affecting VLM parse preprocessing.
-    default: 1
-    minimum: 1
-    maximum: 16
-  - name: DOCREADER_PDF_RENDER_DPI
-    type: integer
-    title:
-      zh-CN: PDF 渲染 DPI
-      en: PDF Render DPI
-    description:
-      zh-CN: PDF 页面转图 DPI。提高会增加解析质量和资源消耗。
-      en: DPI for PDF page rendering. Higher values improve quality but consume more resources.
-    default: 200
-    minimum: 72
-    maximum: 400
-  - name: DOCREADER_PDF_JPEG_QUALITY
-    type: integer
-    title:
-      zh-CN: PDF 图片 JPEG 质量
-      en: PDF JPEG Quality
-    description:
-      zh-CN: PDF 渲染图片的 JPEG 质量。
-      en: JPEG quality for rendered PDF images.
-    default: 90
-    minimum: 30
-    maximum: 100
-  - name: WEKNORA_CHAT_RESERVED_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 聊天预留并发
-      en: Thor Chat Reserved Concurrency
-    description:
-      zh-CN: thor-spark profile 为在线聊天预留的主模型槽位。
-      en: Main-model slots reserved for chat in the thor-spark profile.
-    default: 6
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_MAIN_QA_MODEL_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor QA/VLM 总槽位
-      en: Thor QA/VLM Total Slots
-    description:
-      zh-CN: thor-spark profile 的应用侧 QA/VLM 总槽位。
-      en: App-side QA/VLM total capacity for the thor-spark profile.
-    default: 20
-    minimum: 1
-    maximum: 64
-  - name: WEKNORA_MODEL_MAX_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 后台模型共享槽位
-      en: Thor Background Model Slots
-    description:
-      zh-CN: thor-spark profile 的后台主模型共享槽位。
-      en: Background main-model shared slots for the thor-spark profile.
-    default: 14
-    minimum: 0
-    maximum: 64
-  - name: WEKNORA_GRAPH_LLM_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor Graph LLM 并发
-      en: Thor Graph LLM Concurrency
-    description:
-      zh-CN: thor-spark profile 的 GraphRAG 图相关 LLM 调用并发。
-      en: Graph-related LLM concurrency for the thor-spark profile.
-    default: 2
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_ASYNQ_CORE_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 核心任务 Worker
-      en: Thor Core Worker Concurrency
-    description:
-      zh-CN: thor-spark profile 的核心异步任务 worker 并发。
-      en: Core async worker concurrency for the thor-spark profile.
-    default: 4
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 后处理 Worker
-      en: Thor Postprocess Worker Concurrency
-    description:
-      zh-CN: thor-spark profile 的文档后处理 worker 并发。
-      en: Postprocess worker concurrency for the thor-spark profile.
-    default: 2
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 增强任务 Worker
-      en: Thor Enrichment Worker Concurrency
-    description:
-      zh-CN: thor-spark profile 的实体抽取、问题生成、摘要等增强任务 worker 并发。
-      en: Enrichment worker concurrency for the thor-spark profile.
-    default: 2
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 维护任务 Worker
-      en: Thor Maintenance Worker Concurrency
-    description:
-      zh-CN: thor-spark profile 的维护类任务 worker 并发。
-      en: Maintenance worker concurrency for the thor-spark profile.
-    default: 1
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_ASYNQ_SHARED_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 共享 Worker
-      en: Thor Shared Worker Concurrency
-    description:
-      zh-CN: thor-spark profile 的弹性共享 worker 池。默认 0 表示关闭。
-      en: Shared worker pool for the thor-spark profile. Default 0 disables it.
-    default: 0
-    minimum: 0
-    maximum: 32
-  - name: WEKNORA_WIKI_ASYNQ_CONCURRENCY_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor Wiki 任务 Worker
-      en: Thor Wiki Worker Concurrency
-    description:
-      zh-CN: thor-spark profile 的 Wiki 生成与图谱相关异步任务 worker 并发。
-      en: Wiki and graph async worker concurrency for the thor-spark profile.
-    default: 4
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_WIKI_INGEST_MAP_PARALLEL_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor Wiki Map 并发
-      en: Thor Wiki Map Parallelism
-    description:
-      zh-CN: thor-spark profile 的 Wiki ingest map 阶段并发。
-      en: Wiki ingest map parallelism for the thor-spark profile.
-    default: 4
-    minimum: 1
-    maximum: 32
-  - name: WEKNORA_WIKI_INGEST_REDUCE_PARALLEL_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor Wiki Reduce 并发
-      en: Thor Wiki Reduce Parallelism
-    description:
-      zh-CN: thor-spark profile 的 Wiki ingest reduce 阶段并发。
-      en: Wiki ingest reduce parallelism for the thor-spark profile.
-    default: 4
-    minimum: 1
-    maximum: 32
-  - name: CONCURRENCY_POOL_SIZE_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 文档 Embedding 槽位
-      en: Thor Document Embedding Slots
-    description:
-      zh-CN: thor-spark profile 的应用侧文档 embedding 并发。
-      en: App-side document embedding concurrency for the thor-spark profile.
-    default: 8
-    minimum: 1
-    maximum: 64
-  - name: BATCH_EMBED_SIZE_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor Embedding 批量大小
-      en: Thor Embedding Batch Size
-    description:
-      zh-CN: thor-spark profile 的 embedding 批量大小。
-      en: Embedding batch size for the thor-spark profile.
-    default: 8
-    minimum: 1
-    maximum: 128
-  - name: WEKNORA_CHAT_MODEL_CONTEXT_TOKENS_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor QA 上下文总窗口
-      en: Thor QA Context Window
-    description:
-      zh-CN: thor-spark profile 的应用侧 QA 总上下文。
-      en: App-side QA context window for the thor-spark profile.
-    default: 65536
-    minimum: 1024
-    maximum: 131072
-  - name: WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor QA 上下文安全余量
-      en: Thor QA Context Safety Tokens
-    description:
-      zh-CN: thor-spark profile 从总上下文中额外预留的安全 token。
-      en: Extra safety tokens reserved from the thor-spark QA context window.
-    default: 768
-    minimum: 0
-    maximum: 8192
-  - name: WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 智能体最终输出上限
-      en: Thor Agent Final Answer Max Tokens
-    description:
-      zh-CN: thor-spark profile 的智能体最终答案最大输出 token。
-      en: Agent final-answer output cap for the thor-spark profile.
-    default: 24576
-    minimum: 512
-    maximum: 65536
-  - name: WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS_THOR_SPARK
-    type: integer
-    title:
-      zh-CN: Thor 普通问答输出上限
-      en: Thor Conversation Max Completion Tokens
-    description:
-      zh-CN: thor-spark profile 的普通问答最大输出 token。
-      en: Regular chat output cap for the thor-spark profile.
-    default: 24576
-    minimum: 512
-    maximum: 65536
+- name: HYBRAG_WORKSPACE_PATH
+  type: path
+  title:
+    zh-CN: HybRAG 工作目录
+    en: HybRAG Workspace Path
+  description:
+    zh-CN: HybRAG 独立持久化根目录。默认只作为安装 UI 中的路径约定提示；如需整体迁移目录，请同步调整下方 files/docreader/redis
+      路径。
+    en: Host-side persistence root for HybRAG. This is a UI-level convention; if you
+      move the root, also update the files/docreader/redis paths below.
+  default: /data/vos_workspace/hybrag
+- name: HYBRAG_FILES_PATH
+  type: path
+  title:
+    zh-CN: 文档原文目录
+    en: Uploaded Files Path
+  description:
+    zh-CN: 映射到 App 容器 `/data/files`，保存上传文档、知识库原文和本地存储文件。
+    en: Mounted to `/data/files` in the app container for uploaded documents and local
+      storage files.
+  default: /data/vos_workspace/hybrag/files
+- name: HYBRAG_DOCREADER_PATH
+  type: path
+  title:
+    zh-CN: 文档解析中间文件目录
+    en: DocReader Working Path
+  description:
+    zh-CN: 映射到 DocReader `/tmp/docreader`，并只读挂载给 App，用于 PDF 渲染图片等解析中间产物。
+    en: Mounted to DocReader `/tmp/docreader` and read-only into App for parse intermediates
+      such as rendered PDF images.
+  default: /data/vos_workspace/hybrag/docreader
+- name: HYBRAG_REDIS_PATH
+  type: path
+  title:
+    zh-CN: Redis 数据目录
+    en: Redis Data Path
+  description:
+    zh-CN: 映射到 Redis `/data`，保存 AOF 等 Redis 持久化数据。
+    en: Mounted to Redis `/data` for AOF and Redis persistence.
+  default: /data/vos_workspace/hybrag/redis
+- name: HYBRAG_NEO4J_PATH
+  type: path
+  title:
+    zh-CN: Neo4j 数据目录
+    en: Neo4j Data Path
+  description:
+    zh-CN: 映射到 Neo4j `/data`，保存实体关系 GraphRAG 的图数据库数据。
+    en: Mounted to Neo4j `/data` for entity/relation GraphRAG graph data.
+  default: /data/vos_workspace/hybrag/neo4j
+- name: HYBRAG_DOCKER_SOCKET_PATH
+  type: path
+  title:
+    zh-CN: Docker Socket 路径
+    en: Docker Socket Path
+  description:
+    zh-CN: 映射到 App 容器 `/var/run/docker.sock`，用于 docker sandbox 模式。生产环境应确认该授权边界可接受。
+    en: Mounted to app `/var/run/docker.sock` for docker sandbox mode. Confirm this
+      trust boundary before production use.
+  default: /var/run/docker.sock
+- name: WEKNORA_DB_HOST
+  type: string
+  title:
+    zh-CN: PGV/Postgres 服务地址
+    en: PGV/Postgres Host
+  description:
+    zh-CN: HybRAG 连接的 Postgres 服务名。默认使用 PGV 在 `vos_default` 网络中的稳定别名 `shared-pgv`。
+    en: Postgres service host used by HybRAG. Defaults to PGV's stable `shared-pgv`
+      alias on `vos_default`.
+  default: shared-pgv
+- name: WEKNORA_DB_PORT
+  type: integer
+  title:
+    zh-CN: PGV/Postgres 端口
+    en: PGV/Postgres Port
+  description:
+    zh-CN: 容器网络内的 Postgres 端口。PGV 默认内部端口为 5432，即使宿主机调试端口改成 25432 也不影响这里。
+    en: In-network Postgres port. PGV defaults to container port 5432 even when the
+      host debug port is changed to 25432.
+  default: 5432
+  minimum: 1
+  maximum: 65535
+- name: WEKNORA_DB_USER
+  type: string
+  title:
+    zh-CN: HybRAG 数据库用户
+    en: HybRAG Database User
+  description:
+    zh-CN: PGV 默认预置的 WeKnora 用户为 `weknora`。如果安装 PGV 时改过用户，请在这里同步修改。
+    en: PGV precreates `weknora` by default. Change this if PGV was installed with
+      a different user.
+  default: weknora
+- name: WEKNORA_DB_PASSWORD
+  type: string
+  title:
+    zh-CN: HybRAG 数据库密码
+    en: HybRAG Database Password
+  description:
+    zh-CN: PGV 默认预置的 WeKnora 密码为 `weknora`。如果安装 PGV 时改过密码，请在这里同步修改。
+    en: PGV precreates password `weknora` by default. Change this if PGV was installed
+      with a different password.
+  default: weknora
+- name: WEKNORA_DB_NAME
+  type: string
+  title:
+    zh-CN: HybRAG 数据库名
+    en: HybRAG Database Name
+  description:
+    zh-CN: PGV 默认预置的 WeKnora 数据库为 `WeKnora`。如果安装 PGV 时改过数据库名，请在这里同步修改。
+    en: PGV precreates database `WeKnora` by default. Change this if PGV was installed
+      with a different database name.
+  default: WeKnora
+- name: ENABLE_GRAPH_RAG
+  type: boolean
+  title:
+    zh-CN: 启用实体关系 GraphRAG
+    en: Enable Entity GraphRAG
+  description:
+    zh-CN: 控制知识库图谱中的实体-关系抽取功能。关闭后新建知识库会提示知识图谱数据库未启用。
+    en: Enables entity/relation extraction for knowledge graph indexing. If disabled,
+      new knowledge bases report that the graph database is unavailable.
+  default: true
+- name: NEO4J_ENABLE
+  type: boolean
+  title:
+    zh-CN: 启用 Neo4j
+    en: Enable Neo4j
+  description:
+    zh-CN: 控制 App 是否连接 Neo4j。VOS 包会随应用启动独立的 `hybrag-neo4j` 服务。
+    en: Controls whether the app connects to Neo4j. The VOS package starts an app-local
+      `hybrag-neo4j` service.
+  default: true
+- name: NEO4J_URI
+  type: string
+  title:
+    zh-CN: Neo4j Bolt 地址
+    en: Neo4j Bolt URI
+  description:
+    zh-CN: App 容器内访问 Neo4j 的 Bolt 地址。使用内置 Neo4j 时保持默认值。
+    en: Bolt URI reachable from the app container. Keep the default when using the
+      bundled Neo4j service.
+  default: bolt://hybrag-neo4j:7687
+- name: NEO4J_USERNAME
+  type: string
+  title:
+    zh-CN: Neo4j 用户名
+    en: Neo4j Username
+  description:
+    zh-CN: Neo4j 管理员用户名。Neo4j 官方镜像默认用户为 `neo4j`。
+    en: Neo4j admin username. The official Neo4j image defaults to `neo4j`.
+  default: neo4j
+- name: NEO4J_PASSWORD
+  type: string
+  title:
+    zh-CN: Neo4j 密码
+    en: Neo4j Password
+  description:
+    zh-CN: Neo4j 初始密码，至少 8 个字符。首次安装后不要随意改动，除非同步迁移 Neo4j 数据或重置密码。
+    en: Initial Neo4j password, at least 8 characters. Do not change it after first
+      install unless you also migrate data or reset the database password.
+  default: hybrag-neo4j
+- name: NEO4J_HTTP_PORT
+  type: integer
+  title:
+    zh-CN: Neo4j 浏览器端口
+    en: Neo4j Browser Port
+  description:
+    zh-CN: 宿主机访问 Neo4j Browser 的端口，默认避开 7474。
+    en: Host port for Neo4j Browser, avoiding the default 7474.
+  default: 27474
+  minimum: 1
+  maximum: 65535
+- name: NEO4J_BOLT_PORT
+  type: integer
+  title:
+    zh-CN: Neo4j Bolt 外部端口
+    en: Neo4j Bolt Host Port
+  description:
+    zh-CN: 宿主机访问 Neo4j Bolt 的端口，默认避开 7687。App 容器内部仍使用 `hybrag-neo4j:7687`。
+    en: Host port for Neo4j Bolt, avoiding the default 7687. The app container still
+      uses `hybrag-neo4j:7687` internally.
+  default: 27687
+  minimum: 1
+  maximum: 65535
+- name: HYBRAG_VOS_SSO_ENABLED
+  type: boolean
+  title:
+    zh-CN: 启用 VOS 免登录
+    en: Enable VOS SSO
+  description:
+    zh-CN: 临时 VOS 同源 iframe SSO。HybRAG 前端从 VOS 当前会话读取 access token，后端调用 VOS user/check
+      校验后自动创建 `username@local` 用户和空间。以后 VOS 支持标准 OIDC 或 iframe 注入用户信息时，可关闭或替换该适配。
+    en: Transitional same-origin VOS iframe SSO. HybRAG reads the current VOS access
+      token, verifies it through VOS user/check, then provisions `username@local`.
+      Disable or replace this adapter when VOS provides standard OIDC or iframe user
+      injection.
+  default: true
+- name: HYBRAG_VOS_USERINFO_URL
+  type: string
+  title:
+    zh-CN: VOS 用户校验地址
+    en: VOS User Check URL
+  description:
+    zh-CN: App 容器访问 VOS backend 的 `/v1000/user/check` 地址。默认适配 VOS backend 使用 host
+      网络且 `SITE_PORT=8105` 的安装方式；如果平台端口或网络不同，请修改。
+    en: '`/v1000/user/check` URL reachable from the app container. The default matches
+      VOS backend on host network with `SITE_PORT=8105`; change it when the platform
+      port or network differs.'
+  default: http://172.17.0.1:8105/v1000/user/check
+- name: WEKNORA_CHAT_RESERVED_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: 聊天预留并发
+    en: Chat Reserved Concurrency
+  description:
+    zh-CN: 为在线聊天预留的主模型槽位，后台 Graph/Wiki/VLM/摘要任务不会占满所有 QA/VLM 并发。
+    en: Main-model slots reserved for interactive chat.
+  default: 2
+  minimum: 1
+  maximum: 16
+- name: WEKNORA_MAIN_QA_MODEL_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: QA/VLM 总槽位
+    en: QA/VLM Total Slots
+  description:
+    zh-CN: 应用侧认为 QA/VLM 模型服务可承载的总槽位。默认 8，其中 2 个留给在线聊天，后台任务共享 6 个。
+    en: App-side total capacity for the QA/VLM model backend. Defaults to 8, with
+      2 reserved for chat and 6 shared by background tasks.
+  default: 8
+  minimum: 1
+  maximum: 32
+- name: WEKNORA_MODEL_MAX_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: 后台模型共享槽位
+    en: Background Model Slots
+  description:
+    zh-CN: 同一模型 endpoint 的后台 Chat/VLM/Graph/Wiki/摘要任务共享上限。默认 6。
+    en: Shared background cap for one model endpoint across Chat, VLM, Graph, Wiki,
+      and summary tasks. Defaults to 6.
+  default: 6
+  minimum: 0
+  maximum: 32
+- name: CONCURRENCY_POOL_SIZE
+  type: integer
+  title:
+    zh-CN: 文档 Embedding 后台槽位
+    en: Document Embedding Slots
+  description:
+    zh-CN: 应用侧文档 embedding 并发。Embedding Ollama 总槽位默认为 4，本项默认 2，另外 2 个留给聊天检索。
+    en: App-side document embedding concurrency. Embedding Ollama defaults to 4 total
+      slots; this defaults to 2 so 2 slots remain for chat retrieval.
+  default: 2
+  minimum: 1
+  maximum: 32
+- name: WEKNORA_CHAT_MODEL_CONTEXT_TOKENS
+  type: integer
+  title:
+    zh-CN: QA 上下文总窗口
+    en: QA Context Window
+  description:
+    zh-CN: 应用侧用于裁剪 RAG/工具上下文的 QA 总上下文。默认 24000。
+    en: App-side QA context window used to trim RAG/tool context. Defaults to 24000.
+  default: 24000
+  minimum: 1024
+  maximum: 131072
+- name: WEKNORA_CHAT_CONTEXT_SAFETY_TOKENS
+  type: integer
+  title:
+    zh-CN: QA 上下文安全余量
+    en: QA Context Safety Tokens
+  description:
+    zh-CN: 从总上下文中额外预留的安全 token。默认 0，使 24000 总窗口按 16000 输入和 8000 输出预算分配。
+    en: Extra safety tokens reserved from the total context. Default 0 so a 24000
+      window maps to about 16000 input plus 8000 output.
+  default: 0
+  minimum: 0
+  maximum: 8192
+- name: WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS
+  type: integer
+  title:
+    zh-CN: 智能体最终输出上限
+    en: Agent Final Answer Max Tokens
+  description:
+    zh-CN: 智能体最终答案最大输出 token。默认 8000。
+    en: Max output tokens for agent final answers. Defaults to 8000.
+  default: 8000
+  minimum: 512
+  maximum: 32768
+- name: WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS
+  type: integer
+  title:
+    zh-CN: 普通问答输出上限
+    en: Conversation Max Completion Tokens
+  description:
+    zh-CN: 普通知识库问答和会话摘要的最大输出 token。默认 8000。
+    en: Max output tokens for regular knowledge-base chat and conversation summaries.
+      Defaults to 8000.
+  default: 8000
+  minimum: 512
+  maximum: 32768
+- name: BATCH_EMBED_SIZE
+  type: integer
+  title:
+    zh-CN: Embedding 批量大小
+    en: Embedding Batch Size
+  description:
+    zh-CN: 文档 embedding 批量大小。普通 profile 默认 4；显存紧张时可降低。
+    en: Batch size for document embedding. Defaults to 4; lower it when memory is
+      constrained.
+  default: 4
+  minimum: 1
+  maximum: 64
+- name: WEKNORA_ASYNQ_CORE_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: 核心任务 Worker
+    en: Core Worker Concurrency
+  description:
+    zh-CN: 核心异步任务 worker 并发。上游要求除 shared 外的池至少为 1。
+    en: Core async worker concurrency. Upstream requires pools other than shared to
+      be at least 1.
+  default: 1
+  minimum: 1
+  maximum: 32
+- name: WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: 后处理 Worker
+    en: Postprocess Worker Concurrency
+  description:
+    zh-CN: 文档后处理任务 worker 并发。
+    en: Worker concurrency for postprocess tasks.
+  default: 1
+  minimum: 1
+  maximum: 32
+- name: WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: 增强任务 Worker
+    en: Enrichment Worker Concurrency
+  description:
+    zh-CN: 实体抽取、问题生成、摘要等增强任务 worker 并发。
+    en: Worker concurrency for enrichment tasks such as entity extraction, question
+      generation, and summaries.
+  default: 1
+  minimum: 1
+  maximum: 32
+- name: WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: 维护任务 Worker
+    en: Maintenance Worker Concurrency
+  description:
+    zh-CN: 清理、重试、维护类任务 worker 并发。
+    en: Worker concurrency for cleanup, retry, and maintenance tasks.
+  default: 1
+  minimum: 1
+  maximum: 32
+- name: WEKNORA_ASYNQ_SHARED_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: 共享 Worker
+    en: Shared Worker Concurrency
+  description:
+    zh-CN: 弹性共享 worker 池。允许为 0；thor 默认关闭该池。
+    en: Elastic shared worker pool. May be 0; thor disables it by default.
+  default: 1
+  minimum: 0
+  maximum: 32
+- name: WEKNORA_WIKI_ASYNQ_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: Wiki 任务 Worker
+    en: Wiki Worker Concurrency
+  description:
+    zh-CN: Wiki 生成与图谱相关异步任务 worker 并发。
+    en: Worker concurrency for wiki generation and graph-related async tasks.
+  default: 1
+  minimum: 1
+  maximum: 32
+- name: WEKNORA_GRAPH_LLM_CONCURRENCY
+  type: integer
+  title:
+    zh-CN: Graph LLM 并发
+    en: Graph LLM Concurrency
+  description:
+    zh-CN: GraphRAG 实体关系抽取等图相关 LLM 调用并发。
+    en: LLM concurrency for graph-related work such as entity and relation extraction.
+  default: 1
+  minimum: 1
+  maximum: 32
+- name: WEKNORA_WIKI_INGEST_MAP_PARALLEL
+  type: integer
+  title:
+    zh-CN: Wiki Map 并发
+    en: Wiki Map Parallelism
+  description:
+    zh-CN: Wiki ingest map 阶段并发。
+    en: Parallelism for the wiki ingest map stage.
+  default: 1
+  minimum: 1
+  maximum: 32
+- name: WEKNORA_WIKI_INGEST_REDUCE_PARALLEL
+  type: integer
+  title:
+    zh-CN: Wiki Reduce 并发
+    en: Wiki Reduce Parallelism
+  description:
+    zh-CN: Wiki ingest reduce 阶段并发。
+    en: Parallelism for the wiki ingest reduce stage.
+  default: 1
+  minimum: 1
+  maximum: 32
+- name: MAX_FILE_SIZE_MB
+  type: integer
+  title:
+    zh-CN: 最大上传文件 MB
+    en: Max Upload File MB
+  description:
+    zh-CN: 前端、App 和 DocReader 共用的单文件大小上限。
+    en: Per-file upload limit shared by frontend, app, and DocReader.
+  default: 500
+  minimum: 1
+  maximum: 10240
+- name: DOCREADER_ODL_MAX_WORKERS
+  type: integer
+  title:
+    zh-CN: Docling Worker
+    en: Docling Workers
+  description:
+    zh-CN: DocReader 中 Docling/ODL 解析 worker 数。
+    en: Docling/ODL worker count in DocReader.
+  default: 1
+  minimum: 1
+  maximum: 16
+- name: DOCREADER_MARKITDOWN_MAX_WORKERS
+  type: integer
+  title:
+    zh-CN: MarkItDown Worker
+    en: MarkItDown Workers
+  description:
+    zh-CN: DocReader 中 MarkItDown 解析 worker 数。
+    en: MarkItDown worker count in DocReader.
+  default: 1
+  minimum: 1
+  maximum: 16
+- name: DOCREADER_PDF_RENDER_MAX_WORKERS
+  type: integer
+  title:
+    zh-CN: PDF 渲染 Worker
+    en: PDF Render Workers
+  description:
+    zh-CN: PDF 页面转图 worker 数，主要影响图片描述/VLM 解析前处理。
+    en: PDF-to-image worker count, mainly affecting VLM parse preprocessing.
+  default: 1
+  minimum: 1
+  maximum: 16
+- name: DOCREADER_PDF_RENDER_DPI
+  type: integer
+  title:
+    zh-CN: PDF 渲染 DPI
+    en: PDF Render DPI
+  description:
+    zh-CN: PDF 页面转图 DPI。提高会增加解析质量和资源消耗。
+    en: DPI for PDF page rendering. Higher values improve quality but consume more
+      resources.
+  default: 200
+  minimum: 72
+  maximum: 400
+- name: DOCREADER_PDF_JPEG_QUALITY
+  type: integer
+  title:
+    zh-CN: PDF 图片 JPEG 质量
+    en: PDF JPEG Quality
+  description:
+    zh-CN: PDF 渲染图片的 JPEG 质量。
+    en: JPEG quality for rendered PDF images.
+  default: 90
+  minimum: 30
+  maximum: 100

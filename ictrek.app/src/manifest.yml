@@ -4,79 +4,49 @@ name:
   en: HybRAG
 description:
   zh-CN: 企业知识库、RAG 问答、Wiki 知识图谱与智能体平台，默认复用 Model Hub 预热的 QA、图片理解和 embedding 后端。
-  en: Enterprise knowledge-base, RAG, Wiki graph, and agent platform using Model Hub prewarmed QA, vision, and embedding backends by default.
+  en: Enterprise knowledge-base, RAG, Wiki graph, and agent platform using Model Hub
+    prewarmed QA, vision, and embedding backends by default.
 version: __APP_VERSION__
 author: ictrek
-category: [ai]
-arch: [amd64, arm64]
-
+category:
+- ai
+arch:
+- amd64
+- arm64
 platform:
-  version: ">=3.0.0"
-
+  version: '>=3.0.0'
 dependencies:
   apps:
-    - id: com.ictrek.model-hub
-      version: ">=0.0.27"
-      optional: false
-    - id: com.ictrek.pgv
-      version: ">=0.0.13"
-      optional: false
-
+  - id: com.ictrek.model-hub
+    version: '>=0.0.29'
+    optional: false
+  - id: com.ictrek.pgv
+    version: '>=0.0.13'
+    optional: false
 profiles:
-  - name: amd
-    title:
-      zh-CN: AMD64 CUDA
-      en: AMD64 CUDA
-    description:
-      zh-CN: 使用 AMD_with_cuda 飞书标签页中的 HybRAG 镜像。
-      en: Use HybRAG images from the AMD_with_cuda Feishu sheet.
-    conflicts: [amd-no-cuda, arm, arm-no-cuda, l4t, thor-spark]
-  - name: amd-no-cuda
-    title:
-      zh-CN: AMD64 无 GPU
-      en: AMD64 No CUDA
-    description:
-      zh-CN: 复用 AMD_with_cuda 飞书标签页中的 HybRAG 镜像，适合无 GPU 的 AMD64 机器。
-      en: Reuse HybRAG images from the AMD_with_cuda Feishu sheet for AMD64 hosts without GPU.
-    conflicts: [amd, arm, arm-no-cuda, l4t, thor-spark]
-  - name: arm
-    title:
-      zh-CN: ARM CUDA
-      en: ARM CUDA
-    description:
-      zh-CN: 使用 ARM_with_cuda 飞书标签页中的 HybRAG 镜像。
-      en: Use HybRAG images from the ARM_with_cuda Feishu sheet.
-    conflicts: [amd, amd-no-cuda, arm-no-cuda, l4t, thor-spark]
-  - name: arm-no-cuda
-    title:
-      zh-CN: ARM 无 GPU
-      en: ARM No CUDA
-    description:
-      zh-CN: 复用 ARM_with_cuda 飞书标签页中的 HybRAG 镜像，适合无 GPU 的 ARM64 机器。
-      en: Reuse HybRAG images from the ARM_with_cuda Feishu sheet for ARM64 hosts without GPU.
-    conflicts: [amd, amd-no-cuda, arm, l4t, thor-spark]
-  - name: l4t
-    title:
-      zh-CN: Jetson / L4T
-      en: Jetson / L4T
-    description:
-      zh-CN: 使用 l4t 飞书标签页中的 HybRAG 镜像。
-      en: Use HybRAG images from the l4t Feishu sheet.
-    conflicts: [amd, amd-no-cuda, arm, arm-no-cuda, thor-spark]
-  - name: thor-spark
-    title:
-      zh-CN: Thor Spark
-      en: Thor Spark
-    description:
-      zh-CN: 使用 thor_spark 飞书标签页中的 HybRAG 镜像。
-      en: Use HybRAG images from the thor_spark Feishu sheet.
-    conflicts: [amd, amd-no-cuda, arm, arm-no-cuda, l4t]
-
+- name: amd
+  title:
+    zh-CN: AMD64
+    en: AMD64
+  description:
+    zh-CN: 使用 AMD_with_cuda 飞书标签页中的 HybRAG 镜像。
+    en: Use HybRAG images from the AMD_with_cuda Feishu sheet.
+  conflicts:
+  - arm
+- name: arm
+  title:
+    zh-CN: ARM64
+    en: ARM64
+  description:
+    zh-CN: 使用 ARM_with_cuda 飞书标签页中的 HybRAG 镜像。
+    en: Use HybRAG images from the ARM_with_cuda Feishu sheet.
+  conflicts:
+  - amd
 storage:
   directories:
-    - path: files
-      mode: "0755"
-    - path: docreader
-      mode: "0755"
-    - path: redis
-      mode: "0755"
+  - path: files
+    mode: '0755'
+  - path: docreader
+    mode: '0755'
+  - path: redis
+    mode: '0755'

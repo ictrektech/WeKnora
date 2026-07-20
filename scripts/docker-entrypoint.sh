@@ -62,20 +62,16 @@ PY
     export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
 elif [ "${HYBRAG_DEFAULT_BUILTIN_MODELS:-false}" = "true" ]; then
     mkdir -p "$RUNTIME_CONFIG_DIR"
-    OLLAMA_QA_MODEL="${OLLAMA_QA_MODEL:-qwen3.5:2b}"
-    OLLAMA_EMBEDDING_MODEL="${OLLAMA_EMBEDDING_MODEL:-bge-m3}"
-    MODEL_HUB_OLLAMA_QA_GATEWAY_URL="${MODEL_HUB_OLLAMA_QA_GATEWAY_URL:-http://model-hub-ollama-qa:11535/v1}"
-    MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL="${MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL:-http://model-hub-ollama-embedding:11535/v1}"
     cat > "$RUNTIME_BUILTIN_MODELS_FILE" <<EOF
 builtin_models:
   - id: hybrag-ollama-qwen35-2b-qa
     type: KnowledgeQA
     source: remote
     is_default: true
-    name: ${OLLAMA_QA_MODEL}
+    name: qwen3.5:2b
     display_name: Model Hub Ollama QA (model-hub-ollama-qa)
     parameters:
-      base_url: ${MODEL_HUB_OLLAMA_QA_GATEWAY_URL}
+      base_url: http://model-hub-ollama-qa:11535/v1
       api_key: EMPTY
       provider: generic
       supports_vision: true
@@ -86,10 +82,10 @@ builtin_models:
     type: VLLM
     source: remote
     is_default: true
-    name: ${OLLAMA_QA_MODEL}
+    name: qwen3.5:2b
     display_name: Model Hub Ollama VLM (model-hub-ollama-qa)
     parameters:
-      base_url: ${MODEL_HUB_OLLAMA_QA_GATEWAY_URL}
+      base_url: http://model-hub-ollama-qa:11535/v1
       api_key: EMPTY
       provider: generic
       supports_vision: true
@@ -100,10 +96,10 @@ builtin_models:
     type: Embedding
     source: remote
     is_default: true
-    name: ${OLLAMA_EMBEDDING_MODEL}
+    name: bge-m3
     display_name: Model Hub Ollama Embedding (model-hub-ollama-embedding)
     parameters:
-      base_url: ${MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL}
+      base_url: http://model-hub-ollama-embedding:11535/v1
       api_key: EMPTY
       provider: generic
       embedding_parameters:

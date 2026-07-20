@@ -25,32 +25,27 @@ dist/hybrag_${VERSION}_pull.tar
 
 前端镜像还必须能在 VOS 子路径 `/app/com.ictrek.hybrag/` 下运行。HybRAG 前端构建使用相对静态资源路径，并在运行时按当前 URL 注入 base；API 请求、Vue Router history 和登录跳转都会复用同一个 base。这样同一个 `weknora-ui` 镜像既能在普通根路径部署，也能被 VOS iframe 作为 `/app/com.ictrek.hybrag/` 页面打开。若以后修改 `frontend/index.html`、`frontend/embed.html`、`frontend/vite.config.ts` 或 `frontend/src/utils/app-base.ts`，需要在 VOS 实机中验证 `/app/com.ictrek.hybrag/` 下的 `assets`、`config.js`、`tdesign-icons` 和 `/api/v1/auth/vos-sso` 均不再落到 VOS 根路径 404。
 
-脚本还会解析 `manifest.yml`、`configs.yml`、`routers.yml` 和 `docker-compose.yml`，防止生成 YAML 语法错误的安装包。`manifest.yml` 必须声明 VOS 安装 UI 使用的 `profiles`，profile 名只能使用小写字母、数字和连字符，并且必须与 `docker-compose.yml` 的 compose profile 完全一致；飞书 sheet 名只允许出现在打包脚本的映射关系中。如果运行环境有 Docker Compose，会额外对 `amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`l4t`、`thor-spark` 六个 profile 执行 `docker compose config`，提前发现未展开镜像变量、profile 服务缺失或 compose 语法问题。
+脚本还会解析 `manifest.yml`、`configs.yml`、`routers.yml` 和 `docker-compose.yml`，防止生成 YAML 语法错误的安装包。`manifest.yml` 必须声明 VOS 安装 UI 使用的 `profiles`，profile 名只能使用小写字母、数字和连字符，并且必须与 `docker-compose.yml` 的 compose profile 完全一致；飞书 sheet 名只允许出现在打包脚本的映射关系中。如果运行环境有 Docker Compose，会额外对 `amd`、`arm` 两个 profile 执行 `docker compose config`，提前发现未展开镜像变量、profile 服务缺失或 compose 语法问题。
 
 ## Profiles
 
-profile 按 Model Hub/Ollama 运行环境的发布维度设置。HybRAG 自身 AMD 有无 CUDA 通用，ARM 有无 CUDA 通用，因此 `amd-no-cuda` 复用 `AMD_with_cuda` 表、`arm-no-cuda` 复用 `ARM_with_cuda` 表；L4T 和 Thor Spark 单独查表。本应用发布 6 个 profile。
+HybRAG 自身不再启动 Ollama，Model Hub 负责 GPU/无 GPU、L4T、Thor 等运行时差异，因此本应用只发布 2 个 profile。
 
 | profile | 飞书 sheet | 说明 |
 | --- | --- | --- |
 | `amd` | `AMD_with_cuda` | x86_64 / AMD 通用 HybRAG |
-| `amd-no-cuda` | `AMD_with_cuda` | x86_64 / AMD 无 GPU，复用 AMD 镜像版本 |
 | `arm` | `ARM_with_cuda` | ARM 通用 HybRAG |
-| `arm-no-cuda` | `ARM_with_cuda` | ARM64 无 GPU，复用 ARM 镜像版本 |
-| `l4t` | `l4t` | Jetson / L4T |
-| `thor-spark` | `thor_spark` | Thor Spark |
 
 安装时由 VOS 指定其中一个 profile。手动检查 compose 时也必须只启用一个 profile：
 
 ```bash
 docker compose --profile amd config
-docker compose --profile amd-no-cuda config
-docker compose --profile l4t config
+docker compose --profile arm config
 ```
 
 ## 资源默认值
 
-默认模型引用 Model Hub 的两个预热 Ollama 运行时：QA/VLM 模型为 `qwen3.5:2b`，embedding 模型为 `bge-m3`。普通 profile（`amd`、`amd-no-cuda`、`arm`、`arm-no-cuda`、`l4t`）默认按 Model Hub 分离运行时配置：
+默认模型引用 Model Hub 的两个预热 Ollama 运行时：QA/VLM 模型为 `qwen3.5:2b`，embedding 模型为 `bge-m3`。HybRAG 默认按 Model Hub 分离运行时配置：
 
 | 资源项 | 默认值 | 含义 |
 | --- | ---: | --- |
@@ -62,11 +57,9 @@ docker compose --profile l4t config
 | Model Hub Embedding 总槽位 | `4` | 由 Model Hub embedding Ollama 提供；HybRAG 文档 embedding 默认只使用 2 个。 |
 | 文档 embedding 槽位 | `2` | `CONCURRENCY_POOL_SIZE=2`，另外约 `2` 个槽位留给聊天检索。 |
 
-`thor-spark` profile 按 LexAI thor 资源策略给更高默认值：QA/VLM 总槽位 `20`、聊天预留 `6`、后台主模型共享 `14`、QA 上下文 `65536`、输出预算 `24576`、embedding 服务总槽位 `16`、文档 embedding 槽位 `8`，worker 池为 `core/postprocess/enrichment/maintenance/shared/wiki = 4/2/2/1/0/4`。其中 shared 为 `0` 表示关闭弹性借用；其他 worker 池仍必须是正整数。
-
 ## 依赖和模型
 
-`manifest.yml` 声明依赖 `com.ictrek.model-hub >=0.0.27` 和 `com.ictrek.pgv`，但 `docker-compose.yml` 不启动 model_hub 或 Postgres 服务。`0.0.27` 起 Model Hub 提供独立的 QA 与 embedding Ollama 预热运行时。HybRAG 包内只启动自身服务、Redis 和 Neo4j；Postgres 通过 PGV 在 `vos_default` 网络上的 `shared-pgv:5432` 访问，模型调用通过 Model Hub 暴露的两个 gateway。
+`manifest.yml` 声明依赖 `com.ictrek.model-hub >=0.0.29` 和 `com.ictrek.pgv`，但 `docker-compose.yml` 不启动 model_hub 或 Postgres 服务。`0.0.29` 起 Model Hub 提供独立的 QA 与 embedding Ollama 预热运行时。HybRAG 包内只启动自身服务、Redis 和 Neo4j；Postgres 通过 PGV 在 `vos_default` 网络上的 `shared-pgv:5432` 访问，模型调用通过 Model Hub 暴露的两个 gateway。
 
 PGV 文档中默认预置给 WeKnora/HybRAG 使用的连接信息是：
 
@@ -87,11 +80,11 @@ HybRAG 不再启动自己的 Ollama 容器，也不再挂载 Model Hub 模型目
 | QA / VLM | `model-hub-ollama-qa` | `http://model-hub-ollama-qa:11535/v1` | `qwen3.5:2b` |
 | Embedding | `model-hub-ollama-embedding` | `http://model-hub-ollama-embedding:11535/v1` | `bge-m3` |
 
-模型下载、预热、常驻、上下文和 Ollama 并发由 Model Hub 安装配置负责。HybRAG 安装 UI 只配置要引用的模型名和 gateway 地址；如果 Model Hub 修改了服务名或端口，需要同步修改 `MODEL_HUB_OLLAMA_QA_GATEWAY_URL`、`MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL` 和 `OLLAMA_BASE_URL`。
+模型下载、预热、常驻、上下文和 Ollama 并发由 Model Hub 安装配置负责。HybRAG 安装 UI 不再暴露 Ollama 模型名和 gateway 地址；如果 Model Hub 修改了服务名或端口，需要同步修改 HybRAG 包模板或运行后在 UI 中手动调整模型行。
 
 HybRAG 默认模型行必须指向 Model Hub Ollama Gateway，也就是 `http://<ollama-service>:11535/v1`。不要把 QA、VLM 或 embedding 模型行配到原生 Ollama `11434`，否则请求不会经过 Gateway，Model Hub 看不到槽位、阶段、token/s 等统计信息。`OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434` 只用于兼容本地 Ollama 状态检查，不作为默认模型调用地址。
 
-VOS 安装包不会放额外 `config/` 目录。默认安装时 `HYBRAG_DEFAULT_BUILTIN_MODELS=true`，App 容器启动脚本会在运行时生成 `builtin_models.yaml`，自动创建三条 YAML 托管模型行，并在界面里用 `display_name` 区分两个 Ollama 后端：
+VOS 安装包不会放额外 `config/` 目录。App 容器启动脚本会在运行时生成 `builtin_models.yaml`，自动创建三条 YAML 托管模型行，并在界面里用 `display_name` 区分两个 Ollama 后端：
 
 | 类型 | display_name | endpoint |
 | --- | --- | --- |
@@ -99,7 +92,7 @@ VOS 安装包不会放额外 `config/` 目录。默认安装时 `HYBRAG_DEFAULT_
 | VLLM | `Model Hub Ollama VLM (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11535/v1` |
 | Embedding | `Model Hub Ollama Embedding (model-hub-ollama-embedding)` | `http://model-hub-ollama-embedding:11535/v1` |
 
-这些模型行不写在镜像里，也不随 VOS 包以目录形式挂载；当前 VOS parser 只接受固定顶层文件，包内不要加入 `config/`。`name` 仍从安装 UI 的 `OLLAMA_QA_MODEL` / `OLLAMA_EMBEDDING_MODEL` 展开，默认分别是 `qwen3.5:2b` 和 `bge-m3`；endpoint 默认从 `MODEL_HUB_OLLAMA_QA_GATEWAY_URL` / `MODEL_HUB_OLLAMA_EMBEDDING_GATEWAY_URL` 展开。如需完全自定义，可在安装 UI 的 `HYBRAG_BUILTIN_MODELS_YAML` 填写完整 `builtin_models:` YAML。运行后也可以在 HybRAG UI 中添加或修改其他模型；如果管理员手动接管某条 YAML 模型行，需要清空该行的 `managed_by`，否则后续安装包升级会按 YAML 继续同步。
+这些模型行不写在镜像里，也不随 VOS 包以目录形式挂载；当前 VOS parser 只接受固定顶层文件，包内不要加入 `config/`。`name` 固定为 `qwen3.5:2b` 和 `bge-m3`，endpoint 固定指向 Model Hub Gateway。运行后也可以在 HybRAG UI 中添加或修改其他模型；如果管理员手动接管某条 YAML 模型行，需要清空该行的 `managed_by`，否则后续安装包升级会按 YAML 继续同步。
 
 Ollama Qwen3.5 关闭思考使用 `extra_config.thinking_control=think`，请求会发送顶层 `think:false`。vLLM / generic Qwen3.5 后端关闭思考使用 `extra_config.thinking_control=chat_template_kwargs`，请求会发送 `chat_template_kwargs.enable_thinking=false`。两者不要混用。
 

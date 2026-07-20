@@ -642,6 +642,22 @@ const tryVOSSSOLogin = async () => {
   }
 }
 
+const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms))
+
+const tryVOSSSOLoginWithRetry = async () => {
+  if (!getVOSAccessTokenForIframeSSO()) return false
+  loading.value = true
+  try {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (await tryVOSSSOLogin()) return true
+      await sleep(attempt < 5 ? 1000 : 2000)
+    }
+  } finally {
+    loading.value = false
+  }
+  return false
+}
+
 // Handle login
 const handleLogin = async () => {
   try {
@@ -769,7 +785,7 @@ onMounted(async () => {
     return
   }
 
-  if (await tryVOSSSOLogin()) {
+  if (await tryVOSSSOLoginWithRetry()) {
     return
   }
 

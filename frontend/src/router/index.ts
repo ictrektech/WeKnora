@@ -22,6 +22,16 @@ function markVOSSSOFailed() {
   sessionStorage.setItem(VOS_SSO_FAILED_KEY, 'true')
 }
 
+function shouldStopVOSSSORetry(response: { message?: string } | null | undefined) {
+  const message = String(response?.message || '').toLowerCase()
+  return (
+    message.includes('unauthorized') ||
+    message.includes('forbidden') ||
+    message.includes('invalid vos') ||
+    message.includes('token')
+  )
+}
+
 function isLiteEdition(authStore: ReturnType<typeof useAuthStore>) {
   return authStore.isLiteMode || localStorage.getItem('weknora_lite_mode') === 'true'
 }
@@ -331,9 +341,13 @@ async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>, forc
       sessionStorage.removeItem(VOS_SSO_FAILED_KEY)
       return true
     }
-    markVOSSSOFailed()
+    if (shouldStopVOSSSORetry(response)) {
+      markVOSSSOFailed()
+    }
   } catch {
-    markVOSSSOFailed()
+    // Startup race: the iframe may load before the HybRAG API is reachable.
+    // Keep retrying on later navigation/login-page attempts instead of
+    // permanently falling back to the password login screen.
   }
   return false
 }
