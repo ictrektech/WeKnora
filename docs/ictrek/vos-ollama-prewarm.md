@@ -14,12 +14,12 @@ Model Hub 应先安装并运行在同一个 `vos_default` 网络中。当前 Hyb
 Model Hub 负责模型下载、预热、常驻、上下文长度和 Ollama 并发。HybRAG 只在默认模型行里引用 OpenAI-compatible gateway。默认模型名和地址由 HybRAG 包模板固定，不再作为安装表单参数暴露：
 
 ```env
-OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434
+OLLAMA_BASE_URL=http://model-hub-ollama-qa:11535
 ```
 
-QA、VLM 和 embedding 模型行必须配置到 `11535/v1` Gateway。不要配置到 Ollama 原生 `11434`，否则 Model Hub 只能看到服务在线，看不到 WeKnora 请求的槽位、阶段和 token/s。
+QA、VLM、embedding 模型行和 `OLLAMA_BASE_URL` 都必须配置到 `11535` Gateway。不要配置到 Ollama 原生 `11434`，否则 Model Hub 只能看到服务在线，看不到 WeKnora 请求的槽位、阶段和 token/s。
 
-`OLLAMA_BASE_URL` 只用于兼容本地 Ollama 类配置和服务状态检查；默认聊天、VLM、embedding 三条模型行都使用 gateway 地址。
+模型行的 `base_url` 使用带 `/v1` 的 gateway 地址；`OLLAMA_BASE_URL` 使用不带 `/v1` 的 gateway 根地址。
 
 ## 启动顺序
 

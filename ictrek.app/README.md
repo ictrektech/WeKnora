@@ -82,7 +82,7 @@ HybRAG 不再启动自己的 Ollama 容器，也不再挂载 Model Hub 模型目
 
 模型下载、预热、常驻、上下文和 Ollama 并发由 Model Hub 安装配置负责。HybRAG 安装 UI 不再暴露 Ollama 模型名和 gateway 地址；如果 Model Hub 修改了服务名或端口，需要同步修改 HybRAG 包模板或运行后在 UI 中手动调整模型行。
 
-HybRAG 默认模型行必须指向 Model Hub Ollama Gateway，也就是 `http://<ollama-service>:11535/v1`。不要把 QA、VLM 或 embedding 模型行配到原生 Ollama `11434`，否则请求不会经过 Gateway，Model Hub 看不到槽位、阶段、token/s 等统计信息。`OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434` 只用于兼容本地 Ollama 状态检查，不作为默认模型调用地址。
+HybRAG 默认模型行必须指向 Model Hub Ollama Gateway，也就是 `http://<ollama-service>:11535/v1`。不要把 QA、VLM、embedding 或 `OLLAMA_BASE_URL` 配到原生 Ollama `11434`，否则请求不会经过 Gateway，Model Hub 看不到槽位、阶段、token/s 等统计信息。VOS 包内默认 `OLLAMA_BASE_URL=http://model-hub-ollama-qa:11535`，模型行默认使用带 `/v1` 的 gateway 地址。
 
 VOS 安装包不会放额外 `config/` 目录。App 容器启动脚本会在运行时生成 `builtin_models.yaml`，自动创建三条 YAML 托管模型行，并在界面里用 `display_name` 区分两个 Ollama 后端：
 
