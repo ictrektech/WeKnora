@@ -105,7 +105,9 @@ mkdir -p data/files data/docreader data/postgres data/redis config
 - 组合成 `<第 2 行仓库地址>:<日期行 tag>`；
 - 写入部署目录 `.env` 的 `WEKNORA_APP_IMAGE`、`WEKNORA_UI_IMAGE`、`WEKNORA_DOCREADER_IMAGE`、`WEKNORA_SANDBOX_DOCKER_IMAGE`。
 
-发布镜像不包含部署专用模型行。VOS HybRAG 安装包通过 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 让 App 容器启动脚本在运行时生成模型配置，自动创建 `HybRAG Ollama QA (hybrag-ollama-qa)`、`HybRAG Ollama VLM (hybrag-ollama-qa)` 和 `HybRAG Ollama Embedding (hybrag-ollama-embedding)` 三条模型行；VOS 包内不要加入额外 `config/` 目录。普通 compose 部署则需要后续在 Web UI 添加，或者由运维人员显式挂载 `config/builtin_models.yaml`。
+发布镜像不包含部署专用模型行。VOS HybRAG 安装包通过 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 让 App 容器启动脚本在运行时生成模型配置，自动创建 `Model Hub Ollama QA (model-hub-ollama-qa)`、`Model Hub Ollama VLM (model-hub-ollama-qa)` 和 `Model Hub Ollama Embedding (model-hub-ollama-embedding)` 三条模型行；VOS 包内不要加入额外 `config/` 目录。普通 compose 部署则需要后续在 Web UI 添加，或者由运维人员显式挂载 `config/builtin_models.yaml`。
+
+如果复用旧数据库，历史安装中已写入的 `hybrag-ollama-qa` / `hybrag-ollama-embedding` 模型地址会继续影响 VLM 和 embedding 调用。当前版本包含迁移，会把这些旧内置模型行修正到 Model Hub 的 `http://model-hub-ollama-qa:11535/v1` 与 `http://model-hub-ollama-embedding:11535/v1`。不要在 VOS HybRAG 中继续使用 `hybrag-ollama-*`，这些服务名已经不存在。
 
 如果目标平台没有可用镜像，先暂停部署，按 [build-images.md](build-images.md) 完成构建、推送和飞书记录后再回来继续。WeKnora app/frontend/docreader/sandbox 镜像本身没有 CUDA 依赖，tag 不应带 CUDA 标记。
 
@@ -847,11 +849,18 @@ If images already exist, prefer the released-image path:
 The released WeKnora images do not include deployment-specific model rows.
 That is intentional. The VOS HybRAG package sets
 `HYBRAG_DEFAULT_BUILTIN_MODELS=true`, so the app entrypoint generates the model
-file at runtime and creates `HybRAG Ollama QA (hybrag-ollama-qa)`,
-`HybRAG Ollama VLM (hybrag-ollama-qa)`, and `HybRAG Ollama Embedding
-(hybrag-ollama-embedding)` rows. Do not add an extra `config/` directory to the
+file at runtime and creates `Model Hub Ollama QA (model-hub-ollama-qa)`,
+`Model Hub Ollama VLM (model-hub-ollama-qa)`, and `Model Hub Ollama Embedding
+(model-hub-ollama-embedding)` rows. Do not add an extra `config/` directory to the
 VOS package. Plain compose deployments should still add models later in the UI,
 or mount an operator-created `config/builtin_models.yaml`.
+
+When reusing an old database, model rows that already contain
+`hybrag-ollama-qa` or `hybrag-ollama-embedding` can still drive VLM and
+embedding calls. Current builds include a migration that repairs those legacy
+built-in rows to `http://model-hub-ollama-qa:11535/v1` and
+`http://model-hub-ollama-embedding:11535/v1`. Do not use `hybrag-ollama-*` in
+the VOS HybRAG package; those services no longer exist.
 
 If images do not exist for the platform, stop the deployment first, complete the
 build, push, and Feishu release table update through [build-images.md](build-images.md),

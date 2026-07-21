@@ -1,0 +1,2 @@
+-- Down migration intentionally does not restore removed in-app Ollama aliases.
+-- The old hybrag-ollama-* service names do not exist in the VOS HybRAG package.

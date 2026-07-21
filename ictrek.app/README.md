@@ -59,7 +59,7 @@ docker compose --profile arm config
 
 ## 依赖和模型
 
-`manifest.yml` 声明依赖 `com.ictrek.model-hub >=0.0.29` 和 `com.ictrek.pgv`，但 `docker-compose.yml` 不启动 model_hub 或 Postgres 服务。`0.0.29` 起 Model Hub 提供独立的 QA 与 embedding Ollama 预热运行时。HybRAG 包内只启动自身服务、Redis 和 Neo4j；Postgres 通过 PGV 在 `vos_default` 网络上的 `shared-pgv:5432` 访问，模型调用通过 Model Hub 暴露的两个 gateway。
+`manifest.yml` 源码模板只声明依赖 `com.ictrek.model-hub >=0.0.29` 和 `com.ictrek.pgv` 的最低基线；正式打包时，GitHub Actions 会查询依赖 release，把最终安装包里的依赖版本自动更新为当前最新可用版本。`docker-compose.yml` 不启动 model_hub 或 Postgres 服务。Model Hub 提供独立的 QA 与 embedding Ollama 预热运行时，当前 HybRAG 需要使用同时兼容 OpenAI `/v1/*` 与 Ollama `/api/*` 的 `11535` gateway。HybRAG 包内只启动自身服务、Redis 和 Neo4j；Postgres 通过 PGV 在 `vos_default` 网络上的 `shared-pgv:5432` 访问，模型调用通过 Model Hub 暴露的两个 gateway。
 
 PGV 文档中默认预置给 WeKnora/HybRAG 使用的连接信息是：
 

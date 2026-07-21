@@ -17,7 +17,7 @@
 
 `manifest.yml` 要求：
 
-- `com.ictrek.model-hub >= 0.0.29`：提供 `model-hub-ollama-qa` 和 `model-hub-ollama-embedding` 两个预热运行时。
+- `com.ictrek.model-hub >= 0.0.29`：源码模板中的最低基线。正式打包时，GitHub Actions 会查询依赖 release，把最终安装包里的依赖版本自动更新为当前最新可用版本。Model Hub 提供 `model-hub-ollama-qa` 和 `model-hub-ollama-embedding` 两个预热运行时；当前 HybRAG 需要使用同时兼容 OpenAI `/v1/*` 与 Ollama `/api/*` 的 `11535` gateway。
 - `com.ictrek.pgv >= 0.0.13`：提供 `shared-pgv:5432` Postgres/pgvector 服务。
 
 HybRAG 的 `docker-compose.yml` 不启动 Model Hub 或 Postgres。
