@@ -77,7 +77,7 @@ WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docr
 WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
-实际部署使用 [deploy-template](deploy-template/) 复制出来的单文件 compose。构建文档只记录镜像构建、推送和飞书写入，不维护运行时 compose 示例。启动后必须按 [remote-weknora-deployment.md](remote-weknora-deployment.md#升级后的强制冒烟检查) 做“你是谁”、文档问答、SSRF 白名单检查。
+实际部署由 VOS app 安装包中的 `ictrek.app/src/docker-compose.yml` 渲染完成。构建文档只记录镜像构建、推送和飞书写入，不维护运行时 compose 示例。旧独立部署模板已归档到 [legacy](legacy/) 仅供旧环境排查。
 
 升级已有部署前，先用正在运行的 app 容器确认真实部署目录和 compose 文件集合：
 
@@ -263,12 +263,10 @@ WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docr
 WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
-Runtime deployment uses the single compose file copied from
-[`deploy-template`](deploy-template/). This build document only records image
-builds, pushes, and Feishu release table updates. After startup, run the
-mandatory smoke checks in `remote-weknora-deployment.md`: ask "你是谁", test
-document QA, and confirm the SSRF allowlist still permits the configured model
-backends.
+Runtime deployment is rendered from `ictrek.app/src/docker-compose.yml` by the
+VOS app package. This build document only records image builds, pushes, and
+Feishu release table updates. Standalone compose templates are archived under
+`legacy/` for old-environment diagnosis.
 
 Before upgrading an existing deployment, identify the real deployment directory
 and compose file set from the running app container:
@@ -302,8 +300,7 @@ older deployment, check existing model rows first. Any row still marked
 app starts. Persistent runtime model rows should either remain in the mounted
 YAML or be recreated/converted to manual rows with `managed_by=''`.
 
-For Ollama-only deployments, set `OLLAMA_BASE_URL` in `.env` and create local
-model rows (`source: local`) for chat, VLM, and embedding. For OpenAI-compatible
-remote backends, create remote rows (`source: remote`) with a `/v1` base URL.
-See `remote-weknora-deployment.md` and `model-hub-ollama-embedding.md` for the
-full variable-driven examples.
+For current VOS deployments, HybRAG uses Model Hub services
+`model-hub-ollama-qa` and `model-hub-ollama-embedding` through the `11535/v1`
+Gateway. See `../README.md` and `vos-ollama-prewarm.md` for the current runtime
+details. Old Ollama-only and remote-backend examples are kept under `legacy/`.

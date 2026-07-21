@@ -39,7 +39,7 @@ swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docreader:<tag>
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
-部署模板中不放 Dockerfile。Dockerfile 只属于构建流程，保留在源码构建目录并通过 [build-images.md](../build-images.md) 使用；部署目录只保留 compose、`.env` 和运行配置，避免误触发本机构建或上游镜像。
+部署模板中不放 Dockerfile。Dockerfile 只属于构建流程，保留在源码构建目录并通过 [build-images.md](../../build-images.md) 使用；部署目录只保留 compose、`.env` 和运行配置，避免误触发本机构建或上游镜像。
 
 ## 从飞书读取最新镜像版本
 
@@ -84,7 +84,7 @@ WEKNORA_DOCREADER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-docr
 WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
-如果某个平台 sheet 没有这四列或最新日期行缺 tag，先按 [build-images.md](../build-images.md) 构建并推送，不要回退到 `wechatopenai/*` 或源码默认镜像。
+如果某个平台 sheet 没有这四列或最新日期行缺 tag，先按 [build-images.md](../../build-images.md) 构建并推送，不要回退到 `wechatopenai/*` 或源码默认镜像。
 
 也可以直接让部署脚本读取飞书并写 `.env`：
 
@@ -100,7 +100,7 @@ WEKNORA_SANDBOX_DOCKER_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora
 
 ```bash
 mkdir -p /data/jhu/deploy/weknora
-cp -R docs/ictrek/deploy-template/. /data/jhu/deploy/weknora/
+cp -R ictrek.app/docs/legacy/deploy-template/. /data/jhu/deploy/weknora/
 cd /data/jhu/deploy/weknora
 cp .env.example .env
 mkdir -p data/files data/docreader data/postgres data/redis config

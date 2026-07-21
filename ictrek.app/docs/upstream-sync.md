@@ -35,7 +35,7 @@ git merge upstream/main
 
 冲突处理原则：
 
-- 保留 ictrek 本地部署文档：`docs/ictrek/`；
+- 保留当前 VOS app 文档和配置：`ictrek.app/`；
 - 保留本地品牌和链接定制；
 - 保留空的 `config/builtin_models.yaml` 默认行为，不把某台机器的模型后端写进镜像；
 - 保留 compose 中持久化配置，并确认基础 `docker-compose.yml` 的 `SSRF_WHITELIST_EXTRA` 仍包含 `host.docker.internal`；
@@ -47,7 +47,7 @@ git merge upstream/main
 
 ```bash
 rg -n "Vivibit|www.vivibit.com|ictrektech/WeKnora|host.docker.internal|builtin_models: \\[\\]" \
-  frontend config docs/ictrek docker-compose.yml docker-compose.override.yml
+  frontend config ictrek.app docker-compose.yml docker-compose.override.yml
 ```
 
 再看状态：
@@ -56,7 +56,7 @@ rg -n "Vivibit|www.vivibit.com|ictrektech/WeKnora|host.docker.internal|builtin_m
 git status --short
 ```
 
-如需构建镜像，按 [build-images.md](build-images.md) 走构建和飞书更新流程。部署时按 [remote-weknora-deployment.md](remote-weknora-deployment.md) 或 [fresh-host-deployment.md](fresh-host-deployment.md)。
+如需构建镜像，按 [build-images.md](build-images.md) 走构建和飞书更新流程。部署和发布以 [../README.md](../README.md) 的 VOS app 流程为准；旧独立部署文档只在 [legacy](legacy/) 中备查。
 
 ## 提交顺序
 
@@ -141,7 +141,7 @@ config/builtin_models.yaml
 config/prompt_templates/*.yaml
 frontend/src/views/auth/Login.vue
 frontend/src/components/UserMenu.vue
-docs/ictrek/*
+ictrek.app/*
 ```
 
 ## Merge
@@ -161,7 +161,8 @@ ictrek deployment or branding decisions.
 
 Preserve these ictrek decisions unless the operator explicitly changes them:
 
-- `docs/ictrek/` keeps local deployment, build, model, and sync notes.
+- `ictrek.app/` keeps the current VOS app package, release, model, build, and sync notes.
+- `ictrek.app/docs/legacy/` is reference-only. Do not prefer legacy standalone deployment content over current VOS app behavior.
 - `build_image.sh` remains the ictrek image build and Feishu update entrypoint.
 - `config/builtin_models.yaml` ships no deployment-specific model rows by
   default.
@@ -200,7 +201,7 @@ After the merge, re-check the ictrek invariants:
 ```bash
 rg -n "Vivibit|www.vivibit.com|ictrektech/WeKnora|host.docker.internal|builtin_models: \\[\\]" \
   config frontend/src/views/auth frontend/src/components/UserMenu.vue \
-  docker-compose.yml docker-compose.override.yml docs/ictrek
+  docker-compose.yml docker-compose.override.yml ictrek.app
 ```
 
 For code-level verification, use the build path documented in

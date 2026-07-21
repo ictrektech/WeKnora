@@ -2,7 +2,8 @@
 
 This submodule is the primary workspace for ictrek-specific WeKnora changes.
 
-- Keep ictrek-only operational notes under `docs/ictrek/` instead of editing upstream-facing docs unless the change is meant to be contributed upstream.
+- Keep current ictrek-only VOS app packaging, installation, model, and operation notes under `ictrek.app/` instead of editing upstream-facing docs unless the change is meant to be contributed upstream.
+- `docs/ictrek/` is a compatibility redirect only. Do not add new content there. Historical standalone deployment notes live under `ictrek.app/docs/legacy/` and are reference-only.
 - Use `ssh tc232` as the deployment/test SSH target when the user asks to test WeKnora deployment on the prepared remote machine.
 - Treat `tc232` as a local SSH config alias only. Do not document it as a reachable hostname or API base URL.
 - When documenting remote services, distinguish between the remote listen address (for example `127.0.0.1:18118` on the SSH target) and any external mapping, tunnel, reverse proxy, or public endpoint that the operator creates separately.

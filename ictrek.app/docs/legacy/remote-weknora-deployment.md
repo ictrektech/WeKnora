@@ -58,7 +58,7 @@ docker inspect WeKnora-app --format '{{json .Mounts}}'
 docker inspect WeKnora-redis --format '{{json .Mounts}}'
 ```
 
-新部署直接使用 `docs/ictrek/deploy-template/docker-compose.yml`。`neo4j` profile 只在明确启用 GraphRAG/Wiki Graph 时启动。MinIO、Qdrant、Milvus、Weaviate、Searxng、Langfuse 等外部组件按各自组件文档独立部署，不放进默认模板。
+新部署直接使用 `ictrek.app/docs/legacy/deploy-template/docker-compose.yml`。`neo4j` profile 只在明确启用 GraphRAG/Wiki Graph 时启动。MinIO、Qdrant、Milvus、Weaviate、Searxng、Langfuse 等外部组件按各自组件文档独立部署，不放进默认模板。
 
 ## VOS iframe 免登录
 
@@ -271,7 +271,7 @@ where id in ('<chat-model-id>','<vlm-model-id>','<embedding-model-id>');"
 
 ```bash
 mkdir -p /data/jhu/deploy/weknora
-cp -R docs/ictrek/deploy-template/. /data/jhu/deploy/weknora/
+cp -R ictrek.app/docs/legacy/deploy-template/. /data/jhu/deploy/weknora/
 cd /data/jhu/deploy/weknora
 cp .env.example .env
 mkdir -p data/files data/docreader data/postgres data/redis config
@@ -306,7 +306,7 @@ docker compose pull docreader app frontend
 docker compose up -d docreader app frontend
 ```
 
-需要构建和更新飞书发布表时，单独看 [build-images.md](build-images.md)。部署文档不包含构建步骤。
+需要构建和更新飞书发布表时，单独看 [build-images.md](../build-images.md)。部署文档不包含构建步骤。
 
 ## 常用检查
 
@@ -513,7 +513,7 @@ docker inspect WeKnora-app --format '{{json .Mounts}}'
 docker inspect WeKnora-redis --format '{{json .Mounts}}'
 ```
 
-Fresh deployments should use `docs/ictrek/deploy-template/docker-compose.yml`.
+Fresh deployments should use `ictrek.app/docs/legacy/deploy-template/docker-compose.yml`.
 The `neo4j` profile is only started when GraphRAG/Wiki Graph is enabled. Deploy
 MinIO, Qdrant, Milvus, Weaviate, Searxng, Langfuse, and similar external
 components separately when needed.
@@ -751,7 +751,7 @@ default compose file:
 
 ```bash
 mkdir -p /data/jhu/deploy/weknora
-cp -R docs/ictrek/deploy-template/. /data/jhu/deploy/weknora/
+cp -R ictrek.app/docs/legacy/deploy-template/. /data/jhu/deploy/weknora/
 cd /data/jhu/deploy/weknora
 cp .env.example .env
 mkdir -p data/files data/docreader data/postgres data/redis config
@@ -790,7 +790,7 @@ docker compose up -d docreader app frontend
 ```
 
 For image builds and Feishu release-table updates, use
-[build-images.md](build-images.md). Deployment docs intentionally do not carry
+[build-images.md](../build-images.md). Deployment docs intentionally do not carry
 build steps.
 
 On a fresh ParadeDB volume, `postgres` may briefly become healthy and then restart after `/docker-entrypoint-initdb.d/10_bootstrap_paradedb.sh` finishes. If `app` starts during that window and becomes unhealthy with `connection refused`, start `app` and `frontend` again after Postgres settles:

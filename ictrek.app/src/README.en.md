@@ -40,4 +40,4 @@ Model Hub 负责模型下载、预热、常驻、上下文和 Ollama 并发；Hy
 
 ## 排错
 
-详细预热、常驻和排错说明见 `docs/ictrek/vos-ollama-prewarm.md`。
+详细预热、常驻和排错说明见 `ictrek.app/docs/vos-ollama-prewarm.md`。
