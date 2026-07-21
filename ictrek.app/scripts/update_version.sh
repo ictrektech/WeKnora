@@ -34,21 +34,9 @@ bump_version_from() {
   printf '%s.%s.%s\n' "$major" "$minor" "$patch"
 }
 
-next_available_version() {
-  local part="$1" version tag public_tag
-  version="$(tr -d '[:space:]' < "$VERSION_FILE")"
-  while :; do
-    version="$(bump_version_from "$version" "$part")"
-    tag="${TAG_PREFIX}${version}"
-    public_tag="v${version}"
-    if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null ||
-       git rev-parse -q --verify "refs/tags/${public_tag}" >/dev/null; then
-      echo "skip existing tag version: ${version}" >&2
-      continue
-    fi
-    printf '%s\n' "$version"
-    return 0
-  done
+remote_tag_exists() {
+  local tag="$1"
+  git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1
 }
 
 part="${1:-patch}"
@@ -60,14 +48,24 @@ git diff --quiet && git diff --cached --quiet || {
   exit 1
 }
 
-version="$(next_available_version "$part")"
+version="$(bump_version_from "$(tr -d '[:space:]' < "$VERSION_FILE")" "$part")"
 tag="${TAG_PREFIX}${version}"
 public_tag="v${version}"
+
+if remote_tag_exists "$tag"; then
+  echo "VOS trigger tag already exists on origin: ${tag}" >&2
+  exit 1
+fi
+
+if remote_tag_exists "$public_tag"; then
+  echo "public release tag already exists on origin: ${public_tag}" >&2
+  exit 1
+fi
 
 printf '%s\n' "$version" > "$VERSION_FILE"
 git add "$VERSION_FILE"
 git commit -m "chore: release VOS ${APP_LABEL} ${version}"
-git tag "$tag"
+git tag -f "$tag"
 branch="$(git branch --show-current)"
 git push origin "$branch"
 git push origin "$tag"
