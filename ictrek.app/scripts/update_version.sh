@@ -18,9 +18,8 @@ Commit application code changes before running this script.
 EOF
 }
 
-bump_version() {
-  local part="$1" current major minor patch
-  current="$(tr -d '[:space:]' < "$VERSION_FILE")"
+bump_version_from() {
+  local current="$1" part="$2" major minor patch
   [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
     echo "invalid VERSION: $current" >&2
     exit 1
@@ -35,6 +34,23 @@ bump_version() {
   printf '%s.%s.%s\n' "$major" "$minor" "$patch"
 }
 
+next_available_version() {
+  local part="$1" version tag public_tag
+  version="$(tr -d '[:space:]' < "$VERSION_FILE")"
+  while :; do
+    version="$(bump_version_from "$version" "$part")"
+    tag="${TAG_PREFIX}${version}"
+    public_tag="v${version}"
+    if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null ||
+       git rev-parse -q --verify "refs/tags/${public_tag}" >/dev/null; then
+      echo "skip existing tag version: ${version}" >&2
+      continue
+    fi
+    printf '%s\n' "$version"
+    return 0
+  done
+}
+
 part="${1:-patch}"
 [[ "${1:-}" != "-h" && "${1:-}" != "--help" ]] || { usage; exit 0; }
 
@@ -44,17 +60,9 @@ git diff --quiet && git diff --cached --quiet || {
   exit 1
 }
 
-version="$(bump_version "$part")"
+version="$(next_available_version "$part")"
 tag="${TAG_PREFIX}${version}"
 public_tag="v${version}"
-git rev-parse -q --verify "refs/tags/${tag}" >/dev/null && {
-  echo "tag already exists: ${tag}" >&2
-  exit 1
-}
-git rev-parse -q --verify "refs/tags/${public_tag}" >/dev/null && {
-  echo "public release tag already exists: ${public_tag}" >&2
-  exit 1
-}
 
 printf '%s\n' "$version" > "$VERSION_FILE"
 git add "$VERSION_FILE"
