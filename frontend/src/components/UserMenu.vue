@@ -513,7 +513,7 @@ const reopenGuide = () => {
 // 打开 GitHub
 const openGithub = () => {
   menuVisible.value = false
-  window.open('https://github.com/ictrektech/WeKnora/tree/main/docs/ictrek', '_blank')
+  window.open('https://github.com/ictrektech/WeKnora/tree/main/ictrek.app', '_blank')
 }
 
 // 注销

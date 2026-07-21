@@ -107,7 +107,7 @@
         <span class="link-text">{{ $t('common.website') }}</span>
       </a>
 
-      <a href="https://github.com/ictrektech/WeKnora/tree/main/docs/ictrek" target="_blank" class="header-link"
+      <a href="https://github.com/ictrektech/WeKnora/tree/main/ictrek.app" target="_blank" class="header-link"
         :title="$t('common.info')">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
           <path
