@@ -4,6 +4,7 @@
         'is-sidebar-collapsed': uiStore.sidebarCollapsed,
         'has-references-panel': referencesDrawerVisible,
     }">
+        <ChatHeader v-if="!embeddedMode" :session="currentSession" :has-references-panel="referencesDrawerVisible" />
         <div ref="scrollContainer" class="chat_scroll_box" @scroll="handleScroll">
             <div class="msg_list" :class="{ 'is-embedded': embeddedMode }">
                 <!-- 消息列表骨架屏 -->
@@ -146,6 +147,11 @@ import { clearCitationChunkCache } from '@/utils/citationChunkCache';
 import ChatReferencesDrawer from '@/components/ChatReferencesDrawer.vue';
 import ChatAttachmentPreviewDrawer from '@/components/ChatAttachmentPreviewDrawer.vue';
 import FollowUpSuggestions from '@/components/chat/FollowUpSuggestions.vue';
+import ChatHeader from '@/components/ChatHeader.vue';
+import {
+    notifySessionMutation,
+    SESSION_MUTATION_EVENT,
+} from '@/components/sessionMutations';
 import {
     ensureMessageSuggestions,
     getMessageSuggestions,
@@ -208,6 +214,7 @@ const attachStreamDebugToMessage = (message) => {
 };
 const route = useRoute();
 const session_id = ref(props.session_id || route.params.chatid);
+const currentSession = ref(null);
 
 // 拉 session 详情，并按其 last_request_state 把输入栏状态恢复到当时的发起态。
 // 嵌入式（embeddedMode）由宿主页面注入 agent/KB，所以跳过整套恢复逻辑，
@@ -216,7 +223,8 @@ const loadSessionAndHydrate = async (sid) => {
     if (!sid || props.embeddedMode) return;
     try {
         const sessionRes = await getSession(sid);
-        if (sessionRes?.data) {
+        if (sessionRes?.data && sid === session_id.value) {
+            currentSession.value = sessionRes.data;
             const lastState = sessionRes.data.last_request_state;
             if (lastState) {
                 // 先把当前的"全局默认"快照下来，再用 session 状态覆盖；
@@ -440,6 +448,7 @@ watch([() => route.params], async (newvalue) => {
         const targetSessionId = newvalue[0].chatid;
         messagesList.splice(0);
         session_id.value = targetSessionId;
+        currentSession.value = null;
         clearCitationChunkCache();
 
         // 切换会话时，重置状态
@@ -902,13 +911,6 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
     // Get web search status from settings store
     const webSearchEnabled = props.embeddedMode ? false : useSettingsStoreInstance.isWebSearchEnabled;
 
-    // Memory toggle is now a server-side per-user preference (see PUT
-    // /auth/me/preferences). For the normal logged-in chat we leave the
-    // field unset so the backend reads `user.preferences.enable_memory`;
-    // for embedded widgets we still send an explicit `false` so a user's
-    // personal "memory on" setting doesn't leak into a KB-embed context.
-    const enableMemoryOverride = props.embeddedMode ? false : undefined;
-
     // Get knowledge_base_ids from settings store (selected by user via KnowledgeBaseSelector)
     // Merge @mentioned KB/file IDs so retrieval uses the same targets user @mentioned (including shared KBs)
     const sidebarKbIds = props.embeddedMode ? props.kbIds : (useSettingsStoreInstance.settings.selectedKnowledgeBases || []);
@@ -947,7 +949,6 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
         agent_enabled: agentEnabled,
         agent_id: selectedAgentId,
         web_search_enabled: webSearchEnabled,
-        enable_memory: enableMemoryOverride,
         summary_model_id: modelId,
         mcp_service_ids: requestMcpServiceIds,
         skill_names: requestSkillNames,
@@ -1044,9 +1045,10 @@ onChunk((data) => {
             });
             usemenuStore.updatasessionTitle(data.data.session_id, title);
             usemenuStore.changeIsFirstSession(false);
-            window.dispatchEvent(new CustomEvent('session-title-updated', {
-                detail: { sessionId: data.data.session_id, title },
-            }));
+            notifySessionMutation({
+                sessionId: data.data.session_id,
+                patch: { title },
+            });
         }
         return true;
     }
@@ -1054,8 +1056,17 @@ onChunk((data) => {
     return true;
 });
 
-const handleSessionCleared = (e) => {
-    if (e.detail?.sessionId === session_id.value) {
+const handleSessionMutation = (event) => {
+    const detail = event.detail;
+    if (detail?.sessionId !== session_id.value) return;
+
+    if (detail.patch) {
+        currentSession.value = {
+            ...(currentSession.value || { id: session_id.value }),
+            ...detail.patch,
+        };
+    }
+    if (detail.messagesCleared) {
         messagesList.splice(0);
         created_at.value = '';
         hasMoreHistory.value = true;
@@ -1083,7 +1094,7 @@ onBeforeMount(async () => {
 });
 
 onMounted(async () => {
-    window.addEventListener('session-messages-cleared', handleSessionCleared);
+    window.addEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);
     messagesList.splice(0);
 
     // 初始化状态：加载历史消息时不应显示loading
@@ -1126,7 +1137,7 @@ const clearData = (abortStreams = true) => {
     isImRecovering.value = false;
 }
 onUnmounted(() => {
-    window.removeEventListener('session-messages-cleared', handleSessionCleared);
+    window.removeEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
 });
 onBeforeRouteLeave((to, from, next) => {
@@ -1146,7 +1157,7 @@ onBeforeRouteUpdate((to, from, next) => {
 .chat {
     font-size: 20px;
     // 右侧不留 padding，滚动条贴到内容区最右缘
-    padding: 20px 0 20px 20px;
+    padding: 0 0 20px 20px;
     box-sizing: border-box;
     flex: 1;
     // The parent .platform-route-outlet is a flex column with min-height:0
@@ -1182,6 +1193,10 @@ onBeforeRouteUpdate((to, from, next) => {
         @media (min-width: 960px) {
             padding-right: 420px;
             box-sizing: border-box;
+
+            .chat_scroll_box {
+                padding-top: 0;
+            }
         }
     }
 
@@ -1224,6 +1239,8 @@ onBeforeRouteUpdate((to, from, next) => {
     // this box instead of stretching it.
     min-height: 0;
     width: 100%;
+    padding-top: 8px;
+    box-sizing: border-box;
     overflow-y: auto;
     // 使用系统原生滚动条（macOS 滚动时自动显示 overlay 滚动条，类似 ChatGPT）
     scrollbar-width: auto;
@@ -1302,7 +1319,7 @@ onBeforeRouteUpdate((to, from, next) => {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    max-width: 800px;
+    max-width: 960px;
     padding: 16px 0;
     animation: contentFadeIn 0.3s ease-out;
 }
@@ -1324,7 +1341,7 @@ onBeforeRouteUpdate((to, from, next) => {
     flex-shrink: 0;
     margin: 0 auto;
     width: 100%;
-    max-width: 800px;
+    max-width: 960px;
     box-sizing: border-box;
     position: relative;
 
@@ -1343,7 +1360,7 @@ onBeforeRouteUpdate((to, from, next) => {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    max-width: 800px;
+    max-width: 960px;
     flex: 1;
     margin: 0 auto;
     width: 100%;

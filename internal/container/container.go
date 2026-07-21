@@ -38,7 +38,6 @@ import (
 
 	"github.com/Tencent/WeKnora/internal/agent/approval"
 	"github.com/Tencent/WeKnora/internal/application/repository"
-	memoryRepo "github.com/Tencent/WeKnora/internal/application/repository/memory/neo4j"
 	dorisRepo "github.com/Tencent/WeKnora/internal/application/repository/retriever/doris"
 	elasticsearchRepoV7 "github.com/Tencent/WeKnora/internal/application/repository/retriever/elasticsearch/v7"
 	elasticsearchRepoV8 "github.com/Tencent/WeKnora/internal/application/repository/retriever/elasticsearch/v8"
@@ -53,7 +52,6 @@ import (
 	"github.com/Tencent/WeKnora/internal/application/service"
 	chatpipeline "github.com/Tencent/WeKnora/internal/application/service/chat_pipeline"
 	"github.com/Tencent/WeKnora/internal/application/service/file"
-	memoryService "github.com/Tencent/WeKnora/internal/application/service/memory"
 	"github.com/Tencent/WeKnora/internal/application/service/retriever"
 	"github.com/Tencent/WeKnora/internal/common"
 	"github.com/Tencent/WeKnora/internal/config"
@@ -160,7 +158,6 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewAuthTokenRepository))
 	must(container.Provide(repository.NewSystemSettingRepository))
 	must(container.Provide(neo4jRepo.NewNeo4jRepository))
-	must(container.Provide(memoryRepo.NewMemoryRepository))
 	must(container.Provide(repository.NewMCPServiceRepository))
 	must(container.Provide(repository.NewMCPToolApprovalRepository))
 	must(container.Provide(repository.NewMCPOAuthRepository))
@@ -220,7 +217,6 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewMCPToolApprovalService))
 	must(container.Provide(service.NewCustomAgentService))
 	must(container.Provide(service.NewUserResourceFavoriteService))
-	must(container.Provide(memoryService.NewMemoryService))
 	must(container.Provide(service.NewWikiPageService))
 	must(container.Provide(service.NewWikiLogEntryService))
 	must(container.Provide(service.NewWikiIngestService, dig.Name("wikiIngest")))
@@ -346,7 +342,6 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Invoke(chatpipeline.NewPluginSearchEntity))
 	must(container.Invoke(chatpipeline.NewPluginSearchParallel))
 	must(container.Invoke(chatpipeline.NewPluginWikiBoost))
-	must(container.Invoke(chatpipeline.NewMemoryPlugin))
 	logger.Debugf(ctx, "[Container] Chat pipeline plugins registered")
 
 	// HTTP handlers layer
@@ -1580,6 +1575,7 @@ func registerWebSearchProviders(registry *infra_web_search.Registry) {
 	registry.Register("baidu", infra_web_search.NewBaiduProvider)
 	registry.Register("searxng", infra_web_search.NewSearxngProvider)
 	registry.Register("keenable", infra_web_search.NewKeenableProvider)
+	registry.Register("zhipu", infra_web_search.NewZhipuProvider)
 }
 
 // registerIMAdapterFactories registers adapter factories for each IM platform

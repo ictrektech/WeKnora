@@ -125,10 +125,6 @@ export function useStream() {
       if (params.web_search_enabled !== undefined) {
         postBody.web_search_enabled = params.web_search_enabled;
       }
-      // Include enable_memory if provided
-      if (params.enable_memory !== undefined) {
-        postBody.enable_memory = params.enable_memory;
-      }
       // Include summary_model_id if provided (for non-Agent mode)
       if (params.summary_model_id) {
         postBody.summary_model_id = params.summary_model_id;

@@ -117,8 +117,8 @@ func TestResolveWorkerPoolConcurrencyFallsBackPerPool(t *testing.T) {
 	if allocation.Core != 15 {
 		t.Fatalf("core = %d, want override 15", allocation.Core)
 	}
-	if allocation.Shared != 0 {
-		t.Fatalf("shared = %d, want disabled 0", allocation.Shared)
+	if allocation.Shared != DefaultSharedWorkerConcurrency {
+		t.Fatalf("shared = %d, want fallback %d", allocation.Shared, DefaultSharedWorkerConcurrency)
 	}
 }
 

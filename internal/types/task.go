@@ -157,8 +157,8 @@ func DefaultWorkerPoolConcurrency() WorkerPoolConcurrency {
 // ResolveWorkerPoolConcurrency centralizes setting keys, environment names,
 // defaults, and invalid-value fallback for both server construction and the
 // runtime API. The callback lets this package stay independent of the system
-// setting service interface. Dedicated pools must stay positive; Shared is the
-// optional elastic tier and may be set to 0 to disable queue borrowing.
+// setting service interface. Every pool must stay positive so no queue family
+// is accidentally starved after an invalid persisted setting.
 func ResolveWorkerPoolConcurrency(read func(key, env string, fallback int) int) WorkerPoolConcurrency {
 	allocation := DefaultWorkerPoolConcurrency()
 	if read == nil {
@@ -171,18 +171,11 @@ func ResolveWorkerPoolConcurrency(read func(key, env string, fallback int) int) 
 		}
 		return value
 	}
-	nonNegative := func(key, env string, fallback int) int {
-		value := read(key, env, fallback)
-		if value < 0 {
-			return fallback
-		}
-		return value
-	}
 	allocation.Core = positive("asynq.core_concurrency", "WEKNORA_ASYNQ_CORE_CONCURRENCY", allocation.Core)
 	allocation.PostProcess = positive("asynq.postprocess_concurrency", "WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY", allocation.PostProcess)
 	allocation.Enrichment = positive("asynq.enrichment_concurrency", "WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY", allocation.Enrichment)
 	allocation.Maintenance = positive("asynq.maintenance_concurrency", "WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY", allocation.Maintenance)
-	allocation.Shared = nonNegative("asynq.shared_concurrency", "WEKNORA_ASYNQ_SHARED_CONCURRENCY", allocation.Shared)
+	allocation.Shared = positive("asynq.shared_concurrency", "WEKNORA_ASYNQ_SHARED_CONCURRENCY", allocation.Shared)
 	allocation.Wiki = positive("asynq.wiki_concurrency", "WEKNORA_WIKI_ASYNQ_CONCURRENCY", allocation.Wiki)
 	return allocation
 }

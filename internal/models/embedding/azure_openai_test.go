@@ -7,10 +7,17 @@ import (
 	"io"
 	"net/http"
 	"testing"
+
+	secutils "github.com/Tencent/WeKnora/internal/utils"
 )
+
+func allowAzureOpenAITestHost() {
+	secutils.SetSSRFWhitelistFromRaw("api.openai.com")
+}
 
 func TestAzureOpenAIEmbedderBatchEmbedSendsConfiguredDimensions(t *testing.T) {
 	t.Parallel()
+	allowAzureOpenAITestHost()
 
 	var requestBody map[string]any
 	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -19,7 +26,7 @@ func TestAzureOpenAIEmbedderBatchEmbedSendsConfiguredDimensions(t *testing.T) {
 		}
 
 		if got, want := r.URL.String(),
-			"https://example-resource.openai.azure.com/openai/deployments/text-embedding-3-large-deployment/embeddings?api-version=2024-10-21"; got != want {
+			"https://api.openai.com/openai/deployments/text-embedding-3-large-deployment/embeddings?api-version=2024-10-21"; got != want {
 			t.Fatalf("unexpected request path: got %s want %s", got, want)
 		}
 
@@ -36,7 +43,7 @@ func TestAzureOpenAIEmbedderBatchEmbedSendsConfiguredDimensions(t *testing.T) {
 
 	embedder, err := NewAzureOpenAIEmbedder(
 		"test-key",
-		"https://example-resource.openai.azure.com",
+		"https://api.openai.com",
 		"text-embedding-3-large-deployment",
 		511,
 		256,
@@ -66,6 +73,7 @@ func TestAzureOpenAIEmbedderBatchEmbedSendsConfiguredDimensions(t *testing.T) {
 
 func TestAzureOpenAIEmbedderBatchEmbedOmitsDimensionsByDefault(t *testing.T) {
 	t.Parallel()
+	allowAzureOpenAITestHost()
 
 	var requestBody map[string]any
 	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -82,7 +90,7 @@ func TestAzureOpenAIEmbedderBatchEmbedOmitsDimensionsByDefault(t *testing.T) {
 
 	embedder, err := NewAzureOpenAIEmbedder(
 		"test-key",
-		"https://example-resource.openai.azure.com",
+		"https://api.openai.com",
 		"ada-002-deployment",
 		511,
 		1536,
@@ -106,6 +114,7 @@ func TestAzureOpenAIEmbedderBatchEmbedOmitsDimensionsByDefault(t *testing.T) {
 
 func TestAzureOpenAIEmbedderBatchEmbedSendsDimensionsWhenOverrideEnabledRegardlessOfAPIVersion(t *testing.T) {
 	t.Parallel()
+	allowAzureOpenAITestHost()
 
 	var requestBody map[string]any
 	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -122,7 +131,7 @@ func TestAzureOpenAIEmbedderBatchEmbedSendsDimensionsWhenOverrideEnabledRegardle
 
 	embedder, err := NewAzureOpenAIEmbedder(
 		"test-key",
-		"https://example-resource.openai.azure.com",
+		"https://api.openai.com",
 		"text-embedding-3-large-deployment",
 		511,
 		256,
