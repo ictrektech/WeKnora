@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,7 @@ type SystemHandler struct {
 	tenantSvc        interfaces.TenantService
 	userSvc          interfaces.UserService
 	systemSettingSvc interfaces.SystemSettingService
+	apiKeySvc        interfaces.TenantAPIKeyService
 	// auditSvc is optional — when nil, emitAdminAudit no-ops so unit
 	// tests that wire a partial container still compile. In production
 	// the dig graph always provides one.
@@ -58,6 +60,9 @@ type SystemHandler struct {
 	// runtime task console. It updates business state and tracing before queue
 	// records are removed, unlike a raw Redis deletion.
 	knowledgeSvc runtimeKnowledgeCanceller
+	// modelSvc lets the runtime dashboard show configured model budgets even
+	// before a model has been observed by the background limiter.
+	modelSvc interfaces.ModelService
 	// storageBackendRepo lets GetStorageEngineStatus report multi-instance
 	// storage backends (Settings → Storage) as "available", not just the legacy
 	// singleton tenant.StorageEngineConfig. Optional — nil in partially-wired
@@ -72,9 +77,11 @@ func NewSystemHandler(cfg *config.Config,
 	tenantSvc interfaces.TenantService,
 	userSvc interfaces.UserService,
 	systemSettingSvc interfaces.SystemSettingService,
+	apiKeySvc interfaces.TenantAPIKeyService,
 	auditSvc interfaces.AuditLogService,
 	taskInspector interfaces.TaskInspector,
 	knowledgeSvc interfaces.KnowledgeService,
+	modelSvc interfaces.ModelService,
 	storageBackendRepo interfaces.StorageBackendRepository,
 ) *SystemHandler {
 	return &SystemHandler{
@@ -84,11 +91,149 @@ func NewSystemHandler(cfg *config.Config,
 		tenantSvc:          tenantSvc,
 		userSvc:            userSvc,
 		systemSettingSvc:   systemSettingSvc,
+		apiKeySvc:          apiKeySvc,
 		auditSvc:           auditSvc,
 		taskInspector:      taskInspector,
 		knowledgeSvc:       knowledgeSvc,
+		modelSvc:           modelSvc,
 		storageBackendRepo: storageBackendRepo,
 	}
+}
+
+type platformAPIKeyCreateRequest struct {
+	Name         string   `json:"name"`
+	Capabilities []string `json:"capabilities"`
+	ExpiresAt    *int64   `json:"expires_at_unix"`
+}
+
+// ListPlatformAPIKeys godoc
+// @Summary      List platform API keys
+// @Description  Lists non-workspace API keys. Full tokens are always masked. Human SystemAdmin only.
+// @Tags         System Admin
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Security     Bearer
+// @Router       /system/admin/api-keys [get]
+func (h *SystemHandler) ListPlatformAPIKeys(c *gin.Context) {
+	keys, err := h.apiKeySvc.ListPlatformAPIKeys(c.Request.Context())
+	if err != nil {
+		c.Error(apperrors.NewInternalServerError("Failed to list platform API keys").WithDetails(err.Error()))
+		return
+	}
+	response := make([]tenantAPIKeyResponse, 0, len(keys))
+	for _, key := range keys {
+		item := tenantAPIKeyForResponse(key)
+		item.APIKey = maskManagedAPIKey(key.APIKey)
+		response = append(response, item)
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": response})
+}
+
+// CreatePlatformAPIKey godoc
+// @Summary      Create a platform API key
+// @Description  Creates a capability-scoped key that may target any workspace through X-Tenant-ID. The plaintext token is returned once. Human SystemAdmin only.
+// @Tags         System Admin
+// @Accept       json
+// @Produce      json
+// @Param        request body platformAPIKeyCreateRequest true "Platform API key"
+// @Success      201 {object} map[string]interface{}
+// @Security     Bearer
+// @Router       /system/admin/api-keys [post]
+func (h *SystemHandler) CreatePlatformAPIKey(c *gin.Context) {
+	var req platformAPIKeyCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.Error(apperrors.NewValidationError("Invalid request data").WithDetails(err.Error()))
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		c.Error(apperrors.NewValidationError("name is required"))
+		return
+	}
+	capabilities := types.NormalizeAPIKeyCapabilities(types.StringArray(req.Capabilities))
+	if len(capabilities) == 0 || len(capabilities) != len(req.Capabilities) {
+		c.Error(apperrors.NewValidationError("valid capabilities are required"))
+		return
+	}
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil {
+		value := time.Unix(*req.ExpiresAt, 0)
+		if !value.After(time.Now()) {
+			c.Error(apperrors.NewValidationError("expires_at_unix must be in the future"))
+			return
+		}
+		expiresAt = &value
+	}
+	result, err := h.apiKeySvc.CreateAPIKey(c.Request.Context(), interfaces.TenantAPIKeyCreateRequest{
+		ScopeType:    types.APIKeyScopePlatform,
+		Name:         req.Name,
+		Capabilities: []string(capabilities),
+		ExpiresAt:    expiresAt,
+	})
+	if err != nil {
+		c.Error(apperrors.NewInternalServerError("Failed to create platform API key").WithDetails(err.Error()))
+		return
+	}
+	item := tenantAPIKeyForResponse(result.APIKey)
+	item.APIKey = maskManagedAPIKey(result.Token)
+	h.emitAPIKeyAudit(c.Request.Context(), types.AuditActionSystemAPIKeyCreated, result.APIKey)
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"data":    tenantAPIKeyCreateResponse{tenantAPIKeyResponse: item, Token: result.Token},
+	})
+}
+
+// DeletePlatformAPIKey godoc
+// @Summary      Revoke a platform API key
+// @Description  Immediately revokes a platform API key. Human SystemAdmin only.
+// @Tags         System Admin
+// @Produce      json
+// @Param        key_id path int true "API key ID"
+// @Success      200 {object} map[string]interface{}
+// @Security     Bearer
+// @Router       /system/admin/api-keys/{key_id} [delete]
+func (h *SystemHandler) DeletePlatformAPIKey(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("key_id"), 10, 64)
+	if err != nil || id == 0 {
+		c.Error(apperrors.NewBadRequestError("Invalid API key ID"))
+		return
+	}
+	if err := h.apiKeySvc.RevokePlatformAPIKey(c.Request.Context(), id); err != nil {
+		c.Error(apperrors.NewNotFoundError("Platform API key not found"))
+		return
+	}
+	h.emitAPIKeyAudit(c.Request.Context(), types.AuditActionSystemAPIKeyRevoked, &types.TenantAPIKey{ID: id})
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func maskManagedAPIKey(token string) string {
+	token = strings.TrimSpace(token)
+	if len(token) <= 12 {
+		return "***"
+	}
+	return token[:7] + "..." + token[len(token)-4:]
+}
+
+func (h *SystemHandler) emitAPIKeyAudit(ctx context.Context, action types.AuditAction, key *types.TenantAPIKey) {
+	if h.auditSvc == nil || key == nil {
+		return
+	}
+	actorID, _ := types.UserIDFromContext(ctx)
+	details, _ := json.Marshal(map[string]any{
+		"scope_type":   types.APIKeyScopePlatform,
+		"capabilities": key.Capabilities,
+	})
+	_ = h.auditSvc.Log(ctx, &types.AuditLog{
+		TenantID: 0, ActorUserID: actorID, ActorRole: systemAuditActorRole(ctx),
+		Action: action, TargetType: "api_key", TargetID: strconv.FormatUint(key.ID, 10),
+		Outcome: types.AuditOutcomeSuccess, Details: types.JSON(details),
+	})
+}
+
+func systemAuditActorRole(ctx context.Context) string {
+	if scope, ok := types.TenantAPIKeyScopeFromContext(ctx); ok && scope.IsPlatform() {
+		return "platform_api_key"
+	}
+	return "system_admin"
 }
 
 // emitAdminAudit writes one audit row for a system-admin lifecycle event
@@ -120,7 +265,7 @@ func (h *SystemHandler) emitAdminAudit(
 		// events (matches AuditActionSystemSettingChanged).
 		TenantID:    0,
 		ActorUserID: actorID,
-		ActorRole:   "system_admin",
+		ActorRole:   systemAuditActorRole(ctx),
 		Action:      action,
 		TargetType:  "user",
 		Outcome:     types.AuditOutcomeSuccess,
@@ -1585,6 +1730,79 @@ func sameQueueWeights(left, right map[string]int) bool {
 	return true
 }
 
+const runtimeModelDefaultLimit = 32
+
+func (h *SystemHandler) runtimeModelDefaultConcurrency(ctx context.Context) int {
+	if h.systemSettingSvc == nil {
+		return runtimeModelDefaultLimit
+	}
+	return int(h.systemSettingSvc.GetInt(ctx, "model.max_concurrency",
+		"WEKNORA_MODEL_MAX_CONCURRENCY", runtimeModelDefaultLimit))
+}
+
+func isRuntimeLimitedModel(modelType types.ModelType) bool {
+	switch modelType {
+	case types.ModelTypeEmbedding, types.ModelTypeKnowledgeQA, types.ModelTypeVLLM:
+		return true
+	default:
+		return false
+	}
+}
+
+func modelRuntimeLimit(model *types.Model, fallback int) int {
+	if model != nil && model.Parameters.MaxConcurrency > 0 {
+		return model.Parameters.MaxConcurrency
+	}
+	return fallback
+}
+
+func (h *SystemHandler) mergeConfiguredModelRuntimeStats(
+	ctx context.Context,
+	stats []modellimiter.RuntimeStat,
+) []modellimiter.RuntimeStat {
+	if h.modelSvc == nil {
+		if stats == nil {
+			return []modellimiter.RuntimeStat{}
+		}
+		return stats
+	}
+	if _, ok := types.TenantIDFromContext(ctx); !ok {
+		return stats
+	}
+	models, err := h.modelSvc.ListModels(ctx)
+	if err != nil {
+		logger.Errorf(ctx, "list models for runtime stats failed: %v", err)
+		return stats
+	}
+	defaultLimit := h.runtimeModelDefaultConcurrency(ctx)
+	byID := make(map[string]int, len(stats)+len(models))
+	for i := range stats {
+		byID[stats[i].ModelID] = i
+	}
+	for _, model := range models {
+		if model == nil || model.Status != types.ModelStatusActive || !isRuntimeLimitedModel(model.Type) {
+			continue
+		}
+		if idx, ok := byID[model.ID]; ok {
+			if stats[idx].Name == "" {
+				stats[idx].Name = model.Name
+			}
+			if stats[idx].Limit <= 0 {
+				stats[idx].Limit = modelRuntimeLimit(model, defaultLimit)
+			}
+			continue
+		}
+		byID[model.ID] = len(stats)
+		stats = append(stats, modellimiter.RuntimeStat{
+			ModelID: model.ID,
+			Name:    model.Name,
+			Limit:   modelRuntimeLimit(model, defaultLimit),
+		})
+	}
+	sort.Slice(stats, func(i, j int) bool { return stats[i].ModelID < stats[j].ModelID })
+	return stats
+}
+
 // GetRuntimeQueues godoc
 // @Summary      获取解析任务队列运行时状态
 // @Description  返回各 asynq 队列的实时深度（pending/active/scheduled/retry 等）与 worker 并发配置，仅系统管理员可见
@@ -1648,7 +1866,7 @@ func (h *SystemHandler) GetRuntimeQueues(c *gin.Context) {
 		logger.Errorf(ctx, "get model concurrency stats failed: %v", modelErr)
 	}
 	resp.ModelLimiterAvailable = modelSupported
-	resp.Models = modelStats
+	resp.Models = h.mergeConfiguredModelRuntimeStats(ctx, modelStats)
 
 	c.JSON(http.StatusOK, resp)
 }
@@ -1773,7 +1991,7 @@ func (h *SystemHandler) emitQueueTaskAudit(
 	_ = h.auditSvc.Log(ctx, &types.AuditLog{
 		TenantID:    0,
 		ActorUserID: actorID,
-		ActorRole:   "system_admin",
+		ActorRole:   systemAuditActorRole(ctx),
 		Action:      action,
 		TargetType:  targetType,
 		TargetID:    targetID,
@@ -2122,7 +2340,7 @@ func (h *SystemHandler) ApplyDefaultStorageQuotaToAllTenants(c *gin.Context) {
 		_ = h.auditSvc.Log(ctx, &types.AuditLog{
 			TenantID:    0,
 			ActorUserID: actorID,
-			ActorRole:   "system_admin",
+			ActorRole:   systemAuditActorRole(ctx),
 			Action:      types.AuditActionSystemSettingChanged,
 			TargetType:  "tenant_storage_quota",
 			TargetID:    "all",
