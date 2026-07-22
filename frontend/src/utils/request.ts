@@ -4,6 +4,7 @@ import { generateRandomString, MAX_FILE_SIZE_MB } from "./index";
 import i18n from '@/i18n'
 import { getApiBaseUrl } from './api-base';
 import { withAppBasePath } from './app-base';
+import { getVOSAccessTokenForIframeSSO } from './vos-sso';
 
 const t = (key: string) => i18n.global.t(key)
 
@@ -73,6 +74,8 @@ let isRefreshing = false;
 let failedQueue: Array<{ resolve: Function; reject: Function }> = [];
 let isAutoSettingUp = false;
 let autoSetupPromise: Promise<string | null> | null = null;
+let isVOSSSOing = false;
+let vosSSOPromise: Promise<string | null> | null = null;
 
 // Share-link endpoints (/auth/invitations/lookup, /auth/register-by-invite)
 // are reachable by anonymous users opening an invite link. A 401 from these
@@ -124,6 +127,54 @@ function persistAutoSetupSession(response: any): string | null {
   localStorage.setItem('weknora_lite_mode', 'true');
   localStorage.removeItem('weknora_auto_setup_failed');
   return token;
+}
+
+function persistVOSSSOSession(response: any): string | null {
+  const token = response?.token;
+  if (!response?.success || !token) return null;
+
+  const activeTenant = response.active_tenant || response.tenant;
+  localStorage.setItem('weknora_token', token);
+  if (response.refresh_token) {
+    localStorage.setItem('weknora_refresh_token', response.refresh_token);
+  }
+  if (response.user) {
+    localStorage.setItem('weknora_user', JSON.stringify(response.user));
+  }
+  if (activeTenant) {
+    localStorage.setItem('weknora_tenant', JSON.stringify(activeTenant));
+    localStorage.setItem('weknora_selected_tenant_id', String(activeTenant.id));
+    if (activeTenant.name) {
+      localStorage.setItem('weknora_selected_tenant_name', activeTenant.name);
+    }
+  }
+  if (Array.isArray(response.memberships)) {
+    localStorage.setItem('weknora_memberships', JSON.stringify(response.memberships));
+  }
+  return token;
+}
+
+async function tryVOSSSOToken(): Promise<string | null> {
+  const vosToken = getVOSAccessTokenForIframeSSO();
+  if (!vosToken) return null;
+  if (isVOSSSOing && vosSSOPromise) return vosSSOPromise;
+
+  isVOSSSOing = true;
+  vosSSOPromise = axios.post(`${BASE_URL}/api/v1/auth/vos-sso`, {
+    access_token: vosToken,
+  }, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-Request-ID": `${generateRandomString(12)}`,
+    },
+  }).then((response) => persistVOSSSOSession(response.data))
+    .catch(() => null)
+    .finally(() => {
+      isVOSSSOing = false;
+      vosSSOPromise = null;
+    });
+
+  return vosSSOPromise;
 }
 
 async function tryAutoSetupToken(): Promise<string | null> {
@@ -236,6 +287,13 @@ instance.interceptors.response.use(
             throw new Error(response.message || t('error.tokenRefreshFailed'));
           }
         } catch (refreshError) {
+          const vosToken = await tryVOSSSOToken();
+          if (vosToken) {
+            originalRequest.headers['Authorization'] = 'Bearer ' + vosToken;
+            processQueue(null, vosToken);
+            return instance(originalRequest);
+          }
+
           const setupToken = await tryAutoSetupToken();
           if (setupToken) {
             originalRequest.headers['Authorization'] = 'Bearer ' + setupToken;
@@ -258,6 +316,13 @@ instance.interceptors.response.use(
           isRefreshing = false;
         }
       } else {
+        const vosToken = await tryVOSSSOToken();
+        if (vosToken) {
+          originalRequest.headers['Authorization'] = 'Bearer ' + vosToken;
+          processQueue(null, vosToken);
+          return instance(originalRequest);
+        }
+
         const setupToken = await tryAutoSetupToken();
         if (setupToken) {
           originalRequest.headers['Authorization'] = 'Bearer ' + setupToken;
