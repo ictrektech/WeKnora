@@ -141,6 +141,35 @@ POST /api/v1/auth/vos-sso
 
 其他 VOS app 不应长期保存 VOS access token。建议只在需要访问 HybRAG 时用当前 VOS token 换一次 HybRAG token，然后短期缓存 HybRAG token；HybRAG token 过期后再重新 exchange，或用响应里的 `refresh_token` 调 HybRAG `/api/v1/auth/refresh`。
 
+### 其他 app 如何取得当前 VOS 用户
+
+推荐接入方式是“其他 VOS app 后端转发当前 VOS token”：
+
+1. 用户在 VOS 中打开其他 app。
+2. 该 app 从 VOS 当前会话中取得当前用户的 VOS access token。
+3. 该 app 后端把这个 VOS access token 传给 HybRAG `/api/v1/auth/vos-token-exchange`。
+4. HybRAG 调 VOS `/v1000/user/check` 校验 token，并以 VOS 返回的用户名作为唯一身份来源。
+5. HybRAG 自动映射或创建 `${username}@local` 账户和个人空间。
+6. 该 app 后续调用 HybRAG API 时使用 exchange 返回的 HybRAG token。
+
+这样可以保证多个 VOS app 看到的是同一个用户身份：
+
+| VOS 当前用户 | HybRAG 账户 | HybRAG 默认空间 |
+| --- | --- | --- |
+| `admin` | `admin@local` | `admin's Workspace` |
+| `alice` | `alice@local` | `alice's Workspace` |
+| `zhangsan` | `zhangsan@local` | `zhangsan's Workspace` |
+
+当前 VOS 还没有稳定的标准 OIDC 或正式 iframe 注入协议时，HybRAG 前端使用一套临时兼容顺序。其他 app 如需在前端直接发起 exchange，可以按相同顺序读取 token：
+
+1. 优先读取 `window.__VOS_APP_CONTEXT__.accessToken`。
+2. 其次读取 `window.__VOS_APP_CONTEXT__.token`。
+3. 再读取 `window.__VOS_ACCESS_TOKEN__`。
+4. 如果这些注入值都不存在，再兼容读取 VOS 同源 `localStorage` 中以 `-core-access` 结尾的 store，例如 `core-access`、`VIVIBIT-core-access`。
+5. 如果 store 使用 `secure-ls` 加密，则需要用 VOS 当前约定的加密 key 解出 access token。HybRAG 兼容环境变量 `VITE_VOS_STORE_SECURE_KEY`，未配置时使用当前默认值。
+
+这套 localStorage/secure-ls 读取方式只是过渡方案。新的 VOS app 开发时，优先让自己的后端或 VOS 官方 SDK 提供当前用户的 VOS access token；未来 VOS 提供 OIDC 或正式 iframe 注入后，应切换到官方方式，HybRAG 的 token exchange 入口不用变。
+
 ### 调用示例
 
 假设其他 VOS app 的后端可以拿到当前用户的 VOS access token：
