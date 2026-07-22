@@ -258,16 +258,18 @@ type vosSSORequest struct {
 }
 
 // LoginWithVOSSSO godoc
-// @Summary      VOS 同源 iframe 临时 SSO
-// @Description  接收前端从 VOS 同源 store 读取到的 VOS access token，后端调用 VOS /v1000/user/check 校验后自动创建/登录 username@local 用户。
+// @Summary      VOS 用户 token exchange
+// @Description  接收前端或其他 VOS app 传入的 VOS access token，后端调用 VOS /v1000/user/check 校验后自动创建/登录 username@local 用户和个人空间，并返回 HybRAG bearer token。
 // @Tags         认证
 // @Accept       json
 // @Produce      json
-// @Param        request  body      vosSSORequest      true  "VOS access token"
+// @Param        request        body      vosSSORequest      false  "VOS access token"
+// @Param        Authorization  header    string             false  "Bearer <VOS access token>"
 // @Success      200      {object}  types.LoginResponse
 // @Failure      401      {object}  errors.AppError  "VOS token 无效"
 // @Failure      403      {object}  errors.AppError  "VOS SSO 未启用"
 // @Router       /auth/vos-sso [post]
+// @Router       /auth/vos-token-exchange [post]
 func (h *AuthHandler) LoginWithVOSSSO(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -277,13 +279,12 @@ func (h *AuthHandler) LoginWithVOSSSO(c *gin.Context) {
 		return
 	}
 
-	var req vosSSORequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	token, err := readVOSAccessToken(c)
+	if err != nil {
 		appErr := errors.NewValidationError("Invalid VOS SSO request").WithDetails(err.Error())
 		c.Error(appErr)
 		return
 	}
-	token := strings.TrimSpace(req.AccessToken)
 	if token == "" {
 		appErr := errors.NewValidationError("VOS access token is required")
 		c.Error(appErr)
@@ -311,6 +312,24 @@ func (h *AuthHandler) LoginWithVOSSSO(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.NewAuthLoginResponse(resp))
+}
+
+func readVOSAccessToken(c *gin.Context) (string, error) {
+	auth := strings.TrimSpace(c.GetHeader("Authorization"))
+	if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
+		if token := strings.TrimSpace(auth[len("Bearer "):]); token != "" {
+			return token, nil
+		}
+	}
+
+	if c.Request.Body == nil || c.Request.ContentLength == 0 {
+		return "", nil
+	}
+	var req vosSSORequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(req.AccessToken), nil
 }
 
 func vosSSOEnabled() bool {

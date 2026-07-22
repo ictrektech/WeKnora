@@ -12,6 +12,7 @@ FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.components.json}"
 FEISHU_FALLBACK_CONFIG_FILE="${FEISHU_FALLBACK_CONFIG_FILE:-${HOME}/.feishu.json}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_DIR="$(cd "${ROOT_DIR}/.." && pwd)"
 SRC_DIR="${ROOT_DIR}/src"
 DIST_DIR="${ROOT_DIR}/dist"
 STAGE_DIR="${DIST_DIR}/staging"
@@ -89,6 +90,24 @@ import yaml
 with open(sys.argv[1], "r", encoding="utf-8") as f:
     yaml.safe_load(f)
 PYYAML
+}
+
+validate_migration_versions() {
+  local migrations_dir="${REPO_DIR}/migrations/versioned"
+  [[ -d "$migrations_dir" ]] || return 0
+  local duplicate_versions
+  duplicate_versions="$(
+    find "$migrations_dir" -maxdepth 1 -type f -name '*.sql' -print \
+      | sed -E 's#.*/([0-9]+)_.+\.(up|down)\.sql$#\1#' \
+      | sort \
+      | uniq -c \
+      | awk '$1 != 2 {print $2 " (" $1 " files)"}'
+  )"
+  if [[ -n "$duplicate_versions" ]]; then
+    err "migration version set is invalid:"
+    printf '%s\n' "$duplicate_versions" >&2
+    die "each migration version must have exactly one .up.sql and one .down.sql file"
+  fi
 }
 
 validate_staged_files() {
@@ -524,6 +543,7 @@ done
 require_cmd curl
 select_python
 require_cmd tar
+validate_migration_versions
 mkdir -p "$DIST_DIR"
 acquire_lock
 

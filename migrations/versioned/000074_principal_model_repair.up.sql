@@ -1,4 +1,4 @@
--- Migration: 000071_principal_model_repair
+-- Migration: 000074_principal_model_repair
 -- Description: Repair databases that had already consumed version 000064 before upstream introduced 000064_principal_model.
 
 ALTER TABLE mcp_oauth_tokens

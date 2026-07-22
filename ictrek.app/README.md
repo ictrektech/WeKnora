@@ -58,6 +58,128 @@ HybRAG 安装包不启动 Model Hub 和 PGV，也不启动自己的 Ollama。安
 
 VOS 中打开 HybRAG 时，前端会走 VOS SSO。当前临时方案从 VOS 页面上下文取得用户信息，后端校验 VOS bearer token 后自动创建或登录 `${username}@local`；`admin` 用户对应 `admin@local`，并拥有系统管理员权限。后续 VOS 改为标准 OIDC 或 iframe 注入用户信息时，只需要替换该身份入口，不应恢复独立登录流程作为 VOS 默认路径。
 
+## 其他 VOS App 以当前用户身份接入 HybRAG
+
+HybRAG 同时保留两类认证方式：
+
+- API Key：用于外部系统、服务端任务、自动化脚本和不具备 VOS 用户上下文的集成。
+- VOS token exchange：用于其他 VOS app 在已登录 VOS 的前提下，以“当前 VOS 用户”的身份访问 HybRAG，不需要给用户暴露或保存 HybRAG API Key。
+
+其他 VOS app 如果要“当前打开应用的 VOS 用户是谁，就访问 HybRAG 中对应用户的空间”，应使用 VOS token exchange，不要直接伪造 `X-External-User-ID`。`X-External-User-ID` 只适合可信服务端在已经持有 HybRAG API Key 的情况下做终端用户隔离；它不是免 key 用户登录机制。
+
+### 身份映射规则
+
+HybRAG 后端收到 VOS access token 后，会调用 `HYBRAG_VOS_USERINFO_URL` 指向的 VOS `/v1000/user/check` 校验 token。校验成功后按以下规则处理：
+
+1. 读取 VOS 用户名。
+2. 映射为 HybRAG 本地账户 `${username}@local`。
+3. 如果账户不存在，自动创建账户。
+4. 如果个人空间不存在，按 `WEKNORA_AUTH_DEFAULT_TENANT_MODE=create_personal` 自动创建 `${username}'s Workspace`。
+5. 返回 HybRAG 自己签发的 `token` 和 `refresh_token`。
+6. 后续 HybRAG API 调用使用 `Authorization: Bearer <HybRAG token>`。
+
+特殊规则：
+
+- VOS `admin` 映射为 `admin@local`。
+- `admin@local` 会自动提升为 HybRAG 系统管理员，并拥有跨空间管理能力。
+- 普通 VOS 用户只拥有其 HybRAG 个人空间内的权限，除非后续由管理员把他加入其他空间或组织。
+
+### 接口
+
+推荐其他 VOS app 调用：
+
+```http
+POST /api/v1/auth/vos-token-exchange
+Authorization: Bearer <VOS access token>
+```
+
+也可以使用 JSON body，便于没有统一 header 封装的调用方：
+
+```http
+POST /api/v1/auth/vos-token-exchange
+Content-Type: application/json
+
+{
+  "access_token": "<VOS access token>"
+}
+```
+
+为兼容 HybRAG 自身前端，旧入口仍保留：
+
+```http
+POST /api/v1/auth/vos-sso
+```
+
+`/api/v1/auth/vos-sso` 与 `/api/v1/auth/vos-token-exchange` 当前共用同一套逻辑。新 VOS app 建议使用语义更明确的 `/api/v1/auth/vos-token-exchange`。
+
+成功响应与普通登录一致，关键字段如下：
+
+```json
+{
+  "success": true,
+  "data": {
+    "token": "<HybRAG access token>",
+    "refresh_token": "<HybRAG refresh token>",
+    "user": {
+      "username": "admin",
+      "email": "admin@local"
+    },
+    "tenant": {
+      "id": 10000,
+      "name": "admin's Workspace"
+    },
+    "memberships": [
+      {
+        "tenant_id": 10000,
+        "tenant_name": "admin's Workspace",
+        "role": "owner"
+      }
+    ]
+  }
+}
+```
+
+其他 VOS app 不应长期保存 VOS access token。建议只在需要访问 HybRAG 时用当前 VOS token 换一次 HybRAG token，然后短期缓存 HybRAG token；HybRAG token 过期后再重新 exchange，或用响应里的 `refresh_token` 调 HybRAG `/api/v1/auth/refresh`。
+
+### 调用示例
+
+假设其他 VOS app 的后端可以拿到当前用户的 VOS access token：
+
+```bash
+HYBRAG_BASE="http://hybrag-app:8080"
+VOS_TOKEN="<current VOS access token>"
+
+HYBRAG_TOKEN="$(
+  curl -sS -X POST "${HYBRAG_BASE}/api/v1/auth/vos-token-exchange" \
+    -H "Authorization: Bearer ${VOS_TOKEN}" \
+    | jq -r '.data.token'
+)"
+
+curl -sS "${HYBRAG_BASE}/api/v1/auth/me" \
+  -H "Authorization: Bearer ${HYBRAG_TOKEN}"
+```
+
+在 VOS `vos_default` 网络内，其他 app 应优先通过 HybRAG app 服务名访问 HybRAG 后端。不同 VOS 安装实例的 Compose project 名会变化，不要在其他 app 中写死完整容器名。更稳妥的做法是由 VOS 或 app 安装配置暴露 HybRAG API 地址；当前 HybRAG 前端公开入口仍是 `/app/com.ictrek.hybrag/`，服务端 API 地址需要按实际 VOS 网络和路由配置确定。
+
+如果其他 VOS app 只能在浏览器 iframe 内运行，且当前 VOS 版本没有提供标准 OIDC 或正式的 iframe 用户注入，则可以参考 HybRAG 前端的临时实现：优先读 `window.__VOS_APP_CONTEXT__` / `window.__VOS_ACCESS_TOKEN__`，再兼容读取 VOS 当前同源会话 store。这个兼容方式是过渡方案；未来 VOS 支持标准 OIDC 或直接向 iframe 注入用户信息后，应切换到 VOS 官方方式获取当前用户 token。
+
+### 权限边界
+
+VOS token exchange 返回的是“当前 VOS 用户对应的 HybRAG 用户”的 Bearer token，因此权限与该 HybRAG 用户一致：
+
+- 可以访问该用户自己的空间、模型配置可见项、知识库、会话和被授权资源。
+- 不会因为调用方是另一个 VOS app 就自动获得 HybRAG 全局管理员权限。
+- `admin@local` 是例外，因为它被明确配置为 HybRAG 系统管理员。
+- 如果需要服务端批处理、跨用户管理或绕过用户空间限制，使用 HybRAG API Key，并在 HybRAG「API 集成」中选择合适的能力授权或空间完全访问。
+
+不要把 `X-External-User-ID` 当作免 key 登录：
+
+```http
+X-External-User-ID: alice
+```
+
+这个 header 只有在请求同时携带有效 HybRAG API Key，并且该空间的“用户身份模式”配置为直接请求头时才有意义。它用于把 API Key 调用产生的会话按终端用户隔离，不负责校验 VOS 用户身份。
+
 ## Profiles
 
 HybRAG 自身不再启动 Ollama，Model Hub 负责 GPU/无 GPU、L4T、Thor 等运行时差异，因此本应用只发布 2 个 profile。

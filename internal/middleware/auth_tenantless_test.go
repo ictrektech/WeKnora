@@ -16,6 +16,8 @@ func TestNoAuthAPISurface(t *testing.T) {
 	}{
 		{http.MethodPost, "/api/v1/auth/vos-sso", true},
 		{http.MethodGet, "/api/v1/auth/vos-sso", false},
+		{http.MethodPost, "/api/v1/auth/vos-token-exchange", true},
+		{http.MethodGet, "/api/v1/auth/vos-token-exchange", false},
 		{http.MethodPost, "/api/v1/auth/login", true},
 		{http.MethodGet, "/api/v1/knowledge-bases", false},
 	}
