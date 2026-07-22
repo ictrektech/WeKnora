@@ -209,6 +209,16 @@ X-External-User-ID: alice
 
 这个 header 只有在请求同时携带有效 HybRAG API Key，并且该空间的“用户身份模式”配置为直接请求头时才有意义。它用于把 API Key 调用产生的会话按终端用户隔离，不负责校验 VOS 用户身份。
 
+### 平台 API Key 迁移修复
+
+平台 API Key 使用 `tenant_api_keys.scope_type` 区分普通空间 Key 和平台 Key。历史数据库如果曾经出现迁移记录已推进、但真实表结构没有 `scope_type` 的情况，进入「平台 API Key」页面会报 `Failed to list platform API keys`，后端日志会出现：
+
+```text
+ERROR: column "scope_type" does not exist
+```
+
+新版本 app 镜像内置 `000075_tenant_api_key_scope_repair` 兼容迁移，会在启动迁移时自动补齐 `scope_type` 字段、`tenant_id` 可空约束、检查约束和索引。以后遇到同类旧库，不要只手工改数据库；应先确认已经运行包含该迁移的新 app 镜像。如果现场急需恢复页面，可以按该迁移文件里的 SQL 临时补库，随后仍要升级到包含该迁移的镜像。
+
 ## Profiles
 
 HybRAG 自身不再启动 Ollama，Model Hub 负责 GPU/无 GPU、L4T、Thor 等运行时差异，因此本应用只发布 2 个 profile。

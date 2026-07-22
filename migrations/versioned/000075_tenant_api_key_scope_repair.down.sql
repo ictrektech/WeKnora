@@ -1,0 +1,2 @@
+-- Repair-only migration. Do not drop tenant_api_keys.scope_type here; it is
+-- required by platform API keys and may be in active use.
