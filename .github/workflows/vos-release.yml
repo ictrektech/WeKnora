@@ -129,3 +129,47 @@ jobs:
             --latest \
             --title "v${VERSION}" \
             --notes-file release-notes.md
+
+      - name: Publish package to VOS App Store
+        env:
+          APP_STORE: ${{ secrets.APP_STORE }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${APP_STORE:-}" ]]; then
+            echo "APP_STORE is not configured; skip VOS App Store publish."
+            exit 0
+          fi
+
+          VERSION="${GITHUB_REF_NAME#vos-hybrag-v}"
+          PACKAGE="ictrek.app/dist/hybrag_${VERSION}_pull.tar"
+          base="${APP_STORE%/}"
+          base="${base%/store}"
+          base="${base%/api/apps/publish}"
+          base="${base%/api/apps/validate}"
+
+          validate_response="$(curl -kfsS -F "package=@${PACKAGE}" "${base}/api/apps/validate")"
+          RESPONSE="$validate_response" python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          payload = json.loads(os.environ["RESPONSE"])
+          if payload.get("code") != 0:
+              print(payload, file=sys.stderr)
+              raise SystemExit("App Store package validation failed")
+          print(f"Validated {payload.get('data', {}).get('app_id')}@{payload.get('data', {}).get('version')}")
+          PY
+
+          publish_response="$(curl -kfsS -F "package=@${PACKAGE}" -F "force=true" "${base}/api/apps/publish")"
+          RESPONSE="$publish_response" python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          payload = json.loads(os.environ["RESPONSE"])
+          if payload.get("code") != 0:
+              print(payload, file=sys.stderr)
+              raise SystemExit("App Store publish failed")
+          data = payload.get("data") or {}
+          print(f"Published {data.get('app_id')}@{data.get('version')} to VOS App Store")
+          PY
