@@ -1123,6 +1123,12 @@ func (noopTaskInspector) CancelTasksForKnowledge(
 	return 0, 0, nil
 }
 
+func (noopTaskInspector) CancelTasksForKnowledgeTypes(
+	ctx context.Context, knowledgeID string, taskTypes []string,
+) (int, int, error) {
+	return 0, 0, nil
+}
+
 // HasQueuedTasksForKnowledge always reports false in Lite mode: inline
 // executors never enqueue, so there is no backlog to protect against and
 // the housekeeping sweep's span/updated_at checks stay authoritative.
