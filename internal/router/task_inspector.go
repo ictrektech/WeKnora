@@ -48,6 +48,7 @@ func NewAsynqTaskInspector(inspector *asynq.Inspector, redisClient *redis.Client
 // Question / Summary / Extract / Manual.
 type knowledgeIDProbe struct {
 	KnowledgeID string `json:"knowledge_id,omitempty"`
+	Attempt     int    `json:"attempt,omitempty"`
 }
 
 type runtimeTaskPayloadProbe struct {
@@ -1046,6 +1047,98 @@ func (a *asynqTaskInspector) queueStateHasMatch(
 
 // matchesKnowledge returns true when the task type is one we cancel
 // AND its payload references the target knowledge ID.
+// ReconcileKnowledgeTasks removes stale-attempt and duplicate queued work.
+func ReconcileKnowledgeTasks(
+	ctx context.Context, inspector *asynq.Inspector, currentAttempts map[string]int,
+) (deleted, cancelled int) {
+	if inspector == nil {
+		return 0, 0
+	}
+	seen := make(map[string]struct{})
+	for _, queue := range queuesScanned {
+		for _, task := range listAllTasks(ctx, queue, "active", inspector.ListActiveTasks) {
+			if keepKnowledgeTask(task, currentAttempts, seen) {
+				continue
+			}
+			if err := inspector.CancelProcessing(task.ID); err == nil {
+				cancelled++
+			}
+		}
+	}
+	states := []struct {
+		name string
+		list func(string, ...asynq.ListOption) ([]*asynq.TaskInfo, error)
+	}{
+		{"pending", inspector.ListPendingTasks},
+		{"scheduled", inspector.ListScheduledTasks},
+		{"retry", inspector.ListRetryTasks},
+	}
+	for _, queue := range queuesScanned {
+		for _, state := range states {
+			for _, task := range listAllTasks(ctx, queue, state.name, state.list) {
+				if keepKnowledgeTask(task, currentAttempts, seen) {
+					continue
+				}
+				if err := inspector.DeleteTask(queue, task.ID); err == nil {
+					deleted++
+				}
+			}
+		}
+	}
+	return deleted, cancelled
+}
+
+func listAllTasks(
+	ctx context.Context, queue, state string,
+	list func(string, ...asynq.ListOption) ([]*asynq.TaskInfo, error),
+) []*asynq.TaskInfo {
+	var out []*asynq.TaskInfo
+	for page := 1; ; page++ {
+		tasks, err := list(queue, asynq.PageSize(listPageSize), asynq.Page(page))
+		if err != nil {
+			if !errors.Is(err, asynq.ErrQueueNotFound) {
+				logger.Warnf(ctx, "[TaskInspector] reconcile list %s queue=%s page=%d: %v", state, queue, page, err)
+			}
+			return out
+		}
+		out = append(out, tasks...)
+		if len(tasks) < listPageSize {
+			return out
+		}
+	}
+}
+
+func keepKnowledgeTask(task *asynq.TaskInfo, currentAttempts map[string]int, seen map[string]struct{}) bool {
+	if task == nil {
+		return true
+	}
+	if task.Type == types.TypeWikiIngest {
+		signature := task.Type + "\x00" + string(task.Payload)
+		if _, duplicate := seen[signature]; duplicate {
+			return false
+		}
+		seen[signature] = struct{}{}
+		return true
+	}
+	if _, ok := taskTypesForKnowledgeCancel[task.Type]; !ok {
+		return true
+	}
+	var probe knowledgeIDProbe
+	if json.Unmarshal(task.Payload, &probe) != nil || probe.KnowledgeID == "" {
+		return true
+	}
+	current, exists := currentAttempts[probe.KnowledgeID]
+	if !exists || (probe.Attempt > 0 && current > 0 && probe.Attempt != current) {
+		return false
+	}
+	signature := task.Type + "\x00" + string(task.Payload)
+	if _, duplicate := seen[signature]; duplicate {
+		return false
+	}
+	seen[signature] = struct{}{}
+	return true
+}
+
 func matchesKnowledge(taskType string, payload []byte, knowledgeID string) bool {
 	if _, ok := taskTypesForKnowledgeCancel[taskType]; !ok {
 		return false
