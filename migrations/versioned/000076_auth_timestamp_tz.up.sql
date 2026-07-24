@@ -1,4 +1,4 @@
-DO $$ BEGIN RAISE NOTICE '[Migration 000075] Converting authorization timestamps to timestamptz...'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000076] Converting authorization timestamps to timestamptz...'; END $$;
 
 -- Naive TIMESTAMP values were read through a GORM session with TimeZone=UTC.
 -- Treat existing literals as UTC when promoting to timestamptz.
@@ -34,4 +34,4 @@ ALTER TABLE resource_access_grants
     ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE
         USING created_at AT TIME ZONE 'UTC';
 
-DO $$ BEGIN RAISE NOTICE '[Migration 000075] Authorization timestamps ready'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000076] Authorization timestamps ready'; END $$;
