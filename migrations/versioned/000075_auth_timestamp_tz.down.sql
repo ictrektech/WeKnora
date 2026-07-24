@@ -1,4 +1,4 @@
-DO $$ BEGIN RAISE NOTICE '[Migration 000072 down] Reverting authorization timestamps to timestamp...'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000075 down] Reverting authorization timestamps to timestamp...'; END $$;
 
 ALTER TABLE tenant_api_keys
     ALTER COLUMN last_used_at TYPE TIMESTAMP WITHOUT TIME ZONE
@@ -32,4 +32,4 @@ ALTER TABLE resource_access_grants
     ALTER COLUMN created_at TYPE TIMESTAMP WITHOUT TIME ZONE
         USING created_at AT TIME ZONE 'UTC';
 
-DO $$ BEGIN RAISE NOTICE '[Migration 000072 down] Authorization timestamps reverted'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000075 down] Authorization timestamps reverted'; END $$;
