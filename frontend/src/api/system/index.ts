@@ -27,6 +27,11 @@ export async function deletePlatformAPIKey(keyId: number): Promise<{ success: bo
 export interface SystemInfo {
   version: string
   edition?: string
+  vos_app_version?: string
+  app_image?: string
+  frontend_image?: string
+  docreader_image?: string
+  sandbox_image?: string
   commit_id?: string
   build_time?: string
   go_version?: string

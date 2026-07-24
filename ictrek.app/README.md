@@ -4,6 +4,8 @@
 
 当前只发布 pull 模式安装包：本地 `update_version.sh` 只创建触发 tag，GitHub Actions 负责读取飞书和依赖 release、打包并发布正式 release。
 
+系统设置的“版本信息”会同时显示代码构建版本、VOS App 版本以及当前 profile 使用的 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 镜像 tag。VOS App 版本由 `package.sh` 将 `__APP_VERSION__` 渲染为发布版本；四个镜像引用由 GitHub Actions 打包时从飞书读取并写入 compose，随后作为环境变量传给后端。普通非 VOS 部署不设置这些变量时不会显示对应行，也不影响启动。
+
 ## 文档结构
 
 | 路径 | 状态 | 用途 |
@@ -36,6 +38,16 @@ dist/hybrag_${VERSION}_pull.tar
 ```
 
 安装包内只有 `app.tar.gz`，不会内置镜像归档。脚本会优先读取 `~/.feishu.components.json`，失败时回退到 `~/.feishu.json`，从飞书发布表读取 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 的最新镜像版本，并写入包内 `.env`。这里仍读取 `weknora*` 镜像列，是因为本次只改 VOS 应用、容器和显示名称，不改已发布镜像仓库名。
+
+版本信息注入使用以下环境变量；当前 VOS compose 会按 AMD/ARM profile 自动写入，部署者不需要手工维护：
+
+```text
+WEKNORA_VOS_APP_VERSION
+WEKNORA_APP_IMAGE
+WEKNORA_UI_IMAGE
+WEKNORA_DOCREADER_IMAGE
+WEKNORA_SANDBOX_IMAGE
+```
 
 打包脚本会校验 VOS 入口契约：`routers.yml` 必须声明 `entry-point: true` 和 `embed: true`，`docker-compose.yml` 必须把顶层文档请求 `/app/com.ictrek.hybrag/` 重定向到 VOS 侧边栏内部路径。缺少这些字段时，VOS“我的应用”卡片的“打开”按钮可能只打开空白页或不能在侧边栏打开。
 

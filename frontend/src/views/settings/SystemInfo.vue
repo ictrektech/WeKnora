@@ -45,6 +45,30 @@
         </div>
       </div>
 
+      <div v-if="systemInfo?.vos_app_version" class="setting-row">
+        <div class="setting-info">
+          <label>{{ $t('system.vosAppVersionLabel') }}</label>
+          <p class="desc">{{ $t('system.vosAppVersionDescription') }}</p>
+        </div>
+        <div class="setting-control">
+          <span class="info-value">{{ systemInfo.vos_app_version }}</span>
+        </div>
+      </div>
+
+      <div
+        v-for="image in deployedImages"
+        :key="image.label"
+        class="setting-row"
+      >
+        <div class="setting-info">
+          <label>{{ image.label }}</label>
+          <p class="desc">{{ image.description }}</p>
+        </div>
+        <div class="setting-control">
+          <span class="info-value" :title="image.reference">{{ image.version }}</span>
+        </div>
+      </div>
+
       <!-- Frontend version -->
       <div class="setting-row">
         <div class="setting-info">
@@ -207,6 +231,26 @@ const loading = ref(true)
 const error = ref('')
 const frontendVersion = __FRONTEND_VERSION__
 const frontendCommit = __FRONTEND_COMMIT__
+
+function imageVersion(reference: string): string {
+  if (reference.includes('@')) return reference.split('@').pop() || reference
+  const slash = reference.lastIndexOf('/')
+  const colon = reference.lastIndexOf(':')
+  return colon > slash ? reference.slice(colon + 1) : reference
+}
+
+const deployedImages = computed(() => {
+  const values = [
+    ['app_image', 'system.appImageVersionLabel', 'system.appImageVersionDescription'],
+    ['frontend_image', 'system.frontendImageVersionLabel', 'system.frontendImageVersionDescription'],
+    ['docreader_image', 'system.docreaderImageVersionLabel', 'system.docreaderImageVersionDescription'],
+    ['sandbox_image', 'system.sandboxImageVersionLabel', 'system.sandboxImageVersionDescription'],
+  ] as const
+  return values.flatMap(([field, label, description]) => {
+    const reference = systemInfo.value?.[field]
+    return reference ? [{ label: t(label), description: t(description), reference, version: imageVersion(reference) }] : []
+  })
+})
 
 let uptimeTicker: ReturnType<typeof setInterval> | null = null
 const uptimeTick = ref(0)

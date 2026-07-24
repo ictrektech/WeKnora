@@ -282,6 +282,11 @@ func (h *SystemHandler) emitAdminAudit(
 type GetSystemInfoResponse struct {
 	Version             string `json:"version"`
 	Edition             string `json:"edition"`
+	VOSAppVersion       string `json:"vos_app_version,omitempty"`
+	AppImage            string `json:"app_image,omitempty"`
+	FrontendImage       string `json:"frontend_image,omitempty"`
+	DocreaderImage      string `json:"docreader_image,omitempty"`
+	SandboxImage        string `json:"sandbox_image,omitempty"`
 	CommitID            string `json:"commit_id,omitempty"`
 	BuildTime           string `json:"build_time,omitempty"`
 	GoVersion           string `json:"go_version,omitempty"`
@@ -360,6 +365,11 @@ func (h *SystemHandler) GetSystemInfo(c *gin.Context) {
 	response := GetSystemInfoResponse{
 		Version:             Version,
 		Edition:             Edition,
+		VOSAppVersion:       os.Getenv("WEKNORA_VOS_APP_VERSION"),
+		AppImage:            os.Getenv("WEKNORA_APP_IMAGE"),
+		FrontendImage:       os.Getenv("WEKNORA_UI_IMAGE"),
+		DocreaderImage:      os.Getenv("WEKNORA_DOCREADER_IMAGE"),
+		SandboxImage:        os.Getenv("WEKNORA_SANDBOX_IMAGE"),
 		CommitID:            CommitID,
 		BuildTime:           BuildTime,
 		GoVersion:           GoVersion,
