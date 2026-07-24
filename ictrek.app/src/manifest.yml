@@ -18,10 +18,10 @@ platform:
 dependencies:
   apps:
   - id: com.ictrek.model-hub
-    version: '>=0.0.29'
+    version: '>=0.0.54'
     optional: false
   - id: com.ictrek.pgv
-    version: '>=0.0.13'
+    version: '>=0.0.21'
     optional: false
 profiles:
 - name: amd

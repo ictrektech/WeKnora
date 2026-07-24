@@ -263,7 +263,7 @@ docker compose --profile arm config
 
 ## 依赖和模型
 
-`manifest.yml` 源码模板只声明依赖 `com.ictrek.model-hub >=0.0.29` 和 `com.ictrek.pgv` 的最低基线；正式打包时，GitHub Actions 会查询依赖 release，把最终安装包里的依赖版本自动更新为当前最新可用版本。`docker-compose.yml` 不启动 model_hub 或 Postgres 服务。Model Hub 提供独立的 QA 与 embedding Ollama 预热运行时，当前 HybRAG 需要使用同时兼容 OpenAI `/v1/*` 与 Ollama `/api/*` 的 `11535` gateway。HybRAG 包内只启动自身服务、Redis 和 Neo4j；Postgres 通过 PGV 在 `vos_default` 网络上的 `shared-pgv:5432` 访问，模型调用通过 Model Hub 暴露的两个 gateway。
+`manifest.yml` 固定最低兼容依赖为 `com.ictrek.model-hub >=0.0.54` 和 `com.ictrek.pgv >=0.0.21`。正式打包必须原样保留这两个最低版本，不能自动改成依赖仓库的最新 release；提高最低版本需要显式修改 manifest 并在 AMD、ARM VOS 上重新验证安装。`docker-compose.yml` 不启动 model_hub 或 Postgres 服务。Model Hub 提供独立的 QA 与 embedding Ollama 预热运行时，当前 HybRAG 需要使用同时兼容 OpenAI `/v1/*` 与 Ollama `/api/*` 的 `11535` gateway。HybRAG 包内只启动自身服务、Redis 和 Neo4j；Postgres 通过 PGV 在 `vos_default` 网络上的 `shared-pgv:5432` 访问，模型调用通过 Model Hub 暴露的两个 gateway。
 
 PGV 文档中默认预置给 WeKnora/HybRAG 使用的连接信息是：
 
@@ -304,7 +304,7 @@ Model Hub 预热、常驻和 Gateway 检查见 [docs/vos-ollama-prewarm.md](docs
 
 ## 版本更新与 Release
 
-`scripts/update_version.sh` 用于发布自增版本并触发 GitHub Actions。它不是 dry-run；执行成功后会修改版本文件、提交 commit、创建 `vos-hybrag-v${VERSION}` 触发 tag，并推送分支和 tag。真正的依赖版本查询、飞书查表、pull 包打包、release notes 生成和 tar 上传由 `.github/workflows/vos-release.yml` 完成。
+`scripts/update_version.sh` 用于发布自增版本并触发 GitHub Actions。它不是 dry-run；执行成功后会修改版本文件、提交 commit、创建 `vos-hybrag-v${VERSION}` 触发 tag，并推送分支和 tag。飞书查表、pull 包打包、release notes 生成和 tar 上传由 `.github/workflows/vos-release.yml` 完成。
 
 ```bash
 ./scripts/update_version.sh patch
@@ -327,7 +327,7 @@ Model Hub 预热、常驻和 Gateway 检查见 [docs/vos-ollama-prewarm.md](docs
 
 GitHub Actions 会：
 
-1. 使用 `VOS_DEPENDENCY_RELEASE_TOKEN` 查询 `model_hub_*_pull.tar` 与 `pgv_*_pull.tar` 的最新版本，并写入 CI 工作区内的 `manifest.yml`。
+1. 保留 `manifest.yml` 中固定且经过双端验证的最低兼容版本。
 2. 使用 `FEISHU_APP_ID`、`FEISHU_APP_SECRET` 和可选 `FEISHU_SPREADSHEET_TOKEN` 写出 `~/.feishu.components.json`。
 3. 调用 `scripts/package.sh`，从飞书发布表读取 `weknora*` 四镜像的最新版本，生成 `dist/hybrag_${VERSION}_pull.tar`。
 4. 生成 release notes。
@@ -347,13 +347,12 @@ git fetch --tags origin
 - HybRAG 工作区必须干净；脚本会在存在未提交改动时退出。
 - `origin` 应指向发布目标仓库，例如 `git@github.com:ictrektech/WeKnora.git`。
 - 本地只需要能向 HybRAG push 分支和 tag；不需要本地读取飞书，也不需要本地创建 GitHub Release。
-- GitHub Actions 需要能读取依赖 release、读取飞书发布表，并能写 HybRAG release。
+- GitHub Actions 需要能读取飞书发布表，并能写 HybRAG release。
 
 GitHub secrets：
 
 | Secret | 用途 | 建议配置位置 |
 | --- | --- | --- |
-| `VOS_DEPENDENCY_RELEASE_TOKEN` | 读取同组织私有依赖仓库 release assets，例如 `model_hub`、`pgv` | Organization secret，`Repository access` 可选 `All repositories`，权限 `Contents: Read-only` |
 | `FEISHU_APP_ID` | 飞书应用 ID，用于读取镜像发布表 | Organization secret；HybRAG 是 public repo，可使用当前组织 public repositories 范围 |
 | `FEISHU_APP_SECRET` | 飞书应用 secret | Organization secret；HybRAG 是 public repo，可使用当前组织 public repositories 范围 |
 | `FEISHU_SPREADSHEET_TOKEN` | 可选；覆盖默认飞书表 token | Organization secret 或 repository secret |
@@ -373,8 +372,6 @@ HybRAG 的固定入口契约是：
 - VOS 内部侧边栏路径：`#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag`
 
 `scripts/package.sh` 会在生成 `app.tar.gz` 后校验以上字段；不匹配时直接失败。新增或修改入口时必须同步更新模板和脚本校验值。
-
-当前这条说明里的“其他 VOS app”包括 `model_hub`、`pgv`、`motrix-next`、`cc_setup`。这些 app 暂不因为 HybRAG 的私有依赖查询需求改变发布流程。
 
 发布命令：
 
@@ -396,7 +393,6 @@ git tag --list "vos-hybrag-v${VERSION}" "v${VERSION}" --format='%(refname:short)
 如果脚本失败，按阶段处理：
 
 - 本地脚本失败：通常是工作区不干净、版本号非法、触发 tag 或公开 release tag 已存在。先用 `git status --short`、`git tag --list 'vos-hybrag-v*' 'v*'` 检查。
-- CI 依赖 release 查询失败：检查 `VOS_DEPENDENCY_RELEASE_TOKEN` 是否可用，是否有同组织仓库 `Contents: Read-only` 权限。
 - CI 飞书查表失败：检查 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_SPREADSHEET_TOKEN`，以及目标 profile 的 sheet 里是否存在 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 列，并且最新行有 tag。
 - CI release 创建失败：查看 `VOS Pull Package Release` workflow 日志。若 package 已生成但 release 未创建，可在本地确认后补执行：
 
@@ -405,22 +401,3 @@ VERSION="$(cat VERSION)"
 gh run view --repo ictrektech/WeKnora --log
 gh release view "v${VERSION}" --repo ictrektech/WeKnora
 ```
-
-## GitHub Actions 依赖查询验证
-
-本机 `gh` 能查到私有仓库不代表 GitHub Actions 默认 `GITHUB_TOKEN` 也能查到。`Check VOS Dependency Release Access` workflow 用于验证 CI 能否读取 VOS 依赖仓库 release assets。
-
-HybRAG 仓库需要配置名为 `VOS_DEPENDENCY_RELEASE_TOKEN` 的 repository 或 organization secret。推荐使用 fine-grained PAT：
-
-- `Repository access`: `All repositories`
-- `Permissions`: 只添加 `Contents: Read-only`
-
-配置后手动运行 `Check VOS Dependency Release Access`。日志中应出现类似：
-
-```text
-Using VOS_DEPENDENCY_RELEASE_TOKEN for dependency release lookup.
-ictrektech/model_hub: latest visible pull asset version is 0.0.17
-ictrektech/pgv: latest visible pull asset version is 0.0.13
-```
-
-CI 发布流程应复用同一个 secret 作为 `GH_TOKEN`，不要依赖当前仓库默认 `GITHUB_TOKEN` 读取其他私有仓库。
