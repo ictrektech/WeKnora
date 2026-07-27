@@ -291,7 +291,9 @@ services:
       # SSRF_WHITELIST so user overrides don't clobber it. (postgres is
       # intentionally NOT listed: it is not a user-registerable vector store,
       # and whitelisting the app's own DB host would skip the 5432 port block.)
-      - SSRF_WHITELIST_EXTRA=${SSRF_WHITELIST_EXTRA:-host.docker.internal,searxng,qdrant,milvus,weaviate,doris-fe}
+      # doris-be: Stream Load follows FE→BE redirects that must receive Basic
+      # credentials on whitelisted BE hosts.
+      - SSRF_WHITELIST_EXTRA=${SSRF_WHITELIST_EXTRA:-host.docker.internal,searxng,qdrant,milvus,weaviate,doris-fe,doris-be}
       - CONCURRENCY_POOL_SIZE=${CONCURRENCY_POOL_SIZE:-5}
       - WEKNORA_MAIN_QA_MODEL_CONCURRENCY=${WEKNORA_MAIN_QA_MODEL_CONCURRENCY:-4}
       - WEKNORA_CHAT_RESERVED_CONCURRENCY=${WEKNORA_CHAT_RESERVED_CONCURRENCY:-2}
