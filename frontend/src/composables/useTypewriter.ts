@@ -9,6 +9,8 @@ export interface TypewriterOptions {
   maxCps?: number;
   /** Largest frame delta honored after a backgrounded tab resumes. */
   maxFrameSeconds?: number;
+  /** Reveal semantic chunks by default, or exactly one code point at a time. */
+  revealMode?: 'semantic' | 'character';
 }
 
 const NATURAL_BREAK_RE = /[\s，。！？；：、,.!?;:)\]】》」』]/u;
@@ -90,6 +92,7 @@ export function useTypewriter(
   const drainSeconds = options.drainSeconds ?? 0.42;
   const maxCps = options.maxCps ?? 240;
   const maxFrameSeconds = options.maxFrameSeconds ?? 0.05;
+  const revealMode = options.revealMode ?? 'semantic';
 
   const typedLength = ref(0);
   let revealCredit = 0;
@@ -141,7 +144,10 @@ export function useTypewriter(
     const cps = Math.min(maxCps, Math.max(minCps, remaining / drainSeconds));
     revealCredit += cps * dt;
 
-    const next = nextTypewriterReveal(full, typedLength.value, revealCredit);
+    const next =
+      revealMode === 'character'
+        ? advanceCodePoints(full, typedLength.value, Math.floor(revealCredit))
+        : nextTypewriterReveal(full, typedLength.value, revealCredit);
     if (next > typedLength.value) {
       revealCredit = Math.max(0, revealCredit - (next - typedLength.value));
       typedLength.value = next;

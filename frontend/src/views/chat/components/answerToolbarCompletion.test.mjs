@@ -29,10 +29,12 @@ test('answers stay plain text while streaming and render markdown only after com
     assert.match(component, /v-else class="ai-markdown-template markdown-content"/)
     assert.match(component, /if \(!answerFullyRendered\.value\) return/)
     assert.match(component, /streaming: false/)
+    assert.match(component, /revealMode: 'character'/)
   }
 
-  assert.match(agentStream, /<pre v-if="!event\.done" class="streaming-answer-text">/)
+  assert.match(agentStream, /<pre v-if="!event\.done \|\| !answerFullyRendered" class="streaming-answer-text">/)
   assert.match(agentStream, /<div v-else v-html="renderAnswerContent\(event\.content\)" \/>/)
+  assert.match(agentStream, /revealMode: 'character'/)
 })
 
 test('follow-up loading is shown compactly inside both answer toolbars', () => {

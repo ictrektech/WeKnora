@@ -198,6 +198,7 @@ const answerText = computed(() => {
 const { displayed: typedAnswer } = useTypewriter(
     () => answerText.value,
     () => Boolean(props.session?.is_completed),
+    { revealMode: 'character' },
 );
 
 // The backend completion event can arrive while the local typewriter still has

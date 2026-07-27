@@ -153,6 +153,7 @@ const answerText = computed(() => String(props.content || props.session?.content
 const { displayed: typedAnswer } = useTypewriter(
   () => answerText.value,
   () => Boolean(props.session?.is_completed),
+  { revealMode: 'character' },
 )
 
 const answerFullyRendered = computed(
