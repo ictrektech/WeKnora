@@ -33,8 +33,8 @@
             <!-- 直接渲染完整内容，避免切分导致的问题，样式与 thinking 一致 -->
             <!-- 只有当有实际内容时才显示包围框 -->
             <div class="content-wrapper" v-if="hasActualContent">
-                <div class="ai-markdown-template markdown-content" v-stable-html="renderedHTML">
-                </div>
+                <pre v-if="!answerFullyRendered" class="streaming-answer-text">{{ typedAnswer }}</pre>
+                <div v-else class="ai-markdown-template markdown-content" v-stable-html="renderedHTML"></div>
             </div>
             <!-- 复制和添加到知识库按钮 - 非 Agent 模式下显示 -->
             <div v-if="answerFullyRendered && (content || session.content)" class="answer-toolbar">
@@ -217,13 +217,14 @@ watch(
 
 // 单次渲染整个 Markdown 内容（替代 token-by-token，修复 KaTeX 公式在 streaming 时闪烁消失的问题）
 const renderedHTML = computed(() => {
+    if (!answerFullyRendered.value) return '';
     const text = typedAnswer.value;
     if (!text || typeof text !== 'string') return '';
     return renderChatMarkdown(text, {
         renderer: markdownRenderer,
         escapeMarkdown: safeMarkdownToHTML,
         sanitizeHtml: sanitizeMarkdownHTML,
-        streaming: !props.session?.is_completed,
+        streaming: false,
         knowledgeReferences: props.session?.knowledge_references,
     });
 });
@@ -350,6 +351,14 @@ onBeforeUnmount(() => {
 // 内容包装器 - 与 Agent 模式的 answer 样式一致
 .content-wrapper {
     padding: 2px 0;
+}
+
+.streaming-answer-text {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+    color: inherit;
 }
 
 .markdown-content {

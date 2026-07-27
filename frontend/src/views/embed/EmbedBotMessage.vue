@@ -15,7 +15,8 @@
     <DeepThink v-if="session?.showThink && !session?.isAgentMode" :deep-session="session" />
     <div v-if="!session?.hideContent && !session?.isAgentMode" ref="parentMd">
       <div v-if="hasActualContent" class="content-wrapper">
-        <div class="ai-markdown-template markdown-content" v-stable-html="renderedHTML" />
+        <pre v-if="!answerFullyRendered" class="streaming-answer-text">{{ typedAnswer }}</pre>
+        <div v-else class="ai-markdown-template markdown-content" v-stable-html="renderedHTML" />
       </div>
     </div>
     <Teleport to="body">
@@ -154,14 +155,19 @@ const { displayed: typedAnswer } = useTypewriter(
   () => Boolean(props.session?.is_completed),
 )
 
+const answerFullyRendered = computed(
+  () => Boolean(props.session?.is_completed) && typedAnswer.value.length >= answerText.value.length,
+)
+
 const renderedHTML = computed(() => {
+  if (!answerFullyRendered.value) return ''
   const text = typedAnswer.value
   if (!text.trim()) return ''
   return renderChatMarkdown(text, {
     renderer: markdownRenderer,
     escapeMarkdown: safeMarkdownToHTML,
     sanitizeHtml: sanitizeMarkdownHTML,
-    streaming: !props.session?.is_completed,
+    streaming: false,
   })
 })
 
@@ -238,6 +244,14 @@ onMounted(() => {
 
 .content-wrapper {
   padding: 2px 0;
+}
+
+.streaming-answer-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  color: inherit;
 }
 
 .markdown-content {
