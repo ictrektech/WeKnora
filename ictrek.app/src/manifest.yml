@@ -13,6 +13,9 @@ category:
 arch:
 - amd64
 - arm64
+frontend:
+  enabled: true
+  basePath: /app/com.ictrek.hybrag
 platform:
   version: '>=3.0.0'
 dependencies:
