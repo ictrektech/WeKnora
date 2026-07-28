@@ -74,7 +74,8 @@
                   仅对极少数尚未拿到 id 的本地占位消息 fallback 到 role+created_at+index。
                 -->
                 <div v-for="(session, index) in renderedMessagesList"
-                    :key="session.id || `${session.role}-${session.created_at}-${index}`" class="msg-item-wrapper">
+                    :key="session.id || `${session.role}-${session.created_at}-${index}`" class="msg-item-wrapper"
+                    :data-message-index="index" :data-message-role="session.role">
 
                     <div v-if="session.role == 'user'">
                         <usermsg :content="session.content" :mentioned_items="session.mentioned_items"
@@ -84,7 +85,7 @@
                     </div>
                     <div v-if="session.role == 'assistant' && shouldRenderAssistantMessage(session)">
                         <botmsg :content="session.content" :session="session" :session-id="session_id"
-                            :user-query="getUserQuery(index)" @scroll-bottom="scrollToBottom"
+                            :user-query="getRenderedUserQuery(index)" @scroll-bottom="scrollToBottom"
                             :isFirstEnter="isFirstEnter" :embeddedMode="embeddedMode"
                             :follow-up-loading="Boolean(session.suggestionLoading && !session.suggestionSet?.questions?.length)"
                             @render-complete-change="(ready) => handleAnswerRenderComplete(session, ready)">
@@ -241,6 +242,7 @@ const inputFieldRef = ref();
 const created_at = ref('');
 const limit = ref(20);
 const messagesList = reactive([]);
+const inFlightTurnCache = new Map();
 const isReplying = ref(false);
 const currentAssistantMessageId = ref(''); // 当前正在生成的 assistant message ID
 // True while attaching to an in-flight reply via continue-stream. Attach failures
@@ -428,15 +430,243 @@ function fileToBase64(file) {
     });
 }
 
-const getUserQuery = (index) => {
-    if (index <= 0) {
-        return '';
-    }
-    const previous = messagesList[index - 1];
-    if (previous && previous.role === 'user') {
-        return previous.content || '';
+const getRenderedUserQuery = (index) => {
+    if (index <= 0) return '';
+    for (let i = index - 1; i >= 0; i -= 1) {
+        const previous = renderedMessagesList.value[i];
+        if (previous?.role === 'user') return previous.content || '';
     }
     return '';
+};
+
+const cloneMessageForInFlightCache = (message) => {
+    const cloned = { ...message };
+    if (Array.isArray(message.images)) cloned.images = message.images.slice();
+    if (Array.isArray(message.attachments)) cloned.attachments = message.attachments.slice();
+    if (Array.isArray(message.mentioned_items)) cloned.mentioned_items = message.mentioned_items.slice();
+    if (Array.isArray(message.knowledge_references)) cloned.knowledge_references = message.knowledge_references.slice();
+    if (Array.isArray(message.agentEventStream)) {
+        cloned.agentEventStream = message.agentEventStream.map((event) => ({ ...event }));
+    }
+    if (message._eventMap instanceof Map) cloned._eventMap = new Map(message._eventMap);
+    if (message._pendingToolCalls instanceof Map) cloned._pendingToolCalls = new Map(message._pendingToolCalls);
+    return cloned;
+};
+
+const getLastUserMessageIndex = () => {
+    for (let i = messagesList.length - 1; i >= 0; i--) {
+        if (messagesList[i]?.role === 'user') return i;
+    }
+    return -1;
+};
+
+const cacheCurrentInFlightTurn = (targetSessionId = session_id.value) => {
+    if (!targetSessionId || messagesList.length === 0) return;
+    const lastUserIndex = getLastUserMessageIndex();
+    if (lastUserIndex < 0) return;
+    const tail = messagesList.slice(lastUserIndex);
+    const hasIncompleteAssistant = tail.some((message) => message.role === 'assistant' && !message.is_completed);
+    if (!hasIncompleteAssistant && !hasActiveStream(targetSessionId)) {
+        inFlightTurnCache.delete(targetSessionId);
+        return;
+    }
+    inFlightTurnCache.set(targetSessionId, tail.map(cloneMessageForInFlightCache));
+};
+
+const messageIdentityMatches = (left, right) => {
+    if (!left || !right) return false;
+    if (left.id && right.id && left.id === right.id) return true;
+    if (left.request_id && right.request_id && left.request_id === right.request_id) return true;
+    if (left.id && right.request_id && left.id === right.request_id) return true;
+    if (left.request_id && right.id && left.request_id === right.id) return true;
+    if (left.role === 'user' && right.role === 'user') {
+        const leftContent = String(left.content || '');
+        const rightContent = String(right.content || '');
+        const leftCreatedAt = String(left.created_at || '');
+        const rightCreatedAt = String(right.created_at || '');
+        return leftContent === rightContent &&
+            (!leftCreatedAt || !rightCreatedAt || leftCreatedAt === rightCreatedAt);
+    }
+    return false;
+};
+
+const mergeStreamText = (prefixValue, suffixValue) => {
+    const prefix = String(prefixValue || '');
+    const suffix = String(suffixValue || '');
+    if (!prefix) return suffix;
+    if (!suffix) return prefix;
+    if (prefix === suffix) return prefix;
+    if (suffix.startsWith(prefix)) return suffix;
+    if (prefix.startsWith(suffix)) return prefix;
+    if (prefix.endsWith(suffix)) return prefix;
+
+    const maxOverlap = Math.min(prefix.length, suffix.length);
+    for (let size = maxOverlap; size > 0; size--) {
+        if (prefix.endsWith(suffix.slice(0, size))) {
+            return prefix + suffix.slice(size);
+        }
+    }
+    return prefix + suffix;
+};
+
+const cloneAgentEvent = (event) => ({ ...event });
+
+const agentEventIdentityMatches = (left, right) => {
+    if (!left || !right) return false;
+    if (left.event_id && right.event_id && left.event_id === right.event_id) return true;
+    if (left.type !== right.type) return false;
+    if (left.type === 'answer') {
+        return !left.event_id && !right.event_id && left.superseded === right.superseded;
+    }
+    return false;
+};
+
+const mergeAgentEvent = (target, source) => {
+    if (!target || !source) return;
+    if (!target.event_id && source.event_id) target.event_id = source.event_id;
+    if (source.type && !target.type) target.type = source.type;
+    if (source.type === 'answer' || target.type === 'answer') {
+        target.content = mergeStreamText(source.content, target.content);
+    } else if (!target.content && source.content) {
+        target.content = source.content;
+    }
+    if (source.done) target.done = true;
+    if (source.pending === false) target.pending = false;
+    if (source.superseded) target.superseded = true;
+    if (source.status && !target.status) target.status = source.status;
+    if (source.title && !target.title) target.title = source.title;
+    if (source.metadata && !target.metadata) target.metadata = source.metadata;
+};
+
+const rebuildAgentEventMap = (message) => {
+    if (!Array.isArray(message.agentEventStream)) return;
+    const eventMap = new Map();
+    for (const event of message.agentEventStream) {
+        if (event?.event_id) eventMap.set(event.event_id, event);
+    }
+    message._eventMap = eventMap;
+};
+
+const composeAgentAnswerContent = (message) => {
+    if (!Array.isArray(message.agentEventStream)) return '';
+    return message.agentEventStream
+        .filter((event) => event?.type === 'answer' && !event.superseded && event.content)
+        .map((event) => event.content)
+        .join('');
+};
+
+const getMessageStreamSessionId = (message) => String(message?.__stream_session_id || message?.session_id || '');
+
+const getAssistantAnswerText = (message) => {
+    const content = String(message?.content || '');
+    if (content.trim()) return content;
+    if (!Array.isArray(message?.agentEventStream)) return '';
+    return message.agentEventStream
+        .filter((event) => event?.type === 'answer' && !event.superseded && event.content)
+        .map((event) => event.content)
+        .join('');
+};
+
+const normalizeAssistantAnswerText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const hasPersistedAssistantAfterCachedUser = (cachedUserMessage) => {
+    if (!cachedUserMessage) return false;
+    const userIndex = messagesList.findIndex((message) => messageIdentityMatches(message, cachedUserMessage));
+    if (userIndex < 0) return false;
+    for (let i = userIndex + 1; i < messagesList.length; i += 1) {
+        const message = messagesList[i];
+        if (message?.role === 'user') break;
+        if (
+            message?.role === 'assistant' &&
+            message.is_completed &&
+            normalizeAssistantAnswerText(getAssistantAnswerText(message))
+        ) {
+            return true;
+        }
+    }
+    return false;
+};
+
+const mergeAgentEventStreams = (target, source) => {
+    if (!Array.isArray(source?.agentEventStream) || !source.agentEventStream.length) return;
+    const merged = source.agentEventStream.map(cloneAgentEvent);
+    if (Array.isArray(target.agentEventStream)) {
+        for (const targetEvent of target.agentEventStream) {
+            const existing = merged.find((event) => agentEventIdentityMatches(event, targetEvent));
+            if (existing) {
+                mergeAgentEvent(existing, targetEvent);
+            } else {
+                merged.push(cloneAgentEvent(targetEvent));
+            }
+        }
+    }
+    target.agentEventStream = merged;
+    rebuildAgentEventMap(target);
+};
+
+const mergeCachedAssistantMessage = (target, source) => {
+    if (!target || !source) return;
+    if (!target.id && source.id) target.id = source.id;
+    if (!target.request_id && source.request_id) target.request_id = source.request_id;
+    const targetContent = String(target.content || '');
+    const sourceContent = String(source.content || '');
+    target.content = mergeStreamText(sourceContent, targetContent);
+    if (!target.knowledge_references?.length && source.knowledge_references?.length) {
+        target.knowledge_references = source.knowledge_references.slice();
+    }
+    mergeAgentEventStreams(target, source);
+    const agentAnswerContent = composeAgentAnswerContent(target);
+    if (agentAnswerContent) {
+        target.content = mergeStreamText(target.content, agentAnswerContent);
+    }
+    if (!target.agent_steps && source.agent_steps) target.agent_steps = source.agent_steps;
+    if (source.is_completed) target.is_completed = true;
+    if (source.is_fallback) target.is_fallback = true;
+    if (source.isRagMode) target.isRagMode = true;
+    if (source.isAgentMode) target.isAgentMode = true;
+};
+
+const restoreCachedInFlightTurn = (targetSessionId) => {
+    const cached = inFlightTurnCache.get(targetSessionId);
+    if (!cached?.length) return;
+    const hasIncompleteAssistant = cached.some((message) => message.role === 'assistant' && !message.is_completed);
+    if (!hasIncompleteAssistant) {
+        inFlightTurnCache.delete(targetSessionId);
+        return;
+    }
+
+    const cachedUserMessage = cached.find((message) => message.role === 'user');
+    if (!hasActiveStream(targetSessionId) && hasPersistedAssistantAfterCachedUser(cachedUserMessage)) {
+        inFlightTurnCache.delete(targetSessionId);
+        return;
+    }
+    const hasCachedUserMessage = cachedUserMessage
+        ? messagesList.some((message) => messageIdentityMatches(message, cachedUserMessage))
+        : true;
+
+    if (!hasCachedUserMessage) {
+        const restored = cached.map(cloneMessageForInFlightCache);
+        for (const restoredMessage of restored) {
+            if (restoredMessage.role !== 'assistant') continue;
+            const existingIndex = messagesList.findIndex((message) => messageIdentityMatches(message, restoredMessage));
+            if (existingIndex < 0) continue;
+            mergeCachedAssistantMessage(restoredMessage, messagesList[existingIndex]);
+            messagesList.splice(existingIndex, 1);
+        }
+        messagesList.push(...restored);
+        return;
+    }
+
+    for (const cachedMessage of cached) {
+        const existing = messagesList.find((message) => messageIdentityMatches(message, cachedMessage));
+        if (existing) {
+            if (existing.role === 'assistant') {
+                mergeCachedAssistantMessage(existing, cachedMessage);
+            }
+            continue;
+        }
+        messagesList.push(cloneMessageForInFlightCache(cachedMessage));
+    }
 };
 
 watch([() => route.params], async (newvalue) => {
@@ -446,6 +676,7 @@ watch([() => route.params], async (newvalue) => {
             scrollLock.value = false;
         }
         const targetSessionId = newvalue[0].chatid;
+        cacheCurrentInFlightTurn(session_id.value);
         messagesList.splice(0);
         session_id.value = targetSessionId;
         currentSession.value = null;
@@ -460,6 +691,8 @@ watch([() => route.params], async (newvalue) => {
         isReplying.value = false;
         currentAssistantMessageId.value = '';
         userHasScrolledUp.value = false;
+        clearInFlightTurnAnchor();
+        pendingInFlightTurnAnchorSessionId.value = targetSessionId;
 
         // 跨会话切换：先把旧会话覆盖前的全局默认还原，再让新会话重新拍快照
         // 并应用自己的 last_request_state（在 loadSessionAndHydrate 内部完成）。
@@ -484,6 +717,7 @@ const scrollToBottom = (force = false) => {
     })
 }
 const onClickScrollToBottom = () => {
+    clearInFlightTurnAnchor();
     userHasScrolledUp.value = false;
     scrollToBottom(true);
 }
@@ -607,6 +841,7 @@ const {
     isFirstEnter,
     scrollContainer,
     debug: import.meta.env.DEV,
+    onBeforeAfterMsgList: () => anchorRestoredInFlightTurn(session_id.value),
     onAfterMsgList: async () => {
         for (const message of messagesList) {
             if (message.role === 'assistant' && message.is_completed && message.suggestionSet === undefined) {
@@ -658,8 +893,11 @@ const {
         attachStreamDebugToMessage(message);
         refreshMessageRow(message);
         if (payload?.is_completed) {
+            finishInFlightTurnAnchor(session_id.value);
             syncCompletedMessageReferences(message);
             pendingStreamDebug.value = null;
+        } else {
+            keepInFlightTurnAnchor(session_id.value);
         }
     },
     onAgentAnswerDone: (message) => {
@@ -672,7 +910,12 @@ const {
         pendingStreamDebug.value = null;
     },
     onTurnComplete: (message) => {
-        void loadFollowUpSuggestions(message, true);
+        const completedSessionId = getMessageStreamSessionId(message) || session_id.value;
+        inFlightTurnCache.delete(completedSessionId);
+        if (completedSessionId === session_id.value) finishInFlightTurnAnchor(completedSessionId);
+        if (completedSessionId === session_id.value) {
+            void loadFollowUpSuggestions(message, true);
+        }
     },
 });
 
@@ -680,7 +923,11 @@ const showGlobalTypingIndicator = computed(() =>
     shouldShowGlobalTypingIndicator(messagesList, loading.value, isImRecovering.value),
 );
 
-const normalizeRenderedMessageContent = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const getRenderedMessageAnswerText = (message) => {
+    return getAssistantAnswerText(message);
+};
+
+const normalizeRenderedMessageContent = normalizeAssistantAnswerText;
 
 const getRenderedAssistantScore = (message) => {
     let score = 0;
@@ -692,7 +939,7 @@ const getRenderedAssistantScore = (message) => {
     if (message?.isAgentMode) score += 10;
     if (message?.request_id) score += 2;
     if (message?.id) score += 1;
-    score += normalizeRenderedMessageContent(message?.content).length / 10000;
+    score += normalizeRenderedMessageContent(getRenderedMessageAnswerText(message)).length / 10000;
     return score;
 };
 
@@ -709,7 +956,7 @@ const renderedMessagesList = computed(() => {
 
         if (
             message.role === 'assistant' &&
-            normalizeRenderedMessageContent(message.content)
+            normalizeRenderedMessageContent(getRenderedMessageAnswerText(message))
         ) {
             if (currentTurnAssistantIndex >= 0) {
                 const existing = result[currentTurnAssistantIndex];
@@ -727,9 +974,125 @@ const renderedMessagesList = computed(() => {
     return result;
 });
 
+const pendingInFlightTurnAnchorSessionId = ref('');
+const activeInFlightTurnAnchorSessionId = ref('');
+let inFlightTurnAnchorRaf = 0;
+let inFlightTurnAnchorTimer = 0;
+let inFlightTurnAnchorUntil = 0;
+
+const clearInFlightTurnAnchor = () => {
+    pendingInFlightTurnAnchorSessionId.value = '';
+    activeInFlightTurnAnchorSessionId.value = '';
+    inFlightTurnAnchorUntil = 0;
+    if (inFlightTurnAnchorRaf) {
+        window.cancelAnimationFrame(inFlightTurnAnchorRaf);
+        inFlightTurnAnchorRaf = 0;
+    }
+    if (inFlightTurnAnchorTimer) {
+        window.clearTimeout(inFlightTurnAnchorTimer);
+        inFlightTurnAnchorTimer = 0;
+    }
+};
+
+const findActiveTurnUserRenderedIndex = () => {
+    for (let i = renderedMessagesList.value.length - 1; i >= 0; i -= 1) {
+        const message = renderedMessagesList.value[i];
+        if (message?.role !== 'assistant') continue;
+        if (message.is_completed && !message.__stream_active) continue;
+        for (let j = i - 1; j >= 0; j -= 1) {
+            if (renderedMessagesList.value[j]?.role === 'user') return j;
+        }
+    }
+    return -1;
+};
+
+const applyRenderedMessageAnchor = (index) => {
+    const container = scrollContainer.value;
+    const target = container?.querySelector(`[data-message-index="${index}"]`);
+    if (!container || !target) return false;
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const nextTop = container.scrollTop + targetRect.top - containerRect.top - 8;
+    container.scrollTop = Math.max(0, nextTop);
+    lastScrollTop = container.scrollTop;
+    return true;
+};
+
+const scheduleInFlightTurnAnchor = (targetSessionId = session_id.value) => {
+    if (!targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
+    if (!hasActiveStream(targetSessionId) && Date.now() > inFlightTurnAnchorUntil) {
+        clearInFlightTurnAnchor();
+        return;
+    }
+    if (Date.now() > inFlightTurnAnchorUntil) return;
+    if (inFlightTurnAnchorRaf) return;
+    inFlightTurnAnchorRaf = window.requestAnimationFrame(() => {
+        inFlightTurnAnchorRaf = 0;
+        if (session_id.value !== targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
+        const userIndex = findActiveTurnUserRenderedIndex();
+        if (userIndex >= 0) applyRenderedMessageAnchor(userIndex);
+        if (Date.now() <= inFlightTurnAnchorUntil) {
+            inFlightTurnAnchorTimer = window.setTimeout(() => {
+                inFlightTurnAnchorTimer = 0;
+                scheduleInFlightTurnAnchor(targetSessionId);
+            }, 120);
+        }
+    });
+};
+
+const anchorRestoredInFlightTurn = (targetSessionId = session_id.value) => {
+    if (pendingInFlightTurnAnchorSessionId.value !== targetSessionId) return;
+    const userIndex = findActiveTurnUserRenderedIndex();
+    if (userIndex < 0) return;
+    isFirstEnter.value = false;
+    userHasScrolledUp.value = true;
+    activeInFlightTurnAnchorSessionId.value = targetSessionId;
+    inFlightTurnAnchorUntil = Date.now() + 4000;
+    nextTick(() => {
+        window.requestAnimationFrame(() => {
+            if (session_id.value !== targetSessionId || activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
+            applyRenderedMessageAnchor(userIndex);
+            scheduleInFlightTurnAnchor(targetSessionId);
+        });
+    });
+};
+
+const keepInFlightTurnAnchor = (targetSessionId = session_id.value) => {
+    if (activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
+    if (!hasActiveStream(targetSessionId)) {
+        clearInFlightTurnAnchor();
+        return;
+    }
+    inFlightTurnAnchorUntil = Date.now() + 1200;
+    userHasScrolledUp.value = true;
+    scheduleInFlightTurnAnchor(targetSessionId);
+};
+
+const finishInFlightTurnAnchor = (targetSessionId = session_id.value) => {
+    if (activeInFlightTurnAnchorSessionId.value !== targetSessionId) return;
+    pendingInFlightTurnAnchorSessionId.value = '';
+    inFlightTurnAnchorUntil = Date.now() + 1000;
+    scheduleInFlightTurnAnchor(targetSessionId);
+};
+
 const replayBackgroundChunks = (targetSessionId) => {
     const chunks = drainSessionChunks(targetSessionId);
     if (!chunks?.length || session_id.value !== targetSessionId) return;
+    // Background chunks are incremental deltas. Make sure fullContent resumes
+    // from the content already shown in the restored incomplete message,
+    // otherwise the chunks would overwrite the message with only the tail.
+    const lastMessage = messagesList[messagesList.length - 1];
+    if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.is_completed && !lastMessage.isAgentMode) {
+        const thinkContent = String(lastMessage.thinkContent || '');
+        const answerContent = String(lastMessage.content || '');
+        if (lastMessage.thinking) {
+            fullContent.value = `<think>${thinkContent}`;
+        } else if (thinkContent) {
+            fullContent.value = `<think>${thinkContent}</think>${answerContent}`;
+        } else {
+            fullContent.value = answerContent;
+        }
+    }
     chunks.forEach((chunk) => processStreamChunk(chunk));
 };
 
@@ -745,6 +1108,10 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
         if (!batch?.length) {
             if (isScrollType) {
                 hasMoreHistory.value = false;
+            } else {
+                restoreCachedInFlightTurn(targetSessionId);
+                replayBackgroundChunks(targetSessionId);
+                anchorRestoredInFlightTurn(targetSessionId);
             }
             return;
         }
@@ -760,8 +1127,16 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
             hasMoreHistory.value = false;
         }
         created_at.value = nextCursor;
+        if (!isScrollType && pendingInFlightTurnAnchorSessionId.value === targetSessionId) {
+            isFirstEnter.value = false;
+            userHasScrolledUp.value = true;
+        }
         await handleMsgList(batch, isScrollType, scrollHeight);
-        if (!isScrollType) replayBackgroundChunks(targetSessionId);
+        if (!isScrollType) {
+            restoreCachedInFlightTurn(targetSessionId);
+            replayBackgroundChunks(targetSessionId);
+            anchorRestoredInFlightTurn(targetSessionId);
+        }
     }).catch((err) => {
         console.error('Failed to load messages:', err);
         if (isScrollType) {
@@ -780,6 +1155,7 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
 // 处理停止生成事件 - 立即清除 loading 状态
 const handleStopGeneration = () => {
     console.log('[Stop Generation] Immediately clearing loading state');
+    clearInFlightTurnAnchor();
     stopStream(session_id.value);
     loading.value = false;
     isReplying.value = false;
@@ -1126,10 +1502,16 @@ onMounted(async () => {
     }
 })
 const clearData = (abortStreams = true) => {
+    cacheCurrentInFlightTurn(session_id.value);
+    clearInFlightTurnAnchor();
     if (abortStreams) stopStream();
     referencesDrawer.close();
     isReplying.value = false;
-    fullContent.value = '';
+    // Don't clear fullContent if streams are still active - it will be restored
+    // when switching back to the session via replayBackgroundChunks
+    if (!hasActiveStream(session_id.value)) {
+        fullContent.value = '';
+    }
     // Stop any IM-reply recovery poll for the session we're leaving/switching.
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
     if (continueStreamRetryTimer) { clearTimeout(continueStreamRetryTimer); continueStreamRetryTimer = null; }
@@ -1138,6 +1520,7 @@ const clearData = (abortStreams = true) => {
 }
 onUnmounted(() => {
     window.removeEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);
+    clearInFlightTurnAnchor();
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
 });
 onBeforeRouteLeave((to, from, next) => {
@@ -1165,6 +1548,8 @@ onBeforeRouteUpdate((to, from, next) => {
     // own flex:1 child (.chat_scroll_box) can shrink below its content
     // height and scroll instead of pushing .input-container out of view.
     min-height: 0;
+    height: 100%;
+    overflow: hidden;
     position: relative;
     display: flex;
     flex-direction: column;

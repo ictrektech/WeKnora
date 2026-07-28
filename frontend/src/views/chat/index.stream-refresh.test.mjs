@@ -66,11 +66,29 @@ test('answer stream chunks merge snapshots without duplicating the same answer',
 
 test('chat view renders a deduped message list', () => {
   assert.match(source, /v-for=\"\(session, index\) in renderedMessagesList\"/)
+  assert.match(source, /:user-query="getRenderedUserQuery\(index\)"/)
+  assert.match(source, /const getRenderedUserQuery = \(index\) => \{[\s\S]*renderedMessagesList\.value\[i\]/)
   assert.match(source, /const renderedMessagesList = computed\(\(\) => \{/)
   assert.match(source, /let currentTurnAssistantIndex = -1/)
-  assert.match(source, /message\.role === 'assistant'[\s\S]*normalizeRenderedMessageContent\(message\.content\)/)
+  assert.match(source, /const getRenderedMessageAnswerText = \(message\) => \{/)
+  assert.match(source, /message\.role === 'assistant'[\s\S]*normalizeRenderedMessageContent\(getRenderedMessageAnswerText\(message\)\)/)
   assert.match(source, /if \(message\?\.is_completed\) score \+= 1000/)
   assert.match(source, /result\[currentTurnAssistantIndex\] = message/)
+})
+
+test('completed background streams clear their own session cache', () => {
+  assert.match(handlerSource, /const getChunkSessionId = \(data: ChatMessage\) =>/)
+  assert.match(handlerSource, /message\.__stream_session_id = streamSessionId/)
+  assert.match(source, /const getMessageStreamSessionId = \(message\) =>/)
+  assert.match(source, /const completedSessionId = getMessageStreamSessionId\(message\) \|\| session_id\.value/)
+  assert.match(source, /inFlightTurnCache\.delete\(completedSessionId\)/)
+  assert.match(source, /if \(completedSessionId === session_id\.value\) \{[\s\S]*loadFollowUpSuggestions\(message,\s*true\)/)
+})
+
+test('restored in-flight cache is discarded when history already has the completed answer', () => {
+  assert.match(source, /const hasPersistedAssistantAfterCachedUser = \(cachedUserMessage\) => \{/)
+  assert.match(source, /message\?\.role === 'assistant' &&[\s\S]*normalizeAssistantAnswerText\(getAssistantAnswerText\(message\)\)/)
+  assert.match(source, /if \(!hasActiveStream\(targetSessionId\) && hasPersistedAssistantAfterCachedUser\(cachedUserMessage\)\) \{[\s\S]*inFlightTurnCache\.delete\(targetSessionId\)/)
 })
 
 test('rag answer display dedupes identical answer events', () => {
@@ -78,4 +96,35 @@ test('rag answer display dedupes identical answer events', () => {
   assert.match(agentStreamSource, /const dedupeAnswerEvents = \(events: any\[\]\): any\[\] => \{/)
   assert.match(agentStreamSource, /const indexByContent = new Map<string, number>\(\)/)
   assert.match(agentStreamSource, /retained\[existingIndex\] = \{[\s\S]*done: Boolean\(retained\[existingIndex\]\?\.done \|\| event\?\.done\)/)
+})
+
+test('completed agent answers leave streaming text and render markdown immediately', () => {
+  assert.match(agentStreamSource, /const hasTerminalAnswerEvent = \(events: any\[\]\): boolean =>/)
+  assert.match(agentStreamSource, /event\?\.type === 'agent_complete'/)
+  assert.match(agentStreamSource, /if \(!props\.session\?\.is_completed && !hasTerminalAnswerEvent\(events\)\) return events/)
+  assert.match(agentStreamSource, /const hasActiveAnswerStream = computed\(\(\) =>/)
+  assert.match(agentStreamSource, /return hasActiveAnswerStream\.value && !event\.done/)
+  assert.match(agentStreamSource, /<pre v-if="isAnswerEventStreaming\(event\)" class="streaming-answer-text">/)
+  assert.match(agentStreamSource, /const answerFullyRendered = computed\(\s*\(\) => isConversationDone\.value \|\| !hasActiveAnswerStream\.value,\s*\)/)
+})
+
+test('switching back to an in-flight stream anchors at the active turn start', () => {
+  assert.match(source, /:data-message-index="index"/)
+  assert.match(source, /const pendingInFlightTurnAnchorSessionId = ref\(''\)/)
+  assert.match(source, /const activeInFlightTurnAnchorSessionId = ref\(''\)/)
+  assert.match(source, /const findActiveTurnUserRenderedIndex = \(\) => \{/)
+  assert.match(source, /message\?\.role !== 'assistant'[\s\S]*message\.is_completed && !message\.__stream_active/)
+  assert.match(source, /const applyRenderedMessageAnchor = \(index\) => \{[\s\S]*getBoundingClientRect\(\)[\s\S]*container\.scrollTop \+ targetRect\.top - containerRect\.top - 8/)
+  assert.match(source, /const scheduleInFlightTurnAnchor = \(targetSessionId = session_id\.value\) => \{[\s\S]*window\.requestAnimationFrame/)
+  assert.match(source, /const anchorRestoredInFlightTurn = \(targetSessionId = session_id\.value\) => \{/)
+  assert.match(source, /activeInFlightTurnAnchorSessionId\.value = targetSessionId[\s\S]*inFlightTurnAnchorUntil = Date\.now\(\) \+ 4000/)
+  assert.match(source, /const keepInFlightTurnAnchor = \(targetSessionId = session_id\.value\) => \{/)
+  assert.match(source, /const finishInFlightTurnAnchor = \(targetSessionId = session_id\.value\) => \{/)
+  assert.match(source, /pendingInFlightTurnAnchorSessionId\.value = targetSessionId/)
+  assert.match(source, /if \(!isScrollType && pendingInFlightTurnAnchorSessionId\.value === targetSessionId\) \{[\s\S]*isFirstEnter\.value = false;[\s\S]*userHasScrolledUp\.value = true;/)
+  assert.match(source, /onBeforeAfterMsgList: \(\) => anchorRestoredInFlightTurn\(session_id\.value\)/)
+  assert.match(source, /onMessageUpdated:\s*\(message,\s*payload\) => \{[\s\S]*refreshMessageRow\(message\)[\s\S]*keepInFlightTurnAnchor\(session_id\.value\)/)
+  assert.match(source, /if \(payload\?\.is_completed\) \{[\s\S]*finishInFlightTurnAnchor\(session_id\.value\)/)
+  assert.match(source, /restoreCachedInFlightTurn\(targetSessionId\);[\s\S]*replayBackgroundChunks\(targetSessionId\);[\s\S]*anchorRestoredInFlightTurn\(targetSessionId\);/)
+  assert.match(source, /\.chat \{[\s\S]*height: 100%;[\s\S]*overflow: hidden;/)
 })
