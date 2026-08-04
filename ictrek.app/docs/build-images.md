@@ -59,7 +59,8 @@ EOF
 
 飞书发布表规则：
 
-- 凭证在构建机 `~/.feishu.json`，不要提交或打印；
+- 构建写表凭证固定使用构建机 `~/.feishu.json`，不要提交或打印；
+- `~/.feishu.components.json` 是 VOS 打包读取镜像版本用的只读凭证，不能通过 `FEISHU_CONFIG_FILE` 传给 `build_image.sh`；
 - 表格 token：`Htotsn3oahO1zxt73YMcaB1zn8e`；
 - amd 目标默认更新 `AMD_with_cuda`、`AMD_with_mxn100`；
 - arm 目标默认更新 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`；
@@ -187,8 +188,10 @@ For ARM checks, sync the same source tree to an ARM build host and run:
 
 ## Feishu Release Table
 
-The script reads credentials from `~/.feishu.json` on the build host. Do not
-commit or print the credential values.
+The script writes release tags and therefore must use the write-capable
+`~/.feishu.json` on the build host. Do not commit or print the credential
+values. `~/.feishu.components.json` is read-only and is reserved for VOS
+packaging/version lookup; never pass it to `build_image.sh`.
 
 The release spreadsheet token is:
 
