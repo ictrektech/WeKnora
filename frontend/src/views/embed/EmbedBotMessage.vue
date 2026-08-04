@@ -49,6 +49,7 @@ import {
   isValidImageURL,
   hydrateProtectedFileImages,
 } from '@/utils/security'
+import type { ProtectedFileAccessContext } from '@/utils/protectedFileAccess'
 import {
   createChatMarkdownRenderer,
   renderChatMarkdown,
@@ -178,11 +179,11 @@ const hasActualContent = computed(() => {
 })
 
 const hydrateImages = async () => {
-  const embedCtx =
+  const embedAccess: ProtectedFileAccessContext | undefined =
     props.embedChannelId && props.embedToken
-      ? { channelId: props.embedChannelId, token: props.embedToken }
+      ? { mode: 'embed', channelId: props.embedChannelId, token: props.embedToken }
       : undefined
-  await hydrateProtectedFileImages(parentMd.value, embedCtx)
+  await hydrateProtectedFileImages(parentMd.value, embedAccess)
 }
 
 const renderMermaidDiagrams = async () => {

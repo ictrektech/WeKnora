@@ -112,8 +112,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   const mergeAssistantRuntimeState = (target: ChatMessage, source: ChatMessage) => {
     if (!target.id && source.id) target.id = source.id
     if (!target.request_id && source.request_id) target.request_id = source.request_id
-    if (!target.knowledge_references?.length && source.knowledge_references?.length) {
-      target.knowledge_references = source.knowledge_references.slice()
+    const targetReferences = target.knowledge_references as unknown[] | undefined
+    const sourceReferences = source.knowledge_references as unknown[] | undefined
+    if (!targetReferences?.length && sourceReferences?.length) {
+      target.knowledge_references = sourceReferences.slice()
     }
     if (!target.agentEventStream && source.agentEventStream) {
       target.agentEventStream = source.agentEventStream

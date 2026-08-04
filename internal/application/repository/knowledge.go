@@ -189,7 +189,13 @@ func (r *knowledgeRepository) ListPagedKnowledgeByKnowledgeBaseID(
 
 // UpdateKnowledge updates knowledge
 func (r *knowledgeRepository) UpdateKnowledge(ctx context.Context, knowledge *types.Knowledge) error {
-	err := r.db.WithContext(ctx).Omit(omitFieldsOnUpdate...).Save(knowledge).Error
+	omit := omitFieldsOnUpdate
+	// Legacy/unit-test schemas created before custom_metadata should continue
+	// to support unrelated updates when the caller did not provide the field.
+	if knowledge.CustomMetadata == nil {
+		omit = append(append([]string{}, omitFieldsOnUpdate...), "custom_metadata")
+	}
+	err := r.db.WithContext(ctx).Omit(omit...).Save(knowledge).Error
 	return err
 }
 
@@ -239,10 +245,16 @@ func (r *knowledgeRepository) CheckKnowledgeExists(
 
 	switch params.Type {
 	case "file":
-		// If file hash exists, prioritize exact match using hash
+		// File content is only a duplicate within the same file type. This keeps
+		// same-content documents with distinct formats (for example, .md and
+		// .txt) available as separate knowledge items.
 		if params.FileHash != "" {
 			var knowledge types.Knowledge
-			err := query.Where("file_hash = ?", params.FileHash).First(&knowledge).Error
+			duplicateQuery := query.Where("type = ? AND file_hash = ?", "file", params.FileHash)
+			if params.FileType != "" {
+				duplicateQuery = duplicateQuery.Where("LOWER(file_type) = ?", strings.ToLower(params.FileType))
+			}
+			err := duplicateQuery.First(&knowledge).Error
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return false, nil, nil
@@ -252,13 +264,17 @@ func (r *knowledgeRepository) CheckKnowledgeExists(
 			return true, &knowledge, nil
 		}
 
-		// If no hash or hash doesn't match, use filename and size
+		// If no hash or hash doesn't match, use filename, size, and file type.
 		if params.FileName != "" && params.FileSize > 0 {
 			var knowledge types.Knowledge
-			err := query.Where(
-				"file_name = ? AND file_size = ?",
-				params.FileName, params.FileSize,
-			).First(&knowledge).Error
+			duplicateQuery := query.Where(
+				"type = ? AND file_name = ? AND file_size = ?",
+				"file", params.FileName, params.FileSize,
+			)
+			if params.FileType != "" {
+				duplicateQuery = duplicateQuery.Where("LOWER(file_type) = ?", strings.ToLower(params.FileType))
+			}
+			err := duplicateQuery.First(&knowledge).Error
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return false, nil, nil
@@ -425,7 +441,10 @@ func (r *knowledgeRepository) UpdateActiveDeletingKnowledgeColumns(
 // FinalizeSubtask atomically decrements pending_subtasks_count and, when
 // the counter reaches zero while parse_status is still 'finalizing',
 // flips the row to 'completed' in the same statement so concurrent
-// subtask completions can't race the promotion.
+// subtask completions can't race the promotion. Both this promotion and
+// SetFinalizing clear error_message: a row that re-enters processing or
+// finishes successfully must not keep displaying a failure from a
+// previous attempt.
 //
 // Returns (newCount, promoted, error). promoted is true iff this caller
 // was the one whose UPDATE flipped 'finalizing'→'completed'.
@@ -469,9 +488,10 @@ func (r *knowledgeRepository) FinalizeSubtask(
 		Where("id = ? AND parse_status = ? AND pending_subtasks_count = 0",
 			id, types.ParseStatusFinalizing).
 		Updates(map[string]interface{}{
-			"parse_status": types.ParseStatusCompleted,
-			"processed_at": now,
-			"updated_at":   now,
+			"parse_status":  types.ParseStatusCompleted,
+			"error_message": "",
+			"processed_at":  now,
+			"updated_at":    now,
 		})
 	if promoteRes.Error != nil {
 		return 0, false, promoteRes.Error
@@ -514,6 +534,7 @@ func (r *knowledgeRepository) SetFinalizing(
 		Updates(map[string]interface{}{
 			"parse_status":           types.ParseStatusFinalizing,
 			"pending_subtasks_count": expectedSubtasks,
+			"error_message":          "",
 			"updated_at":             now,
 		})
 	if res.Error != nil {
@@ -583,6 +604,41 @@ func (r *knowledgeRepository) FindByMetadataKey(
 		return nil, err
 	}
 	return &knowledge, nil
+}
+
+// FindByMetadataKeyPrefix finds knowledge items whose metadata[key] starts with
+// the given prefix. Used to sweep an external node's attachment sub-items on re-sync.
+func (r *knowledgeRepository) FindByMetadataKeyPrefix(
+	ctx context.Context,
+	tenantID uint64,
+	kbID string,
+	key string,
+	prefix string,
+) ([]*types.Knowledge, error) {
+	escaped := escapeLikeKeyword(prefix)
+	var items []*types.Knowledge
+	// The JSON key is embedded as a SQL literal (metadata->>'external_id'), NOT a
+	// bind parameter. PostgreSQL only uses the expression index
+	// idx_knowledges_kb_metadata_external_id (built on the literal expression
+	// (metadata->>'external_id')) when that exact expression appears in the query;
+	// a bound metadata->>$1 is a structurally different expression the planner
+	// cannot match, so it would silently fall back to a heap scan. key is an
+	// internal, caller-supplied field name (always "external_id"); single-quotes
+	// are doubled defensively so the literal is always well-formed.
+	//
+	// The prefix pattern stays a bind parameter: an unnamed prepared statement is
+	// custom-planned with the actual value, so LIKE 'prefix%' still extracts the
+	// prefix and drives the index. The explicit ESCAPE '\' keeps backslash-escaped
+	// wildcards (e.g. \_) literal on both PostgreSQL and SQLite.
+	keyExpr := "metadata->>'" + strings.ReplaceAll(key, "'", "''") + "'"
+	err := r.db.WithContext(ctx).
+		Where("tenant_id = ? AND knowledge_base_id = ? AND deleted_at IS NULL", tenantID, kbID).
+		Where(keyExpr+" LIKE ? ESCAPE ?", escaped+"%", `\`).
+		Find(&items).Error
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 func (r *knowledgeRepository) SearchKnowledge(

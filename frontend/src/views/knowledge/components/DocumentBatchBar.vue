@@ -6,6 +6,7 @@ defineProps<{
   deleteLoading?: boolean;
   reparseLoading?: boolean;
   downloadLoading?: boolean;
+  tagLoading?: boolean;
   // When true the bar stays visible even with 0 selections, so users can exit
   // batch mode from here without selecting anything first.
   visible?: boolean;
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   (e: 'delete'): void;
   (e: 'reparse'): void;
   (e: 'download'): void;
+  (e: 'batchTag'): void;
 }>();
 
 const { t } = useI18n();
@@ -37,24 +39,31 @@ const { t } = useI18n();
             :confirm-btn="{ content: t('knowledgeBase.confirmBatchReparse'), theme: 'warning' }"
             :cancel-btn="{ content: t('common.cancel') }" placement="top" @confirm="emit('reparse')">
             <t-button theme="default" variant="outline" size="small"
-              :disabled="count === 0 || deleteLoading || reparseLoading || downloadLoading" :loading="reparseLoading" @click.stop>
+              :disabled="count === 0 || deleteLoading || reparseLoading || downloadLoading || tagLoading" :loading="reparseLoading" @click.stop>
               <template #icon><t-icon name="refresh" size="14px" /></template>
               {{ t('knowledgeBase.rebuildDocument') }}
             </t-button>
           </t-popconfirm>
 
           <t-button theme="default" variant="outline" size="small"
-            :disabled="count === 0 || deleteLoading || reparseLoading || downloadLoading" :loading="downloadLoading"
+            :disabled="count === 0 || deleteLoading || reparseLoading || downloadLoading || tagLoading" :loading="downloadLoading"
             @click.stop="emit('download')">
             <template #icon><t-icon name="download" size="14px" /></template>
             {{ t('knowledgeBase.batchDownload') }}
+          </t-button>
+
+          <t-button theme="default" variant="outline" size="small"
+            :disabled="count === 0 || deleteLoading || reparseLoading || downloadLoading || tagLoading" :loading="tagLoading"
+            @click="emit('batchTag')">
+            <template #icon><t-icon name="discount" size="14px" /></template>
+            {{ t('knowledgeBase.batchTag') }}
           </t-button>
 
           <t-popconfirm theme="warning" :content="t('knowledgeBase.confirmBatchDeleteDocument', { count })"
             :confirm-btn="{ content: t('knowledgeBase.confirmDelete'), theme: 'danger' }"
             :cancel-btn="{ content: t('common.cancel') }" placement="top" @confirm="emit('delete')">
             <t-button theme="danger" variant="outline" size="small"
-              :disabled="count === 0 || deleteLoading || reparseLoading || downloadLoading" :loading="deleteLoading" @click.stop>
+              :disabled="count === 0 || deleteLoading || reparseLoading || downloadLoading || tagLoading" :loading="deleteLoading" @click.stop>
               <template #icon><t-icon name="delete" size="14px" /></template>
               {{ t('knowledgeBase.batchDelete') }}
             </t-button>
@@ -118,7 +127,9 @@ const { t } = useI18n();
 .batch-bar-actions {
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
