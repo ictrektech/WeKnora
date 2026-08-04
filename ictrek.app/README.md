@@ -229,7 +229,7 @@ X-External-User-ID: alice
 ERROR: column "scope_type" does not exist
 ```
 
-新版本 app 镜像内置 `000075_tenant_api_key_scope_repair` 兼容迁移，会在启动迁移时自动补齐 `scope_type` 字段、`tenant_id` 可空约束、检查约束和索引。以后遇到同类旧库，不要只手工改数据库；应先确认已经运行包含该迁移的新 app 镜像。如果现场急需恢复页面，可以按该迁移文件里的 SQL 临时补库，随后仍要升级到包含该迁移的镜像。
+新版本 app 镜像内置 `000079_upstream_wiki_and_tenant_api_key_repair` 兼容迁移，会补齐上游 Wiki 修订结构以及 `scope_type` 字段、`tenant_id` 可空约束、检查约束和索引。`000080` 到 `000082` 继续补偿上游与 ictrek 曾经占用同一迁移编号造成的结构缺口。以后遇到同类旧库，不要只手工改数据库；应先确认已经运行包含这些迁移的新 app 镜像。如果现场急需恢复页面，可以按迁移文件里的 SQL 临时补库，随后仍要升级到包含该迁移的镜像。
 
 ## Profiles
 

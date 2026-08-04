@@ -1,5 +1,8 @@
 -- Add a generic parent scope to audit rows so one immutable audit stream can
 -- project resource-specific activity feeds without one log table per feature.
+DROP TABLE IF EXISTS wiki_log_entries;
+DELETE FROM wiki_pages WHERE page_type = 'log';
+
 ALTER TABLE audit_logs
     ADD COLUMN IF NOT EXISTS scope_type VARCHAR(32) NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS scope_id VARCHAR(64) NOT NULL DEFAULT '';
