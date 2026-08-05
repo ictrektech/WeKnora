@@ -115,16 +115,6 @@
                 </span>
               </template>
             </p>
-            <t-button
-              v-if="['chat', 'vllm'].includes(model._modelType)"
-              size="small"
-              variant="text"
-              class="model-card__privacy"
-              @click.stop="openPrivacyDialog(model)"
-            >
-              <template #icon><t-icon name="shield" /></template>
-              {{ $t('modelSettings.personalDesensitization') }}
-            </t-button>
           </div>
         </div>
         <button
@@ -146,24 +136,6 @@
     <ModelEditorDialog v-model:visible="showDialog" :model-type="currentModelType" :model-data="editingModel"
       @confirm="handleModelSave" />
     <ModelDebugDrawer v-model:visible="showDebugDrawer" :models="allModels" />
-    <t-dialog
-      v-model:visible="showPrivacyDialog"
-      :header="$t('modelSettings.personalDesensitization')"
-      :confirm-btn="{ content: $t('common.save'), loading: privacySaving }"
-      @confirm="savePrivacyPreference"
-    >
-      <p class="privacy-model-name">{{ privacyModel ? modelDisplayName(privacyModel) : '' }}</p>
-      <div class="privacy-option">
-        <t-switch v-model="privacyEnabled" />
-        <span>{{ $t('model.editor.desensitizeRulesLabel') }}</span>
-      </div>
-      <div class="privacy-option">
-        <t-switch v-model="privacyNer" :disabled="!privacyEnabled" />
-        <span>{{ $t('model.editor.desensitizeNerLabel') }}</span>
-      </div>
-      <p class="privacy-hint">{{ $t('modelSettings.personalDesensitizationHint') }}</p>
-    </t-dialog>
-
   </div>
 </template>
 
@@ -187,11 +159,6 @@ const showDebugDrawer = ref(false)
 const currentModelType = ref<ModelType>('chat')
 const editingModel = ref<any>(null)
 const loading = ref(true)
-const showPrivacyDialog = ref(false)
-const privacySaving = ref(false)
-const privacyModel = ref<any>(null)
-const privacyEnabled = ref(false)
-const privacyNer = ref(false)
 const activeTypeFilter = ref<FilterType>('all')
 
 // 模型列表数据
@@ -394,34 +361,6 @@ const editModel = async (type: ModelType, model: any) => {
   }
   editingModel.value = editing
   showDialog.value = true
-}
-
-const openPrivacyDialog = async (model: any) => {
-  try {
-    privacyModel.value = model
-    const preference = await getMyModelDesensitization(model.id)
-    privacyEnabled.value = preference.enabled
-    privacyNer.value = preference.ner
-    showPrivacyDialog.value = true
-  } catch (error: any) {
-    MessagePlugin.error(error.message || t('model.loadFailed'))
-  }
-}
-
-const savePrivacyPreference = async () => {
-  if (!privacyModel.value?.id) return
-  privacySaving.value = true
-  try {
-    await updateMyModelDesensitization(
-      privacyModel.value.id,
-      privacyEnabled.value,
-      privacyEnabled.value && privacyNer.value,
-    )
-    showPrivacyDialog.value = false
-    MessagePlugin.success(t('modelSettings.toasts.updated'))
-  } finally {
-    privacySaving.value = false
-  }
 }
 
 // 保存模型
@@ -1012,29 +951,6 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-}
-
-.model-card__privacy {
-  align-self: flex-start;
-  margin-top: 8px;
-}
-
-.privacy-model-name {
-  margin: 0 0 16px;
-  font-weight: 600;
-}
-
-.privacy-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 14px 0;
-}
-
-.privacy-hint {
-  margin: 16px 0 0;
-  color: var(--td-text-color-secondary);
-  line-height: 1.6;
 }
 
 .model-card__actions {

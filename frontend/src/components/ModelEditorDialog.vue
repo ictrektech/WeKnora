@@ -353,6 +353,8 @@
         </div>
 
         <template v-if="['chat', 'vllm'].includes(activeModelType)">
+          <p class="form-desc">{{ $t('modelSettings.personalDesensitizationHint') }}</p>
+
           <div class="form-item">
             <label class="form-label">{{ $t('model.editor.desensitizeRulesLabel') }}</label>
             <div class="vision-toggle">
