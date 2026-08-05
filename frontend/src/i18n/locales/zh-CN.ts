@@ -1837,6 +1837,8 @@ export default {
     }
   },
   modelSettings: {
+    personalDesensitization: '个人脱敏设置',
+    personalDesensitizationHint: '此设置仅对当前账号和当前模型配置生效。名称、地址相同的其他模型，以及其他用户，均不会跟随变化。NER 会在规则脱敏后执行。',
     title: '模型配置',
     description: '管理不同类型的 AI 模型，支持 Ollama 本地模型和远程 API',
     copySuffix: ' 副本',

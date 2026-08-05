@@ -3799,6 +3799,8 @@ export default {
     builtin: 'Built-in'
   },
   modelSettings: {
+    personalDesensitization: 'Personal redaction',
+    personalDesensitizationHint: 'This applies only to your account and this exact model record. Other models with the same name or endpoint, and other users, are not changed. NER runs after rule-based redaction.',
     title: 'Model Settings',
     description: 'Manage different types of AI models, including local Ollama and remote APIs',
     typeShort: {

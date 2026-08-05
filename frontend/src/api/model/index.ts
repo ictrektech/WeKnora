@@ -28,8 +28,6 @@ export interface ModelConfig {
     // 会在调用远程模型 API 时附加到每个请求上。Authorization、Content-Type 等保留头会被忽略。
     custom_headers?: Record<string, string>;
     supports_vision?: boolean; // Whether the model accepts image/multimodal input
-    desensitize_enabled?: boolean;
-    desensitize_ner?: boolean;
     desensitize_base_url?: string;
     // 后台任务（入库/富化）对该模型的并发上限，按模型 ID 全副本共享。
     // 0 或不填表示沿用全局默认（model.max_concurrency）；仅对 chat/embedding/vllm 生效。
@@ -50,6 +48,26 @@ export interface ModelConfig {
   created_at?: string;
   updated_at?: string;
   deleted_at?: string | null;
+}
+
+export interface ModelDesensitizationPreference {
+  model_id: string;
+  enabled: boolean;
+  ner: boolean;
+}
+
+export async function getMyModelDesensitization(id: string): Promise<ModelDesensitizationPreference> {
+  const response: any = await get(`/api/v1/models/${id}/desensitization`)
+  return response.data
+}
+
+export async function updateMyModelDesensitization(
+  id: string,
+  enabled: boolean,
+  ner: boolean,
+): Promise<ModelDesensitizationPreference> {
+  const response: any = await put(`/api/v1/models/${id}/desensitization`, { enabled, ner })
+  return response.data
 }
 
 // 创建模型

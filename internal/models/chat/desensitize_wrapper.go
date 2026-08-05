@@ -142,14 +142,18 @@ func flattenText(messages []Message) ([]desensitizeMessage, []textTarget) {
 	targets := make([]textTarget, 0, len(messages))
 	for messageIndex, message := range messages {
 		if message.Content != "" {
-			requestMessages = append(requestMessages, desensitizeMessage{Role: message.Role, Content: message.Content})
+			// The service intentionally skips assistant content. For outbound
+			// model protection every textual prompt segment is sensitive input,
+			// including system and assistant history, so submit each segment as
+			// user text and restore it to its original message slot below.
+			requestMessages = append(requestMessages, desensitizeMessage{Role: "user", Content: message.Content})
 			targets = append(targets, textTarget{messageIndex: messageIndex})
 		}
 		for partIndex, part := range message.MultiContent {
 			if part.Type != "text" || part.Text == "" {
 				continue
 			}
-			requestMessages = append(requestMessages, desensitizeMessage{Role: message.Role, Content: part.Text})
+			requestMessages = append(requestMessages, desensitizeMessage{Role: "user", Content: part.Text})
 			targets = append(targets, textTarget{messageIndex: messageIndex, partIndex: partIndex, isPart: true})
 		}
 	}
@@ -162,6 +166,23 @@ func cloneMessages(messages []Message) []Message {
 		cloned[i].MultiContent = append([]MessageContentPart(nil), messages[i].MultiContent...)
 	}
 	return cloned
+}
+
+// DesensitizeText applies the same fail-closed policy to a standalone prompt,
+// such as the textual instruction sent with an image to a VLM.
+func DesensitizeText(ctx context.Context, baseURL string, ner bool, text string) (string, error) {
+	clientConfig := secutils.DefaultSSRFSafeHTTPClientConfig()
+	clientConfig.Timeout = 15 * time.Second
+	w := &desensitizeChat{
+		baseURL: strings.TrimSpace(baseURL),
+		ner:     ner,
+		client:  secutils.NewSSRFSafeHTTPClient(clientConfig),
+	}
+	messages, err := w.sanitize(ctx, []Message{{Role: "user", Content: text}})
+	if err != nil {
+		return "", err
+	}
+	return messages[0].Content, nil
 }
 
 func wrapChatDesensitize(c Chat, config *ChatConfig, err error) (Chat, error) {

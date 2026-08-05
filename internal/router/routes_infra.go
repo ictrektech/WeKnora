@@ -30,6 +30,9 @@ func RegisterModelRoutes(
 		models.POST("/:id/debug", g.Admin(), handler.DebugModel)
 		// 获取单个模型 — Viewer+
 		models.GET("/:id", g.Viewer(), handler.GetModel)
+		// Personal privacy policy: every viewer manages only their own row.
+		models.GET("/:id/desensitization", g.Viewer(), handler.GetMyDesensitization)
+		models.PUT("/:id/desensitization", g.Viewer(), handler.UpdateMyDesensitization)
 		// 更新模型 — Admin+；内置模型仍由服务层额外限定为 SystemAdmin。
 		models.PUT("/:id", g.AdminOrSystemAdmin(), handler.UpdateModel)
 		// 删除模型 — Admin+

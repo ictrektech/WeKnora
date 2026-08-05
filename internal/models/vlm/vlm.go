@@ -34,9 +34,12 @@ type Config struct {
 	MaxConcurrency int
 	Extra          map[string]any
 	// CustomHeaders 允许在调用远程 API 时附加自定义 HTTP 请求头（类似 OpenAI Python SDK 的 extra_headers）。
-	CustomHeaders map[string]string
-	AppID         string
-	AppSecret     string
+	CustomHeaders      map[string]string
+	DesensitizeEnabled bool
+	DesensitizeNER     bool
+	DesensitizeBaseURL string
+	AppID              string
+	AppSecret          string
 }
 
 // ConfigFromModel 根据 types.Model 构造 vlm.Config。
@@ -56,18 +59,21 @@ func ConfigFromModel(m *types.Model, appID, appSecret string) *Config {
 		}
 	}
 	return &Config{
-		ModelID:        m.ID,
-		APIKey:         m.Parameters.APIKey,
-		BaseURL:        m.Parameters.BaseURL,
-		ModelName:      m.Name,
-		Source:         m.Source,
-		InterfaceType:  ifType,
-		Provider:       m.Parameters.Provider,
-		MaxConcurrency: m.Parameters.MaxConcurrency,
-		Extra:          stringMapToAnyMap(m.Parameters.ExtraConfig),
-		CustomHeaders:  m.Parameters.CustomHeaders,
-		AppID:          appID,
-		AppSecret:      appSecret,
+		ModelID:            m.ID,
+		APIKey:             m.Parameters.APIKey,
+		BaseURL:            m.Parameters.BaseURL,
+		ModelName:          m.Name,
+		Source:             m.Source,
+		InterfaceType:      ifType,
+		Provider:           m.Parameters.Provider,
+		MaxConcurrency:     m.Parameters.MaxConcurrency,
+		Extra:              stringMapToAnyMap(m.Parameters.ExtraConfig),
+		CustomHeaders:      m.Parameters.CustomHeaders,
+		DesensitizeEnabled: m.Parameters.DesensitizeEnabled || m.Parameters.DesensitizeNER,
+		DesensitizeNER:     m.Parameters.DesensitizeNER,
+		DesensitizeBaseURL: m.Parameters.DesensitizeBaseURL,
+		AppID:              appID,
+		AppSecret:          appSecret,
 	}
 }
 
@@ -94,7 +100,8 @@ func NewVLM(config *Config, ollamaService *ollama.OllamaService) (VLM, error) {
 	v, err = wrapVLMLangfuse(v, nil)
 	// Outermost: hold the per-model concurrency slot only around the real
 	// provider round-trip, so the wait is excluded from debug/langfuse timing.
-	return wrapVLMConcurrency(v, config.MaxConcurrency, err)
+	v, err = wrapVLMConcurrency(v, config.MaxConcurrency, err)
+	return wrapVLMDesensitize(v, config, err)
 }
 
 func newVLM(config *Config, ollamaService *ollama.OllamaService) (VLM, error) {

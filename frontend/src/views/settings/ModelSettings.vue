@@ -115,6 +115,16 @@
                 </span>
               </template>
             </p>
+            <t-button
+              v-if="['chat', 'vllm'].includes(model._modelType)"
+              size="small"
+              variant="text"
+              class="model-card__privacy"
+              @click.stop="openPrivacyDialog(model)"
+            >
+              <template #icon><t-icon name="shield" /></template>
+              {{ $t('modelSettings.personalDesensitization') }}
+            </t-button>
           </div>
         </div>
         <button
@@ -136,6 +146,23 @@
     <ModelEditorDialog v-model:visible="showDialog" :model-type="currentModelType" :model-data="editingModel"
       @confirm="handleModelSave" />
     <ModelDebugDrawer v-model:visible="showDebugDrawer" :models="allModels" />
+    <t-dialog
+      v-model:visible="showPrivacyDialog"
+      :header="$t('modelSettings.personalDesensitization')"
+      :confirm-btn="{ content: $t('common.save'), loading: privacySaving }"
+      @confirm="savePrivacyPreference"
+    >
+      <p class="privacy-model-name">{{ privacyModel ? modelDisplayName(privacyModel) : '' }}</p>
+      <div class="privacy-option">
+        <t-switch v-model="privacyEnabled" />
+        <span>{{ $t('model.editor.desensitizeRulesLabel') }}</span>
+      </div>
+      <div class="privacy-option">
+        <t-switch v-model="privacyNer" :disabled="!privacyEnabled" />
+        <span>{{ $t('model.editor.desensitizeNerLabel') }}</span>
+      </div>
+      <p class="privacy-hint">{{ $t('modelSettings.personalDesensitizationHint') }}</p>
+    </t-dialog>
 
   </div>
 </template>
@@ -147,7 +174,7 @@ import { AddIcon, PlayCircleIcon } from 'tdesign-icons-vue-next'
 import { useI18n } from 'vue-i18n'
 import ModelEditorDialog from '@/components/ModelEditorDialog.vue'
 import ModelDebugDrawer from '@/components/ModelDebugDrawer.vue'
-import { listModels, createModel, updateModel as updateModelAPI, deleteModel as deleteModelAPI, type ModelConfig } from '@/api/model'
+import { listModels, createModel, updateModel as updateModelAPI, deleteModel as deleteModelAPI, getMyModelDesensitization, updateMyModelDesensitization, type ModelConfig } from '@/api/model'
 import { useAuthStore } from '@/stores/auth'
 
 const { t, te } = useI18n()
@@ -160,6 +187,11 @@ const showDebugDrawer = ref(false)
 const currentModelType = ref<ModelType>('chat')
 const editingModel = ref<any>(null)
 const loading = ref(true)
+const showPrivacyDialog = ref(false)
+const privacySaving = ref(false)
+const privacyModel = ref<any>(null)
+const privacyEnabled = ref(false)
+const privacyNer = ref(false)
 const activeTypeFilter = ref<FilterType>('all')
 
 // 模型列表数据
@@ -193,8 +225,8 @@ function convertToLegacyFormat(model: ModelConfig) {
     supportsDimensionOverride: model.parameters.embedding_parameters?.supports_dimension_override || false,
     isBuiltin: model.is_builtin || false,
     supportsVision: model.parameters.supports_vision || false,
-    desensitizeEnabled: model.parameters.desensitize_enabled || false,
-    desensitizeNer: model.parameters.desensitize_ner || false,
+    desensitizeEnabled: false,
+    desensitizeNer: false,
     desensitizeBaseUrl: model.parameters.desensitize_base_url || '',
     maxConcurrency: model.parameters.max_concurrency,
     customHeaders: model.parameters.custom_headers
@@ -345,7 +377,7 @@ const onModelCardClick = (event: Event, type: ModelType, model: any) => {
 }
 
 // 编辑模型
-const editModel = (type: ModelType, model: any) => {
+const editModel = async (type: ModelType, model: any) => {
   if (model.isBuiltin && !authStore.isSystemAdmin) {
     MessagePlugin.warning(t('modelSettings.toasts.builtinCannotEdit'))
     return
@@ -354,8 +386,42 @@ const editModel = (type: ModelType, model: any) => {
     return
   }
   currentModelType.value = type
-  editingModel.value = { ...model }
+  const editing = { ...model }
+  if (['chat', 'vllm'].includes(type)) {
+    const preference = await getMyModelDesensitization(model.id)
+    editing.desensitizeEnabled = preference.enabled
+    editing.desensitizeNer = preference.ner
+  }
+  editingModel.value = editing
   showDialog.value = true
+}
+
+const openPrivacyDialog = async (model: any) => {
+  try {
+    privacyModel.value = model
+    const preference = await getMyModelDesensitization(model.id)
+    privacyEnabled.value = preference.enabled
+    privacyNer.value = preference.ner
+    showPrivacyDialog.value = true
+  } catch (error: any) {
+    MessagePlugin.error(error.message || t('model.loadFailed'))
+  }
+}
+
+const savePrivacyPreference = async () => {
+  if (!privacyModel.value?.id) return
+  privacySaving.value = true
+  try {
+    await updateMyModelDesensitization(
+      privacyModel.value.id,
+      privacyEnabled.value,
+      privacyEnabled.value && privacyNer.value,
+    )
+    showPrivacyDialog.value = false
+    MessagePlugin.success(t('modelSettings.toasts.updated'))
+  } finally {
+    privacySaving.value = false
+  }
 }
 
 // 保存模型
@@ -457,8 +523,6 @@ const handleModelSave = async (modelData: any) => {
         } : {}),
         ...(['chat', 'vllm'].includes(saveType) ? {
           supports_vision: saveType === 'vllm' ? true : modelData.supportsVision ?? false,
-          desensitize_enabled: modelData.desensitizeEnabled ?? false,
-          desensitize_ner: modelData.desensitizeNer ?? false,
           desensitize_base_url: (modelData.desensitizeBaseUrl || '').trim()
         } : {}),
         // 后台并发上限：仅 chat/embedding/vllm 受治理，>0 才写入（0/空沿用全局默认）。
@@ -471,9 +535,23 @@ const handleModelSave = async (modelData: any) => {
 
     if (editingModel.value && editingModel.value.id) {
       await updateModelAPI(editingModel.value.id, apiModelData)
+      if (['chat', 'vllm'].includes(saveType)) {
+        await updateMyModelDesensitization(
+          editingModel.value.id,
+          modelData.desensitizeEnabled ?? false,
+          (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeNer ?? false),
+        )
+      }
       MessagePlugin.success(t('modelSettings.toasts.updated'))
     } else {
-      await createModel(apiModelData)
+      const created = await createModel(apiModelData)
+      if (created.id && ['chat', 'vllm'].includes(saveType)) {
+        await updateMyModelDesensitization(
+          created.id,
+          modelData.desensitizeEnabled ?? false,
+          (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeNer ?? false),
+        )
+      }
       MessagePlugin.success(t('modelSettings.toasts.added'))
     }
 
@@ -934,6 +1012,29 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+
+.model-card__privacy {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+.privacy-model-name {
+  margin: 0 0 16px;
+  font-weight: 600;
+}
+
+.privacy-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.privacy-hint {
+  margin: 16px 0 0;
+  color: var(--td-text-color-secondary);
+  line-height: 1.6;
 }
 
 .model-card__actions {

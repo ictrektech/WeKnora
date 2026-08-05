@@ -42,6 +42,7 @@ func withDesensitizeTestServer(t *testing.T, handler http.HandlerFunc) *httptest
 
 func TestDesensitizeChatSanitizesRegularAndMultimodalText(t *testing.T) {
 	var gotNER bool
+	var gotRoles []string
 	server := withDesensitizeTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		var request desensitizeRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -49,6 +50,7 @@ func TestDesensitizeChatSanitizesRegularAndMultimodalText(t *testing.T) {
 		}
 		gotNER = request.Options.NER
 		for i := range request.Messages {
+			gotRoles = append(gotRoles, request.Messages[i].Role)
 			request.Messages[i].Content = strings.ReplaceAll(request.Messages[i].Content, "13812345678", "[PHONE]")
 		}
 		_ = json.NewEncoder(w).Encode(desensitizeResponse{Messages: request.Messages})
@@ -65,7 +67,7 @@ func TestDesensitizeChatSanitizesRegularAndMultimodalText(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := []Message{{
-		Role:    "user",
+		Role:    "assistant",
 		Content: "电话 13812345678",
 		MultiContent: []MessageContentPart{{
 			Type: "text", Text: "再次输入 13812345678",
@@ -76,6 +78,11 @@ func TestDesensitizeChatSanitizesRegularAndMultimodalText(t *testing.T) {
 	}
 	if !gotNER {
 		t.Fatal("expected NER option")
+	}
+	for _, role := range gotRoles {
+		if role != "user" {
+			t.Fatalf("expected all text to be submitted for sanitization as user content, got roles %v", gotRoles)
+		}
 	}
 	if inner.messages[0].Content != "电话 [PHONE]" || inner.messages[0].MultiContent[0].Text != "再次输入 [PHONE]" {
 		t.Fatalf("unexpected sanitized messages: %#v", inner.messages)

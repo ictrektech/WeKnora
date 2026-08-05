@@ -24,12 +24,13 @@ var ErrModelNotFound = errors.New("model not found")
 
 // modelService implements the model service interface
 type modelService struct {
-	repo          interfaces.ModelRepository
-	kbRepo        interfaces.KnowledgeBaseRepository
-	agentRepo     interfaces.CustomAgentRepository
-	ollamaService *ollama.OllamaService
-	pooler        embedding.EmbedderPooler
-	tenantService interfaces.TenantService
+	repo            interfaces.ModelRepository
+	kbRepo          interfaces.KnowledgeBaseRepository
+	agentRepo       interfaces.CustomAgentRepository
+	ollamaService   *ollama.OllamaService
+	pooler          embedding.EmbedderPooler
+	tenantService   interfaces.TenantService
+	desensitizeRepo interfaces.UserModelDesensitizationRepository
 }
 
 // NewModelService creates a new model service instance
@@ -39,15 +40,35 @@ func NewModelService(repo interfaces.ModelRepository,
 	ollamaService *ollama.OllamaService,
 	pooler embedding.EmbedderPooler,
 	tenantService interfaces.TenantService,
+	desensitizeRepo interfaces.UserModelDesensitizationRepository,
 ) interfaces.ModelService {
 	return &modelService{
-		repo:          repo,
-		kbRepo:        kbRepo,
-		agentRepo:     agentRepo,
-		ollamaService: ollamaService,
-		pooler:        pooler,
-		tenantService: tenantService,
+		repo:            repo,
+		kbRepo:          kbRepo,
+		agentRepo:       agentRepo,
+		ollamaService:   ollamaService,
+		pooler:          pooler,
+		tenantService:   tenantService,
+		desensitizeRepo: desensitizeRepo,
 	}
+}
+
+func (s *modelService) applyMyDesensitization(ctx context.Context, model *types.Model) error {
+	// Requests without a human user (for example deployment background work)
+	// default to disabled instead of inheriting another user's privacy policy.
+	model.Parameters.DesensitizeEnabled = false
+	model.Parameters.DesensitizeNER = false
+	userID, ok := types.UserIDFromContext(ctx)
+	if !ok || s.desensitizeRepo == nil {
+		return nil
+	}
+	preference, err := s.desensitizeRepo.Get(ctx, userID, model.ID)
+	if err != nil {
+		return err
+	}
+	model.Parameters.DesensitizeEnabled = preference.Enabled
+	model.Parameters.DesensitizeNER = preference.Enabled && preference.NER
+	return nil
 }
 
 // decryptAppSecret 解密 AppSecret（如果为空或 cryptoSvc 为空则原样返回）
@@ -96,6 +117,8 @@ func (s *modelService) resolveWeKnoraCloudCredentials(ctx context.Context, param
 // For local models, it initiates an asynchronous download process
 // Remote models are immediately set to active status
 func (s *modelService) CreateModel(ctx context.Context, model *types.Model) error {
+	model.Parameters.DesensitizeEnabled = false
+	model.Parameters.DesensitizeNER = false
 	logger.Infof(ctx, "Creating model: %s, type: %s, source: %s", model.Name, model.Type, model.Source)
 
 	// Handle remote models (e.g., OpenAI, Azure)
@@ -180,6 +203,9 @@ func (s *modelService) GetModelByID(ctx context.Context, id string) (*types.Mode
 		logger.Error(ctx, "Model not found")
 		return nil, ErrModelNotFound
 	}
+	if err := s.applyMyDesensitization(ctx, model); err != nil {
+		return nil, err
+	}
 
 	logger.Infof(ctx, "Model found, name: %s, status: %s", model.Name, model.Status)
 
@@ -224,6 +250,8 @@ func (s *modelService) ListModels(ctx context.Context) ([]*types.Model, error) {
 
 // UpdateModel updates an existing model in the repository
 func (s *modelService) UpdateModel(ctx context.Context, model *types.Model) error {
+	model.Parameters.DesensitizeEnabled = false
+	model.Parameters.DesensitizeNER = false
 	logger.Info(ctx, "Start updating model")
 	logger.Infof(ctx, "Updating model ID: %s, name: %s", model.ID, model.Name)
 
@@ -538,6 +566,9 @@ func (s *modelService) GetChatModel(ctx context.Context, modelId string) (chat.C
 		logger.Error(ctx, "Chat model not found")
 		return nil, ErrModelNotFound
 	}
+	if err := s.applyMyDesensitization(ctx, model); err != nil {
+		return nil, err
+	}
 
 	logger.Infof(ctx, "Getting chat model: %s, source: %s", model.Name, model.Source)
 
@@ -574,6 +605,9 @@ func (s *modelService) GetVLMModel(ctx context.Context, modelId string) (vlm.VLM
 
 	if model == nil {
 		return nil, ErrModelNotFound
+	}
+	if err := s.applyMyDesensitization(ctx, model); err != nil {
+		return nil, err
 	}
 
 	logger.Infof(ctx, "Getting VLM model: %s, source: %s", model.Name, model.Source)

@@ -169,6 +169,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewEmbedChannelRepository))
 	must(container.Provide(repository.NewTenantDisabledSharedAgentRepository))
 	must(container.Provide(repository.NewUserResourceFavoriteRepository))
+	must(container.Provide(repository.NewUserModelDesensitizationRepository))
 	must(container.Provide(service.NewWebSearchStateService))
 	must(container.Provide(repository.NewDataSourceRepository))
 	must(container.Provide(repository.NewSyncLogRepository))

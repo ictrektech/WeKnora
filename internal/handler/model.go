@@ -23,7 +23,8 @@ import (
 // ModelHandler handles HTTP requests for model-related operations
 // It implements the necessary methods to create, retrieve, update, and delete models
 type ModelHandler struct {
-	service interfaces.ModelService
+	service         interfaces.ModelService
+	desensitizeRepo interfaces.UserModelDesensitizationRepository
 }
 
 // NewModelHandler creates a new instance of ModelHandler
@@ -32,8 +33,11 @@ type ModelHandler struct {
 //   - service: An implementation of the ModelService interface
 //
 // Returns a pointer to the newly created ModelHandler
-func NewModelHandler(service interfaces.ModelService) *ModelHandler {
-	return &ModelHandler{service: service}
+func NewModelHandler(
+	service interfaces.ModelService,
+	desensitizeRepo interfaces.UserModelDesensitizationRepository,
+) *ModelHandler {
+	return &ModelHandler{service: service, desensitizeRepo: desensitizeRepo}
 }
 
 // Per-response redaction/stripping for Model now lives in
@@ -49,6 +53,62 @@ type CreateModelRequest struct {
 	Source      types.ModelSource     `json:"source"      binding:"required"`
 	Description string                `json:"description"`
 	Parameters  types.ModelParameters `json:"parameters"  binding:"required"`
+}
+
+type updateMyModelDesensitizationRequest struct {
+	Enabled bool `json:"enabled"`
+	NER     bool `json:"ner"`
+}
+
+func (h *ModelHandler) GetMyDesensitization(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID, ok := types.UserIDFromContext(ctx)
+	if !ok {
+		c.Error(errors.NewUnauthorizedError("user identity is required"))
+		return
+	}
+	if _, err := h.service.GetModelByID(ctx, c.Param("id")); err != nil {
+		c.Error(errors.NewBadRequestError(err.Error()))
+		return
+	}
+	preference, err := h.desensitizeRepo.Get(ctx, userID, c.Param("id"))
+	if err != nil {
+		c.Error(errors.NewBadRequestError(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": preference})
+}
+
+func (h *ModelHandler) UpdateMyDesensitization(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID, ok := types.UserIDFromContext(ctx)
+	if !ok {
+		c.Error(errors.NewUnauthorizedError("user identity is required"))
+		return
+	}
+	var req updateMyModelDesensitizationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.Error(errors.NewBadRequestError(err.Error()))
+		return
+	}
+	if _, err := h.service.GetModelByID(ctx, c.Param("id")); err != nil {
+		c.Error(errors.NewBadRequestError(err.Error()))
+		return
+	}
+	preference := &types.UserModelDesensitization{
+		UserID: userID, ModelID: c.Param("id"), Enabled: req.Enabled, NER: req.Enabled && req.NER,
+	}
+	err := h.desensitizeRepo.Upsert(ctx, preference)
+	if err != nil {
+		c.Error(errors.NewBadRequestError(err.Error()))
+		return
+	}
+	preference, err = h.desensitizeRepo.Get(ctx, userID, c.Param("id"))
+	if err != nil {
+		c.Error(errors.NewBadRequestError(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": preference})
 }
 
 // CreateModel godoc
