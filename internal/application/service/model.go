@@ -68,6 +68,9 @@ func (s *modelService) applyMyDesensitization(ctx context.Context, model *types.
 	}
 	model.Parameters.DesensitizeEnabled = preference.Enabled
 	model.Parameters.DesensitizeNER = preference.Enabled && preference.NER
+	if preference.BaseURL != "" {
+		model.Parameters.DesensitizeBaseURL = preference.BaseURL
+	}
 	return nil
 }
 

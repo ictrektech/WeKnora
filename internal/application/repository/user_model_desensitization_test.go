@@ -19,18 +19,21 @@ func TestUserModelDesensitizationIsolatedByUserAndModelID(t *testing.T) {
 
 	require.NoError(t, repo.Upsert(ctx, &types.UserModelDesensitization{
 		UserID: "user-a", ModelID: "qa-model", Enabled: true, NER: false,
+		BaseURL: "http://desensitize-a:5000",
 	}))
 	require.NoError(t, repo.Upsert(ctx, &types.UserModelDesensitization{
 		UserID: "user-a", ModelID: "vlm-model", Enabled: true, NER: true,
 	}))
 	require.NoError(t, repo.Upsert(ctx, &types.UserModelDesensitization{
 		UserID: "user-b", ModelID: "qa-model", Enabled: false, NER: false,
+		BaseURL: "http://desensitize-b:5000",
 	}))
 
 	userAQA, err := repo.Get(ctx, "user-a", "qa-model")
 	require.NoError(t, err)
 	require.True(t, userAQA.Enabled)
 	require.False(t, userAQA.NER)
+	require.Equal(t, "http://desensitize-a:5000", userAQA.BaseURL)
 
 	userAVLM, err := repo.Get(ctx, "user-a", "vlm-model")
 	require.NoError(t, err)
@@ -40,6 +43,7 @@ func TestUserModelDesensitizationIsolatedByUserAndModelID(t *testing.T) {
 	userBQA, err := repo.Get(ctx, "user-b", "qa-model")
 	require.NoError(t, err)
 	require.False(t, userBQA.Enabled)
+	require.Equal(t, "http://desensitize-b:5000", userBQA.BaseURL)
 
 	unset, err := repo.Get(ctx, "user-b", "vlm-model")
 	require.NoError(t, err)

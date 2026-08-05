@@ -48,6 +48,20 @@
             <span class="form-desc form-desc--inline">{{ $t('model.editor.desensitizeNerDesc') }}</span>
           </div>
         </div>
+
+        <div v-if="formData.desensitizeEnabled" class="form-item">
+          <label class="form-label">{{ $t('model.editor.desensitizeServiceUrlLabel') }}</label>
+          <t-input v-model="formData.desensitizeBaseUrl" :placeholder="vosDesensitizeServiceUrl" />
+          <div class="desensitize-vos-hint">
+            <span>{{ $t('model.editor.desensitizeVosHint') }}</span>
+            <code>{{ vosDesensitizeServiceUrl }}</code>
+            <t-button variant="text" shape="square" size="small"
+              :title="$t('common.copy')" @click="copyVosDesensitizeUrl">
+              <t-icon name="file-copy" />
+            </t-button>
+          </div>
+          <p class="form-desc">{{ $t('model.editor.desensitizeFailureDesc') }}</p>
+        </div>
       </section>
 
       <template v-else>
@@ -1592,6 +1606,19 @@ const checkRemoteAPI = async () => {
 const handleConfirm = async () => {
   try {
     if (personalOnly.value) {
+      if (formData.value.desensitizeEnabled) {
+        const serviceUrl = formData.value.desensitizeBaseUrl?.trim()
+        if (!serviceUrl) {
+          MessagePlugin.warning(t('model.editor.desensitizeServiceUrlRequired'))
+          return
+        }
+        try {
+          new URL(serviceUrl)
+        } catch {
+          MessagePlugin.warning(t('model.editor.desensitizeServiceUrlInvalid'))
+          return
+        }
+      }
       saving.value = true
       emit('confirm', { ...formData.value })
       dialogVisible.value = false

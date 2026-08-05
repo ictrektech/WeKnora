@@ -39,6 +39,7 @@ func (r *userModelDesensitizationRepository) Upsert(
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"enabled":    preference.Enabled,
 			"ner":        preference.NER,
+			"base_url":   preference.BaseURL,
 			"updated_at": gorm.Expr("CURRENT_TIMESTAMP"),
 		}),
 	}).Create(preference).Error

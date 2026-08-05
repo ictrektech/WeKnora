@@ -371,6 +371,7 @@ const editModel = async (type: ModelType, model: any) => {
     const preference = await getMyModelDesensitization(model.id)
     editing.desensitizeEnabled = preference.enabled
     editing.desensitizeNer = preference.ner
+    editing.desensitizeBaseUrl = preference.base_url || ''
   }
   editingModel.value = editing
   showDialog.value = true
@@ -387,6 +388,7 @@ const handleModelSave = async (modelData: any) => {
         editingModel.value.id,
         modelData.desensitizeEnabled ?? false,
         (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeNer ?? false),
+        (modelData.desensitizeBaseUrl || '').trim(),
       )
       showDialog.value = false
       MessagePlugin.success(t('modelSettings.toasts.updated'))
@@ -503,6 +505,7 @@ const handleModelSave = async (modelData: any) => {
           editingModel.value.id,
           modelData.desensitizeEnabled ?? false,
           (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeNer ?? false),
+          (modelData.desensitizeBaseUrl || '').trim(),
         )
       }
       MessagePlugin.success(t('modelSettings.toasts.updated'))
@@ -513,6 +516,7 @@ const handleModelSave = async (modelData: any) => {
           created.id,
           modelData.desensitizeEnabled ?? false,
           (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeNer ?? false),
+          (modelData.desensitizeBaseUrl || '').trim(),
         )
       }
       MessagePlugin.success(t('modelSettings.toasts.added'))

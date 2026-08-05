@@ -57,8 +57,9 @@ type CreateModelRequest struct {
 }
 
 type updateMyModelDesensitizationRequest struct {
-	Enabled bool `json:"enabled"`
-	NER     bool `json:"ner"`
+	Enabled bool   `json:"enabled"`
+	NER     bool   `json:"ner"`
+	BaseURL string `json:"base_url"`
 }
 
 func canMutateModel(ctx context.Context, model *types.Model) bool {
@@ -82,7 +83,8 @@ func (h *ModelHandler) GetMyDesensitization(c *gin.Context) {
 		c.Error(errors.NewUnauthorizedError("user identity is required"))
 		return
 	}
-	if _, err := h.service.GetModelByID(ctx, c.Param("id")); err != nil {
+	model, err := h.service.GetModelByID(ctx, c.Param("id"))
+	if err != nil {
 		c.Error(errors.NewBadRequestError(err.Error()))
 		return
 	}
@@ -90,6 +92,9 @@ func (h *ModelHandler) GetMyDesensitization(c *gin.Context) {
 	if err != nil {
 		c.Error(errors.NewBadRequestError(err.Error()))
 		return
+	}
+	if preference.BaseURL == "" {
+		preference.BaseURL = model.Parameters.DesensitizeBaseURL
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": preference})
 }
@@ -112,6 +117,7 @@ func (h *ModelHandler) UpdateMyDesensitization(c *gin.Context) {
 	}
 	preference := &types.UserModelDesensitization{
 		UserID: userID, ModelID: c.Param("id"), Enabled: req.Enabled, NER: req.Enabled && req.NER,
+		BaseURL: strings.TrimSpace(req.BaseURL),
 	}
 	err := h.desensitizeRepo.Upsert(ctx, preference)
 	if err != nil {
