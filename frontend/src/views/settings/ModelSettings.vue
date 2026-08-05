@@ -134,6 +134,7 @@
 
     <!-- 模型编辑器抽屉 -->
     <ModelEditorDialog v-model:visible="showDialog" :model-type="currentModelType" :model-data="editingModel"
+      :personal-only="personalOnlyMode"
       @confirm="handleModelSave" />
     <ModelDebugDrawer v-model:visible="showDebugDrawer" :models="allModels" />
   </div>
@@ -158,6 +159,7 @@ const showDialog = ref(false)
 const showDebugDrawer = ref(false)
 const currentModelType = ref<ModelType>('chat')
 const editingModel = ref<any>(null)
+const personalOnlyMode = ref(false)
 const loading = ref(true)
 const activeTypeFilter = ref<FilterType>('all')
 
@@ -314,6 +316,7 @@ const loadModels = async () => {
 const openAddDialog = () => {
   currentModelType.value = activeTypeFilter.value === 'all' ? 'chat' : activeTypeFilter.value
   editingModel.value = null
+  personalOnlyMode.value = false
   showDialog.value = true
 }
 
@@ -322,7 +325,11 @@ const openAddDialog = () => {
 const canEditModel = (model: any) =>
   model.isBuiltin ? authStore.isSystemAdmin : authStore.hasRole('admin')
 
-const isModelCardClickable = (model: any) => canEditModel(model)
+const supportsPersonalDesensitization = (model: any) =>
+  ['chat', 'vllm'].includes(model._modelType)
+
+const isModelCardClickable = (model: any) =>
+  canEditModel(model) || supportsPersonalDesensitization(model)
 
 const canManageModel = (model: any) => canEditModel(model)
 
@@ -345,13 +352,11 @@ const onModelCardClick = (event: Event, type: ModelType, model: any) => {
 
 // 编辑模型
 const editModel = async (type: ModelType, model: any) => {
-  if (model.isBuiltin && !authStore.isSystemAdmin) {
-    MessagePlugin.warning(t('modelSettings.toasts.builtinCannotEdit'))
+  const canEditSharedConfig = canEditModel(model)
+  if (!canEditSharedConfig && !supportsPersonalDesensitization(model)) {
     return
   }
-  if (!model.isBuiltin && !authStore.hasRole('admin')) {
-    return
-  }
+  personalOnlyMode.value = !canEditSharedConfig
   currentModelType.value = type
   const editing = { ...model }
   if (['chat', 'vllm'].includes(type)) {
@@ -369,6 +374,17 @@ const handleModelSave = async (modelData: any) => {
   currentModelType.value = saveType
 
   try {
+    if (personalOnlyMode.value && editingModel.value?.id) {
+      await updateMyModelDesensitization(
+        editingModel.value.id,
+        modelData.desensitizeEnabled ?? false,
+        (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeNer ?? false),
+      )
+      showDialog.value = false
+      MessagePlugin.success(t('modelSettings.toasts.updated'))
+      return
+    }
+
     if (!modelData.modelName || !modelData.modelName.trim()) {
       MessagePlugin.warning(t('modelSettings.toasts.nameRequired'))
       return

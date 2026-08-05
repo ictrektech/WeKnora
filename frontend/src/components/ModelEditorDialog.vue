@@ -1,7 +1,7 @@
 <template>
-  <SettingDrawer :visible="dialogVisible" :title="isEdit ? $t('model.editor.editTitle') : $t('model.editor.addTitle')"
+  <SettingDrawer :visible="dialogVisible" :title="personalOnly ? $t('modelSettings.personalDesensitization') : (isEdit ? $t('model.editor.editTitle') : $t('model.editor.addTitle'))"
     :description="getModalDescription()" :icon="modelTypeIcon" :confirm-loading="saving"
-    :confirm-disabled="formData.provider === 'weknoracloud' && wkcCredentialState !== 'configured'"
+    :confirm-disabled="!personalOnly && formData.provider === 'weknoracloud' && wkcCredentialState !== 'configured'"
     @update:visible="(v: boolean) => dialogVisible = v" @confirm="handleConfirm" @cancel="handleCancel">
 
     <!--
@@ -10,7 +10,7 @@
       drawer. Avoids the "test, then scroll back down to save" dance.
       Mirrors the pattern used in WebSearchSettings' provider drawer.
     -->
-    <template v-if="formData.source === 'remote'" #footer-left>
+    <template v-if="!personalOnly && formData.source === 'remote'" #footer-left>
       <t-button variant="outline" @click="checkRemoteAPI" :loading="checking"
         :disabled="!formData.modelName || (!formData.baseUrl && formData.provider !== 'weknoracloud') || (formData.provider === 'weknoracloud' && wkcCredentialState !== 'configured')">
         <template #icon>
@@ -28,6 +28,29 @@
     </template>
 
     <t-form ref="formRef" :data="formData" :rules="rules" layout="vertical">
+
+      <section v-if="personalOnly" class="setting-drawer__section">
+        <h4 class="setting-drawer__section-title">{{ $t('modelSettings.personalDesensitization') }}</h4>
+        <p class="form-desc">{{ $t('modelSettings.personalDesensitizationHint') }}</p>
+
+        <div class="form-item">
+          <label class="form-label">{{ $t('model.editor.desensitizeRulesLabel') }}</label>
+          <div class="vision-toggle">
+            <t-switch v-model="formData.desensitizeEnabled" />
+            <span class="form-desc form-desc--inline">{{ $t('model.editor.desensitizeRulesDesc') }}</span>
+          </div>
+        </div>
+
+        <div class="form-item">
+          <label class="form-label">{{ $t('model.editor.desensitizeNerLabel') }}</label>
+          <div class="vision-toggle">
+            <t-switch v-model="formData.desensitizeNer" :disabled="!formData.desensitizeEnabled" />
+            <span class="form-desc form-desc--inline">{{ $t('model.editor.desensitizeNerDesc') }}</span>
+          </div>
+        </div>
+      </section>
+
+      <template v-else>
 
       <section v-if="!isEdit" class="setting-drawer__section">
         <h4 class="setting-drawer__section-title">{{ $t('model.editor.sectionType') }}</h4>
@@ -425,6 +448,8 @@
         </div>
       </section>
 
+      </template>
+
     </t-form>
   </SettingDrawer>
 </template>
@@ -493,6 +518,7 @@ interface Props {
   visible: boolean
   modelType: EditorModelType
   modelData?: ModelFormData | null
+  personalOnly?: boolean
 }
 
 const { t, te } = useI18n()
@@ -501,8 +527,11 @@ const vosDesensitizeServiceUrl = 'http://desensitize-backend:5000'
 
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
-  modelData: null
+  modelData: null,
+  personalOnly: false
 })
+
+const personalOnly = computed(() => props.personalOnly)
 
 const emit = defineEmits<{
   'update:visible': [value: boolean]
@@ -1562,6 +1591,13 @@ const checkRemoteAPI = async () => {
 // 确认保存
 const handleConfirm = async () => {
   try {
+    if (personalOnly.value) {
+      saving.value = true
+      emit('confirm', { ...formData.value })
+      dialogVisible.value = false
+      return
+    }
+
     // 手动校验必填字段
     if (!formData.value.modelName || !formData.value.modelName.trim()) {
       MessagePlugin.warning(t('model.editor.validation.modelNameRequired'))
