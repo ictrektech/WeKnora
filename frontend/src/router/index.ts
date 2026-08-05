@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { autoSetup, getCurrentUser, loginWithVOSSSO, userInfoFromApi } from '@/api/auth'
 import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
 import { getAppBasePath } from '@/utils/app-base'
+import { createInitialAuthSessionValidator } from './authBootstrap'
 
 /** Lite /桌面 WebView 硬刷新时可能只打开 `/`，用 session 记住上次页面以便恢复 */
 const LITE_LAST_PATH_KEY = 'weknora_lite_last_path'
@@ -354,6 +355,16 @@ async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>, forc
 
 let autoSetupAttempted = false
 let liteDeepLinkRestoreDone = false
+const validateInitialAuthSession = createInitialAuthSessionValidator()
+
+async function ensureInitialAuthSession(authStore: ReturnType<typeof useAuthStore>) {
+  return validateInitialAuthSession({
+    isLoggedIn: () => authStore.isLoggedIn,
+    hydrate: () => hydrateSessionFromToken(authStore),
+    vosSSO: () => tryVOSSSOSession(authStore, true),
+    autoSetup: () => tryAutoSetupSession(authStore, true),
+  })
+}
 
 // 路由守卫：检查认证状态和系统初始化状态
 router.beforeEach(async (to, from, next) => {
@@ -383,12 +394,9 @@ router.beforeEach(async (to, from, next) => {
   // Tenantless onboarding still requires a valid user token even though it
   // deliberately skips the normal tenant/system-initialization gates.
   if (to.path === '/onboarding/workspace') {
-    if (!authStore.isLoggedIn) {
-      const restored = await hydrateSessionFromToken(authStore)
-      if (!restored) {
-        next('/login')
-        return
-      }
+    if (!await ensureInitialAuthSession(authStore)) {
+      next('/login')
+      return
     }
     if (authStore.hasValidTenant) {
       next('/platform/knowledge-bases')
@@ -402,10 +410,7 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAuth === false || to.meta.requiresInit === false) {
     // 如果已登录用户访问登录页面，重定向到知识库列表页面
     if (to.path === '/login') {
-      const restored = authStore.isLoggedIn ||
-        await hydrateSessionFromToken(authStore) ||
-        await tryVOSSSOSession(authStore, true) ||
-        await tryAutoSetupSession(authStore, true)
+      const restored = await ensureInitialAuthSession(authStore)
       if (restored) {
         next(authStore.hasValidTenant ? '/platform/knowledge-bases' : '/onboarding/workspace')
         return
@@ -417,25 +422,7 @@ router.beforeEach(async (to, from, next) => {
 
   // 检查用户认证状态
   if (to.meta.requiresAuth !== false) {
-    if (!authStore.isLoggedIn) {
-      const restored = await hydrateSessionFromToken(authStore)
-      if (restored) {
-        next(
-          !authStore.hasValidTenant && to.meta.requiresTenant !== false
-            ? '/onboarding/workspace'
-            : to.fullPath,
-        )
-        return
-      }
-
-      if (await tryVOSSSOSession(authStore, true)) {
-        next(to.fullPath)
-        return
-      }
-      if (await tryAutoSetupSession(authStore, true)) {
-        next(to.fullPath)
-        return
-      }
+    if (!await ensureInitialAuthSession(authStore)) {
       next('/login')
       return
     }
