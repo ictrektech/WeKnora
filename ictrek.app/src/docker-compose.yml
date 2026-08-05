@@ -78,7 +78,7 @@ x-hybrag-app-env: &id001
   DOCREADER_ADDR: hybrag-docreader:50051
   DOCREADER_TRANSPORT: grpc
   OLLAMA_BASE_URL: http://model-hub-ollama-qa:11535
-  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
   BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
   WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -251,7 +251,7 @@ services:
       DOCREADER_ADDR: hybrag-docreader:50051
       DOCREADER_TRANSPORT: grpc
       OLLAMA_BASE_URL: http://model-hub-ollama-qa:11535
-      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
       CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
       BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
       WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -355,7 +355,7 @@ services:
       DOCREADER_ADDR: hybrag-docreader:50051
       DOCREADER_TRANSPORT: grpc
       OLLAMA_BASE_URL: http://model-hub-ollama-qa:11535
-      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
       CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
       BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
       WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}

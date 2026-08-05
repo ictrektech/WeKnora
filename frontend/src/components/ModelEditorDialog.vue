@@ -352,6 +352,39 @@
           </div>
         </div>
 
+        <template v-if="activeModelType === 'chat'">
+          <div class="form-item">
+            <label class="form-label">{{ $t('model.editor.desensitizeRulesLabel') }}</label>
+            <div class="vision-toggle">
+              <t-switch v-model="formData.desensitizeEnabled" />
+              <span class="form-desc form-desc--inline">{{ $t('model.editor.desensitizeRulesDesc') }}</span>
+            </div>
+          </div>
+
+          <div class="form-item">
+            <label class="form-label">{{ $t('model.editor.desensitizeNerLabel') }}</label>
+            <div class="vision-toggle">
+              <t-switch v-model="formData.desensitizeNer" :disabled="!formData.desensitizeEnabled" />
+              <span class="form-desc form-desc--inline">{{ $t('model.editor.desensitizeNerDesc') }}</span>
+            </div>
+          </div>
+
+          <div v-if="formData.desensitizeEnabled" class="form-item">
+            <label class="form-label">{{ $t('model.editor.desensitizeServiceUrlLabel') }}</label>
+            <t-input v-model="formData.desensitizeBaseUrl"
+              :placeholder="vosDesensitizeServiceUrl" />
+            <div class="desensitize-vos-hint">
+              <span>{{ $t('model.editor.desensitizeVosHint') }}</span>
+              <code>{{ vosDesensitizeServiceUrl }}</code>
+              <t-button variant="text" shape="square" size="small"
+                :title="$t('common.copy')" @click="copyVosDesensitizeUrl">
+                <t-icon name="file-copy" />
+              </t-button>
+            </div>
+            <p class="form-desc">{{ $t('model.editor.desensitizeFailureDesc') }}</p>
+          </div>
+        </template>
+
         <!-- Chat + 远程 API：思考模式参数格式 -->
         <div v-if="showThinkingControlField" class="form-item">
           <label class="form-label">{{ $t('model.editor.thinkingControlLabel') }}</label>
@@ -437,6 +470,9 @@ interface ModelFormData {
   interfaceType?: 'ollama' | 'openai'
   isDefault: boolean
   supportsVision?: boolean
+  desensitizeEnabled?: boolean
+  desensitizeNer?: boolean
+  desensitizeBaseUrl?: string
   /** 后台任务对该模型的并发上限；0/undefined 表示沿用全局默认。仅 chat/embedding/vllm 生效。 */
   maxConcurrency?: number
   /** extra_config.thinking_control — how agent thinking on/off maps to API fields. */
@@ -459,6 +495,7 @@ interface Props {
 
 const { t, te } = useI18n()
 const uiStore = useUIStore()
+const vosDesensitizeServiceUrl = 'http://desensitize-backend:5000'
 
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
@@ -874,6 +911,9 @@ const formData = ref<ModelFormData>({
   interfaceType: 'ollama',
   isDefault: false,
   supportsVision: false,
+  desensitizeEnabled: false,
+  desensitizeNer: false,
+  desensitizeBaseUrl: '',
   maxConcurrency: undefined,
   thinkingControl: defaultThinkingControl('generic', ''),
   customHeaders: [],
@@ -1115,6 +1155,9 @@ const resetForm = () => {
     interfaceType: undefined,
     isDefault: false,
     supportsVision: false,
+    desensitizeEnabled: false,
+    desensitizeNer: false,
+    desensitizeBaseUrl: '',
     maxConcurrency: undefined,
     thinkingControl: defaultThinkingControl('generic', ''),
     customHeaders: [],
@@ -1130,6 +1173,27 @@ const resetForm = () => {
   dimensionSuccess.value = false
   dimensionMessage.value = ''
   showApiKey.value = false
+}
+
+const copyVosDesensitizeUrl = async () => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(vosDesensitizeServiceUrl)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = vosDesensitizeServiceUrl
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      const copied = document.execCommand('copy')
+      textarea.remove()
+      if (!copied) throw new Error('copy failed')
+    }
+    MessagePlugin.success(t('common.copySuccess'))
+  } catch {
+    MessagePlugin.error(t('common.copyFailed'))
+  }
 }
 
 // 处理厂商选择变化 (自动填充默认 URL)
@@ -1523,6 +1587,20 @@ const handleConfirm = async () => {
       }
     }
 
+    if (activeModelType.value === 'chat' && formData.value.desensitizeEnabled) {
+      const serviceUrl = formData.value.desensitizeBaseUrl?.trim()
+      if (!serviceUrl) {
+        MessagePlugin.warning(t('model.editor.desensitizeServiceUrlRequired'))
+        return
+      }
+      try {
+        new URL(serviceUrl)
+      } catch {
+        MessagePlugin.warning(t('model.editor.desensitizeServiceUrlInvalid'))
+        return
+      }
+    }
+
     // 执行表单验证
     await formRef.value?.validate()
 
@@ -1577,6 +1655,16 @@ watch(() => formData.value.modelName, async (newValue, oldValue) => {
     oldValue !== '') {
     // 提示用户可以检测维度
     MessagePlugin.info(t('model.editor.dimensionHint'))
+  }
+})
+
+watch(() => formData.value.desensitizeEnabled, (enabled) => {
+  if (!enabled) {
+    formData.value.desensitizeNer = false
+    return
+  }
+  if (!formData.value.desensitizeBaseUrl?.trim()) {
+    formData.value.desensitizeBaseUrl = vosDesensitizeServiceUrl
   }
 })
 
@@ -1709,6 +1797,25 @@ const handleCancel = () => {
   // .setting-drawer__section's `gap`. That keeps the spacing inside a section
   // tight and the gap between sections visually distinct.
   margin-bottom: 0;
+}
+
+.desensitize-vos-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--td-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+
+  code {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--td-bg-color-secondarycontainer);
+    color: var(--td-text-color-primary);
+    overflow-wrap: anywhere;
+  }
 }
 
 .form-label {

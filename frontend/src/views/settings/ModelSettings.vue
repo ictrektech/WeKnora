@@ -193,6 +193,9 @@ function convertToLegacyFormat(model: ModelConfig) {
     supportsDimensionOverride: model.parameters.embedding_parameters?.supports_dimension_override || false,
     isBuiltin: model.is_builtin || false,
     supportsVision: model.parameters.supports_vision || false,
+    desensitizeEnabled: model.parameters.desensitize_enabled || false,
+    desensitizeNer: model.parameters.desensitize_ner || false,
+    desensitizeBaseUrl: model.parameters.desensitize_base_url || '',
     maxConcurrency: model.parameters.max_concurrency,
     customHeaders: model.parameters.custom_headers
       ? Object.entries(model.parameters.custom_headers).map(([key, value]) => ({ key, value: String(value) }))
@@ -455,7 +458,10 @@ const handleModelSave = async (modelData: any) => {
         ...(saveType === 'vllm' ? {
           supports_vision: true
         } : saveType === 'chat' ? {
-          supports_vision: modelData.supportsVision ?? false
+          supports_vision: modelData.supportsVision ?? false,
+          desensitize_enabled: modelData.desensitizeEnabled ?? false,
+          desensitize_ner: modelData.desensitizeNer ?? false,
+          desensitize_base_url: (modelData.desensitizeBaseUrl || '').trim()
         } : {}),
         // 后台并发上限：仅 chat/embedding/vllm 受治理，>0 才写入（0/空沿用全局默认）。
         ...(['chat', 'embedding', 'vllm'].includes(saveType)

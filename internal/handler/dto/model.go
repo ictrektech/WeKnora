@@ -47,6 +47,9 @@ type ModelParametersDTO struct {
 	ExtraConfig         map[string]string         `json:"extra_config,omitempty"`
 	CustomHeaders       map[string]string         `json:"custom_headers,omitempty"`
 	SupportsVision      bool                      `json:"supports_vision"`
+	DesensitizeEnabled  bool                      `json:"desensitize_enabled,omitempty"`
+	DesensitizeNER      bool                      `json:"desensitize_ner,omitempty"`
+	DesensitizeBaseURL  string                    `json:"desensitize_base_url,omitempty"`
 	MaxConcurrency      int                       `json:"max_concurrency,omitempty"`
 	AppID               string                    `json:"app_id,omitempty"`
 }
@@ -68,6 +71,9 @@ func NewModelResponse(ctx context.Context, m *types.Model) *ModelResponse {
 		ExtraConfig:         m.Parameters.ExtraConfig,
 		CustomHeaders:       m.Parameters.CustomHeaders,
 		SupportsVision:      m.Parameters.SupportsVision,
+		DesensitizeEnabled:  m.Parameters.DesensitizeEnabled,
+		DesensitizeNER:      m.Parameters.DesensitizeNER,
+		DesensitizeBaseURL:  m.Parameters.DesensitizeBaseURL,
 		MaxConcurrency:      m.Parameters.MaxConcurrency,
 		AppID:               m.Parameters.AppID,
 	}
@@ -76,6 +82,7 @@ func NewModelResponse(ctx context.Context, m *types.Model) *ModelResponse {
 		params.ExtraConfig = nil
 		params.CustomHeaders = nil
 		params.BaseURL = ""
+		params.DesensitizeBaseURL = ""
 	}
 	if m.IsBuiltin && !canManageBuiltin {
 		// Builtin: strip everything that could reveal per-tenant config.
@@ -86,6 +93,7 @@ func NewModelResponse(ctx context.Context, m *types.Model) *ModelResponse {
 		params.ExtraConfig = nil
 		params.CustomHeaders = nil
 		params.AppID = ""
+		params.DesensitizeBaseURL = ""
 	}
 	var creds map[string]CredentialFieldMetadata
 	if !m.IsBuiltin || canManageBuiltin {

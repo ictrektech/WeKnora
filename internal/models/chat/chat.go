@@ -110,9 +110,12 @@ type ChatConfig struct {
 	MaxConcurrency int
 	ExtraConfig    map[string]string
 	// CustomHeaders 允许在调用远程 OpenAI 兼容 API 时附加自定义 HTTP 请求头（类似 OpenAI Python SDK 的 extra_headers）。
-	CustomHeaders map[string]string
-	AppID         string
-	AppSecret     string // 加密值，由工厂函数调用方传入，在 NewWeKnoraCloudChat 中使用前已解密
+	CustomHeaders      map[string]string
+	DesensitizeEnabled bool
+	DesensitizeNER     bool
+	DesensitizeBaseURL string
+	AppID              string
+	AppSecret          string // 加密值，由工厂函数调用方传入，在 NewWeKnoraCloudChat 中使用前已解密
 }
 
 // ConfigFromModel 根据 types.Model 构造 ChatConfig。
@@ -124,17 +127,20 @@ func ConfigFromModel(m *types.Model, appID, appSecret string) *ChatConfig {
 		return nil
 	}
 	return &ChatConfig{
-		ModelID:        m.ID,
-		APIKey:         m.Parameters.APIKey,
-		BaseURL:        m.Parameters.BaseURL,
-		ModelName:      m.Name,
-		Source:         m.Source,
-		Provider:       m.Parameters.Provider,
-		MaxConcurrency: m.Parameters.MaxConcurrency,
-		ExtraConfig:    m.Parameters.ExtraConfig,
-		CustomHeaders:  m.Parameters.CustomHeaders,
-		AppID:          appID,
-		AppSecret:      appSecret,
+		ModelID:            m.ID,
+		APIKey:             m.Parameters.APIKey,
+		BaseURL:            m.Parameters.BaseURL,
+		ModelName:          m.Name,
+		Source:             m.Source,
+		Provider:           m.Parameters.Provider,
+		MaxConcurrency:     m.Parameters.MaxConcurrency,
+		ExtraConfig:        m.Parameters.ExtraConfig,
+		CustomHeaders:      m.Parameters.CustomHeaders,
+		DesensitizeEnabled: m.Parameters.DesensitizeEnabled || m.Parameters.DesensitizeNER,
+		DesensitizeNER:     m.Parameters.DesensitizeNER,
+		DesensitizeBaseURL: m.Parameters.DesensitizeBaseURL,
+		AppID:              appID,
+		AppSecret:          appSecret,
 	}
 }
 
@@ -154,7 +160,11 @@ func NewChat(config *ChatConfig, ollamaService *ollama.OllamaService) (Chat, err
 	c, err = wrapChatLangfuse(c, err)
 	// Outermost: hold the per-model concurrency slot only around the real
 	// provider round-trip, so the wait is excluded from debug/langfuse timing.
-	return wrapChatConcurrency(c, config.MaxConcurrency, err)
+	c, err = wrapChatConcurrency(c, config.MaxConcurrency, err)
+	// Keep this wrapper outermost: sensitive source text is replaced before it
+	// reaches provider, debug, or Langfuse wrappers. A configured service error
+	// blocks the model call instead of silently leaking the original text.
+	return wrapChatDesensitize(c, config, err)
 }
 
 // NewRemoteChat 根据 provider 创建远程聊天实例。
