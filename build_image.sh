@@ -590,7 +590,7 @@ if [[ "${#TARGET_SHEET_TITLES[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-if [[ "$DRY_RUN" != "1" ]]; then
+if [[ "$DRY_RUN" != "1" && "$SKIP_BUILD" != "1" ]]; then
   case "${TARGET}:${ARCH}" in
     amd:x86_64|arm:aarch64|arm:arm64)
       ;;
