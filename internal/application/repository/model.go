@@ -27,9 +27,13 @@ func (r *modelRepository) Create(ctx context.Context, m *types.Model) error {
 // GetByID retrieves a model by ID
 func (r *modelRepository) GetByID(ctx context.Context, tenantID uint64, id string) (*types.Model, error) {
 	var m types.Model
-	if err := r.db.WithContext(ctx).Where("id = ?", id).Where(
+	query := r.db.WithContext(ctx).Where("id = ?", id).Where(
 		"(tenant_id = ? OR is_builtin = true)", tenantID,
-	).First(&m).Error; err != nil {
+	)
+	if userID, ok := types.UserIDFromContext(ctx); ok {
+		query = query.Where("(owner_user_id = '' OR owner_user_id = ? OR is_builtin = true)", userID)
+	}
+	if err := query.First(&m).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -46,6 +50,9 @@ func (r *modelRepository) List(
 	query := r.db.WithContext(ctx).Where(
 		"(tenant_id = ? OR is_builtin = true)", tenantID,
 	)
+	if userID, ok := types.UserIDFromContext(ctx); ok {
+		query = query.Where("(owner_user_id = '' OR owner_user_id = ? OR is_builtin = true)", userID)
+	}
 
 	if modelType != "" {
 		query = query.Where("type = ?", modelType)

@@ -8,9 +8,8 @@ import (
 	"github.com/Tencent/WeKnora/internal/handler"
 )
 
-// Models are tenant-wide infrastructure (LLM credentials, embeddings,
-// rerankers); Viewer+ for reads, Admin+ for any mutation. Credential
-// subresource writes are also Admin+ since secrets are tenant-scoped.
+// Deployment-managed models are tenant-wide. Models created through the user
+// API are private to their creator; handlers enforce record ownership.
 func RegisterModelRoutes(
 	r *gin.RouterGroup,
 	handler *handler.ModelHandler,
@@ -22,8 +21,8 @@ func RegisterModelRoutes(
 	{
 		// 获取模型厂商列表 — Viewer+
 		models.GET("/providers", g.Viewer(), handler.ListModelProviders)
-		// 创建模型 — Admin+
-		models.POST("", g.Admin(), handler.CreateModel)
+		// 创建模型 — Viewer+; JWT-created rows are private to the caller.
+		models.POST("", g.Viewer(), handler.CreateModel)
 		// 获取模型列表 — Viewer+
 		models.GET("", g.Viewer(), handler.ListModels)
 		// 调试已保存模型会发起真实上游调用并产生费用 — Admin+
@@ -34,12 +33,12 @@ func RegisterModelRoutes(
 		models.GET("/:id/desensitization", g.Viewer(), handler.GetMyDesensitization)
 		models.PUT("/:id/desensitization", g.Viewer(), handler.UpdateMyDesensitization)
 		// 更新模型 — Admin+；内置模型仍由服务层额外限定为 SystemAdmin。
-		models.PUT("/:id", g.AdminOrSystemAdmin(), handler.UpdateModel)
+		models.PUT("/:id", g.Viewer(), handler.UpdateModel)
 		// 删除模型 — Admin+
-		models.DELETE("/:id", g.Admin(), handler.DeleteModel)
+		models.DELETE("/:id", g.Viewer(), handler.DeleteModel)
 		// Per-field credential subresource (see internal/handler/model_credentials.go) — Admin+
-		models.PUT("/:id/credentials", g.AdminOrSystemAdmin(), credHandler.Put)
-		models.DELETE("/:id/credentials/:field", g.AdminOrSystemAdmin(), credHandler.DeleteField)
+		models.PUT("/:id/credentials", g.Viewer(), credHandler.Put)
+		models.DELETE("/:id/credentials/:field", g.Viewer(), credHandler.DeleteField)
 	}
 }
 

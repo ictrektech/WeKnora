@@ -122,6 +122,9 @@ type Model struct {
 	ID string `yaml:"id"          json:"id"          gorm:"type:varchar(64);primaryKey"`
 	// Workspace ID
 	TenantID uint64 `yaml:"tenant_id"   json:"tenant_id"`
+	// OwnerUserID is set for models created through the user API. Empty means
+	// deployment-managed or legacy tenant-shared configuration.
+	OwnerUserID string `yaml:"owner_user_id" json:"owner_user_id,omitempty" gorm:"type:varchar(36);default:''"`
 	// Name of the model
 	Name string `yaml:"name"        json:"name"`
 	// Optional user-facing display name. Runtime calls still use Name.

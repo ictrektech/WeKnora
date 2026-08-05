@@ -29,6 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
 CREATE TABLE IF NOT EXISTS models (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id INTEGER NOT NULL,
+    owner_user_id VARCHAR(36) NOT NULL DEFAULT '',
     name VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL DEFAULT '',
     type VARCHAR(50) NOT NULL,
@@ -48,6 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_models_type ON models(type);
 CREATE INDEX IF NOT EXISTS idx_models_source ON models(source);
 CREATE INDEX IF NOT EXISTS idx_models_is_builtin ON models(is_builtin);
 CREATE INDEX IF NOT EXISTS idx_models_managed_by ON models(managed_by);
+CREATE INDEX IF NOT EXISTS idx_models_tenant_owner ON models(tenant_id, owner_user_id) WHERE owner_user_id <> '';
 
 CREATE TABLE IF NOT EXISTS knowledge_bases (
     id VARCHAR(36) PRIMARY KEY,

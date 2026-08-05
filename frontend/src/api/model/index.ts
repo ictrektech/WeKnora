@@ -7,6 +7,7 @@ const t = (key: string) => i18n.global.t(key)
 export interface ModelConfig {
   id?: string;
   tenant_id?: number;
+  owner_user_id?: string;
   name: string;
   display_name?: string;
   type: 'KnowledgeQA' | 'Embedding' | 'Rerank' | 'VLLM' | 'ASR';

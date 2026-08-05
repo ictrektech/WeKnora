@@ -18,6 +18,7 @@ import (
 type ModelResponse struct {
 	ID          string             `json:"id"`
 	TenantID    uint64             `json:"tenant_id"`
+	OwnerUserID string             `json:"owner_user_id,omitempty"`
 	Name        string             `json:"name"`
 	DisplayName string             `json:"display_name"`
 	Type        types.ModelType    `json:"type"`
@@ -74,7 +75,9 @@ func NewModelResponse(ctx context.Context, m *types.Model) *ModelResponse {
 		AppID:               m.Parameters.AppID,
 	}
 	canManageBuiltin := m.IsBuiltin && types.IsSystemAdminFromContext(ctx)
-	if !CanViewIntegrationSecrets(ctx) && !canManageBuiltin {
+	userID, hasUser := types.UserIDFromContext(ctx)
+	canManagePersonal := m.OwnerUserID != "" && hasUser && m.OwnerUserID == userID
+	if !CanViewIntegrationSecrets(ctx) && !canManageBuiltin && !canManagePersonal {
 		params.ExtraConfig = nil
 		params.CustomHeaders = nil
 		params.BaseURL = ""
@@ -101,6 +104,7 @@ func NewModelResponse(ctx context.Context, m *types.Model) *ModelResponse {
 	return &ModelResponse{
 		ID:          m.ID,
 		TenantID:    m.TenantID,
+		OwnerUserID: m.OwnerUserID,
 		Name:        m.Name,
 		DisplayName: m.DisplayName,
 		Type:        m.Type,

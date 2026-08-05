@@ -118,7 +118,7 @@
           </div>
         </div>
         <button
-          v-if="authStore.hasRole('admin')"
+          v-if="authStore.hasRole('viewer')"
           type="button"
           class="model-card model-card--add"
           data-guide="settings-add-model"
@@ -323,7 +323,11 @@ const openAddDialog = () => {
 // Tenant Admin+ manages tenant models; only SystemAdmin manages shared
 // built-in models. The backend repeats this distinction authoritatively.
 const canEditModel = (model: any) =>
-  model.isBuiltin ? authStore.isSystemAdmin : authStore.hasRole('admin')
+  model.isBuiltin
+    ? authStore.isSystemAdmin
+    : model.owner_user_id
+      ? model.owner_user_id === authStore.currentUserId
+      : authStore.hasRole('admin')
 
 const supportsPersonalDesensitization = (model: any) =>
   ['chat', 'vllm'].includes(model._modelType)
@@ -336,7 +340,11 @@ const canManageModel = (model: any) => canEditModel(model)
 // Built-in lifecycle remains deployment-managed (YAML / SQL). The UI only
 // exposes configuration and credential editing to SystemAdmin.
 const canDeleteModel = (model: any) =>
-  authStore.hasRole('admin') && !model.isBuiltin
+  !model.isBuiltin && (
+    model.owner_user_id
+      ? model.owner_user_id === authStore.currentUserId
+      : authStore.hasRole('admin')
+  )
 
 const onModelCardClick = (event: Event, type: ModelType, model: any) => {
   if (!isModelCardClickable(model)) return

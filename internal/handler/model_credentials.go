@@ -59,6 +59,15 @@ func (h *ModelCredentialsHandler) Put(c *gin.Context) {
 		}})
 		return
 	}
+	model, err := h.svc.GetModelByID(ctx, id)
+	if err != nil || model == nil {
+		c.Error(errors.NewNotFoundError("Model not found"))
+		return
+	}
+	if !canMutateModel(ctx, model) {
+		c.Error(errors.NewForbiddenError("you cannot modify this model"))
+		return
+	}
 
 	updated, err := h.svc.UpdateModelCredentials(ctx, id, req.APIKey, req.AppSecret)
 	if err != nil {
@@ -95,6 +104,15 @@ func (h *ModelCredentialsHandler) DeleteField(c *gin.Context) {
 	}
 	if field != "api_key" && field != "app_secret" {
 		c.Error(errors.NewBadRequestError("unknown credential field: " + secutils.SanitizeForLog(field)))
+		return
+	}
+	model, err := h.svc.GetModelByID(ctx, id)
+	if err != nil || model == nil {
+		c.Error(errors.NewNotFoundError("Model not found"))
+		return
+	}
+	if !canMutateModel(ctx, model) {
+		c.Error(errors.NewForbiddenError("you cannot modify this model"))
 		return
 	}
 	if err := h.svc.ClearModelCredential(ctx, id, field); err != nil {

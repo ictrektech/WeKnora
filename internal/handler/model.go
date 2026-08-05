@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -58,6 +59,20 @@ type CreateModelRequest struct {
 type updateMyModelDesensitizationRequest struct {
 	Enabled bool `json:"enabled"`
 	NER     bool `json:"ner"`
+}
+
+func canMutateModel(ctx context.Context, model *types.Model) bool {
+	if model == nil {
+		return false
+	}
+	if model.OwnerUserID != "" {
+		userID, ok := types.UserIDFromContext(ctx)
+		return ok && userID == model.OwnerUserID
+	}
+	if model.IsBuiltin {
+		return types.IsSystemAdminFromContext(ctx)
+	}
+	return types.TenantRoleFromContext(ctx).HasPermission(types.TenantRoleAdmin)
 }
 
 func (h *ModelHandler) GetMyDesensitization(c *gin.Context) {
@@ -162,6 +177,9 @@ func (h *ModelHandler) CreateModel(c *gin.Context) {
 		Description: secutils.SanitizeForLog(req.Description),
 		Parameters:  req.Parameters,
 	}
+	if userID, ok := types.UserIDFromContext(ctx); ok {
+		model.OwnerUserID = userID
+	}
 
 	if err := h.service.CreateModel(ctx, model); err != nil {
 		logger.ErrorWithFields(ctx, err, nil)
@@ -218,7 +236,6 @@ func (h *ModelHandler) GetModel(c *gin.Context) {
 		c.Error(errors.NewInternalServerError(err.Error()))
 		return
 	}
-
 	logger.Infof(ctx, "Retrieved model successfully, ID: %s, Name: %s", model.ID, model.Name)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -636,6 +653,10 @@ func (h *ModelHandler) UpdateModel(c *gin.Context) {
 		c.Error(errors.NewInternalServerError(err.Error()))
 		return
 	}
+	if !canMutateModel(ctx, model) {
+		c.Error(errors.NewForbiddenError("you cannot modify this model"))
+		return
+	}
 
 	// Update model fields if they are provided in the request
 	if req.Name != "" {
@@ -728,6 +749,20 @@ func (h *ModelHandler) DeleteModel(c *gin.Context) {
 	if id == "" {
 		logger.Error(ctx, "Model ID is empty")
 		c.Error(errors.NewBadRequestError("Model ID cannot be empty"))
+		return
+	}
+
+	model, err := h.service.GetModelByID(ctx, id)
+	if err != nil {
+		if err == service.ErrModelNotFound {
+			c.Error(errors.NewNotFoundError("Model not found"))
+			return
+		}
+		c.Error(errors.NewInternalServerError(err.Error()))
+		return
+	}
+	if !canMutateModel(ctx, model) {
+		c.Error(errors.NewForbiddenError("you cannot delete this model"))
 		return
 	}
 

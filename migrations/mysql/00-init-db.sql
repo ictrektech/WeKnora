@@ -24,6 +24,7 @@ CREATE TABLE tenants (
 CREATE TABLE models (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id INT NOT NULL,
+    owner_user_id VARCHAR(36) NOT NULL DEFAULT '',
     name VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL DEFAULT '',
     type VARCHAR(50) NOT NULL,
@@ -38,6 +39,7 @@ CREATE TABLE models (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;  
 
 CREATE INDEX idx_models_tenant_source_type ON models(tenant_id, source, type);
+CREATE INDEX idx_models_tenant_owner ON models(tenant_id, owner_user_id);
 
 CREATE TABLE knowledge_bases (
     id VARCHAR(36) PRIMARY KEY,
