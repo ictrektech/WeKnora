@@ -1837,6 +1837,8 @@ export default {
     }
   },
   modelSettings: {
+    personalDesensitization: '개인 비식별화 설정',
+    personalDesensitizationHint: '이 설정은 현재 계정과 현재 모델 구성에만 적용됩니다. 이름이나 주소가 같은 다른 모델 및 다른 사용자의 설정은 변경되지 않습니다. NER는 규칙 기반 비식별화 후에 실행됩니다.',
     title: '모델 설정',
     description: '다양한 유형의 AI 모델을 관리합니다. Ollama 로컬 모델과 원격 API를 지원합니다',
     copySuffix: ' 사본',
