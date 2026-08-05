@@ -352,7 +352,7 @@
           </div>
         </div>
 
-        <template v-if="activeModelType === 'chat'">
+        <template v-if="['chat', 'vllm'].includes(activeModelType)">
           <div class="form-item">
             <label class="form-label">{{ $t('model.editor.desensitizeRulesLabel') }}</label>
             <div class="vision-toggle">
@@ -1587,7 +1587,7 @@ const handleConfirm = async () => {
       }
     }
 
-    if (activeModelType.value === 'chat' && formData.value.desensitizeEnabled) {
+    if (['chat', 'vllm'].includes(activeModelType.value) && formData.value.desensitizeEnabled) {
       const serviceUrl = formData.value.desensitizeBaseUrl?.trim()
       if (!serviceUrl) {
         MessagePlugin.warning(t('model.editor.desensitizeServiceUrlRequired'))

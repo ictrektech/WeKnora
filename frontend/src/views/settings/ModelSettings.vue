@@ -455,10 +455,8 @@ const handleModelSave = async (modelData: any) => {
             supports_dimension_override: modelData.supportsDimensionOverride ?? false
           }
         } : {}),
-        ...(saveType === 'vllm' ? {
-          supports_vision: true
-        } : saveType === 'chat' ? {
-          supports_vision: modelData.supportsVision ?? false,
+        ...(['chat', 'vllm'].includes(saveType) ? {
+          supports_vision: saveType === 'vllm' ? true : modelData.supportsVision ?? false,
           desensitize_enabled: modelData.desensitizeEnabled ?? false,
           desensitize_ner: modelData.desensitizeNer ?? false,
           desensitize_base_url: (modelData.desensitizeBaseUrl || '').trim()
