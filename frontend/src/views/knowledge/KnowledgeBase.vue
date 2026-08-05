@@ -3159,12 +3159,18 @@ async function createNewSession(value: string): Promise<void> {
 
     :deep(.content-bar-icon-btn) {
       color: var(--td-text-color-secondary);
-      background: transparent;
-      border: none;
+      width: 32px;
+      min-width: 32px;
+      height: 32px;
+      padding: 0;
+      background: var(--td-bg-color-container);
+      border: 1px solid var(--td-component-border);
+      border-radius: 6px;
 
       &:hover {
         color: var(--td-brand-color);
         background: var(--td-bg-color-secondarycontainer);
+        border-color: var(--td-brand-color);
       }
     }
   }

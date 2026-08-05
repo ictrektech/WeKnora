@@ -5334,6 +5334,8 @@ export default {
     batchDownloadSuccess: '已开始下载 {count} 个源文件',
     batchDownloadFailed: '批量下载失败',
     batchDownloadPartialFailed: '{count} 个源文件下载失败',
+    reparseFailedDocuments: '重新解析失败文档',
+    reparseFailedDocumentsSuccess: '已提交 {count} 个失败文档重新解析',
     reparseFailedDocumentsFailed: '重新解析失败文档失败',
     noFailedDocuments: '当前知识库没有解析失败的文档',
     downloadKnowledgeBaseDocuments: '下载当前知识库文档',

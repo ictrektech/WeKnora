@@ -562,6 +562,8 @@ export default {
     batchDownloadSuccess: 'Started downloading {count} source file(s)',
     batchDownloadFailed: 'Batch download failed',
     batchDownloadPartialFailed: '{count} source file(s) failed to download',
+    reparseFailedDocuments: 'Reparse failed documents',
+    reparseFailedDocumentsSuccess: 'Submitted {count} failed document(s) for reparsing',
     reparseFailedDocumentsFailed: 'Failed to reparse failed documents',
     noFailedDocuments: 'No failed documents in this knowledge base',
     downloadKnowledgeBaseDocuments: 'Download KB documents',

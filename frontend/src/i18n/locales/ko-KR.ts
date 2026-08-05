@@ -5334,6 +5334,8 @@ export default {
     batchDownloadSuccess: '{count}개 원본 파일 다운로드를 시작했습니다',
     batchDownloadFailed: '일괄 다운로드 실패',
     batchDownloadPartialFailed: '{count}개 원본 파일을 다운로드하지 못했습니다',
+    reparseFailedDocuments: '실패한 문서 다시 처리',
+    reparseFailedDocumentsSuccess: '실패한 문서 {count}개를 다시 처리하도록 제출했습니다',
     reparseFailedDocumentsFailed: '실패한 문서를 다시 처리하지 못했습니다',
     noFailedDocuments: '이 지식 베이스에 처리 실패 문서가 없습니다',
     downloadKnowledgeBaseDocuments: '지식 베이스 문서 다운로드',

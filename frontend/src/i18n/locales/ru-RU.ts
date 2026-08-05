@@ -5334,6 +5334,8 @@ export default {
     batchDownloadSuccess: 'Начато скачивание исходных файлов: {count}',
     batchDownloadFailed: 'Ошибка пакетного скачивания',
     batchDownloadPartialFailed: 'Не удалось скачать исходные файлы: {count}',
+    reparseFailedDocuments: 'Повторно обработать документы с ошибками',
+    reparseFailedDocumentsSuccess: 'Отправлено на повторную обработку документов: {count}',
     reparseFailedDocumentsFailed: 'Не удалось повторно обработать ошибочные документы',
     noFailedDocuments: 'В этой базе знаний нет ошибочных документов',
     downloadKnowledgeBaseDocuments: 'Скачать документы базы знаний',
