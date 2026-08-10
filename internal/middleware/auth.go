@@ -38,6 +38,7 @@ var noAuthAPI = map[string][]string{
 	"/api/v1/auth/register":           {"POST"},
 	"/api/v1/auth/login":              {"POST"},
 	"/api/v1/auth/vos-sso":            {"POST"},
+	"/api/v1/auth/vos-oidc":           {"POST"},
 	"/api/v1/auth/vos-token-exchange": {"POST"},
 	"/api/v1/auth/auto-setup":         {"POST"},
 	// Share-link surfaces accept a plaintext invite token from anonymous

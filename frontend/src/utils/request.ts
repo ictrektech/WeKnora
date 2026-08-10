@@ -5,6 +5,7 @@ import i18n from '@/i18n'
 import { getApiBaseUrl } from './api-base';
 import { withAppBasePath } from './app-base';
 import { getVOSAccessTokenForIframeSSO } from './vos-sso';
+import { acquireVOSFastpathToken } from './vos-fastpath';
 
 const t = (key: string) => i18n.global.t(key)
 
@@ -35,7 +36,8 @@ instance.interceptors.request.use(
     const isEmbedPath = typeof config.url === 'string' && config.url.includes('/api/v1/embed/');
 
     // 嵌入渠道使用 Embed token；勿用本地 JWT 覆盖（否则调试页会 401）
-    if (!isEmbedAuth) {
+    const isPublicAuthPath = isPublicAuthRequest(config.url);
+    if (!isEmbedAuth && !isPublicAuthPath) {
       const token = localStorage.getItem('weknora_token');
       if (token) {
         config.headers["Authorization"] = `Bearer ${token}`;
@@ -54,7 +56,7 @@ instance.interceptors.request.use(
     // 换之后只有第一批请求带 X-Tenant-ID"调成永久状态。
     // 后端 IsTenantAccessible 已经允许 header 指向 home 空间（自家），
     // 所以无脑附不会引入新风险。
-    if (!isEmbedAuth && !isEmbedPath) {
+    if (!isEmbedAuth && !isEmbedPath && !isPublicAuthPath) {
       const selectedTenantId = localStorage.getItem('weknora_selected_tenant_id');
       if (selectedTenantId) {
         config.headers["X-Tenant-ID"] = selectedTenantId;
@@ -82,7 +84,7 @@ let vosSSOPromise: Promise<string | null> | null = null;
 // must surface to the page (e.g. expired token), not trigger the
 // refresh-then-redirect-to-login flow (issue #1617). '/auth/register' already
 // covers '/auth/register-by-invite' via substring match.
-const PUBLIC_AUTH_PATHS = ['/auth/auto-setup', '/auth/vos-sso', '/auth/login', '/auth/register', '/auth/oidc/', '/auth/invitations/lookup', '/api/v1/embed/'];
+const PUBLIC_AUTH_PATHS = ['/auth/auto-setup', '/auth/vos-sso', '/auth/vos-oidc', '/auth/login', '/auth/register', '/auth/oidc/', '/auth/invitations/lookup', '/api/v1/embed/'];
 
 function isPublicAuthRequest(url?: string): boolean {
   if (!url) return false;
@@ -155,20 +157,42 @@ function persistVOSSSOSession(response: any): string | null {
 }
 
 async function tryVOSSSOToken(): Promise<string | null> {
-  const vosToken = getVOSAccessTokenForIframeSSO();
-  if (!vosToken) return null;
   if (isVOSSSOing && vosSSOPromise) return vosSSOPromise;
 
   isVOSSSOing = true;
-  vosSSOPromise = axios.post(`${BASE_URL}/api/v1/auth/vos-sso`, {
-    access_token: vosToken,
-  }, {
-    headers: {
-      "Content-Type": "application/json",
-      "X-Request-ID": `${generateRandomString(12)}`,
-    },
-  }).then((response) => persistVOSSSOSession(response.data))
-    .catch(() => null)
+  vosSSOPromise = (async () => {
+    try {
+      const tokenSet = await acquireVOSFastpathToken();
+      if (tokenSet?.access_token) {
+        const response = await axios.post(`${BASE_URL}/api/v1/auth/vos-oidc`, {
+          access_token: tokenSet.access_token,
+          id_token: tokenSet.id_token,
+        }, {
+          headers: {
+            "Content-Type": "application/json",
+            "X-Request-ID": `${generateRandomString(12)}`,
+          },
+        });
+        const localToken = persistVOSSSOSession(response.data);
+        if (localToken) return localToken;
+      }
+    } catch {
+      // Older VOS installations may not expose the OIDC fastpath bridge yet.
+      // Fall back to the legacy same-origin access token adapter below.
+    }
+
+    const vosToken = getVOSAccessTokenForIframeSSO();
+    if (!vosToken) return null;
+    const response = await axios.post(`${BASE_URL}/api/v1/auth/vos-sso`, {
+      access_token: vosToken,
+    }, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Request-ID": `${generateRandomString(12)}`,
+      },
+    });
+    return persistVOSSSOSession(response.data);
+  })().catch(() => null)
     .finally(() => {
       isVOSSSOing = false;
       vosSSOPromise = null;

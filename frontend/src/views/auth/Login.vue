@@ -350,6 +350,7 @@ import {
   getOIDCAuthorizationURL,
   getOIDCConfig,
   autoSetup,
+  loginWithVOSOIDC,
   loginWithVOSSSO,
   getAuthConfig,
   userInfoFromApi,
@@ -360,6 +361,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
+import { acquireVOSFastpathToken } from '@/utils/vos-fastpath'
 
 // Import screenshot images
 import screenshot1 from '@/assets/img/screenshot-1.svg'
@@ -647,6 +649,18 @@ const handleOIDCLogin = async () => {
 }
 
 const tryVOSSSOLogin = async () => {
+  try {
+    const tokenSet = await acquireVOSFastpathToken()
+    if (tokenSet?.access_token) {
+      const response = await loginWithVOSOIDC(tokenSet.access_token, tokenSet.id_token)
+      if (!response.success) return false
+      await persistLoginResponse(response)
+      return true
+    }
+  } catch {
+    // Fall through to the legacy token adapter for older VOS builds.
+  }
+
   const vosToken = getVOSAccessTokenForIframeSSO()
   if (!vosToken) return false
   try {
@@ -662,10 +676,6 @@ const tryVOSSSOLogin = async () => {
 const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms))
 
 const tryVOSSSOLoginWithRetry = async () => {
-  if (!getVOSAccessTokenForIframeSSO()) {
-    vosSSOError.value = '未读取到 VOS 用户会话，请从 VOS 应用入口打开。'
-    return false
-  }
   loading.value = true
   vosSSOError.value = ''
   try {

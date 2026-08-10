@@ -25,6 +25,7 @@ import (
 const oidcNonceCookieName = "weknora_oidc_nonce"
 const oidcNonceCookieMaxAge = 600
 const defaultVOSUserCheckURL = "http://172.17.0.1:8105/v1000/user/check"
+const defaultVOSOIDCUserinfoURL = "http://172.17.0.1:8105/v1000/oauth2/userinfo"
 
 // AuthHandler implements HTTP request handlers for user authentication
 // Provides functionality for user registration, login, logout, and token management
@@ -257,6 +258,11 @@ type vosSSORequest struct {
 	AccessToken string `json:"access_token"`
 }
 
+type vosOIDCRequest struct {
+	AccessToken string `json:"access_token"`
+	IDToken     string `json:"id_token"`
+}
+
 // LoginWithVOSSSO godoc
 // @Summary      VOS 用户 token exchange
 // @Description  接收前端或其他 VOS app 传入的 VOS access token，后端调用 VOS /v1000/user/check 校验后自动创建/登录 username@local 用户和个人空间，并返回 HybRAG bearer token。
@@ -314,6 +320,62 @@ func (h *AuthHandler) LoginWithVOSSSO(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.NewAuthLoginResponse(resp))
 }
 
+// LoginWithVOSOIDC godoc
+// @Summary      VOS OIDC Fastpath 登录
+// @Description  接收 VOS OIDC Fastpath 签发的应用 access token，后端调用 VOS /v1000/oauth2/userinfo 校验后自动创建/登录 username@local 用户和个人空间，并返回 HybRAG bearer token。
+// @Tags         认证
+// @Accept       json
+// @Produce      json
+// @Param        request        body      vosOIDCRequest    false  "VOS OIDC token"
+// @Param        Authorization  header    string            false  "Bearer <VOS OIDC access token>"
+// @Success      200      {object}  types.LoginResponse
+// @Failure      401      {object}  errors.AppError  "VOS OIDC token 无效"
+// @Failure      403      {object}  errors.AppError  "VOS SSO 未启用"
+// @Router       /auth/vos-oidc [post]
+func (h *AuthHandler) LoginWithVOSOIDC(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	if !vosSSOEnabled() {
+		appErr := errors.NewForbiddenError("VOS SSO is disabled")
+		c.Error(appErr)
+		return
+	}
+
+	token, err := readVOSOIDCAccessToken(c)
+	if err != nil {
+		appErr := errors.NewValidationError("Invalid VOS OIDC request").WithDetails(err.Error())
+		c.Error(appErr)
+		return
+	}
+	if token == "" {
+		appErr := errors.NewValidationError("VOS OIDC access token is required")
+		c.Error(appErr)
+		return
+	}
+
+	identity, err := verifyVOSOIDCIdentity(ctx, token)
+	if err != nil {
+		logger.Warnf(ctx, "VOS OIDC verification failed: %v", err)
+		appErr := errors.NewUnauthorizedError("VOS OIDC verification failed").WithDetails(err.Error())
+		c.Error(appErr)
+		return
+	}
+
+	resp, err := h.userService.LoginWithTrustedIdentity(ctx, identity, h.resolveDefaultTenantMode(ctx))
+	if err != nil {
+		logger.Errorf(ctx, "VOS OIDC local login failed for %s: %v", identity.Email, err)
+		appErr := errors.NewInternalServerError("VOS OIDC login failed").WithDetails(err.Error())
+		c.Error(appErr)
+		return
+	}
+	if !resp.Success {
+		c.JSON(http.StatusUnauthorized, dto.NewAuthLoginResponse(resp))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewAuthLoginResponse(resp))
+}
+
 func readVOSAccessToken(c *gin.Context) (string, error) {
 	auth := strings.TrimSpace(c.GetHeader("Authorization"))
 	if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
@@ -326,6 +388,24 @@ func readVOSAccessToken(c *gin.Context) (string, error) {
 		return "", nil
 	}
 	var req vosSSORequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(req.AccessToken), nil
+}
+
+func readVOSOIDCAccessToken(c *gin.Context) (string, error) {
+	auth := strings.TrimSpace(c.GetHeader("Authorization"))
+	if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
+		if token := strings.TrimSpace(auth[len("Bearer "):]); token != "" {
+			return token, nil
+		}
+	}
+
+	if c.Request.Body == nil || c.Request.ContentLength == 0 {
+		return "", nil
+	}
+	var req vosOIDCRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return "", err
 	}
@@ -351,6 +431,16 @@ func vosUserCheckURL() string {
 		return v
 	}
 	return defaultVOSUserCheckURL
+}
+
+func vosOIDCUserinfoURL() string {
+	if v := strings.TrimSpace(os.Getenv("HYBRAG_VOS_OIDC_USERINFO_URL")); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv("WEKNORA_VOS_OIDC_USERINFO_URL")); v != "" {
+		return v
+	}
+	return defaultVOSOIDCUserinfoURL
 }
 
 func verifyVOSIdentity(ctx context.Context, accessToken string) (*types.TrustedIdentityLoginRequest, error) {
@@ -413,6 +503,67 @@ func verifyVOSIdentity(ctx context.Context, accessToken string) (*types.TrustedI
 	}
 	return &types.TrustedIdentityLoginRequest{
 		Provider: "vos",
+		Subject:  subject,
+		Username: localUsername,
+		Email:    localUsername + "@local",
+	}, nil
+}
+
+func verifyVOSOIDCIdentity(ctx context.Context, accessToken string) (*types.TrustedIdentityLoginRequest, error) {
+	endpoint := vosOIDCUserinfoURL()
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+accessToken)
+	httpReq.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("VOS OIDC userinfo failed: status=%d", resp.StatusCode)
+	}
+
+	var payload map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	if code, ok := payload["code"].(float64); ok && code != 0 {
+		return nil, fmt.Errorf("VOS OIDC userinfo rejected token: code=%d", int(code))
+	}
+
+	claims := payload
+	if data, ok := payload["data"].(map[string]interface{}); ok && len(data) > 0 {
+		claims = data
+	}
+
+	username := firstNonEmptyString(
+		mapString(claims, "preferred_username"),
+		mapString(claims, "username"),
+		mapString(claims, "name"),
+		mapString(claims, "nickname"),
+		mapString(claims, "email"),
+	)
+	subject := firstNonEmptyString(
+		mapString(claims, "sub"),
+		mapString(claims, "id"),
+		mapString(claims, "user_id"),
+		username,
+	)
+	if username == "" {
+		return nil, fmt.Errorf("VOS OIDC userinfo response missing username")
+	}
+
+	localUsername := sanitizeLocalIdentityName(username)
+	if localUsername == "" {
+		return nil, fmt.Errorf("VOS OIDC username %q cannot be mapped to a local account", username)
+	}
+	return &types.TrustedIdentityLoginRequest{
+		Provider: "vos-oidc",
 		Subject:  subject,
 		Username: localUsername,
 		Email:    localUsername + "@local",

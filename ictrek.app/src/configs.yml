@@ -207,6 +207,19 @@ configs:
       VOS backend on host network with `SITE_PORT=8105`; change it when the platform
       port or network differs.'
   default: http://172.17.0.1:8105/v1000/user/check
+- name: HYBRAG_VOS_OIDC_USERINFO_URL
+  type: string
+  title:
+    zh-CN: VOS OIDC UserInfo 地址
+    en: VOS OIDC UserInfo URL
+  description:
+    zh-CN: App 容器访问 VOS backend 的 `/v1000/oauth2/userinfo` 地址。VOS 1.1+
+      会向同域 iframe 注入 `window.vos_platform`，HybRAG 优先用该标准 OIDC 路径免登录；旧
+      `/user/check` 仅作为降级路径保留。
+    en: '`/v1000/oauth2/userinfo` URL reachable from the app container. VOS 1.1+
+      injects `window.vos_platform` into same-origin iframes, and HybRAG prefers
+      this standard OIDC path; legacy `/user/check` remains as fallback.'
+  default: http://172.17.0.1:8105/v1000/oauth2/userinfo
 - name: WEKNORA_CHAT_RESERVED_CONCURRENCY
   type: integer
   title:

@@ -26,15 +26,22 @@ Postgres 通过 PGV 提供，默认连接 `shared-pgv:5432`，用户/密码/数�
 
 ## VOS 免登录
 
-当前包提供一个临时 VOS iframe 免登录适配层，不要求修改 VOS。前端会优先读取未来可能注入的 `window.__VOS_APP_CONTEXT__`，然后兼容读取 VOS 当前同源会话里的 access token；后端再调用 `HYBRAG_VOS_USERINFO_URL` 指向的 `/v1000/user/check` 校验 token。
+当前包优先使用 VOS OIDC Fastpath 免登录。VOS 1.1+ 会向同域 iframe 注入 `window.vos_platform`，HybRAG 前端通过 `oauth2.authorize()` 和 `oauth2.token()` 获取应用 access token，后端再调用 `HYBRAG_VOS_OIDC_USERINFO_URL` 指向的 `/v1000/oauth2/userinfo` 校验 token。旧的 `window.__VOS_APP_CONTEXT__` / 同源会话 token 读取和 `/v1000/user/check` 校验仅作为老 VOS 版本降级路径保留。
 
 校验成功后，HybRAG 会按 VOS 用户名自动创建或登录 `username@local` 账户，并创建对应个人空间。`admin` 用户映射为 `admin@local`，会自动提升为 HybRAG 系统管理员并拥有跨空间管理权限。
 
-这个方案只是过渡层。后续 VOS 支持标准 OIDC 或直接向 iframe 注入用户信息时，可以关闭 `HYBRAG_VOS_SSO_ENABLED`，或只替换前端取 token / 后端验身份的适配，不需要重做 HybRAG 本地用户和空间的创建逻辑。
+`manifest.yml` 已声明 `oauth2.client.id=com.ictrek.hybrag`、`scope=openid profile email`、PKCE S256 和 public client 模式。只要 VOS 安装时成功注册该 client，HybRAG 会自动使用标准 Fastpath；`HYBRAG_VOS_SSO_ENABLED=false` 可关闭 VOS 免登录。
 
 ## 其他 VOS App 接入 HybRAG 用户身份
 
-其他 VOS app 如果要以当前 VOS 用户身份访问 HybRAG，不要共享或硬编码 HybRAG API Key。推荐做法是调用 HybRAG 的 VOS token exchange：
+其他 VOS app 如果要以当前 VOS 用户身份访问 HybRAG，不要共享或硬编码 HybRAG API Key。VOS 1.1+ 同域 iframe app 推荐先走自身 `oauth2.client` 的 Fastpath，拿到 VOS OIDC 应用 access token 后调用：
+
+```http
+POST /api/v1/auth/vos-oidc
+Authorization: Bearer <VOS OIDC app access token>
+```
+
+老 VOS 版本可继续调用 HybRAG 的 VOS token exchange：
 
 ```http
 POST /api/v1/auth/vos-token-exchange
@@ -54,7 +61,7 @@ Authorization: Bearer <VOS access token>
 1. 用户在 VOS 中打开其他 app。
 2. 该 app 从 VOS 当前会话或 VOS 官方 SDK 取得当前用户的 VOS access token。
 3. 该 app 后端把这个 token 转发给 HybRAG `/api/v1/auth/vos-token-exchange`。
-4. HybRAG 调 VOS `/v1000/user/check` 校验 token。
+4. HybRAG 调 VOS `/v1000/oauth2/userinfo` 或旧 `/v1000/user/check` 校验 token。
 5. HybRAG 按 VOS 用户名映射到 `${username}@local`，首次访问时自动创建用户和个人空间。
 6. 该 app 后续调用 HybRAG API 时使用 exchange 返回的 HybRAG `token`。
 
@@ -65,7 +72,7 @@ Authorization: Bearer <VOS access token>
 | `admin` | `admin@local` | `admin's Workspace` |
 | `alice` | `alice@local` | `alice's Workspace` |
 
-当前 VOS 如果还没有稳定 OIDC 或正式 iframe 注入，前端临时适配可按 HybRAG 的顺序取 token：先读 `window.__VOS_APP_CONTEXT__.accessToken`，再读 `window.__VOS_APP_CONTEXT__.token`，再读 `window.__VOS_ACCESS_TOKEN__`，最后兼容同源 `localStorage` 中以 `-core-access` 结尾的 VOS store。这个 localStorage/secure-ls 方案只是过渡方案；未来 VOS 提供标准 OIDC 或 iframe 用户注入后，其他 app 应切到 VOS 官方方式。
+只有当前 VOS 没有 Fastpath 时，前端临时适配才按 HybRAG 的旧顺序取 token：先读 `window.__VOS_APP_CONTEXT__.accessToken`，再读 `window.__VOS_APP_CONTEXT__.token`，再读 `window.__VOS_ACCESS_TOKEN__`，最后兼容同源 `localStorage` 中以 `-core-access` 结尾的 VOS store。这个 localStorage/secure-ls 方案只是过渡方案；新的 VOS app 应优先使用 `window.vos_platform.api.v1000.oauth2`。
 
 `X-External-User-ID` 不是免 key 登录机制。它只适用于已经带 HybRAG API Key 的可信服务端调用，用来隔离终端用户会话；不负责校验 VOS 用户身份。
 

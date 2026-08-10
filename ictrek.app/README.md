@@ -68,7 +68,7 @@ HybRAG 安装包不启动 Model Hub 和 PGV，也不启动自己的 Ollama。安
 
 旧持久化数据可以继续使用。历史版本如果在数据库里留下 `hybrag-ollama-qa` 或 `hybrag-ollama-embedding` 模型地址，新 app 镜像启动迁移时会把内置模型行修正到 Model Hub 的 `11535/v1` Gateway。只有启动过包含该迁移的新 app 镜像后，旧数据库中的这类残留才会被修复。
 
-VOS 中打开 HybRAG 时，前端会走 VOS SSO。当前临时方案从 VOS 页面上下文取得用户信息，后端校验 VOS bearer token 后自动创建或登录 `${username}@local`；`admin` 用户对应 `admin@local`，并拥有系统管理员权限。后续 VOS 改为标准 OIDC 或 iframe 注入用户信息时，只需要替换该身份入口，不应恢复独立登录流程作为 VOS 默认路径。
+VOS 中打开 HybRAG 时，前端优先走 VOS OIDC Fastpath：同域 iframe 内使用 `window.vos_platform.api.v1000.oauth2` 完成 `authorize -> token`，然后把 VOS OIDC 应用 access token 交给 HybRAG 后端；后端调用 `HYBRAG_VOS_OIDC_USERINFO_URL` 指向的 `/v1000/oauth2/userinfo` 校验后，自动创建或登录 `${username}@local`。旧的 `/v1000/user/check` token exchange 仍保留为老 VOS 版本降级路径。`admin` 用户对应 `admin@local`，并拥有系统管理员权限。
 
 ## 其他 VOS App 以当前用户身份接入 HybRAG
 
@@ -81,7 +81,7 @@ HybRAG 同时保留两类认证方式：
 
 ### 身份映射规则
 
-HybRAG 后端收到 VOS access token 后，会调用 `HYBRAG_VOS_USERINFO_URL` 指向的 VOS `/v1000/user/check` 校验 token。校验成功后按以下规则处理：
+HybRAG 后端收到 VOS OIDC Fastpath 的应用 access token 后，会调用 `HYBRAG_VOS_OIDC_USERINFO_URL` 指向的 VOS `/v1000/oauth2/userinfo` 校验 token。老版本 VOS 没有 Fastpath 时，才使用 `HYBRAG_VOS_USERINFO_URL` 指向的 `/v1000/user/check` 降级校验。校验成功后按以下规则处理：
 
 1. 读取 VOS 用户名。
 2. 映射为 HybRAG 本地账户 `${username}@local`。
@@ -98,7 +98,14 @@ HybRAG 后端收到 VOS access token 后，会调用 `HYBRAG_VOS_USERINFO_URL` �
 
 ### 接口
 
-推荐其他 VOS app 调用：
+同域 iframe VOS app 推荐优先使用 OIDC Fastpath，并把拿到的应用 access token 交给 HybRAG：
+
+```http
+POST /api/v1/auth/vos-oidc
+Authorization: Bearer <VOS OIDC app access token>
+```
+
+老 VOS 版本或服务端只能拿到平台会话 token 时，可继续调用兼容入口：
 
 ```http
 POST /api/v1/auth/vos-token-exchange
@@ -122,7 +129,7 @@ Content-Type: application/json
 POST /api/v1/auth/vos-sso
 ```
 
-`/api/v1/auth/vos-sso` 与 `/api/v1/auth/vos-token-exchange` 当前共用同一套逻辑。新 VOS app 建议使用语义更明确的 `/api/v1/auth/vos-token-exchange`。
+`/api/v1/auth/vos-sso` 与 `/api/v1/auth/vos-token-exchange` 当前共用旧校验逻辑。新 VOS app 在 VOS 1.1+ 上应优先使用 `/api/v1/auth/vos-oidc`。
 
 成功响应与普通登录一致，关键字段如下：
 
@@ -172,7 +179,7 @@ POST /api/v1/auth/vos-sso
 | `alice` | `alice@local` | `alice's Workspace` |
 | `zhangsan` | `zhangsan@local` | `zhangsan's Workspace` |
 
-当前 VOS 还没有稳定的标准 OIDC 或正式 iframe 注入协议时，HybRAG 前端使用一套临时兼容顺序。其他 app 如需在前端直接发起 exchange，可以按相同顺序读取 token：
+VOS 1.1+ 的推荐方式是声明 `manifest.yml` 的 `oauth2.client`，在同域 iframe 前端调用 `window.vos_platform.api.v1000.oauth2.authorize()` 与 `token()`；HybRAG app 已声明 `client_id=com.ictrek.hybrag`、`scope=openid profile email`、PKCE S256、`token_endpoint_auth_method=none`。只有当前 VOS 没有稳定 Fastpath 时，HybRAG 前端才使用临时兼容顺序。其他 app 如需在前端直接发起旧 exchange，可以按相同顺序读取 token：
 
 1. 优先读取 `window.__VOS_APP_CONTEXT__.accessToken`。
 2. 其次读取 `window.__VOS_APP_CONTEXT__.token`。
@@ -180,7 +187,7 @@ POST /api/v1/auth/vos-sso
 4. 如果这些注入值都不存在，再兼容读取 VOS 同源 `localStorage` 中以 `-core-access` 结尾的 store，例如 `core-access`、`VIVIBIT-core-access`。
 5. 如果 store 使用 `secure-ls` 加密，则需要用 VOS 当前约定的加密 key 解出 access token。HybRAG 兼容环境变量 `VITE_VOS_STORE_SECURE_KEY`，未配置时使用当前默认值。
 
-这套 localStorage/secure-ls 读取方式只是过渡方案。新的 VOS app 开发时，优先让自己的后端或 VOS 官方 SDK 提供当前用户的 VOS access token；未来 VOS 提供 OIDC 或正式 iframe 注入后，应切换到官方方式，HybRAG 的 token exchange 入口不用变。
+这套 localStorage/secure-ls 读取方式只是过渡方案。新的 VOS app 开发时，优先使用 OIDC Fastpath；只有兼容旧 VOS 时才读取平台会话 token 并调用旧 exchange。
 
 ### 调用示例
 

@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { autoSetup, getCurrentUser, loginWithVOSSSO, userInfoFromApi } from '@/api/auth'
+import { autoSetup, getCurrentUser, loginWithVOSOIDC, loginWithVOSSSO, userInfoFromApi } from '@/api/auth'
 import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
+import { acquireVOSFastpathToken } from '@/utils/vos-fastpath'
 import { getAppBasePath } from '@/utils/app-base'
 import { createInitialAuthSessionValidator } from './authBootstrap'
 
@@ -332,6 +333,27 @@ async function tryAutoSetupSession(authStore: ReturnType<typeof useAuthStore>, f
 
 async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>, force = false) {
   if (!force && sessionStorage.getItem(VOS_SSO_FAILED_KEY) === 'true') return false
+
+  try {
+    const tokenSet = await acquireVOSFastpathToken()
+    if (tokenSet?.access_token) {
+      const response = await loginWithVOSOIDC(tokenSet.access_token, tokenSet.id_token)
+      if (response.success) {
+        persistLoginResponse(authStore, response)
+        sessionStorage.removeItem(VOS_SSO_FAILED_KEY)
+        return true
+      }
+      if (shouldStopVOSSSORetry(response)) {
+        markVOSSSOFailed()
+      }
+      return false
+    }
+  } catch {
+    // Fall through to the legacy same-origin token probe. Fastpath may be
+    // missing on older VOS installations or temporarily unavailable before
+    // the platform bridge finishes injection.
+  }
+
   const vosToken = getVOSAccessTokenForIframeSSO()
   if (!vosToken) return false
 

@@ -239,6 +239,28 @@ export async function loginWithVOSSSO(accessToken: string): Promise<LoginRespons
 }
 
 /**
+ * VOS OIDC Fastpath SSO。
+ *
+ * 前端通过 VOS 注入的 `window.vos_platform.api.v1000.oauth2` 完成
+ * authorize -> token，然后只把应用 access token 交给 HybRAG 后端。
+ * 后端会调用 VOS `/v1000/oauth2/userinfo` 验证 token 后再签发本地会话。
+ */
+export async function loginWithVOSOIDC(accessToken: string, idToken?: string): Promise<LoginResponse> {
+  try {
+    const response = await post('/api/v1/auth/vos-oidc', {
+      access_token: accessToken,
+      id_token: idToken,
+    })
+    return response as unknown as LoginResponse
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error.message || 'VOS OIDC unavailable',
+    }
+  }
+}
+
+/**
  * 获取 OIDC 登录跳转地址
  */
 export async function getOIDCAuthorizationURL(redirectURI: string): Promise<OIDCAuthURLResponse> {

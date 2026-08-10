@@ -24,7 +24,14 @@ HybRAG 的 `docker-compose.yml` 不启动 Model Hub 或 Postgres。
 
 ## VOS User Identity For Other Apps
 
-Other VOS apps should not share or hard-code a HybRAG API Key when they need to access HybRAG as the currently opened VOS user. Use HybRAG's VOS token exchange endpoint instead:
+Other VOS apps should not share or hard-code a HybRAG API Key when they need to access HybRAG as the currently opened VOS user. On VOS 1.1+, same-origin iframe apps should use their own OIDC Fastpath client first, then send the VOS OIDC app access token to HybRAG:
+
+```http
+POST /api/v1/auth/vos-oidc
+Authorization: Bearer <VOS OIDC app access token>
+```
+
+Older VOS installations may continue to use HybRAG's legacy VOS token exchange endpoint:
 
 ```http
 POST /api/v1/auth/vos-token-exchange
@@ -44,7 +51,7 @@ Recommended flow:
 1. The user opens another app inside VOS.
 2. That app obtains the current user's VOS access token from the VOS session or official VOS SDK.
 3. That app forwards the VOS token to HybRAG `/api/v1/auth/vos-token-exchange`.
-4. HybRAG verifies the token through VOS `/v1000/user/check`.
+4. HybRAG verifies the token through VOS `/v1000/oauth2/userinfo`, or legacy `/v1000/user/check` on older VOS installations.
 5. HybRAG maps the VOS username to `${username}@local` and creates the user plus personal workspace on first access.
 6. The caller then uses the returned HybRAG `token` for HybRAG API requests.
 
@@ -55,7 +62,7 @@ Identity mapping is stable across VOS apps:
 | `admin` | `admin@local` | `admin's Workspace` |
 | `alice` | `alice@local` | `alice's Workspace` |
 
-Before VOS provides stable OIDC or official iframe user injection, frontend-only apps may follow HybRAG's temporary probing order: `window.__VOS_APP_CONTEXT__.accessToken`, `window.__VOS_APP_CONTEXT__.token`, `window.__VOS_ACCESS_TOKEN__`, then same-origin `localStorage` stores ending with `-core-access`. The localStorage/secure-ls path is a transition layer only. New apps should switch to the official VOS identity mechanism once it is available.
+HybRAG's VOS package declares `oauth2.client.id=com.ictrek.hybrag`, `scope=openid profile email`, PKCE S256, and `token_endpoint_auth_method=none`. Before VOS Fastpath is available, frontend-only apps may follow HybRAG's legacy probing order: `window.__VOS_APP_CONTEXT__.accessToken`, `window.__VOS_APP_CONTEXT__.token`, `window.__VOS_ACCESS_TOKEN__`, then same-origin `localStorage` stores ending with `-core-access`. The localStorage/secure-ls path is a transition layer only. New apps should prefer `window.vos_platform.api.v1000.oauth2`.
 
 `X-External-User-ID` is not a keyless login mechanism. It only works together with a valid HybRAG API Key for trusted server-side integrations that need end-user session isolation.
 
