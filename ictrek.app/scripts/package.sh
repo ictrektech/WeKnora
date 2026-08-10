@@ -461,6 +461,7 @@ verify_package() {
   local package_path="$1"
   local app_tarball="$2"
   local package_text
+  local required_file
   local manifest_text
   local app_file_list
   local package_file_list
@@ -473,7 +474,12 @@ verify_package() {
   package_file_list="$(mktemp)"
   tar tzf "$app_tarball" > "$app_file_list"
   tar tf "$package_path" > "$package_file_list"
-  grep -qx "manifest.yml" "$app_file_list"
+  for required_file in .env manifest.yml docker-compose.yml configs.yml routers.yml icon.png README.zh-CN.md README.en.md; do
+    grep -qx "$required_file" "$app_file_list" || die "app.tar.gz missing required file: ${required_file}"
+  done
+  if [[ -f "${STAGE_DIR}/traefik.yml" ]]; then
+    grep -qx "traefik.yml" "$app_file_list" || die "app.tar.gz missing staged traefik.yml"
+  fi
   ! grep -q "^config/" "$app_file_list"
   grep -qx "app.tar.gz" "$package_file_list"
   ! grep -q "^assets/" "$package_file_list"
@@ -483,6 +489,9 @@ verify_package() {
     die "unrendered placeholder remains"
   fi
   manifest_text="$(tar xOf "$app_tarball" manifest.yml)"
+  if ! printf '%s\n' "$manifest_text" | grep -Fq "icon: icon.png"; then
+    die "manifest.yml must declare icon: icon.png"
+  fi
   if ! printf '%s\n' "$manifest_text" | grep -q '^[[:space:]]*frontend:[[:space:]]*$'; then
     die "manifest.yml must declare frontend for VOS open button compatibility"
   fi
@@ -576,11 +585,14 @@ mkdir -p "$STAGE_DIR"
 ENV_FILE="${STAGE_DIR}/.env"
 resolve_image_versions "$ENV_FILE"
 
-for file in manifest.yml configs.yml routers.yml README.zh-CN.md README.en.md; do
+for file in manifest.yml configs.yml routers.yml traefik.yml README.zh-CN.md README.en.md; do
   if [[ -f "${SRC_DIR}/${file}" ]]; then
     render_text_file "${SRC_DIR}/${file}" "${STAGE_DIR}/${file}"
   fi
 done
+if [[ -f "${SRC_DIR}/icon.png" ]]; then
+  cp "${SRC_DIR}/icon.png" "${STAGE_DIR}/icon.png"
+fi
 render_compose_file "${SRC_DIR}/docker-compose.yml" "${STAGE_DIR}/docker-compose.yml" "$ENV_FILE"
 if grep -q '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml"; then
   grep '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml" >&2
@@ -594,8 +606,8 @@ PACKAGE_PATH="${DIST_DIR}/${PACKAGE_NAME}"
 
 rm -rf "$PACKAGE_ROOT"
 mkdir -p "$PACKAGE_ROOT"
-TAR_FILES=(.env manifest.yml docker-compose.yml configs.yml routers.yml README.zh-CN.md)
-[[ -f "${STAGE_DIR}/README.en.md" ]] && TAR_FILES+=(README.en.md)
+TAR_FILES=(.env manifest.yml docker-compose.yml configs.yml routers.yml icon.png README.zh-CN.md README.en.md)
+[[ -f "${STAGE_DIR}/traefik.yml" ]] && TAR_FILES+=(traefik.yml)
 tar czf "$APP_TARBALL" -C "$STAGE_DIR" "${TAR_FILES[@]}"
 cp "$APP_TARBALL" "${PACKAGE_ROOT}/app.tar.gz"
 tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz
