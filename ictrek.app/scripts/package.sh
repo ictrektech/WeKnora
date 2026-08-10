@@ -116,6 +116,7 @@ validate_staged_files() {
   for file in manifest.yml configs.yml routers.yml docker-compose.yml; do
     validate_yaml_file "${STAGE_DIR}/${file}"
   done
+  validate_icon_file "${STAGE_DIR}/icon.png"
 
   local expected_profiles=()
   local profile_spec profile sheet_title
@@ -209,6 +210,30 @@ PYCONFIG
   else
     log "Skip docker compose profile validation because docker compose is unavailable"
   fi
+}
+
+validate_icon_file() {
+  local file="$1"
+  "${PYTHON_BIN}" - "$file" <<'PYICON' \
+    || die "icon.png validation failed"
+import struct
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = path.read_bytes()
+if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+    raise SystemExit("icon.png must be a PNG file")
+if len(data) < 33 or data[12:16] != b"IHDR":
+    raise SystemExit("icon.png is missing PNG IHDR")
+width, height, bit_depth, color_type = struct.unpack(">IIBB", data[16:26])
+if (width, height) != (256, 256):
+    raise SystemExit(f"icon.png must be 256x256, got {width}x{height}")
+if color_type not in (4, 6):
+    raise SystemExit("icon.png must include an alpha channel for transparent corners")
+if bit_depth != 8:
+    raise SystemExit(f"icon.png bit depth must be 8, got {bit_depth}")
+PYICON
 }
 
 acquire_lock() {
