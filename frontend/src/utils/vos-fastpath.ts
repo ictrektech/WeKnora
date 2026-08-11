@@ -47,6 +47,24 @@ declare global {
 const DEFAULT_CLIENT_ID = 'com.ictrek.hybrag'
 const DEFAULT_SCOPE = 'openid profile email'
 const DETECT_TIMEOUT_MS = 3000
+const FASTPATH_FAILED_KEY = 'weknora_vos_fastpath_failed'
+
+let fastpathTokenPromise: Promise<VOSFastpathTokenSet | null> | null = null
+
+export function markVOSFastpathFailed() {
+  if (typeof window === 'undefined') return
+  sessionStorage.setItem(FASTPATH_FAILED_KEY, 'true')
+}
+
+export function clearVOSFastpathFailed() {
+  if (typeof window === 'undefined') return
+  sessionStorage.removeItem(FASTPATH_FAILED_KEY)
+}
+
+export function shouldSkipVOSFastpath() {
+  if (typeof window === 'undefined') return false
+  return sessionStorage.getItem(FASTPATH_FAILED_KEY) === 'true'
+}
 
 function base64urlEncode(bytes: Uint8Array): string {
   let raw = ''
@@ -105,7 +123,7 @@ export async function waitForVOSFastpathPlatform(timeoutMs = DETECT_TIMEOUT_MS):
   })
 }
 
-export async function acquireVOSFastpathToken(): Promise<VOSFastpathTokenSet | null> {
+async function requestVOSFastpathToken(): Promise<VOSFastpathTokenSet | null> {
   const platform = await waitForVOSFastpathPlatform()
   const oauth2 = platform?.api?.v1000?.oauth2
   if (!oauth2) return null
@@ -138,4 +156,26 @@ export async function acquireVOSFastpathToken(): Promise<VOSFastpathTokenSet | n
   })
 
   return tokenResp?.access_token ? tokenResp : null
+}
+
+export async function acquireVOSFastpathToken(options: { force?: boolean } = {}): Promise<VOSFastpathTokenSet | null> {
+  if (!options.force && shouldSkipVOSFastpath()) return null
+  if (fastpathTokenPromise) return fastpathTokenPromise
+
+  fastpathTokenPromise = requestVOSFastpathToken()
+    .then((tokenSet) => {
+      if (tokenSet?.access_token) {
+        clearVOSFastpathFailed()
+      }
+      return tokenSet
+    })
+    .catch((error) => {
+      markVOSFastpathFailed()
+      throw error
+    })
+    .finally(() => {
+      fastpathTokenPromise = null
+    })
+
+  return fastpathTokenPromise
 }

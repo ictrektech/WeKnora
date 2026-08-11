@@ -361,7 +361,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
-import { acquireVOSFastpathToken } from '@/utils/vos-fastpath'
+import { acquireVOSFastpathToken, clearVOSFastpathFailed, markVOSFastpathFailed } from '@/utils/vos-fastpath'
 
 // Import screenshot images
 import screenshot1 from '@/assets/img/screenshot-1.svg'
@@ -649,15 +649,25 @@ const handleOIDCLogin = async () => {
 }
 
 const tryVOSSSOLogin = async () => {
+  let fastpathTokenSeen = false
   try {
     const tokenSet = await acquireVOSFastpathToken()
     if (tokenSet?.access_token) {
+      fastpathTokenSeen = true
       const response = await loginWithVOSOIDC(tokenSet.access_token, tokenSet.id_token)
-      if (!response.success) return false
+      if (!response.success) {
+        markVOSFastpathFailed()
+        return false
+      }
       await persistLoginResponse(response)
+      clearVOSFastpathFailed()
       return true
     }
   } catch {
+    if (fastpathTokenSeen) {
+      markVOSFastpathFailed()
+      return false
+    }
     // Fall through to the legacy token adapter for older VOS builds.
   }
 
@@ -667,23 +677,18 @@ const tryVOSSSOLogin = async () => {
     const response = await loginWithVOSSSO(vosToken)
     if (!response.success) return false
     await persistLoginResponse(response)
+    clearVOSFastpathFailed()
     return true
   } catch {
     return false
   }
 }
 
-const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms))
-
 const tryVOSSSOLoginWithRetry = async () => {
   loading.value = true
   vosSSOError.value = ''
   try {
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      if (await tryVOSSSOLogin()) return true
-      vosSSOError.value = attempt > 10 ? '正在等待 HybRAG 后端就绪，请稍候。' : ''
-      await sleep(attempt < 10 ? 1000 : 2000)
-    }
+    if (await tryVOSSSOLogin()) return true
   } finally {
     loading.value = false
   }

@@ -3,7 +3,7 @@ import type { RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { autoSetup, getCurrentUser, loginWithVOSOIDC, loginWithVOSSSO, userInfoFromApi } from '@/api/auth'
 import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
-import { acquireVOSFastpathToken } from '@/utils/vos-fastpath'
+import { acquireVOSFastpathToken, clearVOSFastpathFailed, markVOSFastpathFailed } from '@/utils/vos-fastpath'
 import { getAppBasePath } from '@/utils/app-base'
 import { createInitialAuthSessionValidator } from './authBootstrap'
 
@@ -22,6 +22,7 @@ function markAutoSetupFailed() {
 
 function markVOSSSOFailed() {
   sessionStorage.setItem(VOS_SSO_FAILED_KEY, 'true')
+  markVOSFastpathFailed()
 }
 
 function shouldStopVOSSSORetry(response: { message?: string } | null | undefined) {
@@ -334,21 +335,26 @@ async function tryAutoSetupSession(authStore: ReturnType<typeof useAuthStore>, f
 async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>, force = false) {
   if (!force && sessionStorage.getItem(VOS_SSO_FAILED_KEY) === 'true') return false
 
+  let fastpathTokenSeen = false
   try {
     const tokenSet = await acquireVOSFastpathToken()
     if (tokenSet?.access_token) {
+      fastpathTokenSeen = true
       const response = await loginWithVOSOIDC(tokenSet.access_token, tokenSet.id_token)
       if (response.success) {
         persistLoginResponse(authStore, response)
         sessionStorage.removeItem(VOS_SSO_FAILED_KEY)
+        clearVOSFastpathFailed()
         return true
       }
-      if (shouldStopVOSSSORetry(response)) {
-        markVOSSSOFailed()
-      }
+      markVOSSSOFailed()
       return false
     }
   } catch {
+    if (fastpathTokenSeen) {
+      markVOSSSOFailed()
+      return false
+    }
     // Fall through to the legacy same-origin token probe. Fastpath may be
     // missing on older VOS installations or temporarily unavailable before
     // the platform bridge finishes injection.
@@ -362,6 +368,7 @@ async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>, forc
     if (response.success) {
       persistLoginResponse(authStore, response)
       sessionStorage.removeItem(VOS_SSO_FAILED_KEY)
+      clearVOSFastpathFailed()
       return true
     }
     if (shouldStopVOSSSORetry(response)) {
@@ -383,7 +390,7 @@ async function ensureInitialAuthSession(authStore: ReturnType<typeof useAuthStor
   return validateInitialAuthSession({
     isLoggedIn: () => authStore.isLoggedIn,
     hydrate: () => hydrateSessionFromToken(authStore),
-    vosSSO: () => tryVOSSSOSession(authStore, true),
+    vosSSO: () => tryVOSSSOSession(authStore),
     autoSetup: () => tryAutoSetupSession(authStore, true),
   })
 }

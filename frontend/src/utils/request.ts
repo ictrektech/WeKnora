@@ -5,7 +5,7 @@ import i18n from '@/i18n'
 import { getApiBaseUrl } from './api-base';
 import { withAppBasePath } from './app-base';
 import { getVOSAccessTokenForIframeSSO } from './vos-sso';
-import { acquireVOSFastpathToken } from './vos-fastpath';
+import { acquireVOSFastpathToken, clearVOSFastpathFailed, markVOSFastpathFailed } from './vos-fastpath';
 
 const t = (key: string) => i18n.global.t(key)
 
@@ -161,9 +161,11 @@ async function tryVOSSSOToken(): Promise<string | null> {
 
   isVOSSSOing = true;
   vosSSOPromise = (async () => {
+    let fastpathTokenSeen = false;
     try {
       const tokenSet = await acquireVOSFastpathToken();
       if (tokenSet?.access_token) {
+        fastpathTokenSeen = true;
         const response = await axios.post(`${BASE_URL}/api/v1/auth/vos-oidc`, {
           access_token: tokenSet.access_token,
           id_token: tokenSet.id_token,
@@ -174,9 +176,18 @@ async function tryVOSSSOToken(): Promise<string | null> {
           },
         });
         const localToken = persistVOSSSOSession(response.data);
-        if (localToken) return localToken;
+        if (localToken) {
+          clearVOSFastpathFailed();
+          return localToken;
+        }
+        markVOSFastpathFailed();
+        return null;
       }
     } catch {
+      if (fastpathTokenSeen) {
+        markVOSFastpathFailed();
+        return null;
+      }
       // Older VOS installations may not expose the OIDC fastpath bridge yet.
       // Fall back to the legacy same-origin access token adapter below.
     }
