@@ -1528,7 +1528,7 @@ func (h *TenantHandler) GetPromptTemplates(c *gin.Context) {
 	}
 
 	// Determine user language from context (set by Language middleware)
-	lang, _ := types.LanguageFromContext(c.Request.Context())
+	lang := types.LanguageFromContextOrDefault(c.Request.Context())
 
 	// Build a localized copy so the original config is never mutated
 	localized := &config.PromptTemplatesConfig{
@@ -1735,6 +1735,16 @@ func validateParserEngineOutboundURLs(cfg *types.ParserEngineConfig) error {
 	if vlmURL := strings.TrimSpace(cfg.MinerUVLMServerURL); vlmURL != "" {
 		if err := secutils.ValidateURLForSSRF(vlmURL); err != nil {
 			return fmt.Errorf("mineru_vlm_server_url failed SSRF validation: %v", err)
+		}
+	}
+	if odlURL := strings.TrimSpace(cfg.ODLHybridURL); odlURL != "" {
+		if err := secutils.ValidateURLForSSRF(odlURL); err != nil {
+			return fmt.Errorf("odl_hybrid_url failed SSRF validation: %v", err)
+		}
+	}
+	if endpoint := strings.TrimSpace(cfg.PaddleOCRVLEndpoint); endpoint != "" {
+		if err := secutils.ValidateURLForSSRF(endpoint); err != nil {
+			return fmt.Errorf("paddleocr_vl_endpoint failed SSRF validation: %v", err)
 		}
 	}
 	return nil

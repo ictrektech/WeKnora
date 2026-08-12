@@ -177,6 +177,9 @@ var toolDisplayNames = map[string]string{
 	agenttools.ToolWebFetch:            "获取网页",
 	agenttools.ToolExecuteSkillScript:  "执行技能脚本",
 	agenttools.ToolReadSkill:           "读取技能",
+	agenttools.ToolListSandboxFiles:    "列出沙箱文件",
+	agenttools.ToolReadSandboxFile:     "读取沙箱文件",
+	agenttools.ToolShellExec:           "执行沙箱命令",
 }
 
 // toolHintSensitiveArgs lists tools whose arguments should NOT be shown in hints
@@ -406,7 +409,7 @@ func (e *AgentEngine) executeToolCallsParallel(
 				Success:    result.Success,
 				Duration:   toolCall.Duration,
 				Iteration:  iteration,
-				Data:       result.Data,
+				Data:       agenttools.SanitizeToolDataForPersist(toolCall.Name, result.Data),
 			},
 		})
 
@@ -452,7 +455,7 @@ func (e *AgentEngine) executeSingleToolCall(
 			Success:    result.Success,
 			Duration:   toolCall.Duration,
 			Iteration:  iteration,
-			Data:       result.Data,
+			Data:       agenttools.SanitizeToolDataForPersist(toolCall.Name, result.Data),
 		},
 	})
 
@@ -581,16 +584,17 @@ func (e *AgentEngine) runToolCall(
 	})
 
 	principal, _ := types.PrincipalFromContext(ctx)
+	execTimeout := toolExecutionTimeout(tc.Function.Name)
 	toolExecCtx := agenttools.WithToolExecContext(toolCtx, &agenttools.ToolExecContext{
 		SessionID:          sessionID,
 		AssistantMessageID: assistantMessageID,
 		EventBus:           e.eventBus,
 		ToolCallID:         tc.ID,
 		UserID:             principal.StorageID(),
-		// ApprovalCtx keeps the round-level ctx without the per-tool 60s timeout,
+		// ApprovalCtx keeps the round-level ctx without the per-tool execution timeout,
 		// so MCP tool human-approval (issue #1173) can legitimately block longer.
 		ApprovalCtx: toolCtx,
-		ExecTimeout: defaultToolExecTimeout,
+		ExecTimeout: execTimeout,
 	})
 
 	var result *types.ToolResult
@@ -601,7 +605,7 @@ func (e *AgentEngine) runToolCall(
 		// never reach persistence, an external service, or a routing decision.
 		err = fmt.Errorf("tool arguments contain unresolved model handles: %v", tc.UnresolvedHandles)
 	} else {
-		execCtx, toolCancel := context.WithTimeout(toolExecCtx, defaultToolExecTimeout)
+		execCtx, toolCancel := context.WithTimeout(toolExecCtx, execTimeout)
 		result, err = e.toolRegistry.ExecuteTool(
 			execCtx, tc.Function.Name,
 			json.RawMessage(tc.Function.Arguments),
