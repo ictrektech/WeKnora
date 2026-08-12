@@ -154,6 +154,10 @@ ensure_dockerfile_base_images() {
 
   while IFS= read -r image; do
     [[ -n "$image" ]] || continue
+    if [[ "$TARGET" == "arm" && "$image" == "ghcr.io/tencentcloud/cubesandbox-base:"* ]]; then
+      log "Skipping Cube-only base image on arm target: ${image}"
+      continue
+    fi
     if docker image inspect "$image" >/dev/null 2>&1; then
       log "Base image present locally: ${image}"
       continue
@@ -164,7 +168,26 @@ ensure_dockerfile_base_images() {
       err "Base image is not available locally and pull failed: ${image}"
       missing=1
     fi
-  done < <(awk 'toupper($1) == "FROM" { print $2 }' "$dockerfile" | sort -u)
+  done < <(
+    awk '
+      toupper($1) == "FROM" {
+        froms[++from_count] = $2
+        for (i = 3; i <= NF; i++) {
+          if (toupper($i) == "AS" && (i + 1) <= NF) {
+            aliases[$(i + 1)] = 1
+          }
+        }
+      }
+      END {
+        for (i = 1; i <= from_count; i++) {
+          image = froms[i]
+          if (!(image in aliases)) {
+            print image
+          }
+        }
+      }
+    ' "$dockerfile" | sort -u
+  )
 
   [[ "$missing" == "0" ]]
 }
