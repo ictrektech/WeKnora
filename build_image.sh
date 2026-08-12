@@ -154,8 +154,8 @@ ensure_dockerfile_base_images() {
 
   while IFS= read -r image; do
     [[ -n "$image" ]] || continue
-    if [[ "$TARGET" == "arm" && "$image" == "ghcr.io/tencentcloud/cubesandbox-base:"* ]]; then
-      log "Skipping Cube-only base image on arm target: ${image}"
+    if [[ "$dockerfile" == "docker/Dockerfile.sandbox" && "$image" == "ghcr.io/tencentcloud/cubesandbox-base:"* ]]; then
+      log "Skipping Cube-only base image for default sandbox target: ${image}"
       continue
     fi
     if docker image inspect "$image" >/dev/null 2>&1; then
