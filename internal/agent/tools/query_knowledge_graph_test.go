@@ -55,6 +55,22 @@ func (s *stubKnowledgeBaseService) UpdateKnowledgeBase(
 	return nil, nil
 }
 
+func (s *stubKnowledgeBaseService) CancelDisabledFeatureTasks(
+	context.Context,
+	*types.KnowledgeBase,
+	bool,
+	bool,
+) error {
+	return nil
+}
+
+func (s *stubKnowledgeBaseService) RecoverEnabledMultimodalTasks(
+	context.Context,
+	*types.KnowledgeBase,
+) (int, error) {
+	return 0, nil
+}
+
 func (s *stubKnowledgeBaseService) DeleteKnowledgeBase(context.Context, string) error {
 	return nil
 }

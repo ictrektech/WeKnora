@@ -183,23 +183,19 @@ func TestUpdateMCPService_AppliesNonScalarUpdateWithoutName(t *testing.T) {
 	ctx := context.Background()
 	svc, repo := newTestService()
 	id := seedService(t, repo, "stored-api", "stored-token")
-	// Use resolvable example.com paths: subdomains like before.example.com fail
-	// SSRF DNS checks because they do not resolve to a public IP.
-	beforeURL := "https://example.com/before"
 	repo.store[id].Description = "before"
-	repo.store[id].URL = &beforeURL
+	repo.store[id].Headers = map[string]string{"X-Before": "1"}
 
-	afterURL := "https://example.com/after"
+	afterHeaders := types.MCPHeaders{"X-After": "1"}
 	update := &types.MCPService{
 		ID:       id,
 		TenantID: 1,
-		URL:      &afterURL,
+		Headers:  afterHeaders,
 	}
 	require.NoError(t, svc.UpdateMCPService(ctx, update, nil))
 
 	got := repo.store[id]
-	require.NotNil(t, got.URL)
-	assert.Equal(t, afterURL, *got.URL)
+	assert.Equal(t, afterHeaders, got.Headers)
 	assert.Equal(t, "test", got.Name)
 	assert.Equal(t, "before", got.Description)
 	assert.True(t, got.Enabled)

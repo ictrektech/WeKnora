@@ -13,12 +13,11 @@ func TestMatchesKnowledgeTypedFiltersTaskType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	onlyGraph := map[string]struct{}{types.TypeChunkExtract: {}}
-	if !matchesKnowledgeTyped(types.TypeChunkExtract, payload, "kid", onlyGraph) {
-		t.Fatal("graph task should match")
+	if !matchesKnowledge(types.TypeImageMultimodal, payload, "kid") {
+		t.Fatal("knowledge task should match")
 	}
-	if matchesKnowledgeTyped(types.TypeImageMultimodal, payload, "kid", onlyGraph) {
-		t.Fatal("multimodal task must not match graph-only cleanup")
+	if matchesKnowledge(types.TypeKBClone, payload, "kid") {
+		t.Fatal("non-knowledge task must not match")
 	}
 }
 

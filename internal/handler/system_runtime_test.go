@@ -11,6 +11,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/application/repository"
 	modellimiter "github.com/Tencent/WeKnora/internal/models/limiter"
 	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"github.com/gin-gonic/gin"
 )
 
@@ -56,6 +57,7 @@ func (runtimeInvalidSettings) GetInt(_ context.Context, _ string, _ string, _ in
 }
 
 type runtimeModelLister struct {
+	interfaces.ModelService
 	models []*types.Model
 }
 
