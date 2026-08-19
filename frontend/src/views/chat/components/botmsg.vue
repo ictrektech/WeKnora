@@ -21,6 +21,12 @@
                     @render-complete-change="emit('render-complete-change', $event)" />
             </div>
             <template v-else>
+                <!-- A plain answer has no timeline to put the memory row on, so
+                     it gets the standalone row. Agent turns render theirs inside
+                     the agent timeline instead, next to the steps it belongs
+                     with. -->
+                <RagPipelineProgress v-if="!session.isAgentMode && session.used_memories?.length"
+                    :session="session" :embedded-mode="embeddedMode" memory-only />
                 <docInfo v-if="session.knowledge_references?.length" :session="session"></docInfo>
                 <AgentStreamDisplay :session="session" :session-id="sessionId" :user-query="userQuery"
                     v-if="session.isAgentMode" :follow-up-loading="followUpLoading"
@@ -112,9 +118,9 @@ import { MessagePlugin } from 'tdesign-vue-next';
 import { useUIStore } from '@/stores/ui';
 import {
     buildManualMarkdown,
-    copyTextToClipboard,
     formatManualTitle,
 } from '@/utils/chatMessageShared';
+import { copyWithToast } from '@/utils/clipboard';
 import {
     createChatMarkdownRenderer,
     renderChatMarkdown,
@@ -308,13 +314,7 @@ const handleCopyAnswer = async () => {
         return;
     }
 
-    try {
-        await copyTextToClipboard(content);
-        MessagePlugin.success(t('chat.copySuccess'));
-    } catch (err) {
-        console.error('复制失败:', err);
-        MessagePlugin.error(t('chat.copyFailed'));
-    }
+    await copyWithToast(content, 'chat.copySuccess', 'chat.copyFailed');
 };
 
 // 添加到知识库

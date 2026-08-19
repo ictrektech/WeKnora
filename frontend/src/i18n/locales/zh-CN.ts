@@ -404,6 +404,7 @@ export default {
       apiKeyValue: 'API Key',
       apiKeyNamePlaceholder: '例如：MCP 只读访问',
       apiKeyNameRequired: '请输入 API Key 名称',
+      apiKeyCapabilitiesRequired: 'Scoped API Key 至少需要选择一项能力',
       apiKeyAccessMode: '授权方式',
       apiKeyScopedAccess: '能力授权',
       apiKeyAccessType: '访问类型',
@@ -456,6 +457,11 @@ export default {
       apiKeyKnowledgeScope: '知识库范围',
       apiKeyKnowledgeScopePlaceholder: '留空表示允许访问全部知识库',
       allKnowledgeBases: '全部知识库',
+      editApiKeyScope: '编辑 API Key',
+      editApiKeyScopeDesc: '修改 API Key「{name}」的名称和授权范围。',
+      editApiKeyScopeHint: '留空表示允许访问本空间的全部知识库。所有修改保存后立即生效。',
+      updateApiKeyScopeSuccess: 'API Key 已更新',
+      updateApiKeyScopeFailed: '更新 API Key 失败',
       createdAt: '创建时间',
       actions: '操作',
       deleteApiKey: '删除',
@@ -577,6 +583,16 @@ export default {
     connectionFailed: '连接失败',
     isRequired: '为必填项',
     credentialsLabel: '凭证',
+    gitlab: {
+      baseUrl: 'GitLab 地址',
+      accessToken: '个人访问令牌',
+      projects: 'GitLab 项目',
+      projectsHint: '填写项目 ID 或命名空间路径（如 group/project），可选指定分支和目录。',
+      project: '项目', projectId: '项目 ID', projectIdPlaceholder: '例如：12345 或 group/project',
+      ref: '分支', refPlaceholder: '留空时使用默认分支',
+      paths: '同步目录', pathsPlaceholder: '每行一个目录；留空同步整个项目',
+      addProject: '添加项目', projectRequired: '请至少添加一个 GitLab 项目',
+    },
     resourceHint: '选择要同步的内容空间/文件夹',
     untitled: '无标题',
     resourceLoadFailed: '加载资源列表失败',
@@ -614,6 +630,14 @@ export default {
     prereqStep3Brief_yuque: '（可选）企业版填写 Base URL',
     prereqStep3Desc_yuque: '公有云用户无需填写；语雀企业版或私有部署请填写企业域名',
     prereqOpenConsole_yuque: '前往语雀 Token 设置',
+    prereqBarText_ima: '首次使用？点击查看腾讯 IMA OpenAPI 授权指引',
+    prereqStep1Brief_ima: '开通 IMA 智能体接入',
+    prereqStep1Desc_ima: '登录 https://ima.qq.com/agent-interface 并申请 OpenAPI 接入',
+    prereqStep2Brief_ima: '获取 ClientID 与 APIKey',
+    prereqStep2Desc_ima: '在智能体接入页复制 ima-openapi-clientid 与 ima-openapi-apikey 两个凭证',
+    prereqStep3Brief_ima: '授权目标知识库',
+    prereqStep3Desc_ima: '在 IMA 客户端为该凭证授权需要同步的知识库，未授权的知识库不会出现在列表中',
+    prereqOpenConsole_ima: '前往 IMA OpenAPI 控制台',
     prereqStep1Brief_feishu: "创建飞书自建应用",
     prereqStep1Desc_feishu: "登录飞书开放平台 → 创建企业自建应用",
     prereqStep2Brief_feishu: "添加机器人能力",
@@ -674,6 +698,8 @@ export default {
       appSecret: 'App Secret',
       integrationToken: 'Integration Token',
       apiToken: 'API Token',
+      imaClientId: 'IMA ClientID',
+      imaApiKey: 'IMA APIKey',
       baseUrl: 'Base URL（可选）',
       baseUrlHint: '留空将使用默认公有云地址；如果是私有部署/企业内网部署，或需要通过反向代理访问，请填写自定义地址（例如 https://api-proxy.example.com）',
       feedUrls: '订阅源地址',
@@ -688,7 +714,9 @@ export default {
       lark_drive: "同步 Lark 云盘文件夹中的文档、表格、文件（飞书国际版）",
       notion: '同步 Notion 中的页面和数据库',
       yuque: '同步语雀知识库中的文档',
-      rss: '同步 RSS / Atom 订阅源中的文章'
+      ima: '同步腾讯 IMA 知识库中的文档、笔记与文件（暂不支持 AI 会话与视频解析）',
+      rss: '同步 RSS / Atom 订阅源中的文章',
+      gitlab: '同步 GitLab 项目中的文件'
     },
     connector: {
       feishu: '飞书',
@@ -697,7 +725,9 @@ export default {
       lark_drive: "Lark 云盘",
       notion: 'Notion',
       yuque: '语雀',
-      rss: 'RSS / Atom 订阅'
+      ima: '腾讯 IMA',
+      rss: 'RSS / Atom 订阅',
+      gitlab: 'GitLab'
     },
     logDetail: {
       startTime: '开始时间',
@@ -755,6 +785,11 @@ export default {
       loadForbiddenHint: "应用无权访问该文件夹。请在飞书云盘中将该文件夹分享给应用所在的群后再试。",
       loadAuthHint: "应用凭证无效或缺少云盘权限，请检查 App ID / App Secret 及 drive:drive:readonly 等权限。",
       loadNotFoundHint: "folder_token 不存在或已删除，请确认从飞书云盘文件夹 URL 复制的 token 正确。",
+    },
+    syncError: {
+      deletion_lookup_failed: '删除前查找文档失败，请查看服务器日志',
+      deletion_failed: '删除失败，请查看服务器日志',
+      ingest_failed: '导入失败，请查看服务器日志'
     },
   },
   ollama: {
@@ -962,6 +997,7 @@ export default {
       consoleTip: '前往获取凭证信息',
       wecomWSEndpointHint: '可选，私有化部署时填写自定义 WebSocket 地址，留空则使用默认公有云地址。内网地址需将域名加入 SSRF_WHITELIST 环境变量',
       wecomAPIBaseURLHint: '可选，私有化部署时填写自定义 API 地址，留空则使用默认公有云地址。内网地址需将域名加入 SSRF_WHITELIST 环境变量',
+      feishuAPIBaseURLHint: '可选。若服务器能直连外网则留空；若需通过代理才能访问飞书，填写反向代理地址（如 nginx，http://host:port）。内网地址需将域名加入 SSRF_WHITELIST 环境变量',
       fileKnowledgeBase: '文件保存知识库',
       fileKnowledgeBasePlaceholder: '选择知识库（可选）',
       fileKnowledgeBaseHint: '配置后，用户发送的文件将自动保存到该知识库中',
@@ -1072,6 +1108,7 @@ export default {
       multiTurn: '开启后将保留历史对话上下文',
       historyRounds: '保留最近几轮对话作为上下文',
       rewrite: '多轮对话时自动改写用户问题，消解指代和补全省略',
+      memoryEnabled: '允许该智能体读取并补充你的长期记忆。关闭后，与它的对话既不会读取记忆，也不会新增记忆。空间或个人设置关闭时，这里开启也不会生效',
       queryUnderstandModel: '用于问题理解（改写与意图识别）的模型，留空则复用主对话模型',
       rewriteSystemPrompt: '用于问题改写的系统提示词（留空使用默认）',
       rewriteUserPrompt: '用于问题改写的用户提示词模板（留空使用默认）',
@@ -1227,6 +1264,7 @@ export default {
     },
     search: {
       noResults: '未找到匹配的内容',
+      candidatesBelowThreshold: '命中 {count} 条候选，相关性不足，未用于回答',
       foundResultsFromFiles: '找到 {count} 个结果，来自 {files} 个文件',
       foundResults: '找到 {count} 个结果',
       foundMixedResults: '找到 {count} 个结果（{docCount} 篇文档，{webCount} 条网页）',
@@ -1362,6 +1400,10 @@ export default {
         simple: {
           name: 'Simple',
           desc: '简单格式 & 图片解析（无需外部服务）'
+        },
+        anydoc: {
+          name: 'anydoc',
+          desc: '进程内 Office 文档解析（无需外部服务）'
         },
         builtin: {
           name: '内置',
@@ -3181,6 +3223,11 @@ export default {
     }
   },
   chat: {
+    memoryUsedCount: '本次使用了 {count} 条记忆',
+    memoryForget: '删除这条记忆',
+    memoryForgotten: '已删除这条记忆',
+    memoryForgetFailed: '删除失败',
+    memoryHint: '这些是助手在回答时看到的长期记忆，删除后不会再被使用。',
     suggestedQuestions: '你可以这样问我',
     followUpQuestions: '继续问',
     followUpQuestionsLoading: '加载推荐问题',
@@ -3347,7 +3394,7 @@ export default {
         description: '解析文档时调用大模型为每个分块生成相关问题，提高检索召回率。启用后会增加文档解析耗时。',
         countLabel: '生成问题数量',
         countDescription: '每个文档分块生成的问题数量（1-10）',
-        instructionsLabel: '问题生成要求',
+    instructionsLabel: '问题生成要求',
         instructionsDescription: '指定问题面向的人群、场景和表达方式，系统仍维护稳定输出格式',
         instructionsPlaceholder: '例如：生成客服用户常问的自然语言问题，避免考试题式表达…'
       },
@@ -3561,6 +3608,7 @@ export default {
       similarityThresholdLabel: '相似度阈值',
       statusEnabled: '已启用',
       statusDisabled: '已禁用',
+      statusEnableSuccess: 'FAQ 条目已启用',
       statusDisableSuccess: 'FAQ 条目已禁用',
       statusUpdateFailed: '更新状态失败',
       recommended: '推荐',
@@ -3570,6 +3618,11 @@ export default {
       recommendedUpdateFailed: '更新推荐状态失败',
       batchUpdateTag: '批量设置标签',
       batchUpdateTagTip: '将为 {count} 个选中的条目设置标签',
+      batchEnable: '批量启用',
+      batchDisable: '批量禁用',
+      batchDelete: '批量删除',
+      confirmBatchDelete: '确认删除选中的 {count} 个 FAQ 条目？删除后将无法恢复。',
+      batchDeleteSuccess: '已删除 {count} 个 FAQ 条目',
       modes: {
         questionOnly: '仅标准问/相似问',
         questionAnswer: '标准问 + 答案',
@@ -3713,6 +3766,7 @@ export default {
       filterConcept: '概念',
       filterSynthesis: '综合',
       filterComparison: '对比',
+      legendFamiliar: '你常用的资料',
       emptyTitle: '暂无 Wiki 页面',
       emptyDesc: '上传文档并启用 Wiki 后将自动生成知识页面',
       selectPageHint: '从左侧选择一个页面查看内容',
@@ -4576,6 +4630,182 @@ export default {
       saveFailed: '保存配置失败: {message}'
     }
   },
+  memorySettings: {
+    title: '我的记忆',
+    description: '这里是助手跨会话记住的关于你的内容。你可以随时查看、修改和删除，删除后不会再被使用。',
+    workspaceDisabled: '当前空间尚未开启长期记忆，管理员开启后这里的开关才会生效。',
+    enableLabel: '为我启用长期记忆',
+    enableDescription: '关闭后助手不再读取或新增你的记忆，已有记忆会保留，重新开启即可继续使用。',
+    agentDisabledHint: '单个智能体也可以单独关闭长期记忆。被关闭的智能体在对话中既不会读取你的记忆，也不会新增记忆；换用其他智能体不受影响。',
+    usage: {
+      title: '记忆何时会被使用',
+      iconHint: '查看哪些记忆会在对话里被使用',
+      intro: '仅「生效中」会进入对话。',
+      rows: {
+        alwaysOn: {
+          label: '每轮都会带上',
+          text: '个人信息、偏好，以及明确说「记住」的内容'
+        },
+        situational: {
+          label: '相关时才用',
+          text: '事实、在办事项'
+        },
+        interest: {
+          label: '理解常问方向',
+          text: '长期关注，不一定每轮都引用'
+        },
+        tracking: {
+          label: '先观察再记住',
+          text: '常问方向会先计数，达到次数后才成为长期关注'
+        },
+        documents: {
+          label: '常用资料',
+          text: '反复用来回答你的文档，检索时会稍稍优先'
+        },
+        pending: {
+          label: '确认后才生效',
+          text: '待确认的推断'
+        },
+        inactive: {
+          label: '不再使用',
+          text: '已被更新、已归档'
+        }
+      }
+    },
+    listTitle: '记忆列表',
+    listCount: '共 {count} 条',
+    statusActive: '生效中',
+    statusSuperseded: '已被更新',
+    statusArchived: '已归档',
+    statusPending: '待确认',
+    statusTracking: '观察中',
+    statusDocuments: '常用资料',
+    confirmGuess: '是的',
+    rejectGuess: '不是',
+    pendingHint: '这些是系统从你的提问里推断出来的，确认之前不会被使用。',
+    trackingHint: '这些是你反复问到、但还没达到「长期关注」次数的主题。记下来之前不会进入对话。',
+    documentsHint: '这些文档在回答里反复出现，检索会稍微偏向它们。停止跟踪后不再加权，再被引用两次会重新出现。',
+    supersededHint: '这些内容已被更新的记忆替代，不会再进入对话，只作为变更记录保留。',
+    archivedHint: '已归档的记忆不会再进入对话。超出每人上限后，较少用到的条目会被自动收起。',
+    pendingEmptyTitle: '没有待确认的推断',
+    pendingEmptyDescription: '当系统从你的提问里推断出关于你的信息时，会先放在这里等你确认。',
+    trackingEmptyTitle: '没有正在观察的主题',
+    trackingEmptyDescription: '自动提炼开启后，系统会先统计你常问的方向，达到次数后再记为长期关注。',
+    documentsEmptyTitle: '还没有常用资料',
+    documentsEmptyDescription: '同一份文档被回答引用两次以上，就会出现在这里。',
+    supersededEmptyTitle: '还没有被更新的记忆',
+    supersededEmptyDescription: '同一主题被新说法覆盖时，旧内容会留在这里。在本页直接编辑是原地改写，不会产生这条记录。',
+    archivedEmptyTitle: '还没有归档的记忆',
+    archivedEmptyDescription: '生效中超过上限（默认 200 条）时，较少用到的会自动收起；带过期时间的事项到期后也会进来。',
+    documentsHits: '已引用 {hits} 次',
+    untitledDocument: '未命名文档',
+    openDocument: '打开文档',
+    openDocumentUnavailable: '无法打开：缺少知识库信息',
+    stopTrackingDocument: '停止跟踪',
+    stopTrackingDocumentConfirm: '停止用这份文档做个性化检索？之后再被引用两次会重新出现。',
+    stopTrackingDocumentSuccess: '已停止跟踪这份资料',
+    stopTrackingDocumentFailed: '停止跟踪失败',
+    trackingProgress: '已问 {hits} 次，满 {threshold} 次后记为长期关注',
+    trackingReady: '已达到次数，可以记为长期关注',
+    trackingAliases: '也问过：{aliases}',
+    promoteTopic: '记为关注',
+    dismissTopic: '不再跟踪',
+    dismissTopicConfirm: '停止跟踪这个主题？之后再问到也不会自动记为长期关注。',
+    promoteSuccess: '已记为长期关注',
+    promoteFailed: '记为关注失败',
+    dismissSuccess: '已停止跟踪这个主题',
+    dismissFailed: '停止跟踪失败',
+    confirmSuccess: '已确认',
+    confirmFailed: '确认失败',
+    rejectSuccess: '已否决，不会再次推断',
+    rejectFailed: '否决失败',
+    export: '导出',
+    consolidate: '整理',
+    consolidateConfirm: '合并意思接近的条目，旧内容会留在「已被更新」。确定整理？',
+    consolidateSuccess: '整理完成：合并 {merged} 组，到期归档 {expired} 条，过期事项降权 {demoted} 条',
+    consolidateNothing: '没有发现需要整理的内容',
+    consolidateTooFewItems: '记忆还太少，暂时没有整理的必要',
+    consolidateNoCandidates: '没有发现意思相近的记忆，无需合并',
+    consolidateModelDeclined: '模型看过了，这些记忆说的不是同一件事，未做合并',
+    consolidateTooSoon: '刚整理过，请稍后再试',
+    consolidateModelUnavailable: '模型不可用，为避免误合并，本次没有改动任何记忆',
+    consolidateFailed: '整理失败',
+    clear: '清空',
+    clearConfirm: '将永久删除你的全部记忆、正在观察的主题和常用资料，此操作不可撤销。确定继续吗？',
+    deleteConfirm: '永久删除这条记忆？',
+    add: '添加',
+    addPlaceholder: '用一句话写下你希望助手记住的事',
+    addTitle: '添加记忆',
+    addKindLabel: '类型',
+    addContentLabel: '内容',
+    emptyTitle: '还没有记忆',
+    emptyDescription: '在对话里说「记住：……」，或者在上面直接添加一条。',
+    kinds: {
+      profile: '个人信息',
+      preference: '偏好',
+      fact: '事实',
+      task: '在办事项',
+      interest: '长期关注'
+    },
+    kindHints: {
+      profile: '之后每轮对话都会带上',
+      preference: '之后每轮对话都会带上',
+      fact: '只在问题相关时才会用到',
+      task: '只在问题相关时才会用到',
+      interest: '用来理解你常问的方向，不一定每轮都引用'
+    },
+    origins: {
+      explicit: '你要求记住',
+      extracted: '自动提炼',
+      manual: '手动添加'
+    },
+    toasts: {
+      enabled: '已为你开启长期记忆',
+      disabled: '已关闭长期记忆',
+      added: '已添加',
+      updated: '已更新',
+      deleted: '已删除',
+      cleared: '已删除 {count} 条记忆',
+      saveFailed: '操作失败：{message}'
+    }
+  },
+  memoryWorkspaceSettings: {
+    title: '长期记忆',
+    description: '让助手跨会话记住成员说过的个人信息、偏好、事实与在办事项。',
+    introTitle: '默认关闭，需要你显式开启',
+    introDescription: '长期记忆会保留成员在对话中说过的内容，因此默认不开启。开启后每位成员的记忆彼此隔离，成员可以在「我的记忆」里随时查看、修改、删除或整体关闭。生效中的个人信息与偏好会进入之后的每一轮对话；事实和在办事项只在相关问题时召回。',
+    enableLabel: '在本空间启用长期记忆',
+    enableDescription: '关闭后本空间的所有会话都不会读取或写入记忆。',
+    writeModeLabel: '记忆写入方式',
+    writeModeDescription: '决定什么内容会被记住。',
+    writeModeExplicit: '仅显式记录',
+    writeModeAuto: '自动提炼',
+    writeModeExplicitHint: '只记录成员明确说「记住：……」的内容，以及在记忆页手动添加的条目，不额外调用模型。',
+    writeModeAutoHint: '在此基础上，会话结束后在后台调用一次模型，从成员自己说过的话里提炼值得长期保留的内容。',
+    extractModelLabel: '提炼模型',
+    extractModelDescription: '留空则使用该次会话所用的模型。',
+    extractDelayLabel: '挖掘延迟',
+    extractDelayDescription: '一轮对话结束后等待多久再挖掘。等一等可以让一次模型调用覆盖用户连着发的几条消息。',
+    extractMinIntervalLabel: '两次挖掘的最小间隔',
+    extractMinIntervalDescription: '同一个人两次挖掘之间至少间隔多久，用来控制成本。间隔内产生的消息不会被丢弃，会顺延到下一次挖掘一并处理。',
+    vectorRecallLabel: '按语义召回记忆',
+    vectorRecallDescription: '除了字面匹配，再按含义匹配。用户换个说法之后，原来那条记忆仍然能被找到——而多数记忆迟早会被换说法。每轮问答多一次向量调用，超时会自动退回字面匹配。',
+    embeddingModelLabel: '记忆 Embedding 模型',
+    embeddingModelDescription: '语义召回只使用这一个模型，与各知识库绑定的 Embedding 无关。不选则只按字面匹配。换模型后，新写入立刻用新模型；旧记忆在补上新向量之前，语义召回找不到它们，只靠字面匹配。',
+    conditioningLabel: '让记忆参与检索',
+    conditioningDescription: '开启后，记忆会参与查询改写和文档排序，而不只是附加到回答提示里。这是记忆在知识库产品里真正起作用的地方。',
+    interestThresholdLabel: '成为长期关注的次数',
+    interestThresholdDescription: '同一个主题被问到这么多次后，才会作为长期关注记下来。设为 1 会把每个一次性问题都记下来，通常太吵。',
+    instructionsLabel: '自定义挖掘规则',
+    instructionsDescription: '追加到挖掘提示词里的空间规则，用来表达产品猜不到的策略，例如「永远不要记录客户姓名」。',
+    instructionsPlaceholder: '一行一条规则，例如：永远不要记录客户姓名',
+    maxItemsLabel: '每人记忆上限',
+    maxItemsDescription: '超出后按重要度与使用时间归档最低的若干条，归档的记忆仍可在「我的记忆」里查看。',
+    toasts: {
+      saveSuccess: '长期记忆配置已保存',
+      saveFailed: '保存失败：{message}'
+    }
+  },
   chatHistorySettings: {
     title: '消息管理',
     description: '配置聊天历史知识库，将对话消息自动向量化索引，实现语义搜索',
@@ -5091,6 +5321,7 @@ export default {
       title: '权限不足',
       desc: '你当前的角色无权访问此设置项。请联系本空间的管理员获取所需角色。'
     },
+    capabilityUnavailable: '当前部署不支持此功能，已返回可用页面。',
     navGroups: {
       account: '账户',
       workspace: '空间',
@@ -5222,6 +5453,7 @@ export default {
       allowedTools: '允许的工具',
       multiTurn: '多轮对话',
       historyTurns: '保留轮数',
+      memoryEnabled: '长期记忆',
       retrievalStrategy: '检索策略',
       embeddingTopK: '向量召回数量',
       keywordThreshold: '关键词阈值',
@@ -5603,6 +5835,8 @@ export default {
     channelIm: 'IM 渠道',
     channelNotion: 'Notion',
     channelYuque: '语雀',
+    channelGitLab: 'GitLab',
+    channelIma: '腾讯 IMA',
     channelUpload: '上传',
     channelManual: '手动',
     channelUrl: '网页',

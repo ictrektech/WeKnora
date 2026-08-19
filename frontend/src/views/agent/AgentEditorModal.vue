@@ -168,6 +168,19 @@
                       </div>
                     </div>
 
+                    <!-- 长期记忆。放在这里而不是「多轮对话」那一组，是因为那一组
+                         整个带了 !isAgentMode，而智能推理恰恰是最需要这个开关的模式。
+                         这个开关只能"关"：空间或个人设置关闭时，这里打开也不生效。 -->
+                    <div class="setting-row">
+                      <div class="setting-info">
+                        <label>{{ $t('agent.editor.memoryEnabled') }}</label>
+                        <p class="desc">{{ $t('agentEditor.desc.memoryEnabled') }}</p>
+                      </div>
+                      <div class="setting-control">
+                        <t-switch v-model="formData.config.memory_enabled" />
+                      </div>
+                    </div>
+
                   </div>
                 </div>
 
@@ -654,6 +667,7 @@
                       <div class="setting-control">
                         <ModelSelector model-type="Rerank" :selected-model-id="formData.config.rerank_model_id"
                           :all-models="allModels"
+                          :clearable="!needsRerankModel"
                           @update:selected-model-id="(val: string) => formData.config.rerank_model_id = val"
                           @add-model="handleAddModel('rerank')"
                           :placeholder="$t('agent.editor.rerankModelPlaceholder')" />
@@ -671,6 +685,7 @@
                       <div class="setting-control">
                         <ModelSelector model-type="KnowledgeQA"
                           :selected-model-id="formData.config.query_understand_model_id" :all-models="allModels"
+                          clearable
                           @update:selected-model-id="(val: string) => formData.config.query_understand_model_id = val"
                           @add-model="handleAddModel('llm')"
                           :placeholder="$t('agent.editor.queryUnderstandModelPlaceholder')" />
@@ -809,6 +824,7 @@
                       <div class="setting-control">
                         <ModelSelector model-type="ASR" :selected-model-id="formData.config.asr_model_id"
                           :all-models="allModels"
+                          clearable
                           @update:selected-model-id="(val: string) => formData.config.asr_model_id = val"
                           @add-model="handleAddModel('asr')"
                           :placeholder="$t('agentEditor.audioUpload.asrModelPlaceholder')" />
@@ -1011,6 +1027,7 @@
                           <ModelSelector model-type="KnowledgeQA"
                             :selected-model-id="formData.config.question_suggestions.follow_ups.model_id"
                             :all-models="allModels"
+                            clearable
                             @update:selected-model-id="(val: string) => formData.config.question_suggestions.follow_ups.model_id = val"
                             @add-model="handleAddModel('summary')" />
                         </div>
@@ -1689,6 +1706,7 @@ import {
 } from '@/config/contextualGuides';
 import { useI18n } from 'vue-i18n';
 import { selectInitialModelId } from '@/utils/modelDefaults';
+import { copyWithToast } from '@/utils/clipboard';
 import { MessagePlugin } from 'tdesign-vue-next';
 import {
   createAgent,
@@ -1778,27 +1796,7 @@ const saveButtonLabel = computed(() =>
 );
 
 const copyAgentId = async () => {
-  const id = editorAgent.value?.id;
-  if (!id) return;
-
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(id);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = id;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
-    MessagePlugin.success(t('common.copied'));
-  } catch {
-    MessagePlugin.error(t('common.copyFailed'));
-  }
+  await copyWithToast(editorAgent.value?.id, 'common.copied');
 };
 
 const currentSection = ref(props.initialSection || 'basic');
@@ -2414,6 +2412,9 @@ const defaultFormData = {
     // 多轮对话设置
     multi_turn_enabled: false,
     history_turns: 5,
+    // 长期记忆：默认跟随空间设置。写 true 与不写等价，只有 false 才会
+    // 让这个智能体单独不读记忆。
+    memory_enabled: true,
     // 检索策略设置
     embedding_top_k: 10,
     keyword_threshold: 0.3,
@@ -3024,6 +3025,9 @@ watch(() => props.visible, async (val) => {
       // 附件解析调优字段：旧数据缺省时置 0（表示使用全局默认）
       if (agentData.config.attachment_ocr_max_pages == null) agentData.config.attachment_ocr_max_pages = 0;
       if (agentData.config.attachment_parse_wait_timeout_sec == null) agentData.config.attachment_parse_wait_timeout_sec = 0;
+      // 长期记忆：后端用 omitempty，跟随空间设置的智能体不带这个字段。
+      // 不补成 true 的话开关会显示为"关"，用户随手一存就真的把记忆关了。
+      if (agentData.config.memory_enabled == null) agentData.config.memory_enabled = true;
 
       // 兼容旧数据：如果没有 agent_mode 字段，根据 allowed_tools 推断
       if (!agentData.config.agent_mode) {

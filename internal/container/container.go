@@ -52,6 +52,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/application/service"
 	chatpipeline "github.com/Tencent/WeKnora/internal/application/service/chat_pipeline"
 	"github.com/Tencent/WeKnora/internal/application/service/file"
+	"github.com/Tencent/WeKnora/internal/application/service/memory"
 	"github.com/Tencent/WeKnora/internal/application/service/retriever"
 	"github.com/Tencent/WeKnora/internal/common"
 	"github.com/Tencent/WeKnora/internal/config"
@@ -60,6 +61,8 @@ import (
 	"github.com/Tencent/WeKnora/internal/datasource/connector/feishu/core"
 	"github.com/Tencent/WeKnora/internal/datasource/connector/feishu/drive"
 	"github.com/Tencent/WeKnora/internal/datasource/connector/feishu/wiki"
+	gitlabConnector "github.com/Tencent/WeKnora/internal/datasource/connector/gitlab"
+	imaConnector "github.com/Tencent/WeKnora/internal/datasource/connector/ima"
 	notionConnector "github.com/Tencent/WeKnora/internal/datasource/connector/notion"
 	rssConnector "github.com/Tencent/WeKnora/internal/datasource/connector/rss"
 	yuqueConnector "github.com/Tencent/WeKnora/internal/datasource/connector/yuque"
@@ -177,6 +180,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewDataSourceRepository))
 	must(container.Provide(repository.NewSyncLogRepository))
 	must(container.Provide(repository.NewWikiPageRepository))
+	must(container.Provide(repository.NewMemoryRepository))
 	must(container.Provide(repository.NewTaskPendingOpsRepository))
 	must(container.Provide(repository.NewTaskDeadLetterRepository))
 
@@ -290,6 +294,9 @@ func BuildContainer(container *dig.Container) *dig.Container {
 
 	// Session service (depends on agent service)
 	// SessionService is created after AgentService and passes itself to AgentService.CreateAgentEngine when needed
+	logger.Debugf(ctx, "[Container] Registering memory service...")
+	must(container.Provide(memory.NewMemoryService))
+
 	logger.Debugf(ctx, "[Container] Registering session service...")
 	must(container.Provide(service.NewSessionService))
 
@@ -369,10 +376,12 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Invoke(chatpipeline.NewPluginFilterTopK))
 	must(container.Invoke(chatpipeline.NewPluginQueryUnderstand))
 	must(container.Invoke(chatpipeline.NewPluginLoadHistory))
+	must(container.Invoke(chatpipeline.NewPluginMemoryRecall))
 	must(container.Invoke(chatpipeline.NewPluginExtractEntity))
 	must(container.Invoke(chatpipeline.NewPluginSearchEntity))
 	must(container.Invoke(chatpipeline.NewPluginSearchParallel))
 	must(container.Invoke(chatpipeline.NewPluginWikiBoost))
+	must(container.Invoke(chatpipeline.NewPluginMemoryAffinity))
 	logger.Debugf(ctx, "[Container] Chat pipeline plugins registered")
 
 	// HTTP handlers layer
@@ -410,6 +419,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewSkillService))
 	must(container.Provide(handler.NewSkillHandler))
 	must(container.Provide(handler.NewOrganizationHandler))
+	must(container.Provide(handler.NewMemoryHandler))
 
 	// Data source handler
 	must(container.Provide(handler.NewDataSourceHandler))
@@ -1691,8 +1701,14 @@ func initConnectorRegistry() (*datasource.ConnectorRegistry, error) {
 	if err := registry.Register(yuqueConnector.NewConnector()); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("register yuque connector: %w", err))
 	}
+	if err := registry.Register(imaConnector.NewConnector()); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("register ima connector: %w", err))
+	}
 	if err := registry.Register(rssConnector.NewConnector()); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("register rss connector: %w", err))
+	}
+	if err := registry.Register(gitlabConnector.NewConnector()); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("register gitlab connector: %w", err))
 	}
 
 	// Future connectors will be registered here:

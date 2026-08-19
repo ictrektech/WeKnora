@@ -9,6 +9,7 @@ services:
       - "${FRONTEND_PORT:-80}:80"
     environment:
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-500}
+      - DEFAULT_LOCALE=${DEFAULT_LOCALE:-}
       - APP_HOST=${APP_HOST:-app}
       # APP_BACKEND_PORT: the port NGINX proxies to (default 8080).
       # For local deployment this is the App container's listening port, independent of host-mapped APP_PORT.
@@ -31,6 +32,7 @@ services:
       dockerfile: docker/Dockerfile.app
       args:
         - APK_MIRROR_ARG=${APK_MIRROR_ARG:-}
+        - WITH_ANYDOC=${WITH_ANYDOC:-1}
     container_name: WeKnora-app
     ports:
       - "${APP_PORT:-8080}:8080"
@@ -518,7 +520,7 @@ services:
     networks:
       - WeKnora-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s # 增加时间间隔
       timeout: 10s # 增加超时时间
       retries: 3 # 减少重试次数，让失败更快反馈
