@@ -178,6 +178,8 @@ GOPROXY_ARG=https://goproxy.cn,direct
 APK_MIRROR_ARG=mirrors.tuna.tsinghua.edu.cn
 APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn
 NPM_REGISTRY=https://registry.npmmirror.com
+RUSTUP_DIST_SERVER_ARG=https://mirrors.tuna.tsinghua.edu.cn/rustup
+RUSTUP_UPDATE_ROOT_ARG=https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup
 ```
 
 For ARM checks, sync the same source tree to an ARM build host and run:

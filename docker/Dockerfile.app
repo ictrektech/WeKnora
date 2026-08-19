@@ -8,11 +8,15 @@ ARG GOPRIVATE_ARG
 ARG GOPROXY_ARG
 ARG GOSUMDB_ARG=off
 ARG APK_MIRROR_ARG
+ARG RUSTUP_DIST_SERVER_ARG=https://mirrors.tuna.tsinghua.edu.cn/rustup
+ARG RUSTUP_UPDATE_ROOT_ARG=https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup
 
 # 设置Go环境变量
 ENV GOPRIVATE=${GOPRIVATE_ARG}
 ENV GOPROXY=${GOPROXY_ARG}
 ENV GOSUMDB=${GOSUMDB_ARG}
+ENV RUSTUP_DIST_SERVER=${RUSTUP_DIST_SERVER_ARG}
+ENV RUSTUP_UPDATE_ROOT=${RUSTUP_UPDATE_ROOT_ARG}
 
 # Install dependencies
 RUN if [ -n "$APK_MIRROR_ARG" ]; then \
@@ -55,7 +59,7 @@ ENV PATH=/usr/local/cargo/bin:$PATH
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     if [ "$WITH_ANYDOC" = "1" ]; then \
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
             | sh -s -- -y --profile minimal --default-toolchain stable && \
         ./scripts/build-anydoc-lib.sh; \
     fi
