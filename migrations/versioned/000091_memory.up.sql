@@ -1,4 +1,4 @@
--- Migration 000084: cross-session long-term memory.
+-- Migration 000091: cross-session long-term memory.
 --
 -- Two tables only. memory_subjects is one row per (workspace, principal) and
 -- caches the resident block that every turn injects; memory_items holds the
