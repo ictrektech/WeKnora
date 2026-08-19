@@ -22,7 +22,6 @@ type PluginSearch struct {
 	config                *config.Config
 	webSearchService      interfaces.WebSearchService
 	tenantService         interfaces.TenantService
-	sessionService        interfaces.SessionService
 	webSearchStateService interfaces.WebSearchStateService
 	webSearchProviderRepo interfaces.WebSearchProviderRepository
 }
@@ -34,7 +33,6 @@ func NewPluginSearch(eventManager *EventManager,
 	config *config.Config,
 	webSearchService interfaces.WebSearchService,
 	tenantService interfaces.TenantService,
-	sessionService interfaces.SessionService,
 	webSearchStateService interfaces.WebSearchStateService,
 	webSearchProviderRepo interfaces.WebSearchProviderRepository,
 ) *PluginSearch {
@@ -45,7 +43,6 @@ func NewPluginSearch(eventManager *EventManager,
 		config:                config,
 		webSearchService:      webSearchService,
 		tenantService:         tenantService,
-		sessionService:        sessionService,
 		webSearchStateService: webSearchStateService,
 		webSearchProviderRepo: webSearchProviderRepo,
 	}

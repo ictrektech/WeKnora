@@ -17,7 +17,6 @@ type PluginSearchParallel struct {
 	config               *config.Config
 	webSearchService     interfaces.WebSearchService
 	tenantService        interfaces.TenantService
-	sessionService       interfaces.SessionService
 
 	// Entity search dependencies
 	graphRepo     interfaces.RetrieveGraphRepository
@@ -38,7 +37,6 @@ func NewPluginSearchParallel(
 	config *config.Config,
 	webSearchService interfaces.WebSearchService,
 	tenantService interfaces.TenantService,
-	sessionService interfaces.SessionService,
 	webSearchStateService interfaces.WebSearchStateService,
 	webSearchProviderRepo interfaces.WebSearchProviderRepository,
 	graphRepository interfaces.RetrieveGraphRepository,
@@ -53,7 +51,6 @@ func NewPluginSearchParallel(
 		config:                config,
 		webSearchService:      webSearchService,
 		tenantService:         tenantService,
-		sessionService:        sessionService,
 		webSearchStateService: webSearchStateService,
 		webSearchProviderRepo: webSearchProviderRepo,
 	}
@@ -70,7 +67,6 @@ func NewPluginSearchParallel(
 		config:               config,
 		webSearchService:     webSearchService,
 		tenantService:        tenantService,
-		sessionService:       sessionService,
 		graphRepo:            graphRepository,
 		chunkRepo:            chunkRepository,
 		knowledgeRepo:        knowledgeRepository,
