@@ -32,6 +32,8 @@ Postgres 通过 PGV 提供，默认连接 `shared-pgv:5432`，用户/密码/数�
 
 `manifest.yml` 已声明 `oauth2.client.id=com.ictrek.hybrag`、`scope=openid profile email`、PKCE S256 和 public client 模式。只要 VOS 安装时成功注册该 client，HybRAG 会自动使用标准 Fastpath；`HYBRAG_VOS_SSO_ENABLED=false` 可关闭 VOS 免登录。
 
+当前 HybRAG 只按 VOS app 使用，前端不会再展示普通登录/注册入口。打开应用时如果后端、PGV 或 Model Hub 尚未就绪，页面会保持 VOS 自动登录等待状态并重试；长时间停留时先检查 app 容器是否监听 `8080`、PGV 是否可连接、以及后端日志中的容器初始化步骤。
+
 ## 其他 VOS App 接入 HybRAG 用户身份
 
 其他 VOS app 如果要以当前 VOS 用户身份访问 HybRAG，不要共享或硬编码 HybRAG API Key。VOS 1.1+ 同域 iframe app 推荐先走自身 `oauth2.client` 的 Fastpath，拿到 VOS OIDC 应用 access token 后调用：

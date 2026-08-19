@@ -70,6 +70,8 @@ HybRAG 安装包不启动 Model Hub 和 PGV，也不启动自己的 Ollama。安
 
 VOS 中打开 HybRAG 时，前端优先走 VOS OIDC Fastpath：同域 iframe 内使用 `window.vos_platform.api.v1000.oauth2` 完成 `authorize -> token`，然后把 VOS OIDC 应用 access token 交给 HybRAG 后端；后端调用 `HYBRAG_VOS_OIDC_USERINFO_URL` 指向的 `/v1000/oauth2/userinfo` 校验后，自动创建或登录 `${username}@local`。旧的 `/v1000/user/check` token exchange 仍保留为老 VOS 版本降级路径。`admin` 用户对应 `admin@local`，并拥有系统管理员权限。
 
+HybRAG 当前只按 VOS app 使用，前端不会再展示普通登录/注册入口。若用户打开应用时后端、PGV 或 Model Hub 尚未就绪，登录页会保持 VOS 自动登录等待状态并重试；如果长时间停留在等待页，优先检查 app 容器是否已监听 `8080`、PGV 是否可连接、以及后端日志中的容器初始化步骤。
+
 ## 其他 VOS App 以当前用户身份接入 HybRAG
 
 HybRAG 同时保留两类认证方式：

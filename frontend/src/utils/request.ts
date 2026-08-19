@@ -5,7 +5,8 @@ import i18n from '@/i18n'
 import { getApiBaseUrl } from './api-base';
 import { withAppBasePath } from './app-base';
 import { getVOSAccessTokenForIframeSSO } from './vos-sso';
-import { acquireVOSFastpathToken, clearVOSFastpathFailed, markVOSFastpathFailed } from './vos-fastpath';
+import { acquireVOSFastpathToken, clearVOSFastpathFailed } from './vos-fastpath';
+import type { VOSFastpathTokenSet } from './vos-fastpath';
 
 const t = (key: string) => i18n.global.t(key)
 
@@ -74,10 +75,9 @@ instance.interceptors.request.use(
 // Token刷新标志，防止多个请求同时刷新token
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: Function; reject: Function }> = [];
-let isAutoSettingUp = false;
-let autoSetupPromise: Promise<string | null> | null = null;
 let isVOSSSOing = false;
 let vosSSOPromise: Promise<string | null> | null = null;
+let vosFastpathTokenSet: VOSFastpathTokenSet | null = null;
 
 // Share-link endpoints (/auth/invitations/lookup, /auth/register-by-invite)
 // are reachable by anonymous users opening an invite link. A 401 from these
@@ -103,33 +103,6 @@ const processQueue = (error: any, token: string | null = null) => {
   
   failedQueue = [];
 };
-
-function persistAutoSetupSession(response: any): string | null {
-  const token = response?.token;
-  if (!response?.success || !token) return null;
-
-  const activeTenant = response.active_tenant || response.tenant;
-  localStorage.setItem('weknora_token', token);
-  if (response.refresh_token) {
-    localStorage.setItem('weknora_refresh_token', response.refresh_token);
-  }
-  if (response.user) {
-    localStorage.setItem('weknora_user', JSON.stringify(response.user));
-  }
-  if (activeTenant) {
-    localStorage.setItem('weknora_tenant', JSON.stringify(activeTenant));
-    localStorage.setItem('weknora_selected_tenant_id', String(activeTenant.id));
-    if (activeTenant.name) {
-      localStorage.setItem('weknora_selected_tenant_name', activeTenant.name);
-    }
-  }
-  if (Array.isArray(response.memberships)) {
-    localStorage.setItem('weknora_memberships', JSON.stringify(response.memberships));
-  }
-  localStorage.setItem('weknora_lite_mode', 'true');
-  localStorage.removeItem('weknora_auto_setup_failed');
-  return token;
-}
 
 function persistVOSSSOSession(response: any): string | null {
   const token = response?.token;
@@ -161,11 +134,17 @@ async function tryVOSSSOToken(): Promise<string | null> {
 
   isVOSSSOing = true;
   vosSSOPromise = (async () => {
-    let fastpathTokenSeen = false;
+    let tokenSet: VOSFastpathTokenSet | null = null;
     try {
-      const tokenSet = await acquireVOSFastpathToken();
-      if (tokenSet?.access_token) {
-        fastpathTokenSeen = true;
+      tokenSet = vosFastpathTokenSet || await acquireVOSFastpathToken({ force: true });
+    } catch {
+      // Older VOS installations may not expose the OIDC fastpath bridge yet.
+      // Fall back to the legacy same-origin access token adapter below.
+    }
+
+    if (tokenSet?.access_token) {
+      vosFastpathTokenSet = tokenSet;
+      try {
         const response = await axios.post(`${BASE_URL}/api/v1/auth/vos-oidc`, {
           access_token: tokenSet.access_token,
           id_token: tokenSet.id_token,
@@ -178,18 +157,13 @@ async function tryVOSSSOToken(): Promise<string | null> {
         const localToken = persistVOSSSOSession(response.data);
         if (localToken) {
           clearVOSFastpathFailed();
+          vosFastpathTokenSet = null;
           return localToken;
         }
-        markVOSFastpathFailed();
+        return null;
+      } catch {
         return null;
       }
-    } catch {
-      if (fastpathTokenSeen) {
-        markVOSFastpathFailed();
-        return null;
-      }
-      // Older VOS installations may not expose the OIDC fastpath bridge yet.
-      // Fall back to the legacy same-origin access token adapter below.
     }
 
     const vosToken = getVOSAccessTokenForIframeSSO();
@@ -210,25 +184,6 @@ async function tryVOSSSOToken(): Promise<string | null> {
     });
 
   return vosSSOPromise;
-}
-
-async function tryAutoSetupToken(): Promise<string | null> {
-  if (isAutoSettingUp && autoSetupPromise) return autoSetupPromise;
-
-  isAutoSettingUp = true;
-  autoSetupPromise = axios.post(`${BASE_URL}/api/v1/auth/auto-setup`, {}, {
-    headers: {
-      "Content-Type": "application/json",
-      "X-Request-ID": `${generateRandomString(12)}`,
-    },
-  }).then((response) => persistAutoSetupSession(response.data))
-    .catch(() => null)
-    .finally(() => {
-      isAutoSettingUp = false;
-      autoSetupPromise = null;
-    });
-
-  return autoSetupPromise;
 }
 
 function isEmbedPage(): boolean {
@@ -261,7 +216,7 @@ instance.interceptors.response.use(
       return Promise.reject({ message: t('error.networkError') });
     }
     
-    // 公开接口（auto-setup / login / register / oidc）的 401 不走 refresh 逻辑，直接返回错误
+    // 公开认证接口的 401 不走 refresh 逻辑，直接返回错误
     if ((error.response.status === 401 || error.response.status === 403) && isPublicAuthRequest(originalRequest?.url)) {
       const { status, data } = error.response;
       const msg = typeof data === 'object'
@@ -329,13 +284,6 @@ instance.interceptors.response.use(
             return instance(originalRequest);
           }
 
-          const setupToken = await tryAutoSetupToken();
-          if (setupToken) {
-            originalRequest.headers['Authorization'] = 'Bearer ' + setupToken;
-            processQueue(null, setupToken);
-            return instance(originalRequest);
-          }
-
           // 刷新失败，清除所有token并跳转到登录页
           localStorage.removeItem('weknora_token');
           localStorage.removeItem('weknora_refresh_token');
@@ -355,13 +303,6 @@ instance.interceptors.response.use(
         if (vosToken) {
           originalRequest.headers['Authorization'] = 'Bearer ' + vosToken;
           processQueue(null, vosToken);
-          return instance(originalRequest);
-        }
-
-        const setupToken = await tryAutoSetupToken();
-        if (setupToken) {
-          originalRequest.headers['Authorization'] = 'Bearer ' + setupToken;
-          processQueue(null, setupToken);
           return instance(originalRequest);
         }
 

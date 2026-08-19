@@ -2,9 +2,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities'
-import { autoSetup, getCurrentUser, loginWithVOSOIDC, loginWithVOSSSO, userInfoFromApi } from '@/api/auth'
+import { getCurrentUser, loginWithVOSOIDC, loginWithVOSSSO, userInfoFromApi } from '@/api/auth'
 import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
-import { acquireVOSFastpathToken, clearVOSFastpathFailed, markVOSFastpathFailed } from '@/utils/vos-fastpath'
+import { acquireVOSFastpathToken, clearVOSFastpathFailed } from '@/utils/vos-fastpath'
+import type { VOSFastpathTokenSet } from '@/utils/vos-fastpath'
 import { getAppBasePath } from '@/utils/app-base'
 import { createInitialAuthSessionValidator } from './authBootstrap'
 import type { DeploymentCapabilityKey } from '@/config/deploymentCapabilities'
@@ -13,31 +14,6 @@ import i18n from '@/i18n'
 
 /** Lite /桌面 WebView 硬刷新时可能只打开 `/`，用 session 记住上次页面以便恢复 */
 const LITE_LAST_PATH_KEY = 'weknora_lite_last_path'
-const AUTO_SETUP_FAILED_KEY = 'weknora_auto_setup_failed'
-const VOS_SSO_FAILED_KEY = 'weknora_vos_sso_failed'
-
-function shouldTryAutoSetup() {
-  return localStorage.getItem(AUTO_SETUP_FAILED_KEY) !== 'true'
-}
-
-function markAutoSetupFailed() {
-  localStorage.setItem(AUTO_SETUP_FAILED_KEY, 'true')
-}
-
-function markVOSSSOFailed() {
-  sessionStorage.setItem(VOS_SSO_FAILED_KEY, 'true')
-  markVOSFastpathFailed()
-}
-
-function shouldStopVOSSSORetry(response: { message?: string } | null | undefined) {
-  const message = String(response?.message || '').toLowerCase()
-  return (
-    message.includes('unauthorized') ||
-    message.includes('forbidden') ||
-    message.includes('invalid vos') ||
-    message.includes('token')
-  )
-}
 
 function isLiteEdition(authStore: ReturnType<typeof useAuthStore>) {
   return authStore.isLiteMode || localStorage.getItem('weknora_lite_mode') === 'true'
@@ -232,7 +208,7 @@ const router = createRouter({
   ],
 });
 
-// 持久化 auto-setup / login 返回的认证信息到 store
+// 持久化 VOS / login 返回的认证信息到 store
 function persistLoginResponse(authStore: ReturnType<typeof useAuthStore>, response: any) {
   const activeTenant = response.active_tenant || response.tenant
   if (response.user && activeTenant && response.token) {
@@ -320,52 +296,30 @@ async function hydrateSessionFromToken(authStore: ReturnType<typeof useAuthStore
   }
 }
 
-async function tryAutoSetupSession(authStore: ReturnType<typeof useAuthStore>, force = false) {
-  if (autoSetupAttempted && !force) return false
-  if (!force && !shouldTryAutoSetup()) return false
-
-  autoSetupAttempted = true
+async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>) {
+  let tokenSet: VOSFastpathTokenSet | null = null
   try {
-    const response = await autoSetup()
-    if (response.success) {
-      persistLoginResponse(authStore, response)
-      authStore.setLiteMode(true)
-      localStorage.removeItem(AUTO_SETUP_FAILED_KEY)
-      return true
-    }
-    markAutoSetupFailed()
+    tokenSet = vosFastpathTokenSet || await acquireVOSFastpathToken({ force: true })
   } catch {
-    markAutoSetupFailed()
-  }
-  return false
-}
-
-async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>, force = false) {
-  if (!force && sessionStorage.getItem(VOS_SSO_FAILED_KEY) === 'true') return false
-
-  let fastpathTokenSeen = false
-  try {
-    const tokenSet = await acquireVOSFastpathToken()
-    if (tokenSet?.access_token) {
-      fastpathTokenSeen = true
-      const response = await loginWithVOSOIDC(tokenSet.access_token, tokenSet.id_token)
-      if (response.success) {
-        persistLoginResponse(authStore, response)
-        sessionStorage.removeItem(VOS_SSO_FAILED_KEY)
-        clearVOSFastpathFailed()
-        return true
-      }
-      markVOSSSOFailed()
-      return false
-    }
-  } catch {
-    if (fastpathTokenSeen) {
-      markVOSSSOFailed()
-      return false
-    }
     // Fall through to the legacy same-origin token probe. Fastpath may be
     // missing on older VOS installations or temporarily unavailable before
     // the platform bridge finishes injection.
+  }
+
+  if (tokenSet?.access_token) {
+    vosFastpathTokenSet = tokenSet
+    try {
+      const response = await loginWithVOSOIDC(tokenSet.access_token, tokenSet.id_token)
+      if (response.success) {
+        persistLoginResponse(authStore, response)
+        clearVOSFastpathFailed()
+        vosFastpathTokenSet = null
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
   }
 
   const vosToken = getVOSAccessTokenForIframeSSO()
@@ -375,12 +329,8 @@ async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>, forc
     const response = await loginWithVOSSSO(vosToken)
     if (response.success) {
       persistLoginResponse(authStore, response)
-      sessionStorage.removeItem(VOS_SSO_FAILED_KEY)
       clearVOSFastpathFailed()
       return true
-    }
-    if (shouldStopVOSSSORetry(response)) {
-      markVOSSSOFailed()
     }
   } catch {
     // Startup race: the iframe may load before the HybRAG API is reachable.
@@ -390,8 +340,8 @@ async function tryVOSSSOSession(authStore: ReturnType<typeof useAuthStore>, forc
   return false
 }
 
-let autoSetupAttempted = false
 let liteDeepLinkRestoreDone = false
+let vosFastpathTokenSet: VOSFastpathTokenSet | null = null
 const validateInitialAuthSession = createInitialAuthSessionValidator()
 
 async function ensureInitialAuthSession(authStore: ReturnType<typeof useAuthStore>) {
@@ -399,7 +349,6 @@ async function ensureInitialAuthSession(authStore: ReturnType<typeof useAuthStor
     isLoggedIn: () => authStore.isLoggedIn,
     hydrate: () => hydrateSessionFromToken(authStore),
     vosSSO: () => tryVOSSSOSession(authStore),
-    autoSetup: () => tryAutoSetupSession(authStore, true),
   })
 }
 

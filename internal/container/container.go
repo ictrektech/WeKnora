@@ -365,23 +365,23 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Invoke(recoverEnabledMultimodalTasksOnStart))
 	must(container.Invoke(reparseIncompleteKnowledgeOnStart))
 	must(container.Provide(chatpipeline.NewEventManager))
-	must(container.Invoke(chatpipeline.NewPluginSearch))
-	must(container.Invoke(chatpipeline.NewPluginRerank))
-	must(container.Invoke(chatpipeline.NewPluginWebFetch))
-	must(container.Invoke(chatpipeline.NewPluginMerge))
-	must(container.Invoke(chatpipeline.NewPluginDataAnalysis))
-	must(container.Invoke(chatpipeline.NewPluginIntoChatMessage))
-	must(container.Invoke(chatpipeline.NewPluginChatCompletion))
-	must(container.Invoke(chatpipeline.NewPluginChatCompletionStream))
-	must(container.Invoke(chatpipeline.NewPluginFilterTopK))
-	must(container.Invoke(chatpipeline.NewPluginQueryUnderstand))
-	must(container.Invoke(chatpipeline.NewPluginLoadHistory))
-	must(container.Invoke(chatpipeline.NewPluginMemoryRecall))
-	must(container.Invoke(chatpipeline.NewPluginExtractEntity))
-	must(container.Invoke(chatpipeline.NewPluginSearchEntity))
-	must(container.Invoke(chatpipeline.NewPluginSearchParallel))
-	must(container.Invoke(chatpipeline.NewPluginWikiBoost))
-	must(container.Invoke(chatpipeline.NewPluginMemoryAffinity))
+	invokeStep(ctx, container, "chatpipeline.NewPluginSearch", chatpipeline.NewPluginSearch)
+	invokeStep(ctx, container, "chatpipeline.NewPluginRerank", chatpipeline.NewPluginRerank)
+	invokeStep(ctx, container, "chatpipeline.NewPluginWebFetch", chatpipeline.NewPluginWebFetch)
+	invokeStep(ctx, container, "chatpipeline.NewPluginMerge", chatpipeline.NewPluginMerge)
+	invokeStep(ctx, container, "chatpipeline.NewPluginDataAnalysis", chatpipeline.NewPluginDataAnalysis)
+	invokeStep(ctx, container, "chatpipeline.NewPluginIntoChatMessage", chatpipeline.NewPluginIntoChatMessage)
+	invokeStep(ctx, container, "chatpipeline.NewPluginChatCompletion", chatpipeline.NewPluginChatCompletion)
+	invokeStep(ctx, container, "chatpipeline.NewPluginChatCompletionStream", chatpipeline.NewPluginChatCompletionStream)
+	invokeStep(ctx, container, "chatpipeline.NewPluginFilterTopK", chatpipeline.NewPluginFilterTopK)
+	invokeStep(ctx, container, "chatpipeline.NewPluginQueryUnderstand", chatpipeline.NewPluginQueryUnderstand)
+	invokeStep(ctx, container, "chatpipeline.NewPluginLoadHistory", chatpipeline.NewPluginLoadHistory)
+	invokeStep(ctx, container, "chatpipeline.NewPluginMemoryRecall", chatpipeline.NewPluginMemoryRecall)
+	invokeStep(ctx, container, "chatpipeline.NewPluginExtractEntity", chatpipeline.NewPluginExtractEntity)
+	invokeStep(ctx, container, "chatpipeline.NewPluginSearchEntity", chatpipeline.NewPluginSearchEntity)
+	invokeStep(ctx, container, "chatpipeline.NewPluginSearchParallel", chatpipeline.NewPluginSearchParallel)
+	invokeStep(ctx, container, "chatpipeline.NewPluginWikiBoost", chatpipeline.NewPluginWikiBoost)
+	invokeStep(ctx, container, "chatpipeline.NewPluginMemoryAffinity", chatpipeline.NewPluginMemoryAffinity)
 	logger.Debugf(ctx, "[Container] Chat pipeline plugins registered")
 
 	// HTTP handlers layer
@@ -551,6 +551,13 @@ func must(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func invokeStep(ctx context.Context, container *dig.Container, name string, fn interface{}) {
+	start := time.Now()
+	logger.Infof(ctx, "[Container] invoking %s", name)
+	must(container.Invoke(fn))
+	logger.Infof(ctx, "[Container] invoked %s in %s", name, time.Since(start))
 }
 
 // initLangfuse initializes the Langfuse ingestion client.

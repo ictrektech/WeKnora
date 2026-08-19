@@ -1,6 +1,6 @@
 <template>
-  <div class="login-layout">
-    <div class="animated-bg">
+  <div class="login-layout" :class="{ 'login-layout--vos-only': vosOnlyMode }">
+    <div class="animated-bg" v-if="!vosOnlyMode">
       <div class="knowledge-node node-1">
         <svg class="node-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
@@ -96,7 +96,7 @@
     </div>
 
     <!-- Header Links - Top Right -->
-    <div class="header-links">
+    <div class="header-links" v-if="!vosOnlyMode">
       <a href="https://www.vivibit.com" target="_blank" class="header-link" :title="$t('common.website')">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
           stroke-linecap="round">
@@ -139,7 +139,7 @@
     </div>
 
     <!-- Left Showcase Section -->
-    <div class="showcase-section">
+    <div class="showcase-section" v-if="!vosOnlyMode">
       <div class="showcase-content">
         <p class="showcase-subtitle">{{ $t('platform.subtitle') }}</p>
         <p class="showcase-description">{{ $t('platform.description') }}</p>
@@ -176,12 +176,12 @@
             <h2 class="form-title">正在进入 HybRAG</h2>
             <p class="form-welcome">正在使用 VOS 当前用户自动登录</p>
             <p class="form-hint" :class="{ 'form-hint--error': !!vosSSOError }">
-              {{ vosSSOError || '如果服务刚启动，请稍候。' }}
+              {{ vosSSOError || '正在连接服务，请稍候。' }}
             </p>
           </div>
           <div class="vos-sso-status">
             <div class="vos-sso-spinner" />
-            <span>{{ vosSSOError ? '等待 VOS 用户信息' : '正在验证用户身份...' }}</span>
+            <span>{{ vosSSOError ? '正在重试自动登录...' : '正在验证用户身份...' }}</span>
           </div>
         </div>
 
@@ -364,7 +364,6 @@ import {
   register,
   getOIDCAuthorizationURL,
   getOIDCConfig,
-  autoSetup,
   loginWithVOSOIDC,
   loginWithVOSSSO,
   getAuthConfig,
@@ -376,7 +375,8 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
-import { acquireVOSFastpathToken, clearVOSFastpathFailed, markVOSFastpathFailed } from '@/utils/vos-fastpath'
+import { acquireVOSFastpathToken, clearVOSFastpathFailed } from '@/utils/vos-fastpath'
+import type { VOSFastpathTokenSet } from '@/utils/vos-fastpath'
 
 // Import screenshot images
 import screenshot1 from '@/assets/img/screenshot-1.svg'
@@ -430,6 +430,9 @@ const oidcEnabled = ref(false)
 const oidcProviderName = ref('')
 const vosOnlyMode = ref(true)
 const vosSSOError = ref('')
+let vosSSORetryTimer: number | null = null
+let vosSSOStopped = false
+let vosFastpathTokenSet: VOSFastpathTokenSet | null = null
 // registrationEnabled defaults to true so that on first paint the Register
 // link is visible; the actual mode is fetched from /auth/config in onMounted.
 // In invite_only mode the link/card are hidden.
@@ -562,6 +565,11 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+  vosSSOStopped = true
+  if (vosSSORetryTimer != null) {
+    window.clearTimeout(vosSSORetryTimer)
+    vosSSORetryTimer = null
+  }
 })
 
 const persistLoginResponse = async (response: any, skipRedirect = false) => {
@@ -669,26 +677,28 @@ const handleOIDCLogin = async () => {
 }
 
 const tryVOSSSOLogin = async () => {
-  let fastpathTokenSeen = false
+  let tokenSet: VOSFastpathTokenSet | null = null
   try {
-    const tokenSet = await acquireVOSFastpathToken()
-    if (tokenSet?.access_token) {
-      fastpathTokenSeen = true
+    tokenSet = vosFastpathTokenSet || await acquireVOSFastpathToken({ force: true })
+  } catch {
+    // Fall through to the legacy token adapter for older VOS builds.
+  }
+
+  if (tokenSet?.access_token) {
+    vosFastpathTokenSet = tokenSet
+    try {
       const response = await loginWithVOSOIDC(tokenSet.access_token, tokenSet.id_token)
       if (!response.success) {
-        markVOSFastpathFailed()
         return false
       }
       await persistLoginResponse(response)
       clearVOSFastpathFailed()
+      vosFastpathTokenSet = null
       return true
     }
-  } catch {
-    if (fastpathTokenSeen) {
-      markVOSFastpathFailed()
+    catch {
       return false
     }
-    // Fall through to the legacy token adapter for older VOS builds.
   }
 
   const vosToken = getVOSAccessTokenForIframeSSO()
@@ -707,12 +717,21 @@ const tryVOSSSOLogin = async () => {
 const tryVOSSSOLoginWithRetry = async () => {
   loading.value = true
   vosSSOError.value = ''
-  try {
-    if (await tryVOSSSOLogin()) return true
-  } finally {
-    loading.value = false
+  let attempt = 0
+  while (!vosSSOStopped) {
+    attempt += 1
+    if (await tryVOSSSOLogin()) {
+      loading.value = false
+      return true
+    }
+    vosSSOError.value = attempt <= 2
+      ? '自动登录暂未完成，正在等待服务就绪。'
+      : `自动登录暂未完成，正在第 ${attempt} 次重试。`
+    await new Promise<void>((resolve) => {
+      vosSSORetryTimer = window.setTimeout(resolve, Math.min(1500 + attempt * 500, 5000))
+    })
   }
-  vosSSOError.value = '自动登录暂未完成，请刷新应用后重试。'
+  loading.value = false
   return false
 }
 
@@ -826,11 +845,12 @@ const handleRegister = async () => {
   }
 }
 
-// Check if already logged in; for lite edition, attempt transparent auto-setup
+// In VOS app mode the login surface only waits for the current VOS user and
+// retries until the backend becomes ready.
 onMounted(async () => {
   // Share-link landing: ?token=xxx switches the form into invite-
   // register mode before any other auto-flow (logged-in redirect /
-  // auto-setup / OIDC) gets a chance to redirect. Resolution failure
+  // OIDC) gets a chance to redirect. Resolution failure
   // surfaces inline; the user can still log in normally if they
   // already have an account. We check this BEFORE the isLoggedIn
   // redirect so an existing session doesn't bounce the user to
@@ -892,6 +912,31 @@ onMounted(async () => {
   overflow: hidden;
   position: relative;
   background: linear-gradient(225deg, #022c22 0%, #064e3b 15%, #065f46 25%, #047857 38%, #059669 50%, #07C05F 65%, #10B981 78%, #34D399 90%, #6EE7B7 100%);
+
+  &.login-layout--vos-only {
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--td-bg-color-page, #f7f8fa);
+
+    .form-section {
+      flex: none;
+      width: min(420px, calc(100vw - 48px));
+      padding: 0;
+      background: transparent;
+    }
+
+    .form-panel {
+      width: 100%;
+      max-width: none;
+    }
+
+    .form-card {
+      padding: 28px 32px;
+      box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+      border: 1px solid var(--td-component-stroke, rgba(0, 0, 0, 0.08));
+    }
+  }
 
   &::before {
     content: '';

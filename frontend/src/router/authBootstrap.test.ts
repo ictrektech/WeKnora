@@ -13,7 +13,6 @@ test('validates a cached login before protected pages start loading', async () =
       return true
     },
     vosSSO: async () => false,
-    autoSetup: async () => false,
   })
 
   assert.equal(restored, true)
@@ -32,10 +31,6 @@ test('replaces a stale cached session through VOS SSO', async () => {
     },
     vosSSO: async () => {
       attempts.push('vos-sso')
-      return true
-    },
-    autoSetup: async () => {
-      attempts.push('auto-setup')
       return true
     },
   })
@@ -59,7 +54,6 @@ test('shares one initial validation across concurrent route guards', async () =>
       return true
     },
     vosSSO: async () => false,
-    autoSetup: async () => false,
   }
 
   const first = validate(attempts)

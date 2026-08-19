@@ -2,7 +2,6 @@ export interface AuthBootstrapAttempts {
   isLoggedIn: () => boolean
   hydrate: () => Promise<boolean>
   vosSSO: () => Promise<boolean>
-  autoSetup: () => Promise<boolean>
 }
 
 export function createInitialAuthSessionValidator() {
@@ -15,8 +14,7 @@ export function createInitialAuthSessionValidator() {
 
     pending = (async () => {
       const restored = await attempts.hydrate() ||
-        await attempts.vosSSO() ||
-        await attempts.autoSetup()
+        await attempts.vosSSO()
       if (restored) validated = true
       return restored
     })().finally(() => {

@@ -64,6 +64,8 @@ Identity mapping is stable across VOS apps:
 
 HybRAG's VOS package declares `oauth2.client.id=com.ictrek.hybrag`, `scope=openid profile email`, PKCE S256, and `token_endpoint_auth_method=none`. Before VOS Fastpath is available, frontend-only apps may follow HybRAG's legacy probing order: `window.__VOS_APP_CONTEXT__.accessToken`, `window.__VOS_APP_CONTEXT__.token`, `window.__VOS_ACCESS_TOKEN__`, then same-origin `localStorage` stores ending with `-core-access`. The localStorage/secure-ls path is a transition layer only. New apps should prefer `window.vos_platform.api.v1000.oauth2`.
 
+HybRAG is currently packaged as a VOS-only app. The frontend no longer shows the normal login/register entry; it keeps waiting and retrying VOS automatic login until both VOS user identity and the HybRAG backend are ready. If it stays on the waiting page, check whether the app container listens on `8080`, PGV is reachable, and backend initialization logs have completed.
+
 `X-External-User-ID` is not a keyless login mechanism. It only works together with a valid HybRAG API Key for trusted server-side integrations that need end-user session isolation.
 
 ## 默认模型
