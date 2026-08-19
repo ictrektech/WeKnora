@@ -40,7 +40,6 @@ import {
   listKnowledgeFolders,
   moveKnowledgeToFolder,
   renameKnowledgeFolder,
-  downKnowledgeDetails,
   type KnowledgeFolderTree,
 } from "@/api/knowledge-base/index";
 import { knowledgeSpansPayloadHasTrace } from '@/utils/knowledgeTrace';
