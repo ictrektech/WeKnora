@@ -221,6 +221,7 @@ func TestDeleteModel_RejectsWhenUsedByMemory(t *testing.T) {
 				MemoryConfig: &types.MemoryConfig{Enabled: true, EmbeddingModelID: modelID},
 			},
 		},
+		nil,
 	)
 
 	err := svc.DeleteModel(ctx, modelID)
@@ -251,6 +252,7 @@ func TestDeleteModel_RejectsWhenUsedByMemoryExtraction(t *testing.T) {
 				},
 			},
 		},
+		nil,
 	)
 
 	err := svc.DeleteModel(ctx, modelID)
