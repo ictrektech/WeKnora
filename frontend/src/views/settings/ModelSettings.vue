@@ -209,6 +209,7 @@ function convertToLegacyFormat(model: ModelConfig) {
     supportsVision: model.parameters.supports_vision || false,
     desensitizeEnabled: false,
     desensitizeNer: false,
+    desensitizeImage: false,
     desensitizeBaseUrl: model.parameters.desensitize_base_url || '',
     maxConcurrency: model.parameters.max_concurrency,
     customHeaders: model.parameters.custom_headers
@@ -384,6 +385,7 @@ const editModel = async (type: ModelType, model: any) => {
     const preference = await getMyModelDesensitization(model.id)
     editing.desensitizeEnabled = preference.enabled
     editing.desensitizeNer = preference.ner
+    editing.desensitizeImage = preference.image
     editing.desensitizeBaseUrl = preference.base_url || ''
   }
   editingModel.value = editing
@@ -401,6 +403,7 @@ const handleModelSave = async (modelData: any) => {
         editingModel.value.id,
         modelData.desensitizeEnabled ?? false,
         (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeNer ?? false),
+        (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeImage ?? false),
         (modelData.desensitizeBaseUrl || '').trim(),
       )
       showDialog.value = false
@@ -518,6 +521,7 @@ const handleModelSave = async (modelData: any) => {
           editingModel.value.id,
           modelData.desensitizeEnabled ?? false,
           (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeNer ?? false),
+          (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeImage ?? false),
           (modelData.desensitizeBaseUrl || '').trim(),
         )
       }
@@ -529,6 +533,7 @@ const handleModelSave = async (modelData: any) => {
           created.id,
           modelData.desensitizeEnabled ?? false,
           (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeNer ?? false),
+          (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeImage ?? false),
           (modelData.desensitizeBaseUrl || '').trim(),
         )
       }

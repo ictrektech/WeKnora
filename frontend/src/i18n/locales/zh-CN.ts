@@ -2321,6 +2321,8 @@ export default {
       desensitizeRulesDesc: '发送给该模型前，先替换手机号、邮箱、身份证、密钥等结构化敏感信息。',
       desensitizeNerLabel: '开启 NER 脱敏',
       desensitizeNerDesc: '在规则脱敏后进一步识别人名和地点；需要脱敏服务已准备 NER 模型。',
+      desensitizeImageLabel: '开启图片脱敏',
+      desensitizeImageDesc: '聊天上传的图片和送入该模型解析的图片会先通过脱敏服务遮挡敏感区域；需要脱敏服务支持图片 OCR。',
       desensitizeServiceUrlLabel: '脱敏服务地址',
       desensitizeVosHint: '同一 vos_default 网络可直接使用：',
       desensitizeFailureDesc: '启用后若脱敏服务不可用，本次模型请求会被阻止，原文不会直接发送。',

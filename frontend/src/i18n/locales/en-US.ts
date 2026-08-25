@@ -3962,6 +3962,8 @@ export default {
       desensitizeRulesDesc: 'Replace structured sensitive data such as phone numbers, email addresses, IDs, and secrets before calling this model.',
       desensitizeNerLabel: 'Enable NER redaction',
       desensitizeNerDesc: 'After rule-based redaction, also detect names and locations. The redaction service must have its NER model ready.',
+      desensitizeImageLabel: 'Enable image redaction',
+      desensitizeImageDesc: 'Images uploaded in chat and images parsed through this model are masked by the redaction service first. The redaction service must support image OCR.',
       desensitizeServiceUrlLabel: 'Redaction service URL',
       desensitizeVosHint: 'On the same vos_default network, use:',
       desensitizeFailureDesc: 'When enabled, an unavailable redaction service blocks the model request instead of sending the original text.',

@@ -59,6 +59,7 @@ func (s *modelService) applyMyDesensitization(ctx context.Context, model *types.
 	// default to disabled instead of inheriting another user's privacy policy.
 	model.Parameters.DesensitizeEnabled = false
 	model.Parameters.DesensitizeNER = false
+	model.Parameters.DesensitizeImage = false
 	userID, ok := types.UserIDFromContext(ctx)
 	if !ok || s.desensitizeRepo == nil {
 		return nil
@@ -69,6 +70,7 @@ func (s *modelService) applyMyDesensitization(ctx context.Context, model *types.
 	}
 	model.Parameters.DesensitizeEnabled = preference.Enabled
 	model.Parameters.DesensitizeNER = preference.Enabled && preference.NER
+	model.Parameters.DesensitizeImage = preference.Enabled && preference.Image
 	if preference.BaseURL != "" {
 		model.Parameters.DesensitizeBaseURL = preference.BaseURL
 	}
@@ -123,6 +125,7 @@ func (s *modelService) resolveWeKnoraCloudCredentials(ctx context.Context, param
 func (s *modelService) CreateModel(ctx context.Context, model *types.Model) error {
 	model.Parameters.DesensitizeEnabled = false
 	model.Parameters.DesensitizeNER = false
+	model.Parameters.DesensitizeImage = false
 	logger.Infof(ctx, "Creating model: %s, type: %s, source: %s", model.Name, model.Type, model.Source)
 
 	// Handle remote models (e.g., OpenAI, Azure)
@@ -256,6 +259,7 @@ func (s *modelService) ListModels(ctx context.Context) ([]*types.Model, error) {
 func (s *modelService) UpdateModel(ctx context.Context, model *types.Model) error {
 	model.Parameters.DesensitizeEnabled = false
 	model.Parameters.DesensitizeNER = false
+	model.Parameters.DesensitizeImage = false
 	logger.Info(ctx, "Start updating model")
 	logger.Infof(ctx, "Updating model ID: %s, name: %s", model.ID, model.Name)
 

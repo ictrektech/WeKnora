@@ -49,6 +49,14 @@
           </div>
         </div>
 
+        <div class="form-item">
+          <label class="form-label">{{ $t('model.editor.desensitizeImageLabel') }}</label>
+          <div class="vision-toggle">
+            <t-switch v-model="formData.desensitizeImage" :disabled="!formData.desensitizeEnabled" />
+            <span class="form-desc form-desc--inline">{{ $t('model.editor.desensitizeImageDesc') }}</span>
+          </div>
+        </div>
+
         <div v-if="formData.desensitizeEnabled" class="form-item">
           <label class="form-label">{{ $t('model.editor.desensitizeServiceUrlLabel') }}</label>
           <t-input v-model="formData.desensitizeBaseUrl" :placeholder="vosDesensitizeServiceUrl" />
@@ -408,6 +416,14 @@
             </div>
           </div>
 
+          <div class="form-item">
+            <label class="form-label">{{ $t('model.editor.desensitizeImageLabel') }}</label>
+            <div class="vision-toggle">
+              <t-switch v-model="formData.desensitizeImage" :disabled="!formData.desensitizeEnabled" />
+              <span class="form-desc form-desc--inline">{{ $t('model.editor.desensitizeImageDesc') }}</span>
+            </div>
+          </div>
+
           <div v-if="formData.desensitizeEnabled" class="form-item">
             <label class="form-label">{{ $t('model.editor.desensitizeServiceUrlLabel') }}</label>
             <t-input v-model="formData.desensitizeBaseUrl"
@@ -513,6 +529,7 @@ interface ModelFormData {
   supportsVision?: boolean
   desensitizeEnabled?: boolean
   desensitizeNer?: boolean
+  desensitizeImage?: boolean
   desensitizeBaseUrl?: string
   /** 后台任务对该模型的并发上限；0/undefined 表示沿用全局默认。仅 chat/embedding/vllm 生效。 */
   maxConcurrency?: number
@@ -958,6 +975,7 @@ const formData = ref<ModelFormData>({
   supportsVision: false,
   desensitizeEnabled: false,
   desensitizeNer: false,
+  desensitizeImage: false,
   desensitizeBaseUrl: '',
   maxConcurrency: undefined,
   thinkingControl: defaultThinkingControl('generic', ''),
@@ -1202,6 +1220,7 @@ const resetForm = () => {
     supportsVision: false,
     desensitizeEnabled: false,
     desensitizeNer: false,
+    desensitizeImage: false,
     desensitizeBaseUrl: '',
     maxConcurrency: undefined,
     thinkingControl: defaultThinkingControl('generic', ''),
@@ -1726,6 +1745,7 @@ watch(() => formData.value.modelName, async (newValue, oldValue) => {
 watch(() => formData.value.desensitizeEnabled, (enabled) => {
   if (!enabled) {
     formData.value.desensitizeNer = false
+    formData.value.desensitizeImage = false
     return
   }
   if (!formData.value.desensitizeBaseUrl?.trim()) {

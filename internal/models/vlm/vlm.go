@@ -37,6 +37,7 @@ type Config struct {
 	CustomHeaders      map[string]string
 	DesensitizeEnabled bool
 	DesensitizeNER     bool
+	DesensitizeImage   bool
 	DesensitizeBaseURL string
 	AppID              string
 	AppSecret          string
@@ -69,8 +70,9 @@ func ConfigFromModel(m *types.Model, appID, appSecret string) *Config {
 		MaxConcurrency:     m.Parameters.MaxConcurrency,
 		Extra:              stringMapToAnyMap(m.Parameters.ExtraConfig),
 		CustomHeaders:      m.Parameters.CustomHeaders,
-		DesensitizeEnabled: m.Parameters.DesensitizeEnabled || m.Parameters.DesensitizeNER,
+		DesensitizeEnabled: m.Parameters.DesensitizeEnabled || m.Parameters.DesensitizeNER || m.Parameters.DesensitizeImage,
 		DesensitizeNER:     m.Parameters.DesensitizeNER,
+		DesensitizeImage:   m.Parameters.DesensitizeImage,
 		DesensitizeBaseURL: m.Parameters.DesensitizeBaseURL,
 		AppID:              appID,
 		AppSecret:          appSecret,

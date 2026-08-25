@@ -113,6 +113,7 @@ type ChatConfig struct {
 	CustomHeaders      map[string]string
 	DesensitizeEnabled bool
 	DesensitizeNER     bool
+	DesensitizeImage   bool
 	DesensitizeBaseURL string
 	AppID              string
 	AppSecret          string // 加密值，由工厂函数调用方传入，在 NewWeKnoraCloudChat 中使用前已解密
@@ -136,8 +137,9 @@ func ConfigFromModel(m *types.Model, appID, appSecret string) *ChatConfig {
 		MaxConcurrency:     m.Parameters.MaxConcurrency,
 		ExtraConfig:        m.Parameters.ExtraConfig,
 		CustomHeaders:      m.Parameters.CustomHeaders,
-		DesensitizeEnabled: m.Parameters.DesensitizeEnabled || m.Parameters.DesensitizeNER,
+		DesensitizeEnabled: m.Parameters.DesensitizeEnabled || m.Parameters.DesensitizeNER || m.Parameters.DesensitizeImage,
 		DesensitizeNER:     m.Parameters.DesensitizeNER,
+		DesensitizeImage:   m.Parameters.DesensitizeImage,
 		DesensitizeBaseURL: m.Parameters.DesensitizeBaseURL,
 		AppID:              appID,
 		AppSecret:          appSecret,

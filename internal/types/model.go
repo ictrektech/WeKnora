@@ -80,6 +80,7 @@ type ModelParameters struct {
 	// desensitization service before they are sent to this model.
 	DesensitizeEnabled bool   `yaml:"desensitize_enabled,omitempty"  json:"desensitize_enabled,omitempty"`
 	DesensitizeNER     bool   `yaml:"desensitize_ner,omitempty"      json:"desensitize_ner,omitempty"`
+	DesensitizeImage   bool   `yaml:"desensitize_image,omitempty"    json:"desensitize_image,omitempty"`
 	DesensitizeBaseURL string `yaml:"desensitize_base_url,omitempty" json:"desensitize_base_url,omitempty"`
 	// MaxConcurrency caps concurrent in-flight BACKGROUND (ingestion /
 	// enrichment) calls to THIS specific model, keyed by model ID and shared

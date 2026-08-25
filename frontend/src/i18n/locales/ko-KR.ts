@@ -2319,6 +2319,8 @@ export default {
       desensitizeRulesDesc: '이 모델을 호출하기 전에 전화번호, 이메일, 신분증 번호, 비밀 키와 같은 구조화된 민감 정보를 치환합니다.',
       desensitizeNerLabel: 'NER 비식별화 사용',
       desensitizeNerDesc: '규칙 기반 처리 후 이름과 위치도 탐지합니다. 비식별화 서비스에 NER 모델이 준비되어 있어야 합니다.',
+      desensitizeImageLabel: '이미지 비식별화 사용',
+      desensitizeImageDesc: '채팅에서 업로드한 이미지와 이 모델로 파싱하는 이미지를 먼저 비식별화 서비스가 가려 줍니다. 서비스가 이미지 OCR을 지원해야 합니다.',
       desensitizeServiceUrlLabel: '비식별화 서비스 URL',
       desensitizeVosHint: '같은 vos_default 네트워크에서는 다음 주소를 사용하세요:',
       desensitizeFailureDesc: '활성화된 상태에서 서비스가 응답하지 않으면 원문을 보내지 않고 모델 요청을 차단합니다.',

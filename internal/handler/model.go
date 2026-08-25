@@ -59,6 +59,7 @@ type CreateModelRequest struct {
 type updateMyModelDesensitizationRequest struct {
 	Enabled bool   `json:"enabled"`
 	NER     bool   `json:"ner"`
+	Image   bool   `json:"image"`
 	BaseURL string `json:"base_url"`
 }
 
@@ -117,7 +118,7 @@ func (h *ModelHandler) UpdateMyDesensitization(c *gin.Context) {
 	}
 	preference := &types.UserModelDesensitization{
 		UserID: userID, ModelID: c.Param("id"), Enabled: req.Enabled, NER: req.Enabled && req.NER,
-		BaseURL: strings.TrimSpace(req.BaseURL),
+		Image: req.Enabled && req.Image, BaseURL: strings.TrimSpace(req.BaseURL),
 	}
 	err := h.desensitizeRepo.Upsert(ctx, preference)
 	if err != nil {

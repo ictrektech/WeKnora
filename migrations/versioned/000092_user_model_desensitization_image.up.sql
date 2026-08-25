@@ -1,0 +1,2 @@
+ALTER TABLE user_model_desensitizations
+    ADD COLUMN IF NOT EXISTS image BOOLEAN NOT NULL DEFAULT FALSE;

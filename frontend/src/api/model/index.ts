@@ -55,6 +55,7 @@ export interface ModelDesensitizationPreference {
   model_id: string;
   enabled: boolean;
   ner: boolean;
+  image: boolean;
   base_url: string;
 }
 
@@ -67,9 +68,10 @@ export async function updateMyModelDesensitization(
   id: string,
   enabled: boolean,
   ner: boolean,
+  image: boolean,
   baseUrl: string,
 ): Promise<ModelDesensitizationPreference> {
-  const response: any = await put(`/api/v1/models/${id}/desensitization`, { enabled, ner, base_url: baseUrl })
+  const response: any = await put(`/api/v1/models/${id}/desensitization`, { enabled, ner, image, base_url: baseUrl })
   return response.data
 }
 
