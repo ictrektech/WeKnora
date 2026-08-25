@@ -77,13 +77,17 @@
                     :key="session.id || `${session.role}-${session.created_at}-${index}`" class="msg-item-wrapper"
                     :data-message-index="index" :data-message-role="session.role">
 
-                    <div v-if="session.role == 'user'">
+                    <MessageTimestamp v-if="shouldShowConversationTimestamp(messagesList, index)"
+                        :value="session.created_at" />
+
+                    <div v-if="session.role == 'user'" class="message-row">
                         <usermsg :content="session.content" :mentioned_items="session.mentioned_items"
                             :images="session.images" :attachments="session.attachments" :embeddedMode="embeddedMode"
                             :session-id="session_id">
                         </usermsg>
                     </div>
-                    <div v-if="session.role == 'assistant' && shouldRenderAssistantMessage(session)">
+                    <div v-if="session.role == 'assistant' && shouldRenderAssistantMessage(session)"
+                        class="message-row">
                         <botmsg :content="session.content" :session="session" :session-id="session_id"
                             :user-query="getRenderedUserQuery(index)" @scroll-bottom="scrollToBottom"
                             :isFirstEnter="isFirstEnter" :embeddedMode="embeddedMode"
@@ -160,6 +164,8 @@ import {
 } from '@/api/message-suggestion';
 import { provideChatReferencesDrawer } from '@/composables/useChatReferencesDrawer';
 import { provideChatAttachmentPreviewDrawer } from '@/composables/useChatAttachmentPreviewDrawer';
+import MessageTimestamp from '@/components/chat/MessageTimestamp.vue';
+import { shouldShowConversationTimestamp } from '@/utils/messageTimestamp';
 
 const referencesDrawer = provideChatReferencesDrawer();
 provideChatAttachmentPreviewDrawer();
@@ -1280,7 +1286,7 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
     }
 
     // 将@提及的知识库和文件信息存入用户消息
-    messagesList.push({ content: value, role: 'user', mentioned_items: mentionedItems, images: userImages, attachments: attachmentFiles.map(a => ({ id: a.documentId, file_name: a.name, file_size: a.size, file_type: '.' + a.name.split('.').pop()?.toLowerCase() })), channel: 'web' });
+    messagesList.push({ content: value, role: 'user', mentioned_items: mentionedItems, images: userImages, attachments: attachmentFiles.map(a => ({ id: a.documentId, file_name: a.name, file_size: a.size, file_type: '.' + a.name.split('.').pop()?.toLowerCase() })), channel: 'web', created_at: new Date().toISOString() });
     userHasScrolledUp.value = false;
     scrollToBottom(true);
 
@@ -1770,6 +1776,12 @@ onBeforeRouteUpdate((to, from, next) => {
     */
     .msg-item-wrapper {
         contain: layout style;
+    }
+
+    .message-row {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
     }
 
     .botanswer_laoding_gif {
