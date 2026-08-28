@@ -72,3 +72,5 @@ storage:
     mode: '0755'
   - path: redis
     mode: '0755'
+  - path: neo4j
+    mode: '0755'

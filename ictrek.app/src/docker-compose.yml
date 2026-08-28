@@ -47,7 +47,7 @@ x-hybrag-docreader-base:
     GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
     GRPC_AUTH_TOKEN: ${GRPC_AUTH_TOKEN:-}
   volumes: &id018
-  - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader
+  - ${VOS_APP_STORAGE_PATH}/docreader:/tmp/docreader
   healthcheck: &id019
     test:
     - CMD
@@ -126,9 +126,9 @@ x-hybrag-app-base:
       - hybrag-app
   environment: *id001
   volumes: &id013
-  - ${HYBRAG_FILES_PATH:-/data/vos_workspace/hybrag/files}:/data/files
-  - ${HYBRAG_DOCREADER_PATH:-/data/vos_workspace/hybrag/docreader}:/tmp/docreader:ro
-  - ${HYBRAG_DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+  - ${VOS_APP_STORAGE_PATH}/files:/data/files
+  - ${VOS_APP_STORAGE_PATH}/docreader:/tmp/docreader:ro
+  - /var/run/docker.sock:/var/run/docker.sock
   healthcheck: &id014
     test:
     - CMD
@@ -142,7 +142,7 @@ x-hybrag-app-base:
 x-hybrag-redis-base:
   command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
   volumes: &id002
-  - ${HYBRAG_REDIS_PATH:-/data/vos_workspace/hybrag/redis}:/data
+  - ${VOS_APP_STORAGE_PATH}/redis:/data
   networks: &id003
     vos_default:
       aliases:
@@ -159,7 +159,7 @@ x-hybrag-neo4j-base:
     NEO4J_apoc_import_file_use__neo4j__config: 'true'
     NEO4JLABS_PLUGINS: '["apoc"]'
   volumes: &id006
-  - ${HYBRAG_NEO4J_PATH:-/data/vos_workspace/hybrag/neo4j}:/data
+  - ${VOS_APP_STORAGE_PATH}/neo4j:/data
   networks: &id007
     vos_default:
       aliases:

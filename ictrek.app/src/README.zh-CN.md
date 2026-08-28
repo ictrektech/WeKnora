@@ -18,11 +18,11 @@ HybRAG 是企业知识库、RAG 问答、Wiki 知识图谱和智能体平台。�
 
 ## 安装配置
 
-安装 UI 会暴露模型、资源和文件映射配置。默认 HybRAG 运行数据写入 `/data/vos_workspace/hybrag` 下的 `files`、`docreader`、`redis` 子目录；模型下载、预热、常驻和 Ollama 资源参数由依赖的 Model Hub 应用管理。
+安装 UI 不再要求选择 HybRAG 私有数据路径。VOS 自动分配 `VOS_APP_STORAGE_PATH`，运行数据分别写入其 `files`、`docreader`、`redis`、`neo4j` 子目录；模型下载、预热、常驻和 Ollama 资源参数由依赖的 Model Hub 应用管理。Docker sandbox 固定挂载宿主机 `/var/run/docker.sock`，不允许在安装表单中改写。
 
 Postgres 通过 PGV 提供，默认连接 `shared-pgv:5432`，用户/密码/数据库为 `weknora` / `weknora` / `WeKnora`。这些字段也会在安装 UI 中暴露；如果 PGV 安装时改过用户名、密码或数据库名，需要在 HybRAG 安装表单里同步修改。
 
-实体关系知识图谱默认开启。VOS 包会随 HybRAG 启动独立 `hybrag-neo4j` 服务，App 内部默认使用 `bolt://hybrag-neo4j:7687` 连接，默认用户名/密码为 `neo4j` / `hybrag-neo4j`。Neo4j 数据默认写入 `/data/vos_workspace/hybrag/neo4j`，宿主机调试端口默认避开官方端口，使用 `27474`(Browser) 和 `27687`(Bolt)。如果要接入外部 Neo4j，可在安装 UI 中关闭内置服务使用方式对应的默认值，并同步修改 `NEO4J_URI`、`NEO4J_USERNAME`、`NEO4J_PASSWORD`。
+实体关系知识图谱默认开启。VOS 包会随 HybRAG 启动独立 `hybrag-neo4j` 服务，App 内部默认使用 `bolt://hybrag-neo4j:7687` 连接，默认用户名/密码为 `neo4j` / `hybrag-neo4j`。Neo4j 数据写入 `${VOS_APP_STORAGE_PATH}/neo4j`，宿主机调试端口默认避开官方端口，使用 `27474`(Browser) 和 `27687`(Bolt)。如果要接入外部 Neo4j，可在安装 UI 中关闭内置服务使用方式对应的默认值，并同步修改 `NEO4J_URI`、`NEO4J_USERNAME`、`NEO4J_PASSWORD`。
 
 ## VOS 免登录
 

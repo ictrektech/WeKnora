@@ -64,9 +64,11 @@ WEKNORA_SANDBOX_IMAGE
 
 HybRAG 安装包不启动 Model Hub 和 PGV，也不启动自己的 Ollama。安装包只包含 HybRAG app、frontend、docreader、sandbox、Redis 和 Neo4j。安装时选择 `amd` 或 `arm` profile，VOS 会按包内 `.env` 拉取飞书表中记录的四个 HybRAG 镜像。
 
+HybRAG 私有数据统一使用 VOS 分配的 `VOS_APP_STORAGE_PATH`，并放入 `files/`、`docreader/`、`redis/`、`neo4j/` 子目录。安装表单不再提供这些宿主机路径，也不允许修改固定的 `/var/run/docker.sock` 挂载。
+
 升级时不要手工复用旧独立部署 compose，也不要把 `docs/legacy/deploy-template/` 当成当前安装模板。VOS app 的最终 compose 只来自 `ictrek.app/src/docker-compose.yml` 经打包流程渲染出的安装包。
 
-旧持久化数据可以继续使用。历史版本如果在数据库里留下 `hybrag-ollama-qa` 或 `hybrag-ollama-embedding` 模型地址，新 app 镜像启动迁移时会把内置模型行修正到 Model Hub 的 `11535/v1` Gateway。只有启动过包含该迁移的新 app 镜像后，旧数据库中的这类残留才会被修复。
+从旧版路径配置升级时，应先把原 `files`、`docreader`、`redis`、`neo4j` 数据迁移到新版本对应的 VOS 应用存储子目录。历史版本如果在数据库里留下 `hybrag-ollama-qa` 或 `hybrag-ollama-embedding` 模型地址，新 app 镜像启动迁移时会把内置模型行修正到 Model Hub 的 `11535/v1` Gateway。只有启动过包含该迁移的新 app 镜像后，旧数据库中的这类残留才会被修复。
 
 VOS 中打开 HybRAG 时，前端优先走 VOS OIDC Fastpath：同域 iframe 内使用 `window.vos_platform.api.v1000.oauth2` 完成 `authorize -> token`，然后把 VOS OIDC 应用 access token 交给 HybRAG 后端；后端调用 `HYBRAG_VOS_OIDC_USERINFO_URL` 指向的 `/v1000/oauth2/userinfo` 校验后，自动创建或登录 `${username}@local`。旧的 `/v1000/user/check` token exchange 仍保留为老 VOS 版本降级路径。`admin` 用户对应 `admin@local`，并拥有系统管理员权限。
 

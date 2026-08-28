@@ -22,6 +22,8 @@
 
 HybRAG 的 `docker-compose.yml` 不启动 Model Hub 或 Postgres。
 
+VOS assigns HybRAG's private `VOS_APP_STORAGE_PATH`; the package stores files, DocReader intermediates, Redis data, and Neo4j data in `files/`, `docreader/`, `redis/`, and `neo4j/` below that root. These private paths are not shown in the install form. Docker sandbox uses the fixed host socket `/var/run/docker.sock`.
+
 ## VOS User Identity For Other Apps
 
 Other VOS apps should not share or hard-code a HybRAG API Key when they need to access HybRAG as the currently opened VOS user. On VOS 1.1+, same-origin iframe apps should use their own OIDC Fastpath client first, then send the VOS OIDC app access token to HybRAG:
