@@ -1,0 +1,50 @@
+# WeKnora/ictrek local development models for a host-side Ollama service.
+# Select this file with:
+#   ./ictrek.app/docs/local-dev/ictrek-dev.sh setup \
+#     --model-config ictrek.app/docs/local-dev/config/builtin_models.ollama.yaml
+
+builtin_models:
+  - id: ictrek-weknora-ollama-qa
+    name: "${ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME} (Ollama QA)"
+    type: KnowledgeQA
+    source: local
+    description: Local Ollama QA model.
+    is_default: true
+    parameters:
+      base_url: ""
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: ictrek-weknora-ollama-vlm
+    name: "${ICTREK_DEV_OLLAMA_VLM_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_OLLAMA_VLM_MODEL_NAME} (Ollama VLM)"
+    type: VLLM
+    source: local
+    description: Local Ollama vision model.
+    is_default: true
+    parameters:
+      base_url: ""
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: ictrek-weknora-ollama-embedding
+    name: "${ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME} (Ollama Embedding)"
+    type: Embedding
+    source: local
+    description: Local Ollama embedding model.
+    is_default: true
+    parameters:
+      base_url: ""
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false

@@ -1,0 +1,127 @@
+# ictrek local development infrastructure.
+#
+# The Go app and Vite frontend run on the host. This file intentionally starts
+# only the services that are expensive or inconvenient to run from source.
+# The helper script passes an absolute ICTREK_DEV_DATA_DIR so this stack does
+# not share volumes or container names with the upstream dev compose.
+
+services:
+  postgres:
+    image: paradedb/paradedb:v0.22.2-pg17
+    ports:
+      - "127.0.0.1:${ICTREK_DEV_DB_PORT:-15432}:5432"
+    environment:
+      POSTGRES_USER: "${DB_USER:-postgres}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres123!@#}"
+      POSTGRES_DB: "${DB_NAME:-WeKnora}"
+    volumes:
+      - "${ICTREK_DEV_DATA_DIR:-.local-data/ictrek}/postgres:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-WeKnora}"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.0-alpine
+    ports:
+      - "127.0.0.1:${ICTREK_DEV_REDIS_PORT:-6380}:6379"
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-redis123!@#}"]
+    volumes:
+      - "${ICTREK_DEV_DATA_DIR:-.local-data/ictrek}/redis:/data"
+    restart: unless-stopped
+
+  docreader:
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile.docreader
+    image: weknora-ictrek-docreader:dev
+    ports:
+      - "127.0.0.1:${ICTREK_DEV_DOCREADER_PORT:-15051}:50051"
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      LOG_LEVEL: "${LOG_LEVEL:-debug}"
+      DOCREADER_IMAGE_OUTPUT_DIR: /tmp/docreader
+      MAX_FILE_SIZE_MB: "${MAX_FILE_SIZE_MB:-500}"
+      SSRF_WHITELIST: "${SSRF_WHITELIST:-}"
+      SSRF_WHITELIST_EXTRA: "${SSRF_WHITELIST_EXTRA:-}"
+      GRPC_TLS_ENABLED: "${GRPC_TLS_ENABLED:-false}"
+      GRPC_TLS_CERT: "${GRPC_TLS_CERT:-}"
+      GRPC_TLS_KEY: "${GRPC_TLS_KEY:-}"
+      GRPC_TLS_CA: "${GRPC_TLS_CA:-}"
+      GRPC_TLS_SERVER_NAME: "${GRPC_TLS_SERVER_NAME:-}"
+      GRPC_MTLS_REQUIRE_CLIENT_CERT: "${GRPC_MTLS_REQUIRE_CLIENT_CERT:-false}"
+      GRPC_AUTH_TOKEN: "${GRPC_AUTH_TOKEN:-}"
+      DOCREADER_GRPC_MAX_WORKERS: "${DOCREADER_GRPC_MAX_WORKERS:-4}"
+      DOCREADER_GRPC_MAX_FILE_SIZE_MB: "${DOCREADER_GRPC_MAX_FILE_SIZE_MB:-${MAX_FILE_SIZE_MB:-500}}"
+      DOCREADER_GRPC_PORT: "${DOCREADER_GRPC_PORT:-50051}"
+      DOCREADER_DOCX_MAX_PAGES: "${DOCREADER_DOCX_MAX_PAGES:-0}"
+      DOCREADER_MARKITDOWN_MAX_WORKERS: "${DOCREADER_MARKITDOWN_MAX_WORKERS:-1}"
+      DOCREADER_EXTERNAL_HTTP_PROXY: "${DOCREADER_EXTERNAL_HTTP_PROXY:-}"
+      DOCREADER_EXTERNAL_HTTPS_PROXY: "${DOCREADER_EXTERNAL_HTTPS_PROXY:-}"
+      DOCREADER_ODL_MAX_WORKERS: "${DOCREADER_ODL_MAX_WORKERS:-1}"
+      DOCREADER_ODL_HYBRID: "${DOCREADER_ODL_HYBRID:-off}"
+      DOCREADER_ODL_HYBRID_URL: "${DOCREADER_ODL_HYBRID_URL:-http://odl-hybrid:5002}"
+      DOCREADER_ODL_HYBRID_MODE: "${DOCREADER_ODL_HYBRID_MODE:-auto}"
+      DOCREADER_ODL_HYBRID_FALLBACK: "${DOCREADER_ODL_HYBRID_FALLBACK:-false}"
+      DOCREADER_ODL_MARKDOWN_WITH_HTML: "${DOCREADER_ODL_MARKDOWN_WITH_HTML:-false}"
+      DOCREADER_PDF_RENDER_MAX_WORKERS: "${DOCREADER_PDF_RENDER_MAX_WORKERS:-1}"
+      DOCREADER_PDF_RENDER_PARALLELISM: "${DOCREADER_PDF_RENDER_PARALLELISM:-}"
+      DOCREADER_PDF_RENDER_DPI: "${DOCREADER_PDF_RENDER_DPI:-200}"
+      DOCREADER_PDF_JPEG_QUALITY: "${DOCREADER_PDF_JPEG_QUALITY:-85}"
+      DOCREADER_PDF_RENDER_MAX_EDGE: "${DOCREADER_PDF_RENDER_MAX_EDGE:-2000}"
+      DOCREADER_PDF_FORCE_SCANNED: "${DOCREADER_PDF_FORCE_SCANNED:-false}"
+      DOCREADER_PDF_WORD_GAP_WIDTH_RATIO: "${DOCREADER_PDF_WORD_GAP_WIDTH_RATIO:-0.4}"
+      DOCREADER_PDF_MARGIN_COL_WIDTH_RATIO: "${DOCREADER_PDF_MARGIN_COL_WIDTH_RATIO:-0.12}"
+      DOCREADER_PDF_MIN_HEADING_LINE_CHARS: "${DOCREADER_PDF_MIN_HEADING_LINE_CHARS:-8}"
+      DOCREADER_PDF_SANITIZE_TEXT: "${DOCREADER_PDF_SANITIZE_TEXT:-true}"
+      DOCREADER_PDF_STRIP_CHART_DEBRIS: "${DOCREADER_PDF_STRIP_CHART_DEBRIS:-true}"
+      DOCREADER_PDF_RENDER_VECTOR_FIGURES: "${DOCREADER_PDF_RENDER_VECTOR_FIGURES:-true}"
+      DOCREADER_PDF_DETECT_HEADINGS: "${DOCREADER_PDF_DETECT_HEADINGS:-}"
+      DOCREADER_PDF_LAYOUT_ORDERING: "${DOCREADER_PDF_LAYOUT_ORDERING:-}"
+      DOCREADER_PDF_FILTER_HIDDEN_TEXT: "${DOCREADER_PDF_FILTER_HIDDEN_TEXT:-}"
+      DOCREADER_PDF_SCAN_IMAGE_RATIO: "${DOCREADER_PDF_SCAN_IMAGE_RATIO:-}"
+      DOCREADER_PDF_SCAN_MIN_CHARS: "${DOCREADER_PDF_SCAN_MIN_CHARS:-}"
+      DOCREADER_PDF_EXTRACT_EMBEDDED_IMAGES: "${DOCREADER_PDF_EXTRACT_EMBEDDED_IMAGES:-}"
+      DOCREADER_PDF_EMBED_MIN_PIXELS: "${DOCREADER_PDF_EMBED_MIN_PIXELS:-}"
+      DOCREADER_PDF_EMBED_MIN_AREA_RATIO: "${DOCREADER_PDF_EMBED_MIN_AREA_RATIO:-}"
+      DOCREADER_PDF_EMBED_REPEAT_PAGE_FRAC: "${DOCREADER_PDF_EMBED_REPEAT_PAGE_FRAC:-}"
+      DOCREADER_PDF_EMBED_MAX_IMAGES: "${DOCREADER_PDF_EMBED_MAX_IMAGES:-}"
+      DOCREADER_PDF_MIN_CHART_REGION_AREA: "${DOCREADER_PDF_MIN_CHART_REGION_AREA:-}"
+      DOCREADER_PDF_MIN_CHART_REGION_CHARS: "${DOCREADER_PDF_MIN_CHART_REGION_CHARS:-}"
+      DOCREADER_PDF_MAX_CHART_REGION_AREA: "${DOCREADER_PDF_MAX_CHART_REGION_AREA:-}"
+      DOCREADER_PDF_MAX_FIGURE_HEIGHT_RATIO: "${DOCREADER_PDF_MAX_FIGURE_HEIGHT_RATIO:-}"
+    volumes:
+      - "${ICTREK_DEV_DATA_DIR:-.local-data/ictrek}/docreader:/tmp/docreader"
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:2025.10.1
+    ports:
+      - "127.0.0.1:${ICTREK_DEV_NEO4J_HTTP_PORT:-27474}:7474"
+      - "127.0.0.1:${ICTREK_DEV_NEO4J_BOLT_PORT:-27687}:7687"
+    environment:
+      NEO4J_AUTH: "${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-password}"
+      NEO4J_apoc_export_file_enabled: "true"
+      NEO4J_apoc_import_file_enabled: "true"
+      NEO4J_apoc_import_file_use__neo4j__config: "true"
+      NEO4JLABS_PLUGINS: '["apoc"]'
+    volumes:
+      - "${ICTREK_DEV_DATA_DIR:-.local-data/ictrek}/neo4j:/data"
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u \"$${NEO4J_AUTH%%/*}\" -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1;' >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped

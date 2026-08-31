@@ -15,6 +15,7 @@
 | `docs/USERGUIDE.md` | 当前维护 | 面向使用者的知识库、文档解析、问答、模型配置和界面操作说明。 |
 | `docs/build-images.md` | 当前维护 | HybRAG 四个自有镜像的远端构建、推送和飞书记录规则。 |
 | `docs/vos-ollama-prewarm.md` | 当前维护 | Model Hub QA/VLM、embedding 预热和 Gateway 排错。 |
+| `docs/local-dev/README.md` | 当前维护 | 源码后端/前端的本地快速调试、隔离基础设施和模型 endpoint 配置。 |
 | `docs/upstream-sync.md` | 当前维护 | 合并 Tencent 上游和 ictrek 本地改动的流程。 |
 | `docs/legacy/` | 只读备查 | 旧独立部署、旧远程 compose、旧 vLLM/Ollama 手工部署资料，不再按新版本持续更新。 |
 

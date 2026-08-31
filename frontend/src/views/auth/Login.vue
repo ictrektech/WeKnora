@@ -390,6 +390,31 @@ const authStore = useAuthStore()
 const { t, tm, locale } = useI18n()
 const { formatRole, roleIcon } = useRoleLabel()
 
+const VOS_APP_PREFIX = '/app/com.ictrek.hybrag/'
+
+// The VOS package uses an SSO-only login surface, while a source checkout
+// opened directly in a browser must expose ordinary login/registration. Keep
+// the build-time switch as the explicit override, then fall back to runtime
+// signals so a local Vite server does not inherit the VOS-only UI.
+function detectVOSOnlyMode(): boolean {
+  const configured = String(import.meta.env.VITE_VOS_SSO_ENABLED || '').trim().toLowerCase()
+  if (configured === 'true') return true
+  if (configured === 'false') return false
+  if (typeof window === 'undefined') return true
+
+  const w = window as Window & {
+    __VOS_APP_CONTEXT__?: unknown
+    __VOS_ACCESS_TOKEN__?: unknown
+    vos_platform?: unknown
+  }
+  const pathname = window.location.pathname || ''
+  return pathname.includes(VOS_APP_PREFIX) ||
+    window.parent !== window ||
+    !!w.vos_platform ||
+    !!w.__VOS_APP_CONTEXT__ ||
+    !!w.__VOS_ACCESS_TOKEN__
+}
+
 // Swiper modules
 const modules = [Autoplay, EffectFade, Pagination]
 
@@ -428,7 +453,7 @@ const isRegisterMode = ref(false)
 const showLanguageMenu = ref(false)
 const oidcEnabled = ref(false)
 const oidcProviderName = ref('')
-const vosOnlyMode = ref(true)
+const vosOnlyMode = ref(detectVOSOnlyMode())
 const vosSSOError = ref('')
 let vosSSORetryTimer: number | null = null
 let vosSSOStopped = false
@@ -897,6 +922,11 @@ onMounted(async () => {
 
   if (authStore.isLoggedIn) {
     router.replace('/platform/knowledge-bases')
+    return
+  }
+
+  if (!vosOnlyMode.value) {
+    await Promise.all([loadOIDCConfig(), loadAuthConfig()])
     return
   }
 

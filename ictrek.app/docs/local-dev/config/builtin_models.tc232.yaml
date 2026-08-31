@@ -1,0 +1,104 @@
+# WeKnora/ictrek local development models for a host-side Go process.
+#
+# The default rows use OpenAI-compatible vLLM endpoints. URL and model names
+# are deliberately injected through .env so this file can be reused on tc232
+# without baking a host-specific address into the repository.
+#
+# Rows declared here are managed_by="yaml". Use this file with the isolated
+# local-dev database; removing an entry later soft-deletes that YAML-managed
+# row. Models created or edited in the Web UI are runtime-owned and preserved.
+
+builtin_models:
+  - id: ictrek-weknora-vllm-qa
+    name: "${ICTREK_DEV_VLLM_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_VLLM_MODEL_NAME} (vLLM QA)"
+    type: KnowledgeQA
+    source: remote
+    description: OpenAI-compatible QA model for ictrek local development.
+    is_default: true
+    parameters:
+      base_url: "${ICTREK_DEV_VLLM_BASE_URL}"
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: chat_template_kwargs
+
+  - id: ictrek-weknora-vllm-vlm
+    name: "${ICTREK_DEV_VLLM_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_VLLM_MODEL_NAME} (vLLM VLM)"
+    type: VLLM
+    source: remote
+    description: OpenAI-compatible vision model for ictrek local development.
+    is_default: true
+    parameters:
+      base_url: "${ICTREK_DEV_VLLM_BASE_URL}"
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: chat_template_kwargs
+
+  - id: ictrek-weknora-vllm-bge-m3
+    name: "${ICTREK_DEV_BGE_VLLM_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_BGE_VLLM_MODEL_NAME} (vLLM Embedding)"
+    type: Embedding
+    source: remote
+    description: OpenAI-compatible embedding model for ictrek local development.
+    is_default: true
+    parameters:
+      base_url: "${ICTREK_DEV_BGE_VLLM_BASE_URL}"
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false
+
+  - id: ictrek-weknora-ollama-qa
+    name: "${ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME} (Ollama QA fallback)"
+    type: KnowledgeQA
+    source: local
+    description: Optional Ollama QA fallback; not selected as the default.
+    is_default: false
+    parameters:
+      base_url: ""
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: ictrek-weknora-ollama-vlm
+    name: "${ICTREK_DEV_OLLAMA_VLM_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_OLLAMA_VLM_MODEL_NAME} (Ollama VLM fallback)"
+    type: VLLM
+    source: local
+    description: Optional Ollama vision fallback; not selected as the default.
+    is_default: false
+    parameters:
+      base_url: ""
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: ictrek-weknora-ollama-embedding
+    name: "${ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME} (Ollama fallback)"
+    type: Embedding
+    source: local
+    description: Optional Ollama embedding fallback; not selected as the default.
+    is_default: false
+    parameters:
+      base_url: ""
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false
