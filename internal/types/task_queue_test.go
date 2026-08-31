@@ -85,11 +85,21 @@ func TestEveryAsynqTaskTypeHasADeclaredQueue(t *testing.T) {
 		TypeKnowledgeListReparse, TypeKnowledgeMove, TypeDataTableSummary,
 		TypeImageMultimodal, TypeKnowledgePostProcess, TypeKnowledgeAutoTag, TypeManualProcess,
 		TypeDataSourceSync, TypeWikiIngest, TypeWikiFinalize, TypeTemporaryDocumentProcess,
+		TypeContractReviewDocumentProcess, TypeContractReviewAnalyze,
 	}
 	for _, taskType := range taskTypes {
 		if _, ok := QueueForTaskType(taskType); !ok {
 			t.Fatalf("task type %q has no declared queue", taskType)
 		}
+	}
+}
+
+func TestContractReviewTasksUseDedicatedProcessingQueues(t *testing.T) {
+	if queue, ok := QueueForTaskType(TypeContractReviewDocumentProcess); !ok || queue != QueueChatAttachment {
+		t.Fatalf("contract document parsing must use %q, got %q", QueueChatAttachment, queue)
+	}
+	if queue, ok := QueueForTaskType(TypeContractReviewAnalyze); !ok || queue != QueueSummary {
+		t.Fatalf("contract analysis must use %q, got %q", QueueSummary, queue)
 	}
 }
 

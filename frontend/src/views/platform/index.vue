@@ -78,6 +78,13 @@ const isChatDropRoute = () => {
     return CHAT_DROP_ROUTE_NAMES.has(String(route.name || ''));
 }
 
+// Contract review owns its local document drop zone. The platform shell is
+// reused by that route, so do not let the knowledge-base upload capture layer
+// intercept the same OS file drag first.
+const isContractReviewDropRoute = () => {
+    return route.name === 'legalContractReview' || route.name === 'legalContractReviewDetail';
+}
+
 // 检查知识库初始化状态
 const checkKnowledgeBaseInitialization = async (): Promise<boolean> => {
     const currentKbId = getCurrentKbId();
@@ -121,7 +128,7 @@ const isFileDrag = (event: DragEvent): boolean => {
 
 // 全局拖拽事件处理
 const handleGlobalDragEnter = (event: DragEvent) => {
-    if (!isFileDrag(event)) return;
+    if (!isFileDrag(event) || isContractReviewDropRoute()) return;
     event.preventDefault();
     dragCounter++;
     if (event.dataTransfer) {
@@ -131,7 +138,7 @@ const handleGlobalDragEnter = (event: DragEvent) => {
 }
 
 const handleGlobalDragOver = (event: DragEvent) => {
-    if (!isFileDrag(event)) return;
+    if (!isFileDrag(event) || isContractReviewDropRoute()) return;
     event.preventDefault();
     if (event.dataTransfer) {
         event.dataTransfer.dropEffect = 'copy';
@@ -139,7 +146,7 @@ const handleGlobalDragOver = (event: DragEvent) => {
 }
 
 const handleGlobalDragLeave = (event: DragEvent) => {
-    if (!isFileDrag(event)) return;
+    if (!isFileDrag(event) || isContractReviewDropRoute()) return;
     event.preventDefault();
     dragCounter--;
     if (dragCounter === 0) {
@@ -148,7 +155,7 @@ const handleGlobalDragLeave = (event: DragEvent) => {
 }
 
 const handleGlobalDrop = async (event: DragEvent) => {
-    if (!isFileDrag(event)) return;
+    if (!isFileDrag(event) || isContractReviewDropRoute()) return;
     event.preventDefault();
     dragCounter = 0;
     ismask.value = false;

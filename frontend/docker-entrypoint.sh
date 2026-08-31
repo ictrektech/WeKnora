@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# pdfjs-dist loads the PDF worker as an ES module. Ensure nginx serves .mjs
+# with a JavaScript MIME type when the base image's mime.types lacks it.
+if [ -f /etc/nginx/mime.types ] && ! grep -Eq '^[[:space:]]*application/javascript[[:space:]].*([[:space:]]|^)mjs([[:space:];]|$)' /etc/nginx/mime.types; then
+  sed -i 's#^\([[:space:]]*application/javascript[[:space:]].*\);#\1 mjs;#' /etc/nginx/mime.types
+fi
+
 # Only emit whitelisted locale tags to avoid config.js injection from env values.
 RUNTIME_DEFAULT_LOCALE=""
 case "${DEFAULT_LOCALE:-}" in

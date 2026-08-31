@@ -237,6 +237,66 @@ builtin_agents:
       rerank_top_k: 10
       rerank_threshold: 0.3
 
+  - id: "builtin-contract-review"
+    avatar: "⚖️"
+    is_builtin: true
+    i18n:
+      default:
+        name: "Contract Review"
+        description: "Evidence-first contract review for China mainland legal context with risk grading and revision suggestions"
+      zh-CN:
+        name: "合同审查"
+        description: "面向中国大陆法律语境的证据优先合同审查，支持风险分级与修改建议"
+      zh-TW:
+        name: "合約審查"
+        description: "面向中國大陸法律語境的證據優先合約審查，支援風險分級與修改建議"
+      ja-JP:
+        name: "契約レビュー"
+        description: "中国本土法務コンテキスト向けの証拠優先の契約レビュー、リスク分類と修正文案に対応"
+      ko-KR:
+        name: "계약 검토"
+        description: "중국 본토 법률 맥락의 증거 기반 계약 검토, 위험 등급 및 수정 제안 지원"
+    config:
+      agent_mode: "smart-reasoning"
+      agent_type: "contract-review"
+      system_prompt_id: "contract_review_main"
+      temperature: 0.2
+      max_completion_tokens: 4096
+      max_iterations: 40
+      kb_selection_mode: "all"
+      retrieve_kb_only_when_mentioned: false
+      skills_selection_mode: "selected"
+      selected_skills:
+        - "contract-review"
+      allowed_tools:
+        - "wiki_search"
+        - "wiki_read_page"
+        - "wiki_read_source_doc"
+        - "knowledge_search"
+        - "grep_chunks"
+        - "list_knowledge_chunks"
+        - "query_knowledge_graph"
+        - "get_document_info"
+        - "wiki_flag_issue"
+      web_search_enabled: true
+      web_search_max_results: 5
+      reflection_enabled: false
+      multi_turn_enabled: true
+      history_turns: 10
+      faq_priority_enabled: true
+      faq_direct_answer_threshold: 0.9
+      faq_score_boost: 1.2
+      embedding_top_k: 10
+      keyword_threshold: 0.3
+      vector_threshold: 0.5
+      rerank_top_k: 10
+      rerank_threshold: 0.3
+      suggested_prompts:
+        - "请站在甲方立场审查这份合同，输出高/中/低风险清单和修改建议。"
+        - "请逐条审查违约责任、解除、争议解决和付款条款。"
+        - "请把审查结果整理成可直接给业务方看的合同审查报告。"
+        - "请对比新版和旧版合同，只指出实质性不利变化。"
+        - "请检查合同主体、授权代表、签章和生效条件风险。"
   - id: "builtin-skill-installer"
     avatar: "📦"
     is_builtin: true
@@ -279,4 +339,3 @@ builtin_agents:
       reflection_enabled: false
       multi_turn_enabled: true
       history_turns: 10
-

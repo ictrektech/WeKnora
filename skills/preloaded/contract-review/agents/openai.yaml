@@ -1,0 +1,4 @@
+interface:
+  display_name: "合同审查"
+  short_description: "合同风险审查、清单和修订建议"
+  default_prompt: "Use $contract-review to review this contract for key risks and revision suggestions."

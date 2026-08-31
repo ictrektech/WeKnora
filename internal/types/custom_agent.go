@@ -27,7 +27,8 @@ const (
 	// BuiltinWikiResearcherID is the ID for the built-in wiki researcher agent
 	BuiltinWikiResearcherID = "builtin-wiki-researcher"
 	// BuiltinWikiFixerID is the ID for the built-in wiki fixer agent
-	BuiltinWikiFixerID = "builtin-wiki-fixer"
+	BuiltinWikiFixerID      = "builtin-wiki-fixer"
+	BuiltinContractReviewID = "builtin-contract-review"
 	// BuiltinSkillInstallerID is the ID for the built-in skill installer agent
 	BuiltinSkillInstallerID = "builtin-skill-installer"
 )
@@ -57,6 +58,10 @@ const (
 	// uploaded into the KB. Retrieval semantics (vector/wiki/…) are largely
 	// irrelevant — this type is about data_schema + data_analysis tools.
 	AgentTypeDataAnalysis = "data-analysis"
+	// AgentTypeContractReview applies the evidence-first legal review profile.
+	// The dedicated Contract Review workspace reuses this profile's prompt and
+	// model settings while enforcing its own structured result schema.
+	AgentTypeContractReview = "contract-review"
 	// AgentTypeCustom is the "no preset" option; user-configured end to end.
 	AgentTypeCustom = "custom"
 )
@@ -101,7 +106,7 @@ type CustomAgentConfig struct {
 	AgentMode string `yaml:"agent_mode" json:"agent_mode"`
 	// AgentType is a preset category under smart-reasoning mode that pre-fills
 	// system prompt, allowed tools and recommended KB compatibility.
-	// Valid values: "rag-qa", "wiki-qa", "hybrid-rag-wiki", "custom".
+	// Valid values: "rag-qa", "wiki-qa", "hybrid-rag-wiki", "data-analysis", "contract-review", "custom".
 	// Empty / unknown values are treated as "custom" (no preset applied).
 	// Ignored for quick-answer mode.
 	AgentType string `yaml:"agent_type" json:"agent_type,omitempty"`
@@ -587,6 +592,7 @@ var builtinAgentIDsOrdered = []string{
 	BuiltinDataAnalystID,
 	BuiltinKnowledgeGraphExpertID,
 	BuiltinDocumentAssistantID,
+	BuiltinContractReviewID,
 }
 
 // GetBuiltinAgentIDs returns all built-in agent IDs in fixed order

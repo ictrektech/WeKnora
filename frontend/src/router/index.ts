@@ -97,6 +97,18 @@ const router = createRouter({
       meta: { requiresInit: true, requiresAuth: true },
       children: [
         {
+          path: "contract-review",
+          name: "legalContractReview",
+          component: () => import("../views/legal/ContractReviewWorkspace.vue"),
+          meta: { requiresInit: true, requiresAuth: true },
+        },
+        {
+          path: "contract-review/:reviewId",
+          name: "legalContractReviewDetail",
+          component: () => import("../views/legal/contract-review/ContractReviewDetail.vue"),
+          meta: { requiresInit: true, requiresAuth: true },
+        },
+        {
           path: "tenant",
           redirect: "/platform/settings"
         },

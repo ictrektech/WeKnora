@@ -194,6 +194,51 @@ agent_type_presets:
       none_of: ["faq"]
 
   # --------------------------------------------------------------------------
+  # Contract Review — evidence-first legal review preset.
+  # --------------------------------------------------------------------------
+  - id: "contract-review"
+    i18n:
+      default:
+        label: "Contract Review"
+        description: "Evidence-first contract review with risk grading, clause revisions, and China mainland legal context."
+      zh-CN:
+        label: "合同审查"
+        description: "面向中国大陆合同审查，支持风险分级、逐条审查、修改建议和签章主体核验。"
+      zh-TW:
+        label: "合約審查"
+        description: "面向中國大陸合約審查，支援風險分級、逐條審查、修改建議和簽章主體核驗。"
+    config:
+      system_prompt_id: "contract_review_main"
+      temperature: 0.2
+      max_completion_tokens: 4096
+      max_iterations: 40
+      allowed_tools:
+        - "wiki_search"
+        - "wiki_read_page"
+        - "wiki_read_source_doc"
+        - "knowledge_search"
+        - "grep_chunks"
+        - "list_knowledge_chunks"
+        - "query_knowledge_graph"
+        - "get_document_info"
+        - "wiki_flag_issue"
+      retain_retrieval_history: false
+      faq_priority_enabled: true
+      web_search_enabled: true
+      web_search_max_results: 5
+      kb_selection_mode: "all"
+      skills_selection_mode: "selected"
+      selected_skills:
+        - "contract-review"
+      suggested_prompts:
+        - "请站在甲方立场审查这份合同，输出高/中/低风险清单和修改建议。"
+        - "请逐条审查违约责任、解除、争议解决和付款条款。"
+        - "请把审查结果整理成可直接给业务方看的合同审查报告。"
+        - "请对比新版和旧版合同，只指出实质性不利变化。"
+        - "请检查合同主体、授权代表、签章和生效条件风险。"
+    # kb_filter derived from allowed_tools: any_of = [wiki, vector, keyword].
+
+  # --------------------------------------------------------------------------
   # Custom — no preset; user configures everything by hand.
   # --------------------------------------------------------------------------
   - id: "custom"

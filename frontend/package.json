@@ -31,6 +31,7 @@
     "mermaid": "^11.15.0",
     "pagefind": "^1.5.2",
     "papaparse": "^5.5.3",
+    "pdfjs-dist": "^5.4.149",
     "pinia": "^3.0.4",
     "secure-ls": "^2.0.0",
     "swiper": "^12.1.4",

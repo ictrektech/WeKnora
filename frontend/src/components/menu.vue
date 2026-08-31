@@ -81,7 +81,7 @@
                         <div class="menu_item-box">
                             <div class="menu_icon">
                                 <img class="icon"
-                                    :src="getImgSrc(item.icon == 'zhishiku' ? knowledgeIcon : item.icon == 'agent' ? agentIcon : item.icon == 'organization' ? organizationIcon : item.icon == 'logout' ? logoutIcon : item.icon == 'setting' ? settingIcon : prefixIcon)"
+                                    :src="getImgSrc(item.icon == 'zhishiku' ? knowledgeIcon : item.icon == 'agent' ? agentIcon : item.icon == 'organization' ? organizationIcon : item.icon == 'logout' ? logoutIcon : item.icon == 'setting' ? settingIcon : item.icon == 'file-add' ? legalIcon : prefixIcon)"
                                     alt="">
                             </div>
                             <template v-if="!uiStore.sidebarCollapsed">
@@ -410,6 +410,8 @@ const isMenuItemActive = (itemPath: string): boolean => {
             return currentRoute === 'organizationList';
         case 'creatChat':
             return currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat';
+        case 'legal':
+            return currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail';
         case 'settings':
             return currentRoute === 'settings';
         default:
@@ -428,6 +430,7 @@ const getIconActiveState = (itemPath: string) => {
             currentRoute === 'knowledgeBaseSettings'
         ),
         isCreatChatActive: itemPath === 'creatChat' && (currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat'),
+        isLegalActive: itemPath === 'legal' && (currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail'),
         isSettingsActive: itemPath === 'settings' && currentRoute === 'settings',
         isChatActive: itemPath === 'chat' && currentRoute === 'chat'
     };
@@ -436,13 +439,13 @@ const getIconActiveState = (itemPath: string) => {
 // 分离上下两部分菜单（使用 visibleMenuArr 以便 lite 模式过滤 logout）
 const topMenuItems = computed<MenuItem[]>(() => {
     return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) =>
-        item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat'
+        item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat' || item.path === 'legal'
     );
 });
 
 const bottomMenuItems = computed<MenuItem[]>(() => {
     return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) => {
-        if (item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat') {
+        if (item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat' || item.path === 'legal') {
             return false;
         }
         return true;
@@ -1039,11 +1042,13 @@ let logoutIcon = ref('logout.svg');
 let settingIcon = ref('setting.svg');
 let agentIcon = ref('agent.svg');
 let organizationIcon = ref('organization.svg');
+let legalIcon = ref('file-add.svg');
 let pathPrefix = ref(route.name)
 const getIcon = (path: string) => {
     // 根据当前路由状态更新所有图标
     const kbActiveState = getIconActiveState('knowledge-bases');
     const creatChatActiveState = getIconActiveState('creatChat');
+    const legalActiveState = getIconActiveState('legal');
     const settingsActiveState = getIconActiveState('settings');
     const agentsActiveState = route.name === 'agentList';
     const organizationsActiveState = route.name === 'organizationList';
@@ -1059,6 +1064,9 @@ const getIcon = (path: string) => {
 
     // 对话图标：只在对话创建页面显示绿色，其他情况显示默认
     prefixIcon.value = creatChatActiveState.isCreatChatActive ? 'prefixIcon-green.svg' : 'prefixIcon.svg';
+
+    // 合同审查图标：只在法律工作台显示绿色
+    legalIcon.value = legalActiveState.isLegalActive ? 'file-add-green.svg' : 'file-add.svg';
 
     // 设置图标：只在设置页面显示绿色
     settingIcon.value = settingsActiveState.isSettingsActive ? 'setting-green.svg' : 'setting.svg';
@@ -1081,6 +1089,8 @@ const handleMenuClick = async (path: string) => {
     } else if (path === 'organizations') {
         // 组织菜单项：跳转到组织列表
         router.push('/platform/organizations')
+    } else if (path === 'legal') {
+        router.push('/platform/contract-review')
     } else if (path === 'settings') {
         // 设置菜单项：打开设置弹窗并跳转路由
         uiStore.openSettings()
@@ -1120,7 +1130,9 @@ const gotopage = async (path: string) => {
         router.push('/login');
         return;
     } else {
-        if (path === 'creatChat') {
+        if (path === 'legal') {
+            router.push('/platform/contract-review')
+        } else if (path === 'creatChat') {
             // 如果在知识库详情页，跳转到全局对话创建页
             if (isInKnowledgeBase.value) {
                 router.push('/platform/creatChat')
