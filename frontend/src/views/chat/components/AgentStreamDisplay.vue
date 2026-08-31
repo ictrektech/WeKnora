@@ -1801,20 +1801,20 @@ const memoryIsLast = computed(
 );
 
 // Check if event is a "deep thinking" type (either streaming thinking or thinking tool call)
-const isThinkingLikeEvent = (event: any): boolean => {
+function isThinkingLikeEvent(event: any): boolean {
   if (event.type === 'thinking') return true;
   if (event.type === 'tool_call' && event.tool_name === 'thinking') return true;
   return false;
-};
+}
 
 // Extract thinking content from an event
-const getThinkingContent = (event: any): string => {
+function getThinkingContent(event: any): string {
   if (event.type === 'thinking') return event.content || '';
   if (event.type === 'tool_call' && event.tool_name === 'thinking') {
     return event.tool_data?.thought || event.output || '';
   }
   return '';
-};
+}
 
 // Get a short summary snippet from thinking content for display in the header
 const getThinkingSummary = (event: any): string => {
@@ -1832,7 +1832,7 @@ const getThinkingSummary = (event: any): string => {
 };
 
 // Helper: build the full result list with plan_task_change injections and thinking merging
-const buildFullEventList = (stream: any[]) => {
+function buildFullEventList(stream: any[]) {
   const validStream = stream.filter((e: any) => e && typeof e === 'object' && e.type);
   let lastTask: string | null = null;
   const result: any[] = [];
@@ -1935,7 +1935,7 @@ const buildFullEventList = (stream: any[]) => {
     const title = typeof e.title === 'string' ? e.title : '';
     return content.trim().length > 0 || title.trim().length > 0;
   });
-};
+}
 
 // IDs of thinking events that should NOT be rendered in the intermediate-
 // steps tree because their content is already shown as the final answer.
