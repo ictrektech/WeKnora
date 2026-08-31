@@ -29,17 +29,20 @@ WeKnora 同时提供基于 OpenAPI 的 Swagger 文档。**启动服务后访问 
 - **响应格式**: JSON
 - **认证方式**: `X-API-Key` 或 `Authorization: Bearer <token>`
 
+VOS app 安装时，HybRAG 后端默认在容器内监听 `8080`，由 VOS 平台按应用路径代理到前端和 API；外部调用时使用 VOS 暴露出来的应用地址并保留 `/api/v1` 前缀，例如 `https://<VOS地址>/app/com.ictrek.hybrag/api/v1`（以现场网关实际路由为准）。如果是独立 compose 或调试部署，则使用该部署显式映射的后端端口，例如 `http://<主机IP>:19081/api/v1`。VOS 包默认不把后端 `8080` 直接映射到宿主机公开端口。
+
 ## 认证机制
 
 业务 API 请求需要在 HTTP 请求头中携带一种有效凭证。
 
-推荐服务端集成使用独立 API Key：
+推荐服务端集成优先使用普通用户自己的 API Key：
 
 ```
 X-API-Key: your_api_key
 ```
 
-已登录用户或 OIDC/VOS 自动登录后的调用，也可以使用 Bearer Token：
+已登录 HybRAG 用户、OIDC/VOS 自动登录后的调用，也可以使用 Bearer Token。VOS/OAuth access token
+会由 HybRAG 后端向 VOS userinfo 接口校验，校验成功后按对应 VOS 用户映射到 HybRAG 用户并执行权限判断：
 
 ```
 Authorization: Bearer <access_token>
@@ -53,13 +56,21 @@ X-Request-ID: unique_request_id
 
 ### 获取 API Key
 
-在「设置 → API 集成」创建空间级 API Key。创建时可以选择 `retrieve`、`chat`、`ingest`、`manage_kbs` 等能力，并可限制允许访问的知识库范围。
+在「设置 → API 集成」创建 API Key。
+
+- 普通用户创建的是**个人 API Key**，只绑定当前用户，可选择 `retrieve`、`chat`、`ingest` 等能力，并且必须限制到自己可访问的知识库范围。
+- 空间 Owner / 跨空间管理员可以创建工作区级 API Key，可按需开放 `manage_kbs`、`manage_models` 等空间管理能力，或创建 full-access Key。
 
 请妥善保管 API Key，避免泄露。明文 Key 只在创建时返回；如需更换，删除旧 Key 后重新创建。
 
 ## 非 VOS 场景调用 RAG API
 
-HybRAG 作为 VOS App 打开时，前端会尝试使用 VOS 当前用户自动登录。不在 VOS iframe 内运行的外部服务、脚本或浏览器插件不需要走这套自动登录，可以直接调用 HybRAG REST API。
+HybRAG 作为 VOS App 打开时，前端会尝试使用 VOS 当前用户自动登录。不在 VOS iframe 内运行的外部服务、脚本或浏览器插件可以直接调用 HybRAG REST API。当前支持两条认证路径：
+
+1. **个人 API Key**：普通用户在 HybRAG「API 集成」里为自己创建 API Key，外部应用发送 `X-API-Key`。这是最简单、长期稳定的服务端集成方式。
+2. **VOS/OAuth Bearer token**：外部应用先通过 VOS/OAuth 登录流程取得该普通用户的 VOS access token，再发送 `Authorization: Bearer <VOS token>`。HybRAG 会调用 VOS `/v1000/oauth2/userinfo` 校验；失败时按旧 VOS `/v1000/user/check` 降级。校验成功后按该 VOS 用户映射出的 HybRAG 用户权限执行。
+
+因此，外部应用访问用户自己的知识库**不需要 admin 账号**。使用个人 API Key 时由该普通用户自己创建；使用 VOS/OAuth Bearer token 时继承该 VOS 用户映射后的 HybRAG 权限。
 
 ### RAG Query / Chat API
 
@@ -80,6 +91,17 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
   -d '{"query":"这份知识库里有哪些重点?","knowledge_base_ids":["<knowledge_base_id>"],"channel":"api"}'
 ```
 
+如果调用方已经拿到 VOS/OAuth access token，也可以直接把上例中的 `X-API-Key` 换成：
+
+```bash
+VOS_TOKEN=eyJ...
+
+curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
+  -H "Authorization: Bearer $VOS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"这份知识库里有哪些重点?","knowledge_base_ids":["<knowledge_base_id>"],"channel":"api"}'
+```
+
 - `POST /knowledge-chat/:session_id` 是知识库 RAG 问答，返回 SSE 流。
 - `POST /agent-chat/:session_id` 是智能体问答，支持工具、MCP、联网搜索等 Agent 能力。
 - `POST /knowledge-search` 是无会话知识检索，返回一次性 JSON，不调用 LLM 生成答案。
@@ -94,13 +116,15 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
 
 - `session_id` 来自 `POST /sessions` 响应中的 `data.id`。
 - 同一终端用户继续多轮对话时复用同一个 `session_id`；新话题可以重新创建会话。
-- 使用 API Key 接入并需要区分终端用户时，在「API 集成」配置用户身份模式：可信服务端可用 `X-External-User-ID`，面向用户的应用建议使用 `X-External-User-Token` 签名 Token。
+- 使用个人 API Key 或 VOS/OAuth Bearer token 时，调用主体已经是具体用户，不需要再配置 `X-External-User-ID`。
+- 使用工作区级 API Key 接入并需要区分终端用户时，在「API 集成」配置用户身份模式：可信服务端可用 `X-External-User-ID`，面向用户的应用建议使用 `X-External-User-Token` 签名 Token。
 
 ### Authentication / Service Account
 
-- 外部服务不需要每次用 admin 账号登录获取 Token。更稳妥的方式是由空间 Owner 创建独立 API Key，第三方服务用 `X-API-Key` 长期调用。
-- HybRAG 当前提供的是空间级 API Key / 平台级 API Key 机制；它可以承担 Service Account 的用途。是否能访问某个接口由 Key 的能力和知识库范围决定。
-- `Authorization: Bearer <token>` 代表登录用户访问令牌，适合已有用户会话的浏览器或后端调用；不要把 API Key 放进 Bearer 头里。
+- 外部服务不需要每次用 admin 账号登录获取 Token。
+- 普通用户可以创建自己的个人 API Key，第三方服务用 `X-API-Key` 长期调用，权限边界由 Key 的能力和知识库范围决定。
+- 需要严格继承 VOS 当前用户权限时，外部应用可以使用普通用户的 VOS/OAuth access token 作为 `Authorization: Bearer <token>`；HybRAG 校验后按映射用户权限执行。
+- API Key 不放进 Bearer 头；API Key 使用 `X-API-Key`，VOS/OAuth 或 HybRAG 用户 token 使用 `Authorization: Bearer`。
 
 ## 错误处理
 

@@ -96,6 +96,7 @@ export type TenantAPIKeyCapability =
 export interface TenantAPIKey {
   id: number
   scope_type?: 'tenant' | 'platform'
+  owner_user_id?: string
   name: string
   api_key: string
   full_access: boolean

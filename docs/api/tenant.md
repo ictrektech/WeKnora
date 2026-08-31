@@ -15,9 +15,9 @@
 | GET    | `/tenants/:id`             | 获取指定空间信息                                  |
 | PUT    | `/tenants/:id`             | 更新空间信息                                      |
 | DELETE | `/tenants/:id`             | 删除空间                                          |
-| GET    | `/tenants/:id/api-keys`    | 列出空间 API Key（Owner）                         |
-| POST   | `/tenants/:id/api-keys`    | 创建带角色的 API Key（Owner）                  |
-| DELETE | `/tenants/:id/api-keys/:key_id` | 吊销指定 API Key（Owner）                   |
+| GET    | `/tenants/:id/api-keys`    | 列出 API Key（普通用户仅自己的个人 Key；Owner 可见工作区 Key） |
+| POST   | `/tenants/:id/api-keys`    | 创建 API Key（普通用户创建个人 Key；Owner 可创建工作区 Key） |
+| DELETE | `/tenants/:id/api-keys/:key_id` | 吊销 API Key（普通用户仅自己的个人 Key；Owner 可管理工作区 Key） |
 | GET    | `/tenants/:id/api-principal-config` | 获取 API Key 用户身份配置（Owner）          |
 | PUT    | `/tenants/:id/api-principal-config` | 更新 API Key 用户身份配置（Owner）          |
 | GET    | `/tenants`                 | 获取当前用户可见的空间列表                        |
@@ -147,6 +147,12 @@ curl --location 'http://localhost:8080/api/v1/tenants' \
     }
 }'
 ```
+
+## API Key 权限边界
+
+普通用户可以在自己的空间里创建个人 API Key。个人 Key 绑定当前用户，只能选择 `retrieve`、`chat`、`ingest` 等面向知识库使用的能力，并且必须限制到自己可访问的知识库范围；外部系统用 `X-API-Key` 调用时，不需要 admin 或 Owner 代发。
+
+空间 Owner / 跨空间管理员仍可创建工作区级 API Key，用于可信服务端、批处理或空间管理场景。工作区级 Key 可启用 full access 或配置更多管理能力，也可以配合 `api-principal-config` 映射终端用户。
 
 **响应**（默认，不含 API Key）:
 

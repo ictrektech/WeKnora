@@ -224,7 +224,7 @@
         </div>
       </section>
 
-      <section class="settings-band principal-section">
+      <section v-if="canManageWorkspaceAPIKeys" class="settings-band principal-section">
         <div class="principal-section__header">
           <label>{{ $t('integrations.api.principalMode') }}</label>
           <p>{{ $t('integrations.api.principalModeDesc') }}</p>
@@ -523,13 +523,15 @@
           </div>
           <t-radio-group v-model="apiKeyAccessMode" class="mode-radio api-key-access-type-radio">
             <t-radio-button value="scoped">{{ $t('integrations.api.apiKeyScopedAccess') }}</t-radio-button>
-            <t-radio-button value="full">{{ $t('integrations.api.capabilityTenantFull') }}</t-radio-button>
+            <t-radio-button v-if="canManageWorkspaceAPIKeys" value="full">{{ $t('integrations.api.capabilityTenantFull') }}</t-radio-button>
           </t-radio-group>
           <p class="scope-hint">
             {{
               apiKeyFullAccessEnabled
                 ? $t('integrations.api.capabilityTenantFullHint')
-                : $t('integrations.api.apiKeyAccessTypeHint')
+                : canManageWorkspaceAPIKeys
+                  ? $t('integrations.api.apiKeyAccessTypeHint')
+                  : $t('integrations.api.personalApiKeyAccessTypeHint')
             }}
           </p>
         </div>
@@ -540,7 +542,7 @@
           </div>
           <div v-if="!apiKeyFullAccessEnabled" class="api-key-capability-list">
             <div
-              v-for="group in apiKeyCapabilityGroups"
+              v-for="group in visibleApiKeyCapabilityGroups"
               :key="group.key"
               class="api-key-capability-group"
             >
@@ -588,8 +590,9 @@
             clearable
             :loading="knowledgeBasesLoading"
             :options="knowledgeBaseOptions"
-            :placeholder="$t('integrations.api.apiKeyKnowledgeScopePlaceholder')"
+            :placeholder="apiKeyKnowledgeScopePlaceholder"
           />
+          <p v-if="!canManageWorkspaceAPIKeys" class="scope-hint">{{ $t('integrations.api.personalApiKeyKnowledgeScopeHint') }}</p>
         </div>
       </div>
     </SettingDrawer>
@@ -626,13 +629,15 @@
           </div>
           <t-radio-group v-model="editingAPIKeyAccessMode" class="mode-radio api-key-access-type-radio">
             <t-radio-button value="scoped">{{ $t('integrations.api.apiKeyScopedAccess') }}</t-radio-button>
-            <t-radio-button value="full">{{ $t('integrations.api.capabilityTenantFull') }}</t-radio-button>
+            <t-radio-button v-if="canManageWorkspaceAPIKeys" value="full">{{ $t('integrations.api.capabilityTenantFull') }}</t-radio-button>
           </t-radio-group>
           <p class="scope-hint">
             {{
               editingAPIKeyFullAccessEnabled
                 ? $t('integrations.api.capabilityTenantFullHint')
-                : $t('integrations.api.apiKeyAccessTypeHint')
+                : canManageWorkspaceAPIKeys
+                  ? $t('integrations.api.apiKeyAccessTypeHint')
+                  : $t('integrations.api.personalApiKeyAccessTypeHint')
             }}
           </p>
         </div>
@@ -643,7 +648,7 @@
           </div>
           <div class="api-key-capability-list">
             <div
-              v-for="group in apiKeyCapabilityGroups"
+              v-for="group in visibleApiKeyCapabilityGroups"
               :key="group.key"
               class="api-key-capability-group"
             >
@@ -691,9 +696,15 @@
             clearable
             :loading="knowledgeBasesLoading"
             :options="knowledgeBaseOptions"
-            :placeholder="$t('integrations.api.apiKeyKnowledgeScopePlaceholder')"
+            :placeholder="apiKeyKnowledgeScopePlaceholder"
           />
-          <p class="scope-hint">{{ $t('integrations.api.editApiKeyScopeHint') }}</p>
+          <p class="scope-hint">
+            {{
+              canManageWorkspaceAPIKeys
+                ? $t('integrations.api.editApiKeyScopeHint')
+                : $t('integrations.api.personalApiKeyKnowledgeScopeHint')
+            }}
+          </p>
         </div>
       </div>
     </SettingDrawer>
@@ -707,6 +718,7 @@ import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
 import { copyWithToast } from '@/utils/clipboard'
 import { getCurrentUser } from '@/api/auth'
+import { useAuthStore } from '@/stores/auth'
 import { listAgents, BUILTIN_SMART_REASONING_ID, type CustomAgent } from '@/api/agent'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
 import {
@@ -735,6 +747,7 @@ import { normalizeAPIKeyKnowledgeBaseIDs } from './apiKeyScope'
 import { consumeApiPlaygroundSSE } from './apiPlaygroundSSE'
 
 const { t } = useI18n()
+const authStore = useAuthStore()
 
 const DEFAULT_DIRECT_HEADER_NAME = 'X-External-User-ID'
 const DEFAULT_TOKEN_HEADER_NAME = 'X-External-User-Token'
@@ -783,6 +796,34 @@ const API_KEY_CAPABILITIES = TENANT_API_KEY_CAPABILITIES
 const DEFAULT_API_KEY_CAPABILITIES = DEFAULT_TENANT_API_KEY_CAPABILITIES
 const KB_SCOPED_CAPABILITIES = KB_SCOPED_API_KEY_CAPABILITIES
 const apiKeyCapabilityGroups = TENANT_API_KEY_CAPABILITY_GROUPS
+const PERSONAL_API_KEY_CAPABILITIES = new Set<TenantAPIKeyCapability>(['retrieve', 'chat', 'ingest'])
+
+const canManageWorkspaceAPIKeys = computed(() => (
+  authStore.canAccessAllTenants || authStore.currentTenantRole === 'owner'
+))
+
+const effectiveAPIKeyCapabilities = computed(() => (
+  canManageWorkspaceAPIKeys.value
+    ? API_KEY_CAPABILITIES
+    : API_KEY_CAPABILITIES.filter((capability) => PERSONAL_API_KEY_CAPABILITIES.has(capability))
+))
+
+const visibleApiKeyCapabilityGroups = computed(() => (
+  apiKeyCapabilityGroups
+    .map((group) => ({
+      ...group,
+      capabilities: canManageWorkspaceAPIKeys.value
+        ? group.capabilities
+        : group.capabilities.filter((capability) => PERSONAL_API_KEY_CAPABILITIES.has(capability.value)),
+    }))
+    .filter((group) => group.capabilities.length > 0)
+))
+
+const apiKeyKnowledgeScopePlaceholder = computed(() => (
+  canManageWorkspaceAPIKeys.value
+    ? t('integrations.api.apiKeyKnowledgeScopePlaceholder')
+    : t('integrations.api.personalApiKeyKnowledgeScopePlaceholder')
+))
 
 const capabilitySelections = reactive<Record<TenantAPIKeyCapability, boolean>>(
   API_KEY_CAPABILITIES.reduce((acc, capability) => {
@@ -809,11 +850,15 @@ const editingAPIKeyFullAccessEnabled = computed(() => editingAPIKeyForm.tenant_f
 const editingAPIKeyAccessMode = computed<'scoped' | 'full'>({
   get: () => (editingAPIKeyForm.tenant_full_enabled ? 'full' : 'scoped'),
   set: (value) => {
+    if (!canManageWorkspaceAPIKeys.value) {
+      editingAPIKeyForm.tenant_full_enabled = false
+      return
+    }
     editingAPIKeyForm.tenant_full_enabled = value === 'full'
   },
 })
 const editingSelectedCapabilities = computed(() => (
-  API_KEY_CAPABILITIES.filter((capability) => editingCapabilitySelections[capability])
+  effectiveAPIKeyCapabilities.value.filter((capability) => editingCapabilitySelections[capability])
 ))
 const editingKnowledgeScopeApplies = computed(() => (
   !editingAPIKeyFullAccessEnabled.value
@@ -847,10 +892,14 @@ const apiKeyFullAccessEnabled = computed(() => apiKeyForm.tenant_full_enabled)
 const apiKeyAccessMode = computed<'scoped' | 'full'>({
   get: () => (apiKeyForm.tenant_full_enabled ? 'full' : 'scoped'),
   set: (value) => {
+    if (!canManageWorkspaceAPIKeys.value) {
+      apiKeyForm.tenant_full_enabled = false
+      return
+    }
     apiKeyForm.tenant_full_enabled = value === 'full'
   },
 })
-const selectedCapabilityValues = computed(() => API_KEY_CAPABILITIES.filter((capability) => capabilitySelections[capability]))
+const selectedCapabilityValues = computed(() => effectiveAPIKeyCapabilities.value.filter((capability) => capabilitySelections[capability]))
 const apiKeyKnowledgeScopeApplies = computed(() => (
   !apiKeyFullAccessEnabled.value
   && selectedCapabilityValues.value.some((capability) => KB_SCOPED_CAPABILITIES.has(capability))
@@ -860,6 +909,18 @@ watch(() => apiKeyForm.tenant_full_enabled, (enabled) => {
   if (enabled) {
     apiKeyForm.knowledge_base_ids = []
   }
+})
+
+watch(canManageWorkspaceAPIKeys, (canManage) => {
+  if (canManage) return
+  apiKeyForm.tenant_full_enabled = false
+  editingAPIKeyForm.tenant_full_enabled = false
+  API_KEY_CAPABILITIES.forEach((capability) => {
+    if (!PERSONAL_API_KEY_CAPABILITIES.has(capability)) {
+      capabilitySelections[capability] = false
+      editingCapabilitySelections[capability] = false
+    }
+  })
 })
 
 watch(apiKeyKnowledgeScopeApplies, (applies) => {
@@ -1146,8 +1207,10 @@ const requestExample = computed(() => {
 
 const ragChatExample = computed(() => {
   const apiKeyHeader = `  -H "X-API-Key: ${apiKey.value ? '<API_KEY>' : '<YOUR_API_KEY>'}"`
+  const vosTokenHeader = '  -H "Authorization: Bearer <VOS_OAUTH_ACCESS_TOKEN>"'
   const contentType = '  -H "Content-Type: application/json"'
   return [
+    '# 方式一：普通用户个人 API Key',
     t('integrations.api.requestExampleCreateSession'),
     `curl -X POST ${apiBaseUrl.value}/sessions \\`,
     `${apiKeyHeader} \\`,
@@ -1157,6 +1220,19 @@ const ragChatExample = computed(() => {
     t('integrations.api.externalGuideRagStep'),
     `curl -N -X POST ${apiBaseUrl.value}/knowledge-chat/<session_id> \\`,
     `${apiKeyHeader} \\`,
+    `${contentType} \\`,
+    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"channel":"api"}'`,
+    '',
+    '# 方式二：普通用户 VOS/OAuth Bearer token',
+    t('integrations.api.requestExampleCreateSession'),
+    `curl -X POST ${apiBaseUrl.value}/sessions \\`,
+    `${vosTokenHeader} \\`,
+    `${contentType} \\`,
+    `  -d '{}'`,
+    '',
+    t('integrations.api.externalGuideRagStep'),
+    `curl -N -X POST ${apiBaseUrl.value}/knowledge-chat/<session_id> \\`,
+    `${vosTokenHeader} \\`,
     `${contentType} \\`,
     `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"channel":"api"}'`,
   ].join('\n')
@@ -1192,15 +1268,29 @@ async function load() {
       loadKnowledgeBaseOptions(),
     ])
 
-    const cfgResp = await getAPIPrincipalConfig(tenantId.value)
-    if (!cfgResp.success || !cfgResp.data) {
-      throw new Error(cfgResp.message || t('integrations.api.loadFailed'))
+    if (canManageWorkspaceAPIKeys.value) {
+      const cfgResp = await getAPIPrincipalConfig(tenantId.value)
+      if (!cfgResp.success || !cfgResp.data) {
+        throw new Error(cfgResp.message || t('integrations.api.loadFailed'))
+      }
+      config.value = cfgResp.data
+      form.mode = cfgResp.data.mode || 'tenant'
+      form.direct_header_name = DEFAULT_DIRECT_HEADER_NAME
+      form.signed_token_header_name = DEFAULT_TOKEN_HEADER_NAME
+      form.require_direct_header = cfgResp.data.require_direct_header === true
+    } else {
+      config.value = {
+        mode: 'tenant',
+        direct_header_name: DEFAULT_DIRECT_HEADER_NAME,
+        signed_token_header_name: DEFAULT_TOKEN_HEADER_NAME,
+        require_direct_header: false,
+        has_hmac_secret: false,
+      }
+      form.mode = 'tenant'
+      form.direct_header_name = DEFAULT_DIRECT_HEADER_NAME
+      form.signed_token_header_name = DEFAULT_TOKEN_HEADER_NAME
+      form.require_direct_header = false
     }
-    config.value = cfgResp.data
-    form.mode = cfgResp.data.mode || 'tenant'
-    form.direct_header_name = DEFAULT_DIRECT_HEADER_NAME
-    form.signed_token_header_name = DEFAULT_TOKEN_HEADER_NAME
-    form.require_direct_header = cfgResp.data.require_direct_header === true
     // The plaintext secret is never returned; start with an empty input and
     // rely on config.has_hmac_secret to reflect whether one is configured.
     secretInput.value = ''
@@ -1489,6 +1579,7 @@ function openCreateAPIKeyDialog() {
   apiKeyForm.tenant_full_enabled = false
   API_KEY_CAPABILITIES.forEach((capability) => {
     capabilitySelections[capability] = DEFAULT_API_KEY_CAPABILITIES.has(capability)
+      && effectiveAPIKeyCapabilities.value.includes(capability)
   })
   apiKeyDialogVisible.value = true
   void loadKnowledgeBaseOptions()
@@ -1501,6 +1592,10 @@ async function createScopedAPIKey() {
   }
   if (!apiKeyFullAccessEnabled.value && selectedCapabilities().length === 0) {
     MessagePlugin.error(t('integrations.api.apiKeyCapabilitiesRequired'))
+    return
+  }
+  if (!canManageWorkspaceAPIKeys.value && apiKeyKnowledgeScopeApplies.value && apiKeyForm.knowledge_base_ids.length === 0) {
+    MessagePlugin.error(t('integrations.api.personalApiKeyKnowledgeScopeRequired'))
     return
   }
   apiKeyCreating.value = true
@@ -1531,7 +1626,7 @@ async function createScopedAPIKey() {
 function openEditAPIKeyScope(key: TenantAPIKey) {
   editingAPIKey.value = key
   editingAPIKeyForm.name = key.name
-  editingAPIKeyForm.tenant_full_enabled = key.full_access
+  editingAPIKeyForm.tenant_full_enabled = canManageWorkspaceAPIKeys.value && key.full_access
   editingAPIKeyForm.knowledge_base_ids = normalizeAPIKeyKnowledgeBaseIDs(key.knowledge_base_ids)
   const expiresAt = key.expires_at ? Date.parse(key.expires_at) : Number.NaN
   editingAPIKeyForm.expires_at_unix = Number.isNaN(expiresAt)
@@ -1540,6 +1635,7 @@ function openEditAPIKeyScope(key: TenantAPIKey) {
   const currentCapabilities = new Set(key.capabilities || [])
   API_KEY_CAPABILITIES.forEach((capability) => {
     editingCapabilitySelections[capability] = currentCapabilities.has(capability)
+      && effectiveAPIKeyCapabilities.value.includes(capability)
   })
   apiKeyScopeDialogVisible.value = true
   void loadKnowledgeBaseOptions()
@@ -1555,6 +1651,10 @@ async function saveAPIKeyConfiguration() {
   }
   if (!editingAPIKeyFullAccessEnabled.value && editingSelectedCapabilities.value.length === 0) {
     MessagePlugin.error(t('integrations.api.apiKeyCapabilitiesRequired'))
+    return
+  }
+  if (!canManageWorkspaceAPIKeys.value && editingKnowledgeScopeApplies.value && editingAPIKeyForm.knowledge_base_ids.length === 0) {
+    MessagePlugin.error(t('integrations.api.personalApiKeyKnowledgeScopeRequired'))
     return
   }
   apiKeyScopeSaving.value = true

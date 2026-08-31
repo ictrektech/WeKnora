@@ -65,6 +65,7 @@ type TenantRepository interface {
 type TenantAPIKeyCreateRequest struct {
 	TenantID         uint64
 	ScopeType        types.APIKeyScopeType
+	OwnerUserID      string
 	Name             string
 	FullAccess       bool
 	KnowledgeBaseIDs []string
@@ -82,6 +83,7 @@ type TenantAPIKeyCreateResult struct {
 type TenantAPIKeyUpdateRequest struct {
 	TenantID         uint64
 	APIKeyID         uint64
+	OwnerUserID      *string
 	Name             string
 	FullAccess       bool
 	KnowledgeBaseIDs []string
@@ -93,9 +95,10 @@ type TenantAPIKeyRepository interface {
 	CreateAPIKey(ctx context.Context, key *types.TenantAPIKey) error
 	GetAPIKeyByHash(ctx context.Context, hash string) (*types.TenantAPIKey, error)
 	ListAPIKeys(ctx context.Context, tenantID uint64) ([]*types.TenantAPIKey, error)
+	ListAPIKeysByOwner(ctx context.Context, tenantID uint64, ownerUserID string) ([]*types.TenantAPIKey, error)
 	ListPlatformAPIKeys(ctx context.Context) ([]*types.TenantAPIKey, error)
-	UpdateAPIKey(ctx context.Context, tenantID uint64, id uint64, key *types.TenantAPIKey) (*types.TenantAPIKey, error)
-	RevokeAPIKey(ctx context.Context, tenantID uint64, id uint64) error
+	UpdateAPIKey(ctx context.Context, tenantID uint64, id uint64, ownerUserID *string, key *types.TenantAPIKey) (*types.TenantAPIKey, error)
+	RevokeAPIKey(ctx context.Context, tenantID uint64, id uint64, ownerUserID *string) error
 	RevokePlatformAPIKey(ctx context.Context, id uint64) error
 	UpdateAPIKeyHash(ctx context.Context, id uint64, hash string) error
 	UpdateAPIKeyLastUsed(ctx context.Context, id uint64, at time.Time) error
@@ -111,10 +114,10 @@ type TenantAPIKeyRepository interface {
 type TenantAPIKeyService interface {
 	CreateAPIKey(ctx context.Context, req TenantAPIKeyCreateRequest) (*TenantAPIKeyCreateResult, error)
 	AuthenticateAPIKey(ctx context.Context, token string) (*types.TenantAPIKey, error)
-	ListAPIKeys(ctx context.Context, tenantID uint64) ([]*types.TenantAPIKey, error)
+	ListAPIKeys(ctx context.Context, tenantID uint64, ownerUserID *string) ([]*types.TenantAPIKey, error)
 	ListPlatformAPIKeys(ctx context.Context) ([]*types.TenantAPIKey, error)
 	UpdateAPIKey(ctx context.Context, req TenantAPIKeyUpdateRequest) (*types.TenantAPIKey, error)
-	RevokeAPIKey(ctx context.Context, tenantID uint64, id uint64) error
+	RevokeAPIKey(ctx context.Context, tenantID uint64, id uint64, ownerUserID *string) error
 	RevokePlatformAPIKey(ctx context.Context, id uint64) error
 	// BackfillMissingKeyHashes computes and persists the SHA-256 key_hash
 	// for legacy keys still carrying the migration placeholder.

@@ -65,6 +65,7 @@ func (s *tenantAPIKeyService) CreateAPIKey(
 	key := &types.TenantAPIKey{
 		TenantID:         tenantID,
 		ScopeType:        scopeType,
+		OwnerUserID:      strings.TrimSpace(req.OwnerUserID),
 		Name:             name,
 		KeyHash:          hashTenantAPIKey(token),
 		APIKey:           token,
@@ -122,7 +123,12 @@ func (s *tenantAPIKeyService) touchAPIKeyLastUsedAsync(keyID uint64) {
 	}(keyID, now)
 }
 
-func (s *tenantAPIKeyService) ListAPIKeys(ctx context.Context, tenantID uint64) ([]*types.TenantAPIKey, error) {
+func (s *tenantAPIKeyService) ListAPIKeys(
+	ctx context.Context, tenantID uint64, ownerUserID *string,
+) ([]*types.TenantAPIKey, error) {
+	if ownerUserID != nil {
+		return s.repo.ListAPIKeysByOwner(ctx, tenantID, strings.TrimSpace(*ownerUserID))
+	}
 	return s.repo.ListAPIKeys(ctx, tenantID)
 }
 
@@ -165,11 +171,13 @@ func (s *tenantAPIKeyService) UpdateAPIKey(
 		key.KnowledgeBaseIDs = nil
 		key.Capabilities = nil
 	}
-	return s.repo.UpdateAPIKey(ctx, req.TenantID, req.APIKeyID, key)
+	return s.repo.UpdateAPIKey(ctx, req.TenantID, req.APIKeyID, normalizedAPIKeyOwnerIDFilter(req.OwnerUserID), key)
 }
 
-func (s *tenantAPIKeyService) RevokeAPIKey(ctx context.Context, tenantID uint64, id uint64) error {
-	return s.repo.RevokeAPIKey(ctx, tenantID, id)
+func (s *tenantAPIKeyService) RevokeAPIKey(
+	ctx context.Context, tenantID uint64, id uint64, ownerUserID *string,
+) error {
+	return s.repo.RevokeAPIKey(ctx, tenantID, id, ownerUserID)
 }
 
 func (s *tenantAPIKeyService) RevokePlatformAPIKey(ctx context.Context, id uint64) error {
@@ -233,4 +241,12 @@ func normalizeAPIKeyIDs(in []string) types.StringArray {
 		out = append(out, id)
 	}
 	return out
+}
+
+func normalizedAPIKeyOwnerIDFilter(ownerUserID *string) *string {
+	if ownerUserID == nil {
+		return nil
+	}
+	ownerUserIDValue := strings.TrimSpace(*ownerUserID)
+	return &ownerUserIDValue
 }

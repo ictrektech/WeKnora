@@ -36,7 +36,14 @@ Postgres 通过 PGV 提供，默认连接 `shared-pgv:5432`，用户/密码/数�
 
 ## 其他 VOS App 接入 HybRAG 用户身份
 
-其他 VOS app 如果要以当前 VOS 用户身份访问 HybRAG，不要共享或硬编码 HybRAG API Key。VOS 1.1+ 同域 iframe app 推荐先走自身 `oauth2.client` 的 Fastpath，拿到 VOS OIDC 应用 access token 后调用：
+其他 VOS app 如果要以当前 VOS 用户身份访问 HybRAG，不要共享或硬编码 HybRAG 工作区级 API Key。VOS 1.1+ 同域 iframe app 推荐先走自身 `oauth2.client` 的 Fastpath，拿到 VOS OIDC 应用 access token 后可以直接调用 HybRAG 业务 API：
+
+```http
+POST /api/v1/knowledge-chat/{session_id}
+Authorization: Bearer <VOS OIDC app access token>
+```
+
+HybRAG 会校验 VOS token，并按该 VOS 用户映射出的 HybRAG 用户权限执行。也可以先把 VOS token 换成 HybRAG token：
 
 ```http
 POST /api/v1/auth/vos-oidc

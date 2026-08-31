@@ -13,14 +13,16 @@
 BASE=http://localhost:8080
 ```
 
+VOS app 安装时，后端 API 通常不直接映射宿主机端口，而是由 VOS 平台按 `/app/com.ictrek.hybrag/` 代理。外部系统需要通过 VOS 网关访问时，Base URL 写成 `https://<VOS地址>/app/com.ictrek.hybrag/api/v1`（具体以前端“API 集成”页显示为准）；只有独立 compose 或调试部署显式暴露后端端口时，才使用 `http://<主机IP>:<端口>/api/v1`。
+
 ## 非 VOS 场景调用 HybRAG API
 
-HybRAG 作为 VOS App 安装时，前端会优先使用 VOS 当前用户自动登录；外部系统、脚本、第三方后端或浏览器插件不在 VOS iframe 内运行时，不依赖这套自动登录，直接调用 HybRAG 自身的 REST API 即可。
+HybRAG 作为 VOS App 安装时，前端会优先使用 VOS 当前用户自动登录；外部系统、脚本、第三方后端或浏览器插件不在 VOS iframe 内运行时，也可以直接调用 HybRAG 自身的 REST API。外部调用支持两种用户身份路径：普通用户个人 API Key，或普通用户 VOS/OAuth Bearer token。
 
 ### 最小调用闭环
 
 1. 准备 API 地址：`https://<你的域名或网关>/api/v1`。如果直接访问内网部署，则使用该部署暴露的 HybRAG 后端地址并保留 `/api/v1` 前缀。
-2. 准备认证：推荐创建独立 API Key，调用时发送 `X-API-Key: <api_key>`。也可以用登录接口签发的用户 JWT，发送 `Authorization: Bearer <access_token>`。
+2. 准备认证：推荐让普通用户创建自己的个人 API Key，调用时发送 `X-API-Key: <api_key>`；如果外部应用已经通过 VOS/OAuth 登录拿到该普通用户的 VOS token，也可以发送 `Authorization: Bearer <VOS access token>`，由 HybRAG 校验并继承该用户权限。
 3. 创建会话：`POST /sessions`，保存响应里的 `data.id` 作为后续 `session_id`。
 4. 发起 RAG 问答：`POST /knowledge-chat/:session_id`，请求体里传 `query`，需要限定知识库时传 `knowledge_base_ids`。
 5. 持续读取 SSE：接口返回 `text/event-stream`，每条 `data:` 是 `StreamResponse` JSON，收到 `response_type:"complete"` 表示本轮结束。
@@ -49,10 +51,11 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
 
 ### API Key / Token / Bearer Token
 
-- **推荐方式：独立 API Key。** Owner 在 API 集成页或 `POST /api/v1/tenants/:id/api-keys` 创建空间级 API Key。RAG 问答至少需要 `chat` 能力；无会话检索需要 `retrieve`；上传或修改知识库内容需要 `ingest`；创建、复制、修改或删除知识库需要 `manage_kbs`。API Key 只在创建时返回明文，之后只能重建或轮换。
-- **用户 JWT：** 使用 `POST /auth/login`、OIDC 或 VOS token exchange 获得 HybRAG access token 后，发送 `Authorization: Bearer <token>`。这种方式代表具体登录用户，适合已有 HybRAG 用户会话的前端调用。
-- **Bearer Token 不是 API Key 的别名：** `Authorization: Bearer ...` 校验的是用户访问令牌；机器集成的 API Key 走 `X-API-Key`。
-- **是否需要 admin 登录取 Token：** 业务调用不需要每次用 admin 账号登录取 Token。更合适的做法是由空间 Owner 先创建独立 API Key，第三方服务长期使用该 Key；如果需要模拟不同终端用户，再在 API 集成页配置 `X-External-User-ID` 或 `X-External-User-Token`。
+- **普通用户个人 API Key：** 普通用户在 API 集成页或 `POST /api/v1/tenants/:id/api-keys` 创建自己的 Key。个人 Key 只绑定当前用户，至少可用于 `retrieve`、`chat`、`ingest`，并且必须限定到该用户可访问的知识库范围。外部应用发送 `X-API-Key: <api_key>`，不需要 admin/Owner 代发。
+- **工作区 API Key：** Owner / 跨空间管理员可以创建空间级 full-access 或管理能力 Key。适合可信后端服务；如果要区分终端用户，可再配置 `X-External-User-ID` 或 `X-External-User-Token`。
+- **VOS/OAuth Bearer Token：** 外部应用先通过 VOS/OAuth 登录流程拿到普通用户的 VOS access token，再发送 `Authorization: Bearer <VOS access token>`。HybRAG 会调用 VOS `/v1000/oauth2/userinfo` 校验；失败时按旧 `/v1000/user/check` 降级。校验成功后映射为 HybRAG 用户，并按该用户权限访问知识库。
+- **HybRAG 用户 JWT：** 使用 `POST /auth/login`、OIDC、VOS token exchange 获得 HybRAG access token 后，也发送 `Authorization: Bearer <token>`。
+- **是否需要 admin 登录取 Token：** 不需要。外部应用访问普通用户自己的知识库时，要么使用该普通用户创建的个人 API Key，要么使用该普通用户的 VOS/OAuth Bearer token。
 
 ## 认证方式
 

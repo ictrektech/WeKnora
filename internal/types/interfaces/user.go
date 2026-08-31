@@ -22,6 +22,10 @@ type UserService interface {
 	// externally verified identity, then issues normal WeKnora JWT tokens.
 	// The external token must already have been validated by the caller.
 	LoginWithTrustedIdentity(ctx context.Context, req *types.TrustedIdentityLoginRequest, provisioning types.TenantProvisioningMode) (*types.LoginResponse, error)
+	// ResolveTrustedIdentityUser provisions or loads a local account from an
+	// externally verified identity without issuing a new token. Request
+	// middleware uses this for per-request platform bearer tokens.
+	ResolveTrustedIdentityUser(ctx context.Context, req *types.TrustedIdentityLoginRequest, provisioning types.TenantProvisioningMode) (*types.User, error)
 	// GetUserByID gets a user by ID
 	GetUserByID(ctx context.Context, id string) (*types.User, error)
 	// GetUsersByIDs batch-fetches users by id, returning a map keyed by

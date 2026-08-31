@@ -76,12 +76,13 @@ HybRAG 当前只按 VOS app 使用，前端不会再展示普通登录/注册入
 
 ## 其他 VOS App 以当前用户身份接入 HybRAG
 
-HybRAG 同时保留两类认证方式：
+HybRAG 同时保留三类认证方式：
 
-- API Key：用于外部系统、服务端任务、自动化脚本和不具备 VOS 用户上下文的集成。
-- VOS token exchange：用于其他 VOS app 在已登录 VOS 的前提下，以“当前 VOS 用户”的身份访问 HybRAG，不需要给用户暴露或保存 HybRAG API Key。
+- 个人 API Key：普通用户自己创建，外部系统用 `X-API-Key` 访问该用户允许的知识库。
+- VOS/OAuth Bearer token：外部应用已经拿到普通用户的 VOS access token 时，直接用 `Authorization: Bearer <VOS token>` 调 HybRAG 业务 API；HybRAG 会校验并按该 VOS 用户映射出的 HybRAG 用户权限执行。
+- VOS token exchange：其他 VOS app 也可以先把 VOS token 换成 HybRAG token，再用 HybRAG token 调用后续 API。
 
-其他 VOS app 如果要“当前打开应用的 VOS 用户是谁，就访问 HybRAG 中对应用户的空间”，应使用 VOS token exchange，不要直接伪造 `X-External-User-ID`。`X-External-User-ID` 只适合可信服务端在已经持有 HybRAG API Key 的情况下做终端用户隔离；它不是免 key 用户登录机制。
+其他 VOS app 如果要“当前打开应用的 VOS 用户是谁，就访问 HybRAG 中对应用户的空间”，可以直接把 VOS/OAuth token 放到 HybRAG 业务 API 的 Bearer 头里，也可以先调用 token exchange 换取 HybRAG token。不要直接伪造 `X-External-User-ID`。`X-External-User-ID` 只适合可信服务端在已经持有 HybRAG 工作区级 API Key 的情况下做终端用户隔离；它不是免 key 用户登录机制。
 
 ### 身份映射规则
 
@@ -93,6 +94,15 @@ HybRAG 后端收到 VOS OIDC Fastpath 的应用 access token 后，会调用 `HY
 4. 如果个人空间不存在，按 `WEKNORA_AUTH_DEFAULT_TENANT_MODE=create_personal` 自动创建 `${username}'s Workspace`。
 5. 返回 HybRAG 自己签发的 `token` 和 `refresh_token`。
 6. 后续 HybRAG API 调用使用 `Authorization: Bearer <HybRAG token>`。
+
+如果调用方已经持有当前用户的 VOS/OAuth access token，也可以跳过 exchange，直接调用 HybRAG 业务 API：
+
+```http
+POST /api/v1/knowledge-chat/{session_id}
+Authorization: Bearer <VOS/OAuth access token>
+```
+
+HybRAG 会按 HybRAG JWT、VOS OIDC `/v1000/oauth2/userinfo`、旧 VOS `/v1000/user/check` 的顺序识别 Bearer token。VOS token 识别成功后，请求主体就是该 VOS 用户映射出的 HybRAG 用户。
 
 特殊规则：
 

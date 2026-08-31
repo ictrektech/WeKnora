@@ -22,6 +22,7 @@ type TenantAPIKey struct {
 	Name             string          `json:"name" gorm:"type:varchar(128);not null"`
 	KeyHash          string          `json:"-" gorm:"type:varchar(64);not null;uniqueIndex"`
 	APIKey           string          `json:"api_key" gorm:"column:api_key;type:text;not null;default:''"`
+	OwnerUserID      string          `json:"owner_user_id,omitempty" gorm:"type:varchar(36);not null;default:'';index"`
 	FullAccess       bool            `json:"full_access" gorm:"not null;default:false"`
 	KnowledgeBaseIDs StringArray     `json:"knowledge_base_ids" gorm:"type:jsonb;not null;default:'[]'"`
 	// Capabilities are bounded grants for non-full-access keys. Each
@@ -269,6 +270,7 @@ func (k *TenantAPIKey) AfterFind(tx *gorm.DB) error {
 type TenantAPIKeyScope struct {
 	KeyID            uint64
 	ScopeType        APIKeyScopeType
+	OwnerUserID      string
 	FullAccess       bool
 	KnowledgeBaseIDs StringArray
 	Capabilities     StringArray
@@ -293,6 +295,7 @@ func (s TenantAPIKeyScope) Normalize() TenantAPIKeyScope {
 	return TenantAPIKeyScope{
 		KeyID:            s.KeyID,
 		ScopeType:        NormalizeAPIKeyScopeType(s.ScopeType),
+		OwnerUserID:      strings.TrimSpace(s.OwnerUserID),
 		FullAccess:       s.FullAccess,
 		KnowledgeBaseIDs: normalizeIDArray(s.KnowledgeBaseIDs),
 		Capabilities:     NormalizeAPIKeyCapabilities(s.Capabilities),

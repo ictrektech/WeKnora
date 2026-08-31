@@ -74,6 +74,19 @@ func (r *fakeTenantAPIKeyRepo) ListAPIKeys(_ context.Context, tenantID uint64) (
 	return out, nil
 }
 
+func (r *fakeTenantAPIKeyRepo) ListAPIKeysByOwner(
+	_ context.Context, tenantID uint64, ownerUserID string,
+) ([]*types.TenantAPIKey, error) {
+	out := []*types.TenantAPIKey{}
+	for _, key := range r.byHash {
+		if key.TenantIDValue() == tenantID && key.OwnerUserID == ownerUserID && key.RevokedAt == nil {
+			cp := *key
+			out = append(out, &cp)
+		}
+	}
+	return out, nil
+}
+
 func (r *fakeTenantAPIKeyRepo) ListPlatformAPIKeys(_ context.Context) ([]*types.TenantAPIKey, error) {
 	out := []*types.TenantAPIKey{}
 	for _, key := range r.byHash {
@@ -85,10 +98,11 @@ func (r *fakeTenantAPIKeyRepo) ListPlatformAPIKeys(_ context.Context) ([]*types.
 	return out, nil
 }
 
-func (r *fakeTenantAPIKeyRepo) RevokeAPIKey(_ context.Context, tenantID uint64, id uint64) error {
+func (r *fakeTenantAPIKeyRepo) RevokeAPIKey(_ context.Context, tenantID uint64, id uint64, ownerUserID *string) error {
 	now := time.Now()
 	for _, key := range r.byHash {
-		if key.ID == id && key.TenantIDValue() == tenantID && key.RevokedAt == nil {
+		if key.ID == id && key.TenantIDValue() == tenantID && key.RevokedAt == nil &&
+			(ownerUserID == nil || key.OwnerUserID == *ownerUserID) {
 			key.RevokedAt = &now
 			return nil
 		}
@@ -99,10 +113,11 @@ func (r *fakeTenantAPIKeyRepo) RevokeAPIKey(_ context.Context, tenantID uint64, 
 // UpdateAPIKey 模拟仓储的租户边界并覆盖 API Key 的可配置属性。
 // 传入租户 ID、Key ID 和新配置，返回更新后的 Key；跨租户或已撤销目标返回未找到。
 func (r *fakeTenantAPIKeyRepo) UpdateAPIKey(
-	_ context.Context, tenantID uint64, id uint64, update *types.TenantAPIKey,
+	_ context.Context, tenantID uint64, id uint64, ownerUserID *string, update *types.TenantAPIKey,
 ) (*types.TenantAPIKey, error) {
 	for _, key := range r.byHash {
-		if key.ID == id && key.TenantIDValue() == tenantID && key.RevokedAt == nil {
+		if key.ID == id && key.TenantIDValue() == tenantID && key.RevokedAt == nil &&
+			(ownerUserID == nil || key.OwnerUserID == *ownerUserID) {
 			key.Name = update.Name
 			key.FullAccess = update.FullAccess
 			key.KnowledgeBaseIDs = append(types.StringArray(nil), update.KnowledgeBaseIDs...)
@@ -305,7 +320,7 @@ func TestTenantAPIKeyServiceRevokeAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAPIKey returned error: %v", err)
 	}
-	if err := svc.RevokeAPIKey(ctx, 42, created.APIKey.ID); err != nil {
+	if err := svc.RevokeAPIKey(ctx, 42, created.APIKey.ID, nil); err != nil {
 		t.Fatalf("RevokeAPIKey returned error: %v", err)
 	}
 	if _, err := svc.AuthenticateAPIKey(ctx, created.Token); err == nil {

@@ -579,6 +579,46 @@ func (s *userService) LoginWithTrustedIdentity(
 	req *types.TrustedIdentityLoginRequest,
 	provisioning types.TenantProvisioningMode,
 ) (*types.LoginResponse, error) {
+	user, err := s.ResolveTrustedIdentityUser(ctx, req, provisioning)
+	if err != nil {
+		return nil, err
+	}
+	if !user.IsActive {
+		return &types.LoginResponse{Success: false, Message: "Account is disabled"}, nil
+	}
+
+	activeTenantID := s.resolveLoginTenantID(ctx, user)
+	accessToken, refreshToken, err := s.generateTokensForTenant(ctx, user, activeTenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate local tokens: %w", err)
+	}
+
+	var tenant *types.Tenant
+	if activeTenantID > 0 {
+		if t, terr := s.tenantService.GetTenantByID(ctx, activeTenantID); terr == nil {
+			tenant = t
+		} else {
+			logger.Warnf(ctx, "Trusted identity login: failed to load tenant %d for user %s: %v",
+				activeTenantID, user.ID, terr)
+		}
+	}
+
+	return &types.LoginResponse{
+		Success:      true,
+		Message:      "Login successful",
+		User:         user,
+		ActiveTenant: tenant,
+		Memberships:  s.buildMembershipsForUser(ctx, user, tenant),
+		Token:        accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+func (s *userService) ResolveTrustedIdentityUser(
+	ctx context.Context,
+	req *types.TrustedIdentityLoginRequest,
+	provisioning types.TenantProvisioningMode,
+) (*types.User, error) {
 	if req == nil {
 		return nil, errors.New("trusted identity is required")
 	}
@@ -608,7 +648,7 @@ func (s *userService) LoginWithTrustedIdentity(
 		}
 	}
 	if !user.IsActive {
-		return &types.LoginResponse{Success: false, Message: "Account is disabled"}, nil
+		return user, nil
 	}
 
 	if strings.EqualFold(email, "admin@local") {
@@ -629,31 +669,7 @@ func (s *userService) LoginWithTrustedIdentity(
 		}
 	}
 
-	activeTenantID := s.resolveLoginTenantID(ctx, user)
-	accessToken, refreshToken, err := s.generateTokensForTenant(ctx, user, activeTenantID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate local tokens: %w", err)
-	}
-
-	var tenant *types.Tenant
-	if activeTenantID > 0 {
-		if t, terr := s.tenantService.GetTenantByID(ctx, activeTenantID); terr == nil {
-			tenant = t
-		} else {
-			logger.Warnf(ctx, "Trusted identity login: failed to load tenant %d for user %s: %v",
-				activeTenantID, user.ID, terr)
-		}
-	}
-
-	return &types.LoginResponse{
-		Success:      true,
-		Message:      "Login successful",
-		User:         user,
-		ActiveTenant: tenant,
-		Memberships:  s.buildMembershipsForUser(ctx, user, tenant),
-		Token:        accessToken,
-		RefreshToken: refreshToken,
-	}, nil
+	return user, nil
 }
 
 func (s *userService) provisionTrustedIdentityUser(

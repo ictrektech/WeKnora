@@ -26,7 +26,14 @@ VOS assigns HybRAG's private `VOS_APP_STORAGE_PATH`; the package stores files, D
 
 ## VOS User Identity For Other Apps
 
-Other VOS apps should not share or hard-code a HybRAG API Key when they need to access HybRAG as the currently opened VOS user. On VOS 1.1+, same-origin iframe apps should use their own OIDC Fastpath client first, then send the VOS OIDC app access token to HybRAG:
+Other VOS apps should not share or hard-code a workspace-level HybRAG API Key when they need to access HybRAG as the currently opened VOS user. On VOS 1.1+, same-origin iframe apps should use their own OIDC Fastpath client first, then they can call HybRAG business APIs directly with the VOS OIDC app access token:
+
+```http
+POST /api/v1/knowledge-chat/{session_id}
+Authorization: Bearer <VOS OIDC app access token>
+```
+
+HybRAG validates the VOS token and runs the request as the mapped HybRAG user. The caller may also exchange the VOS token for a HybRAG token first:
 
 ```http
 POST /api/v1/auth/vos-oidc

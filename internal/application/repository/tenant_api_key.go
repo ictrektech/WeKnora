@@ -47,6 +47,17 @@ func (r *tenantAPIKeyRepository) ListAPIKeys(ctx context.Context, tenantID uint6
 	return keys, err
 }
 
+func (r *tenantAPIKeyRepository) ListAPIKeysByOwner(
+	ctx context.Context, tenantID uint64, ownerUserID string,
+) ([]*types.TenantAPIKey, error) {
+	var keys []*types.TenantAPIKey
+	err := r.db.WithContext(ctx).
+		Where("tenant_id = ? AND owner_user_id = ? AND revoked_at IS NULL", tenantID, ownerUserID).
+		Order("created_at DESC").
+		Find(&keys).Error
+	return keys, err
+}
+
 func (r *tenantAPIKeyRepository) ListPlatformAPIKeys(ctx context.Context) ([]*types.TenantAPIKey, error) {
 	var keys []*types.TenantAPIKey
 	err := r.db.WithContext(ctx).
@@ -59,19 +70,22 @@ func (r *tenantAPIKeyRepository) ListPlatformAPIKeys(ctx context.Context) ([]*ty
 // UpdateAPIKey 更新租户 API Key 的可配置属性。
 // tenant_id 和 scope_type 同时参与条件，避免跨租户或误改平台级 Key。
 func (r *tenantAPIKeyRepository) UpdateAPIKey(
-	ctx context.Context, tenantID uint64, id uint64, update *types.TenantAPIKey,
+	ctx context.Context, tenantID uint64, id uint64, ownerUserID *string, update *types.TenantAPIKey,
 ) (*types.TenantAPIKey, error) {
-	res := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx).
 		Model(&types.TenantAPIKey{}).
 		Where("id = ? AND tenant_id = ? AND scope_type = ? AND revoked_at IS NULL",
-			id, tenantID, types.APIKeyScopeTenant).
-		Updates(map[string]any{
-			"name":               update.Name,
-			"full_access":        update.FullAccess,
-			"knowledge_base_ids": update.KnowledgeBaseIDs,
-			"capabilities":       update.Capabilities,
-			"expires_at":         update.ExpiresAt,
-		})
+			id, tenantID, types.APIKeyScopeTenant)
+	if ownerUserID != nil {
+		query = query.Where("owner_user_id = ?", *ownerUserID)
+	}
+	res := query.Updates(map[string]any{
+		"name":               update.Name,
+		"full_access":        update.FullAccess,
+		"knowledge_base_ids": update.KnowledgeBaseIDs,
+		"capabilities":       update.Capabilities,
+		"expires_at":         update.ExpiresAt,
+	})
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -80,9 +94,13 @@ func (r *tenantAPIKeyRepository) UpdateAPIKey(
 	}
 
 	var updatedKey types.TenantAPIKey
-	if err := r.db.WithContext(ctx).
+	query = r.db.WithContext(ctx).
 		Where("id = ? AND tenant_id = ? AND revoked_at IS NULL", id, tenantID).
-		First(&updatedKey).Error; err != nil {
+		Where("scope_type = ?", types.APIKeyScopeTenant)
+	if ownerUserID != nil {
+		query = query.Where("owner_user_id = ?", *ownerUserID)
+	}
+	if err := query.First(&updatedKey).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrTenantAPIKeyNotFound
 		}
@@ -91,12 +109,16 @@ func (r *tenantAPIKeyRepository) UpdateAPIKey(
 	return &updatedKey, nil
 }
 
-func (r *tenantAPIKeyRepository) RevokeAPIKey(ctx context.Context, tenantID uint64, id uint64) error {
+func (r *tenantAPIKeyRepository) RevokeAPIKey(ctx context.Context, tenantID uint64, id uint64, ownerUserID *string) error {
 	now := time.Now().UTC()
-	res := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx).
 		Model(&types.TenantAPIKey{}).
 		Where("id = ? AND tenant_id = ? AND revoked_at IS NULL", id, tenantID).
-		Update("revoked_at", &now)
+		Where("scope_type = ?", types.APIKeyScopeTenant)
+	if ownerUserID != nil {
+		query = query.Where("owner_user_id = ?", *ownerUserID)
+	}
+	res := query.Update("revoked_at", &now)
 	if res.Error != nil {
 		return res.Error
 	}

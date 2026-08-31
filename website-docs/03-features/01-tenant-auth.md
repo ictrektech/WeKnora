@@ -318,6 +318,8 @@ refreshClaims := jwt.MapClaims{
 
 `internal/types/tenant_api_key.go`。API Key **不复用租户角色**：一把 key 要么 `FullAccess`，要么携带显式能力集合；未声明策略的路由对 API Key 默认拒绝（default-deny）。
 
+普通成员可以创建自己的个人 API Key。个人 Key 带 `owner_user_id`，只对该用户生效，只允许 `retrieve`、`chat`、`ingest`，并且必须限定到该用户可访问的知识库 ID。Owner / 跨空间管理员可以创建工作区级 Key；工作区级 Key 不带 `owner_user_id`，可用于 full access、空间管理能力和可信服务端集成。
+
 | 能力 | 说明 |
 | --- | --- |
 | `retrieve` | 读取 / 搜索知识库数据（KB 列表、知识详情、hybrid-search 等） |

@@ -60,7 +60,8 @@ func TestTenantAPIKeyRepositoryUpdateIsTenantScoped(t *testing.T) {
 	}
 
 	expiresAt := time.Now().UTC().Add(time.Hour).Truncate(time.Second)
-	updated, err := repo.UpdateAPIKey(ctx, tenant42, keys[0].ID, &types.TenantAPIKey{
+	workspaceOwnerID := ""
+	updated, err := repo.UpdateAPIKey(ctx, tenant42, keys[0].ID, &workspaceOwnerID, &types.TenantAPIKey{
 		Name: "updated", FullAccess: false,
 		KnowledgeBaseIDs: types.StringArray{"kb-1", "kb-2"},
 		Capabilities:     types.StringArray{"retrieve", "chat"},
@@ -73,10 +74,10 @@ func TestTenantAPIKeyRepositoryUpdateIsTenantScoped(t *testing.T) {
 	require.NotNil(t, updated.ExpiresAt)
 	require.True(t, updated.ExpiresAt.Equal(expiresAt))
 
-	_, err = repo.UpdateAPIKey(ctx, tenant42, keys[1].ID, &types.TenantAPIKey{Name: "blocked"})
+	_, err = repo.UpdateAPIKey(ctx, tenant42, keys[1].ID, &workspaceOwnerID, &types.TenantAPIKey{Name: "blocked"})
 	require.ErrorIs(t, err, ErrTenantAPIKeyNotFound)
 
-	full, err := repo.UpdateAPIKey(ctx, tenant42, keys[2].ID, &types.TenantAPIKey{
+	full, err := repo.UpdateAPIKey(ctx, tenant42, keys[2].ID, &workspaceOwnerID, &types.TenantAPIKey{
 		Name: "full updated", FullAccess: false, Capabilities: types.StringArray{"retrieve"},
 	})
 	require.NoError(t, err)

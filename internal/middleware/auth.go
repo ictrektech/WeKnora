@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -158,6 +159,10 @@ func Auth(
 				return
 			}
 			logger.Warnf(c.Request.Context(), "[auth] bearer token rejected: %v", err)
+			if authenticateVOSBearerUser(c, tenantService, userService, memberService, cfg, token) {
+				c.Next()
+				return
+			}
 		}
 
 		// 尝试X-API-Key认证（兼容模式）
@@ -181,6 +186,239 @@ func Auth(
 		}
 		c.Abort()
 	}
+}
+
+func authenticateVOSBearerUser(
+	c *gin.Context,
+	tenantService interfaces.TenantService,
+	userService interfaces.UserService,
+	memberService interfaces.TenantMemberService,
+	cfg *config.Config,
+	token string,
+) bool {
+	if !vosSSOEnabledForMiddleware() {
+		return false
+	}
+	ctx := c.Request.Context()
+	identity, err := verifyVOSOIDCBearerIdentity(ctx, token)
+	if err != nil {
+		logger.Warnf(ctx, "[auth] VOS OIDC bearer verification failed: %v", err)
+		identity, err = verifyVOSLegacyBearerIdentity(ctx, token)
+		if err != nil {
+			logger.Warnf(ctx, "[auth] VOS legacy bearer verification failed: %v", err)
+			return false
+		}
+	}
+	user, err := userService.ResolveTrustedIdentityUser(ctx, identity, trustedIdentityProvisioningMode(cfg))
+	if err != nil || user == nil {
+		logger.Warnf(ctx, "[auth] VOS bearer local user resolution failed: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: VOS token could not be mapped to a local user"})
+		c.Abort()
+		return true
+	}
+	if !user.IsActive {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: account is disabled"})
+		c.Abort()
+		return true
+	}
+	if authenticateJWTUser(c, tenantService, memberService, cfg, user, user.TenantID) {
+		logger.Infof(ctx, "[auth] accepted VOS bearer for user=%s", user.ID)
+	}
+	return true
+}
+
+func trustedIdentityProvisioningMode(cfg *config.Config) types.TenantProvisioningMode {
+	mode := config.AuthDefaultTenantModeCreatePersonal
+	if cfg != nil && cfg.Auth != nil && strings.TrimSpace(cfg.Auth.DefaultTenantMode) != "" {
+		mode = strings.TrimSpace(cfg.Auth.DefaultTenantMode)
+	}
+	if mode == config.AuthDefaultTenantModeTenantless {
+		return types.TenantProvisioningTenantless
+	}
+	return types.TenantProvisioningCreatePersonal
+}
+
+func vosSSOEnabledForMiddleware() bool {
+	v := strings.TrimSpace(os.Getenv("HYBRAG_VOS_SSO_ENABLED"))
+	if v == "" {
+		v = strings.TrimSpace(os.Getenv("WEKNORA_VOS_SSO_ENABLED"))
+	}
+	if v == "" {
+		return true
+	}
+	return strings.EqualFold(v, "true") || v == "1" || strings.EqualFold(v, "yes")
+}
+
+func vosLegacyUserCheckURLForMiddleware() string {
+	if v := strings.TrimSpace(os.Getenv("HYBRAG_VOS_USERINFO_URL")); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv("WEKNORA_VOS_USERINFO_URL")); v != "" {
+		return v
+	}
+	return "http://172.17.0.1:8105/v1000/user/check"
+}
+
+func vosOIDCUserinfoURLForMiddleware() string {
+	if v := strings.TrimSpace(os.Getenv("HYBRAG_VOS_OIDC_USERINFO_URL")); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv("WEKNORA_VOS_OIDC_USERINFO_URL")); v != "" {
+		return v
+	}
+	return "http://172.17.0.1:8105/v1000/oauth2/userinfo"
+}
+
+func verifyVOSOIDCBearerIdentity(ctx context.Context, accessToken string) (*types.TrustedIdentityLoginRequest, error) {
+	payload, err := fetchVOSBearerJSON(ctx, vosOIDCUserinfoURLForMiddleware(), accessToken)
+	if err != nil {
+		return nil, err
+	}
+	if code, ok := payload["code"].(float64); ok && code != 0 {
+		return nil, fmt.Errorf("VOS OIDC userinfo rejected token: code=%d", int(code))
+	}
+	claims := payload
+	if data, ok := payload["data"].(map[string]interface{}); ok && len(data) > 0 {
+		claims = data
+	}
+	username := firstNonEmptyMiddlewareString(
+		mapMiddlewareString(claims, "preferred_username"),
+		mapMiddlewareString(claims, "username"),
+		mapMiddlewareString(claims, "name"),
+		mapMiddlewareString(claims, "nickname"),
+		mapMiddlewareString(claims, "email"),
+	)
+	subject := firstNonEmptyMiddlewareString(
+		mapMiddlewareString(claims, "sub"),
+		mapMiddlewareString(claims, "id"),
+		mapMiddlewareString(claims, "user_id"),
+		username,
+	)
+	return trustedVOSIdentity("vos-oidc", subject, username)
+}
+
+func verifyVOSLegacyBearerIdentity(ctx context.Context, accessToken string) (*types.TrustedIdentityLoginRequest, error) {
+	payload, err := fetchVOSBearerJSON(ctx, vosLegacyUserCheckURLForMiddleware(), accessToken)
+	if err != nil {
+		return nil, err
+	}
+	if code, ok := payload["code"].(float64); ok && code != 0 {
+		return nil, fmt.Errorf("VOS user check rejected token: code=%d", int(code))
+	}
+	data, _ := payload["data"].(map[string]interface{})
+	userObj, _ := data["user"].(map[string]interface{})
+	if len(userObj) == 0 {
+		userObj, _ = payload["user"].(map[string]interface{})
+	}
+	username := firstNonEmptyMiddlewareString(
+		mapMiddlewareString(userObj, "username"),
+		mapMiddlewareString(userObj, "name"),
+		mapMiddlewareString(userObj, "nickname"),
+		mapMiddlewareString(data, "username"),
+		mapMiddlewareString(data, "name"),
+		mapMiddlewareString(payload, "username"),
+		mapMiddlewareString(payload, "name"),
+	)
+	subject := firstNonEmptyMiddlewareString(
+		mapMiddlewareString(userObj, "id"),
+		mapMiddlewareString(userObj, "user_id"),
+		mapMiddlewareString(data, "id"),
+		mapMiddlewareString(data, "user_id"),
+		mapMiddlewareString(payload, "id"),
+		mapMiddlewareString(payload, "user_id"),
+		username,
+	)
+	return trustedVOSIdentity("vos", subject, username)
+}
+
+func fetchVOSBearerJSON(ctx context.Context, endpoint, accessToken string) (map[string]interface{}, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+accessToken)
+	httpReq.Header.Set("Accept", "application/json")
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("VOS userinfo failed: status=%d", resp.StatusCode)
+	}
+	var payload map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
+
+func trustedVOSIdentity(provider, subject, username string) (*types.TrustedIdentityLoginRequest, error) {
+	if strings.TrimSpace(username) == "" {
+		return nil, fmt.Errorf("VOS userinfo response missing username")
+	}
+	localUsername := sanitizeMiddlewareLocalIdentityName(username)
+	if localUsername == "" {
+		return nil, fmt.Errorf("VOS username %q cannot be mapped to a local account", username)
+	}
+	if strings.TrimSpace(subject) == "" {
+		subject = username
+	}
+	return &types.TrustedIdentityLoginRequest{
+		Provider: provider,
+		Subject:  strings.TrimSpace(subject),
+		Username: localUsername,
+		Email:    localUsername + "@local",
+	}, nil
+}
+
+func mapMiddlewareString(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
+	}
+	switch v := m[key].(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	default:
+		if v == nil {
+			return ""
+		}
+		return strings.TrimSpace(fmt.Sprint(v))
+	}
+}
+
+func firstNonEmptyMiddlewareString(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func sanitizeMiddlewareLocalIdentityName(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	var b strings.Builder
+	lastDash := false
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '.' {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	result := strings.Trim(b.String(), "-._")
+	if len(result) > 50 {
+		result = strings.Trim(result[:50], "-._")
+	}
+	return result
 }
 
 // bearerToken extracts the Bearer token from the Authorization header.
@@ -512,7 +750,11 @@ func attachAPIKeyAuthContext(
 		principal, user = platformAPIKeyIdentity(key)
 		user.TenantID = tenantID
 	} else {
-		user, err = userService.GetUserByTenantID(c.Request.Context(), tenantID)
+		if key != nil && strings.TrimSpace(key.OwnerUserID) != "" {
+			user, err = userService.GetUserByID(c.Request.Context(), strings.TrimSpace(key.OwnerUserID))
+		} else {
+			user, err = userService.GetUserByTenantID(c.Request.Context(), tenantID)
+		}
 		if err != nil || user == nil {
 			user = &types.User{
 				ID:       fmt.Sprintf("system-%d", tenantID),
@@ -524,6 +766,7 @@ func attachAPIKeyAuthContext(
 			logger.Infof(c.Request.Context(),
 				"No user found for tenant %d via API key, using synthetic system user %s", tenantID, user.ID)
 		}
+		user.TenantID = tenantID
 
 		var principalErr error
 		principal, principalErr = resolveAPIPrincipal(c.Request.Context(), t, c.Request.Header)
@@ -553,6 +796,7 @@ func attachAPIKeyAuthContext(
 		session.APIKeyScope = &types.TenantAPIKeyScope{
 			KeyID:            key.ID,
 			ScopeType:        key.ScopeType,
+			OwnerUserID:      key.OwnerUserID,
 			FullAccess:       fullAccess,
 			KnowledgeBaseIDs: key.KnowledgeBaseIDs,
 			Capabilities:     key.Capabilities,

@@ -155,6 +155,7 @@ type tenantAPIKeyUpdateRequest struct {
 type tenantAPIKeyResponse struct {
 	ID               uint64                `json:"id"`
 	ScopeType        types.APIKeyScopeType `json:"scope_type"`
+	OwnerUserID      string                `json:"owner_user_id,omitempty"`
 	Name             string                `json:"name"`
 	APIKey           string                `json:"api_key"`
 	FullAccess       bool                  `json:"full_access"`
@@ -664,7 +665,12 @@ func (h *TenantHandler) ListAPIKeys(c *gin.Context) {
 		c.Error(errors.NewBadRequestError("Invalid workspace ID"))
 		return
 	}
-	keys, err := h.apiKeyService.ListAPIKeys(ctx, id)
+	ownerUserID, errResp := h.apiKeyOwnerFilter(ctx)
+	if errResp != nil {
+		c.Error(errResp)
+		return
+	}
+	keys, err := h.apiKeyService.ListAPIKeys(ctx, id, ownerUserID)
 	if err != nil {
 		c.Error(errors.NewInternalServerError("Failed to list API keys").WithDetails(err.Error()))
 		return
@@ -688,7 +694,12 @@ func (h *TenantHandler) CreateAPIKey(c *gin.Context) {
 		c.Error(errors.NewValidationError("Invalid request data").WithDetails(err.Error()))
 		return
 	}
-	if err := validateTenantAPIKeyRequest(ctx, h.kbService, id, req); err != nil {
+	ownerUserID, userScoped, errResp := h.apiKeyWriteOwner(ctx, req.FullAccess)
+	if errResp != nil {
+		c.Error(errResp)
+		return
+	}
+	if err := h.validateTenantAPIKeyRequest(ctx, id, req, userScoped); err != nil {
 		c.Error(err)
 		return
 	}
@@ -703,6 +714,7 @@ func (h *TenantHandler) CreateAPIKey(c *gin.Context) {
 	}
 	result, err := h.apiKeyService.CreateAPIKey(ctx, interfaces.TenantAPIKeyCreateRequest{
 		TenantID:         id,
+		OwnerUserID:      ownerUserIDForCreate(ownerUserID),
 		Name:             req.Name,
 		FullAccess:       req.FullAccess,
 		KnowledgeBaseIDs: req.KnowledgeBaseIDs,
@@ -723,7 +735,7 @@ func (h *TenantHandler) CreateAPIKey(c *gin.Context) {
 }
 
 // UpdateAPIKey 修改已创建租户 API Key 的授权范围和其他可配置属性。
-// 路由层要求当前租户 Owner；字段校验与创建接口保持一致。
+// Owner 可管理工作区级 Key；普通成员只能管理自己的 scoped Key。
 func (h *TenantHandler) UpdateAPIKey(c *gin.Context) {
 	ctx := c.Request.Context()
 	tenantID, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -741,7 +753,12 @@ func (h *TenantHandler) UpdateAPIKey(c *gin.Context) {
 		c.Error(errors.NewValidationError("Invalid request data").WithDetails(err.Error()))
 		return
 	}
-	if appErr := validateTenantAPIKeyRequest(ctx, h.kbService, tenantID, tenantAPIKeyCreateRequest(req)); appErr != nil {
+	ownerUserID, userScoped, errResp := h.apiKeyWriteOwner(ctx, req.FullAccess)
+	if errResp != nil {
+		c.Error(errResp)
+		return
+	}
+	if appErr := h.validateTenantAPIKeyRequest(ctx, tenantID, tenantAPIKeyCreateRequest(req), userScoped); appErr != nil {
 		c.Error(appErr)
 		return
 	}
@@ -752,7 +769,7 @@ func (h *TenantHandler) UpdateAPIKey(c *gin.Context) {
 	}
 
 	updated, err := h.apiKeyService.UpdateAPIKey(ctx, interfaces.TenantAPIKeyUpdateRequest{
-		TenantID: tenantID, APIKeyID: keyID, Name: req.Name, FullAccess: req.FullAccess,
+		TenantID: tenantID, APIKeyID: keyID, OwnerUserID: ownerUserID, Name: req.Name, FullAccess: req.FullAccess,
 		KnowledgeBaseIDs: req.KnowledgeBaseIDs, Capabilities: req.Capabilities, ExpiresAt: expiresAt,
 	})
 	if err != nil {
@@ -774,7 +791,12 @@ func (h *TenantHandler) DeleteAPIKey(c *gin.Context) {
 		c.Error(errors.NewBadRequestError("Invalid API key ID"))
 		return
 	}
-	if err := h.apiKeyService.RevokeAPIKey(ctx, tenantID, keyID); err != nil {
+	ownerUserID, errResp := h.apiKeyOwnerFilter(ctx)
+	if errResp != nil {
+		c.Error(errResp)
+		return
+	}
+	if err := h.apiKeyService.RevokeAPIKey(ctx, tenantID, keyID, ownerUserID); err != nil {
 		c.Error(errors.NewNotFoundError("API key not found"))
 		return
 	}
@@ -788,6 +810,7 @@ func tenantAPIKeyForResponse(key *types.TenantAPIKey) tenantAPIKeyResponse {
 	return tenantAPIKeyResponse{
 		ID:               key.ID,
 		ScopeType:        types.NormalizeAPIKeyScopeType(key.ScopeType),
+		OwnerUserID:      key.OwnerUserID,
 		Name:             key.Name,
 		APIKey:           key.APIKey,
 		FullAccess:       key.FullAccess,
@@ -799,14 +822,17 @@ func tenantAPIKeyForResponse(key *types.TenantAPIKey) tenantAPIKeyResponse {
 	}
 }
 
-func validateTenantAPIKeyRequest(
+func (h *TenantHandler) validateTenantAPIKeyRequest(
 	ctx context.Context,
-	kbService interfaces.KnowledgeBaseService,
 	tenantID uint64,
 	req tenantAPIKeyCreateRequest,
+	userScoped bool,
 ) *errors.AppError {
 	if strings.TrimSpace(req.Name) == "" {
 		return errors.NewValidationError("name is required")
+	}
+	if userScoped && req.FullAccess {
+		return errors.NewForbiddenError("personal API keys cannot use full workspace access")
 	}
 	if req.FullAccess {
 		return nil
@@ -814,6 +840,18 @@ func validateTenantAPIKeyRequest(
 	caps := types.NormalizeAPIKeyCapabilities(types.StringArray(req.Capabilities))
 	if len(caps) == 0 {
 		return errors.NewValidationError("capabilities are required for scoped API keys")
+	}
+	if userScoped {
+		for _, cap := range caps {
+			switch types.APIKeyCapability(cap) {
+			case types.APIKeyCapabilityRetrieve, types.APIKeyCapabilityChat, types.APIKeyCapabilityIngest:
+			default:
+				return errors.NewForbiddenError("personal API keys may only use retrieve, chat, and ingest capabilities")
+			}
+		}
+		if requiresKnowledgeBaseScope(caps) && len(req.KnowledgeBaseIDs) == 0 {
+			return errors.NewValidationError("knowledge_base_ids are required for personal API keys")
+		}
 	}
 	for _, cap := range req.Capabilities {
 		if strings.TrimSpace(cap) == "" {
@@ -823,7 +861,86 @@ func validateTenantAPIKeyRequest(
 			return errors.NewValidationError("capabilities contains an unknown capability")
 		}
 	}
-	return validateTenantAPIKeyKnowledgeBaseIDs(ctx, kbService, tenantID, req.KnowledgeBaseIDs)
+	if userScoped {
+		return h.validatePersonalAPIKeyKnowledgeBaseIDs(ctx, req.KnowledgeBaseIDs)
+	}
+	return validateTenantAPIKeyKnowledgeBaseIDs(ctx, h.kbService, tenantID, req.KnowledgeBaseIDs)
+}
+
+func requiresKnowledgeBaseScope(caps types.StringArray) bool {
+	for _, cap := range caps {
+		switch types.APIKeyCapability(cap) {
+		case types.APIKeyCapabilityRetrieve, types.APIKeyCapabilityChat, types.APIKeyCapabilityIngest:
+			return true
+		}
+	}
+	return false
+}
+
+func (h *TenantHandler) validatePersonalAPIKeyKnowledgeBaseIDs(
+	ctx context.Context,
+	knowledgeBaseIDs []string,
+) *errors.AppError {
+	if h.kbService == nil {
+		return errors.NewInternalServerError("Knowledge base service unavailable")
+	}
+	visibleKBs, err := h.kbService.ListKnowledgeBases(ctx)
+	if err != nil {
+		return errors.NewInternalServerError("Failed to validate knowledge base access").WithDetails(err.Error())
+	}
+	allowed := make(map[string]struct{}, len(visibleKBs))
+	for _, kb := range visibleKBs {
+		if kb != nil && kb.ID != "" {
+			allowed[kb.ID] = struct{}{}
+		}
+	}
+	for _, id := range knowledgeBaseIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := allowed[id]; !ok {
+			return errors.NewForbiddenError("personal API key cannot access one or more knowledge bases")
+		}
+	}
+	return nil
+}
+
+func (h *TenantHandler) apiKeyOwnerFilter(ctx context.Context) (*string, *errors.AppError) {
+	user, err := h.userService.GetCurrentUser(ctx)
+	if err != nil || user == nil {
+		return nil, errors.NewUnauthorizedError("authentication required")
+	}
+	if user.CanAccessAllTenants {
+		return nil, nil
+	}
+	if types.TenantRoleFromContext(ctx).HasPermission(types.TenantRoleOwner) {
+		workspaceOwnerID := ""
+		return &workspaceOwnerID, nil
+	}
+	ownerUserID := user.ID
+	return &ownerUserID, nil
+}
+
+func (h *TenantHandler) apiKeyWriteOwner(ctx context.Context, fullAccess bool) (*string, bool, *errors.AppError) {
+	ownerUserID, errResp := h.apiKeyOwnerFilter(ctx)
+	if errResp != nil {
+		return nil, false, errResp
+	}
+	if ownerUserID == nil || strings.TrimSpace(*ownerUserID) == "" {
+		return ownerUserID, false, nil
+	}
+	if fullAccess {
+		return nil, true, errors.NewForbiddenError("personal API keys cannot use full workspace access")
+	}
+	return ownerUserID, true, nil
+}
+
+func ownerUserIDForCreate(ownerUserID *string) string {
+	if ownerUserID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*ownerUserID)
 }
 
 // validateTenantAPIKeyKnowledgeBaseIDs 校验白名单中的知识库真实存在且属于目标租户。
