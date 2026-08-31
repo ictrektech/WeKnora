@@ -7,5 +7,5 @@ export function shouldShowOllamaUnavailableTip(
   modelType: ModelEditorType,
   ollamaServiceStatus: boolean | null,
 ): boolean {
-  return source === 'local' && modelType !== 'rerank' && ollamaServiceStatus === false
+  return source === 'local' && ollamaServiceStatus === false
 }

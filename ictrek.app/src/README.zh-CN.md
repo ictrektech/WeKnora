@@ -80,18 +80,19 @@ Authorization: Bearer <VOS access token>
 
 ## 模型
 
-本包不在 VOS 包里放额外 `config/` 目录。App 容器启动脚本会在运行时生成 `builtin_models.yaml` 并自动创建三条 YAML 托管模型行。界面中可通过 display name 区分两个 Model Hub Ollama 后端：
+本包不在 VOS 包里放额外 `config/` 目录。App 容器启动脚本会在运行时生成 `builtin_models.yaml` 并自动创建四条 YAML 托管模型行。界面中可通过 display name 区分三个 Model Hub Ollama 后端：
 
 - `Model Hub Ollama QA (model-hub-ollama-qa)`：KnowledgeQA，端点 `http://model-hub-ollama-qa:11535/v1`
 - `Model Hub Ollama VLM (model-hub-ollama-qa)`：VLLM，端点 `http://model-hub-ollama-qa:11535/v1`
 - `Model Hub Ollama Embedding (model-hub-ollama-embedding)`：Embedding，端点 `http://model-hub-ollama-embedding:11535/v1`
+- `Model Hub Ollama ReRank (model-hub-ollama-rerank)`：ReRank，端点 `http://model-hub-ollama-rerank:11535`
 
-模型行必须使用 `11535/v1` Gateway 地址，不能改成 Ollama 原生 `11434`。只有经过 Gateway 的请求才会被 Model Hub 统计槽位、运行阶段和 token/s。
+QA、VLM 和 embedding 模型行必须使用 `11535/v1` Gateway 地址；Ollama ReRank 通过 `/api/embed` 适配，使用 `11535` Gateway 根地址。不能改成 Ollama 原生 `11434`。只有经过 Gateway 的请求才会被 Model Hub 统计槽位、运行阶段和 token/s。
 
-默认模型名固定为 `qwen3.5:2b` 和 `bge-m3`，不再作为 HybRAG 安装参数暴露。模型下载、预热、上下文和并发由 Model Hub 配置；运行后也可以在 HybRAG UI 中添加或修改其他模型。
+默认模型名固定为 `qwen3.5:2b`、`bge-m3` 和 `qllama/bge-reranker-v2-m3:q8_0`，不再作为 HybRAG 安装参数暴露。ReRank 只进入默认模型列表，不会自动绑定到知识库 `rerank_model_id`。模型下载、预热、上下文和并发由 Model Hub 配置；运行后也可以在 HybRAG UI 中添加或修改其他模型。
 
 Ollama Qwen3.5 关闭思考使用 `thinking_control=think`，请求会发送顶层 `think:false`。vLLM / generic Qwen3.5 关闭思考使用 `thinking_control=chat_template_kwargs`，请求会发送 `chat_template_kwargs.enable_thinking=false`。
 
-启动时，HybRAG 会等待 Model Hub 两个 gateway 的 `/v1/models` 可访问后再触发失败文档补交；服务本身不再负责拉取或常驻模型。默认按 QA 总槽位 `8`、聊天预留 `2`、后台共享 `6` 调度；embedding 后台使用 `2`。
+启动时，HybRAG 会等待 Model Hub 两个 gateway 的 `/v1/models` 可访问后再触发失败文档补交；服务本身不再负责拉取或常驻模型。默认按 QA 总槽位 `8`、聊天预留 `2`、后台共享 `6` 调度；embedding 后台使用 `2`；ReRank worker 按 Model Hub 配置提供 `2` 个槽位。
 
 详细预热、常驻和排错说明见仓库文档 `ictrek.app/docs/vos-ollama-prewarm.md`。

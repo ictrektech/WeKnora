@@ -246,6 +246,16 @@ curl -X POST $BASE/api/v1/sessions/s-1/suggestion-events -H "Authorization: Bear
 
 Handler: `internal/handler/session/qa.go`。API key：聊天需 `chat`/full；`knowledge-search` 需 `retrieve`/full。
 
+外部系统调用 RAG 问答时通常分两步：
+
+1. `POST /api/v1/sessions` 创建会话，保存响应中的 `data.id`。
+2. `POST /api/v1/knowledge-chat/:session_id` 发起流式问答，路径里的 `:session_id` 使用第 1 步返回值；请求体通过 `knowledge_base_ids` 指定要检索的知识库。
+
+认证可以二选一：
+
+- 服务端集成推荐 `X-API-Key: <api_key>`。用于 RAG 问答的 Key 至少需要 `chat` 能力；如果还要无会话检索，再加 `retrieve`。
+- 已登录用户调用可使用 `Authorization: Bearer <access_token>`，token 来自 `/auth/login`、OIDC 或 VOS token exchange。
+
 ### POST /api/v1/knowledge-chat/:session_id
 
 用途：知识库问答（SSE 流式）。
@@ -279,6 +289,13 @@ curl -N -X POST $BASE/api/v1/knowledge-chat/s-1 -H "X-API-Key: $API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"query":"退款政策是什么?","knowledge_base_ids":["kb-1"]}'
 ```
+
+说明：
+
+- `knowledge_base_ids` 是推荐字段，支持一个或多个知识库 ID；不传时由当前 Agent/会话默认知识范围决定。
+- `knowledge_ids` 用于把检索进一步限定到某些文档 ID。
+- 如果 API Key 创建时绑定了知识库白名单，请求中的 `knowledge_base_ids` 必须在白名单内。
+- 响应是 SSE，不是一次性 JSON。客户端需要持续读取 `data:`，直到收到 `response_type:"complete"`。
 
 ### POST /api/v1/agent-chat/:session_id
 

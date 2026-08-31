@@ -89,7 +89,7 @@ docker inspect <app-container> --format \
 
 只在输出的 `workdir` 目录中执行 `docker compose pull/up/restart`。如果 compose 文件没有指向 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/...`，先修正 image override，不要继续执行。
 
-发布镜像默认不会主动创建部署专用模型行。VOS HybRAG 安装包通过环境变量 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 让 App 容器入口脚本在运行时生成 `builtin_models.yaml`，用于创建可区分 QA/VLM Ollama 和 embedding Ollama 的默认模型行；VOS 包内不要放额外 `config/` 目录，否则当前 VOS parser 会拒绝解析。非 VOS 部署仍应在 Web UI 后配，或由运维人员显式挂载基于 `.env` 的 `config/builtin_models.yaml`。
+发布镜像默认不会主动创建部署专用模型行。VOS HybRAG 安装包通过环境变量 `HYBRAG_DEFAULT_BUILTIN_MODELS=true` 让 App 容器入口脚本在运行时生成 `builtin_models.yaml`，用于创建可区分 QA/VLM Ollama、embedding Ollama 和 rerank Ollama 的默认模型行；ReRank 只进入默认模型列表，不会自动绑定到知识库 `rerank_model_id`。VOS 包内不要放额外 `config/` 目录，否则当前 VOS parser 会拒绝解析。非 VOS 部署仍应在 Web UI 后配，或由运维人员显式挂载基于 `.env` 的 `config/builtin_models.yaml`。
 
 注意：如果用空 `builtin_models.yaml` 覆盖旧部署，先检查数据库里模型行的 `managed_by`。仍为 `managed_by='yaml'` 且不在当前 YAML 中的模型行，会在 app 启动时被软删除。需要长期保留的运行时模型，要么继续写在挂载 YAML 中，要么改成 `managed_by=''` 的手工行。
 

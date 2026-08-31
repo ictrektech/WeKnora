@@ -119,8 +119,8 @@
             <button
               type="button"
               class="source-option"
-              :class="{ 'is-active': formData.source === 'local', 'is-disabled': ollamaServiceStatus === false || activeModelType === 'rerank' }"
-              :disabled="ollamaServiceStatus === false || activeModelType === 'rerank'"
+              :class="{ 'is-active': formData.source === 'local', 'is-disabled': ollamaServiceStatus === false }"
+              :disabled="ollamaServiceStatus === false"
               role="radio"
               :aria-checked="formData.source === 'local'"
               @click="formData.source = 'local'"
@@ -130,14 +130,8 @@
             </button>
           </div>
 
-          <!-- ReRank模型不支持Ollama的提示信息 -->
-          <div v-if="activeModelType === 'rerank'" class="ollama-unavailable-tip rerank-tip">
-            <t-icon name="info-circle-filled" class="tip-icon info" />
-            <span class="tip-text">{{ $t('model.editor.ollamaNotSupportRerank') }}</span>
-          </div>
-
           <!-- Ollama不可用时的提示信息 -->
-          <div v-else-if="shouldShowOllamaUnavailableTip(formData.source, activeModelType, ollamaServiceStatus)"
+          <div v-if="shouldShowOllamaUnavailableTip(formData.source, activeModelType, ollamaServiceStatus)"
             class="ollama-unavailable-tip">
             <t-icon name="error-circle-filled" class="tip-icon" />
             <span class="tip-text">{{ $t('model.editor.ollamaUnavailable') }}</span>
@@ -1102,9 +1096,6 @@ const selectModelType = async (type: EditorModelType) => {
   if (isEdit.value || draftModelType.value === type) return
   draftModelType.value = type
 
-  if (type === 'rerank') {
-    formData.value.source = 'remote'
-  }
   if (type !== 'embedding') {
     formData.value.dimension = undefined
     formData.value.supportsDimensionOverride = false
@@ -1178,11 +1169,6 @@ watch(() => props.visible, (val) => {
       // 否则：连续两次"新增"打开（中间是点遮罩/ESC 关闭的）→ 保留上次填写
 
       lastOpenedModelId.value = currentId
-
-      // ReRank 模型强制使用 remote 来源（Ollama 不支持 ReRank）
-      if (activeModelType.value === 'rerank') {
-        formData.value.source = 'remote'
-      }
 
       // 如果当前 provider 是 WeKnoraCloud，检查凭证状态
       if (formData.value.provider === 'weknoracloud') {
@@ -2444,17 +2430,6 @@ const handleCancel = () => {
     color: var(--td-error-color);
     flex: 1;
     line-height: 1.5;
-  }
-
-  // ReRank提示使用主题绿色风格，与主页面保持一致
-  &.rerank-tip {
-    background: var(--td-success-color-light);
-    border: 1px solid var(--td-success-color-focus);
-    border-left: 3px solid var(--td-brand-color);
-
-    .tip-text {
-      color: var(--td-success-color);
-    }
   }
 
   :deep(.tip-link) {

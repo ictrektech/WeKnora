@@ -23427,7 +23427,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "WeKnora API",
-	Description:      "WeKnora 知识库管理系统 API 文档",
+	Description:      "WeKnora 知识库管理系统 API 文档。不在 VOS 内访问时，外部系统可直接调用 /api/v1：推荐用 X-API-Key 作为机器凭证；已登录用户也可用 Authorization: Bearer <token>。RAG 问答通常先 POST /sessions 获取 session_id，再 POST /knowledge-chat/{session_id}，并在请求体用 knowledge_base_ids 指定知识库。",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

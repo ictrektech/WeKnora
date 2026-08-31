@@ -13,6 +13,47 @@
 BASE=http://localhost:8080
 ```
 
+## 非 VOS 场景调用 HybRAG API
+
+HybRAG 作为 VOS App 安装时，前端会优先使用 VOS 当前用户自动登录；外部系统、脚本、第三方后端或浏览器插件不在 VOS iframe 内运行时，不依赖这套自动登录，直接调用 HybRAG 自身的 REST API 即可。
+
+### 最小调用闭环
+
+1. 准备 API 地址：`https://<你的域名或网关>/api/v1`。如果直接访问内网部署，则使用该部署暴露的 HybRAG 后端地址并保留 `/api/v1` 前缀。
+2. 准备认证：推荐创建独立 API Key，调用时发送 `X-API-Key: <api_key>`。也可以用登录接口签发的用户 JWT，发送 `Authorization: Bearer <access_token>`。
+3. 创建会话：`POST /sessions`，保存响应里的 `data.id` 作为后续 `session_id`。
+4. 发起 RAG 问答：`POST /knowledge-chat/:session_id`，请求体里传 `query`，需要限定知识库时传 `knowledge_base_ids`。
+5. 持续读取 SSE：接口返回 `text/event-stream`，每条 `data:` 是 `StreamResponse` JSON，收到 `response_type:"complete"` 表示本轮结束。
+
+```bash
+BASE=https://example.com/api/v1
+API_KEY=sk_xxx
+
+SESSION_ID=$(curl -s -X POST "$BASE/sessions" \
+  -H "X-API-Key: $API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{}' | jq -r '.data.id')
+
+curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
+  -H "X-API-Key: $API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"这份知识库里有哪些重点?","knowledge_base_ids":["<knowledge_base_id>"],"channel":"api"}'
+```
+
+### Knowledge Base ID 与 Session ID
+
+- `knowledge_base_ids` 写在聊天请求体中，类型是字符串数组；只查一个知识库也建议使用数组形式，例如 `["kb-1"]`。
+- `knowledge_base_id` 是 `POST /knowledge-search` 的旧版单库字段；新集成建议统一使用 `knowledge_base_ids`。
+- `session_id` 来自 `POST /sessions` 的响应。会话用于保存多轮上下文、消息记录、续传状态和标题；同一个终端用户继续对话时复用同一个 `session_id`，新话题可以重新创建。
+- 如果使用受限 API Key，Key 创建时配置的 `knowledge_base_ids` 是服务端权限边界；请求体中的知识库 ID 不能越过这个边界。
+
+### API Key / Token / Bearer Token
+
+- **推荐方式：独立 API Key。** Owner 在 API 集成页或 `POST /api/v1/tenants/:id/api-keys` 创建空间级 API Key。RAG 问答至少需要 `chat` 能力；无会话检索需要 `retrieve`；上传或修改知识库内容需要 `ingest`；创建、复制、修改或删除知识库需要 `manage_kbs`。API Key 只在创建时返回明文，之后只能重建或轮换。
+- **用户 JWT：** 使用 `POST /auth/login`、OIDC 或 VOS token exchange 获得 HybRAG access token 后，发送 `Authorization: Bearer <token>`。这种方式代表具体登录用户，适合已有 HybRAG 用户会话的前端调用。
+- **Bearer Token 不是 API Key 的别名：** `Authorization: Bearer ...` 校验的是用户访问令牌；机器集成的 API Key 走 `X-API-Key`。
+- **是否需要 admin 登录取 Token：** 业务调用不需要每次用 admin 账号登录取 Token。更合适的做法是由空间 Owner 先创建独立 API Key，第三方服务长期使用该 Key；如果需要模拟不同终端用户，再在 API 集成页配置 `X-External-User-ID` 或 `X-External-User-Token`。
+
 ## 认证方式
 
 认证由 `internal/middleware/auth.go` 的 `Auth` 中间件统一处理，按以下顺序尝试：

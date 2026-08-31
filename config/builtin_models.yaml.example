@@ -75,6 +75,19 @@ builtin_models: []
 #         dimension: 1024
 #         truncate_prompt_tokens: 8192
 #
+#   - id: builtin-ollama-rerank
+#     type: Rerank
+#     source: remote
+#     is_default: true
+#     name: qllama/bge-reranker-v2-m3:q8_0
+#     display_name: Model Hub Ollama ReRank (model-hub-ollama-rerank)
+#     parameters:
+#       base_url: http://model-hub-ollama-rerank:11535
+#       api_key: EMPTY
+#       provider: ollama
+#       extra_config:
+#         ollama_rerank_template: "Query: {query}\nDocument: {document}"
+#
 # ----- Example: remote API entries — uncomment and adapt --------------------
 #
 # builtin_models:

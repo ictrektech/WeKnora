@@ -1,15 +1,16 @@
 # VOS Model Hub 模型预热与常驻
 
-本文说明 HybRAG VOS app 如何复用 Model Hub 的两个预热 Ollama 运行时。HybRAG 现在不再启动自己的 Ollama 容器。
+本文说明 HybRAG VOS app 如何复用 Model Hub 的预热 Ollama 运行时。HybRAG 现在不再启动自己的 Ollama 容器。
 
 ## 默认行为
 
-Model Hub 应先安装并运行在同一个 `vos_default` 网络中。当前 HybRAG 默认引用两个 Model Hub 服务：
+Model Hub 应先安装并运行在同一个 `vos_default` 网络中。当前 HybRAG 默认引用三个 Model Hub 服务：
 
 | 用途 | 服务名 | API | Gateway | 默认模型 |
 | --- | --- | --- | --- | --- |
 | QA / 聊天 / 图片理解 | `model-hub-ollama-qa` | `http://model-hub-ollama-qa:11434` | `http://model-hub-ollama-qa:11535` | `qwen3.5:2b` |
 | Embedding | `model-hub-ollama-embedding` | `http://model-hub-ollama-embedding:11434` | `http://model-hub-ollama-embedding:11535` | `bge-m3` |
+| ReRank | `model-hub-ollama-rerank` | `http://model-hub-ollama-rerank:11434` | `http://model-hub-ollama-rerank:11535` | `qllama/bge-reranker-v2-m3:q8_0` |
 
 Model Hub 负责模型下载、预热、常驻、上下文长度和 Ollama 并发。HybRAG 只在默认模型行里引用 OpenAI-compatible gateway。默认模型名和地址由 HybRAG 包模板固定，不再作为安装表单参数暴露：
 
@@ -17,26 +18,29 @@ Model Hub 负责模型下载、预热、常驻、上下文长度和 Ollama 并�
 OLLAMA_BASE_URL=http://model-hub-ollama-qa:11535
 ```
 
-QA、VLM、embedding 模型行和 `OLLAMA_BASE_URL` 都必须配置到 `11535` Gateway。不要配置到 Ollama 原生 `11434`，否则 Model Hub 只能看到服务在线，看不到 WeKnora 请求的槽位、阶段和 token/s。
+QA、VLM、embedding 模型行和 `OLLAMA_BASE_URL` 都必须配置到 `11535` Gateway。Ollama ReRank 模型行也使用 `11535` Gateway，但通过 `/api/embed` 适配，所以 base URL 使用不带 `/v1` 的 `http://model-hub-ollama-rerank:11535`。不要配置到 Ollama 原生 `11434`，否则 Model Hub 只能看到服务在线，看不到 WeKnora 请求的槽位、阶段和 token/s。
 
 模型行的 `base_url` 使用带 `/v1` 的 gateway 地址；`OLLAMA_BASE_URL` 使用不带 `/v1` 的 gateway 根地址。
 
 ## 启动顺序
 
 1. 先安装并启动 Model Hub。
-2. 在 Model Hub 运行管理页确认 `model-hub-ollama-qa` 和 `model-hub-ollama-embedding` 在线。
-3. 确认 `qwen3.5:2b` 和 `bge-m3` 已下载并处于运行中。
+2. 在 Model Hub 运行管理页确认 `model-hub-ollama-qa`、`model-hub-ollama-embedding` 和 `model-hub-ollama-rerank` 在线。
+3. 确认 `qwen3.5:2b`、`bge-m3` 和 `qllama/bge-reranker-v2-m3:q8_0` 已下载并处于运行中。
 4. 再安装或启动 HybRAG。
 
 HybRAG app 启动后会用 `WEKNORA_REPARSE_WAIT_URLS` 等待两个 Model Hub gateway 的 `/v1/models` 可用，再执行失败文档补交。这个等待只影响后台补交，不应该阻塞 HybRAG HTTP 服务启动。
 
 ## 默认模型行
 
-VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运行时生成 `builtin_models.yaml`，并自动创建三条默认模型行：
+VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运行时生成 `builtin_models.yaml`，并自动创建四条默认模型行：
 
 - `Model Hub Ollama QA (model-hub-ollama-qa)`：KnowledgeQA，endpoint `http://model-hub-ollama-qa:11535/v1`。
 - `Model Hub Ollama VLM (model-hub-ollama-qa)`：VLLM，endpoint `http://model-hub-ollama-qa:11535/v1`。
 - `Model Hub Ollama Embedding (model-hub-ollama-embedding)`：Embedding，endpoint `http://model-hub-ollama-embedding:11535/v1`。
+- `Model Hub Ollama ReRank (model-hub-ollama-rerank)`：ReRank，endpoint `http://model-hub-ollama-rerank:11535`。
+
+ReRank 只进入默认模型列表，不会自动写入知识库 `rerank_model_id`；是否在知识库、智能体或搜索流程里启用，由用户配置决定。
 
 为了升级时不破坏已有引用，默认模型行的内部 `id` 会保持兼容；界面显示名和 endpoint 会跟随当前 YAML 托管配置同步。
 
@@ -53,6 +57,10 @@ curl -fsS http://model-hub-ollama-embedding:11535/v1/models
 curl -fsS http://model-hub-ollama-embedding:11535/v1/embeddings \
   -H 'Content-Type: application/json' \
   -d '{"model":"bge-m3","input":["中文知识库检索测试"]}'
+
+curl -fsS http://model-hub-ollama-rerank:11535/api/embed \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qllama/bge-reranker-v2-m3:q8_0","input":["Query: 中文知识库检索测试\nDocument: 中文知识库检索测试","Query: 中文知识库检索测试\nDocument: 无关内容"]}'
 ```
 
 如果在宿主机上测试，需要使用 Model Hub 对外映射的端口或进入任意 `vos_default` 网络内的容器执行。
@@ -63,3 +71,4 @@ curl -fsS http://model-hub-ollama-embedding:11535/v1/embeddings \
 - HybRAG 模型列表为空：先检查 Model Hub 两个 gateway 的 `/v1/models`，再检查 App 容器启动日志中默认 `builtin_models.yaml` 是否生成。
 - 聊天一直“正在思考”：先在 Model Hub QA 容器内确认模型是否常驻并有可用槽位，再检查 HybRAG 模型行是否使用 `thinking_control=think`。
 - 文档解析 embedding 失败：测试 `model-hub-ollama-embedding:11535/v1/embeddings`，确认模型名与 HybRAG 模型行一致。
+- ReRank 不可用：测试 `model-hub-ollama-rerank:11535/api/embed`，确认 `qllama/bge-reranker-v2-m3:q8_0` 已在 Model Hub rerank worker 中下载、常驻并保留可用槽位。

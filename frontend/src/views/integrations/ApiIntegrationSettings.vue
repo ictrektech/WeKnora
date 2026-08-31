@@ -88,6 +88,37 @@
           </div>
         </div>
 
+        <div class="external-api-guide">
+          <div class="external-api-guide__header">
+            <label>{{ $t('integrations.api.externalGuideTitle') }}</label>
+            <p>{{ $t('integrations.api.externalGuideDesc') }}</p>
+          </div>
+          <div class="external-api-guide__grid">
+            <div class="external-api-guide__item">
+              <span>{{ $t('integrations.api.externalGuideAuthTitle') }}</span>
+              <p>{{ $t('integrations.api.externalGuideAuthDesc') }}</p>
+            </div>
+            <div class="external-api-guide__item">
+              <span>{{ $t('integrations.api.externalGuideSessionTitle') }}</span>
+              <p>{{ $t('integrations.api.externalGuideSessionDesc') }}</p>
+            </div>
+            <div class="external-api-guide__item">
+              <span>{{ $t('integrations.api.externalGuideKbTitle') }}</span>
+              <p>{{ $t('integrations.api.externalGuideKbDesc') }}</p>
+            </div>
+          </div>
+          <div class="code-panel external-api-guide__snippet">
+            <div class="code-panel__toolbar">
+              <span class="code-panel__label">{{ $t('integrations.api.externalGuideRagExample') }}</span>
+              <t-button size="small" variant="text" class="code-panel__copy" @click="copy(ragChatExample)">
+                <template #icon><t-icon name="file-copy" /></template>
+                {{ $t('integrations.api.copy') }}
+              </t-button>
+            </div>
+            <pre class="code-panel__pre">{{ ragChatExample }}</pre>
+          </div>
+        </div>
+
         <div class="api-key-section">
           <div class="api-key-section__header">
             <div class="api-key-section__title">
@@ -1113,6 +1144,24 @@ const requestExample = computed(() => {
   return lines.join('\n')
 })
 
+const ragChatExample = computed(() => {
+  const apiKeyHeader = `  -H "X-API-Key: ${apiKey.value ? '<API_KEY>' : '<YOUR_API_KEY>'}"`
+  const contentType = '  -H "Content-Type: application/json"'
+  return [
+    t('integrations.api.requestExampleCreateSession'),
+    `curl -X POST ${apiBaseUrl.value}/sessions \\`,
+    `${apiKeyHeader} \\`,
+    `${contentType} \\`,
+    `  -d '{}'`,
+    '',
+    t('integrations.api.externalGuideRagStep'),
+    `curl -N -X POST ${apiBaseUrl.value}/knowledge-chat/<session_id> \\`,
+    `${apiKeyHeader} \\`,
+    `${contentType} \\`,
+    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"channel":"api"}'`,
+  ].join('\n')
+})
+
 const activeExampleText = computed(() => (
   form.mode === 'signed_token' && exampleTab.value === 'jwt'
     ? tokenSignExample.value
@@ -1431,7 +1480,7 @@ const saveDesktopPort = async () => {
 }
 
 function openApiDoc() {
-  window.open('https://github.com/Tencent/WeKnora/blob/main/docs/api/README.md', '_blank')
+  window.open('https://github.com/ictrektech/WeKnora/blob/main/docs/api/README.md', '_blank')
 }
 
 function openCreateAPIKeyDialog() {
@@ -1831,6 +1880,66 @@ onBeforeUnmount(stopPlayground)
   gap: 14px;
   padding: 20px 0;
   border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.external-api-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.external-api-guide__header {
+  label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--td-text-color-primary);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  p {
+    margin: 0;
+    color: var(--td-text-color-secondary);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+}
+
+.external-api-guide__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.external-api-guide__item {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--td-component-stroke);
+  border-radius: 8px;
+  background: var(--td-bg-color-container);
+
+  span {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--td-text-color-primary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  p {
+    margin: 0;
+    color: var(--td-text-color-secondary);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+}
+
+.external-api-guide__snippet {
+  margin-top: 0;
 }
 
 .api-key-section__header {
@@ -2593,6 +2702,10 @@ onBeforeUnmount(stopPlayground)
   .playground-entry {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .external-api-guide__grid {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/models/provider"
@@ -131,6 +132,10 @@ type customHeaderSetter interface {
 }
 
 func newReranker(config *RerankerConfig) (Reranker, error) {
+	if config.Source == types.ModelSourceLocal || strings.EqualFold(config.Provider, "ollama") {
+		return NewOllamaReranker(config)
+	}
+
 	// Use provider field if set, otherwise detect from URL using provider registry
 	providerName := provider.ProviderName(config.Provider)
 	if providerName == "" {

@@ -106,6 +106,19 @@ builtin_models:
         dimension: 1024
         truncate_prompt_tokens: 8192
         supports_dimension_override: false
+
+  - id: hybrag-ollama-bge-reranker-v2-m3-rerank
+    type: Rerank
+    source: remote
+    is_default: true
+    name: qllama/bge-reranker-v2-m3:q8_0
+    display_name: Model Hub Ollama ReRank (model-hub-ollama-rerank)
+    parameters:
+      base_url: http://model-hub-ollama-rerank:11535
+      api_key: EMPTY
+      provider: ollama
+      extra_config:
+        ollama_rerank_template: "Query: {query}\nDocument: {document}"
 EOF
     export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
 fi

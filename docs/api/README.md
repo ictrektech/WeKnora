@@ -6,6 +6,7 @@
 - [最权威参考：Swagger UI](#最权威参考swagger-ui)
 - [基础信息](#基础信息)
 - [认证机制](#认证机制)
+- [非 VOS 场景调用 RAG API](#非-vos-场景调用-rag-api)
 - [错误处理](#错误处理)
 - [文件与图片引用（`resource://` 与直链）](#文件与图片引用resource-与直链)
 - [API 概览](#api-概览)
@@ -26,14 +27,22 @@ WeKnora 同时提供基于 OpenAPI 的 Swagger 文档。**启动服务后访问 
 
 - **基础 URL**: `/api/v1`
 - **响应格式**: JSON
-- **认证方式**: API Key
+- **认证方式**: `X-API-Key` 或 `Authorization: Bearer <token>`
 
 ## 认证机制
 
-所有 API 请求需要在 HTTP 请求头中包含 `X-API-Key` 进行身份认证：
+业务 API 请求需要在 HTTP 请求头中携带一种有效凭证。
+
+推荐服务端集成使用独立 API Key：
 
 ```
 X-API-Key: your_api_key
+```
+
+已登录用户或 OIDC/VOS 自动登录后的调用，也可以使用 Bearer Token：
+
+```
+Authorization: Bearer <access_token>
 ```
 
 为便于问题追踪和调试，建议每个请求的 HTTP 请求头中添加 `X-Request-ID`：
@@ -44,9 +53,54 @@ X-Request-ID: unique_request_id
 
 ### 获取 API Key
 
-在 web 页面完成账户注册后，请前往账户信息页面获取您的 API Key。
+在「设置 → API 集成」创建空间级 API Key。创建时可以选择 `retrieve`、`chat`、`ingest`、`manage_kbs` 等能力，并可限制允许访问的知识库范围。
 
-请妥善保管您的 API Key，避免泄露。API Key 代表您的账户身份，拥有完整的 API 访问权限。
+请妥善保管 API Key，避免泄露。明文 Key 只在创建时返回；如需更换，删除旧 Key 后重新创建。
+
+## 非 VOS 场景调用 RAG API
+
+HybRAG 作为 VOS App 打开时，前端会尝试使用 VOS 当前用户自动登录。不在 VOS iframe 内运行的外部服务、脚本或浏览器插件不需要走这套自动登录，可以直接调用 HybRAG REST API。
+
+### RAG Query / Chat API
+
+典型流程是先创建会话，再发起流式 RAG 问答：
+
+```bash
+BASE=https://example.com/api/v1
+API_KEY=sk_xxx
+
+SESSION_ID=$(curl -s -X POST "$BASE/sessions" \
+  -H "X-API-Key: $API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{}' | jq -r '.data.id')
+
+curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
+  -H "X-API-Key: $API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"这份知识库里有哪些重点?","knowledge_base_ids":["<knowledge_base_id>"],"channel":"api"}'
+```
+
+- `POST /knowledge-chat/:session_id` 是知识库 RAG 问答，返回 SSE 流。
+- `POST /agent-chat/:session_id` 是智能体问答，支持工具、MCP、联网搜索等 Agent 能力。
+- `POST /knowledge-search` 是无会话知识检索，返回一次性 JSON，不调用 LLM 生成答案。
+
+### 指定 Knowledge Base / Knowledge Base ID
+
+- RAG Chat 使用请求体字段 `knowledge_base_ids` 指定一个或多个知识库 ID，例如 `["kb-1"]`。
+- 无会话检索 `POST /knowledge-search` 也支持 `knowledge_base_ids`；`knowledge_base_id` 仅作为旧版单库字段保留。
+- 如果 API Key 创建时设置了知识库范围，请求中的知识库 ID 必须在该范围内。
+
+### Conversation / Session ID
+
+- `session_id` 来自 `POST /sessions` 响应中的 `data.id`。
+- 同一终端用户继续多轮对话时复用同一个 `session_id`；新话题可以重新创建会话。
+- 使用 API Key 接入并需要区分终端用户时，在「API 集成」配置用户身份模式：可信服务端可用 `X-External-User-ID`，面向用户的应用建议使用 `X-External-User-Token` 签名 Token。
+
+### Authentication / Service Account
+
+- 外部服务不需要每次用 admin 账号登录获取 Token。更稳妥的方式是由空间 Owner 创建独立 API Key，第三方服务用 `X-API-Key` 长期调用。
+- HybRAG 当前提供的是空间级 API Key / 平台级 API Key 机制；它可以承担 Service Account 的用途。是否能访问某个接口由 Key 的能力和知识库范围决定。
+- `Authorization: Bearer <token>` 代表登录用户访问令牌，适合已有用户会话的浏览器或后端调用；不要把 API Key 放进 Bearer 头里。
 
 ## 错误处理
 
