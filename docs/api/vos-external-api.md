@@ -139,8 +139,23 @@ API_KEY=$(curl -sS -X POST "$BASE/tenants/<tenant_id>/api-keys" \
 
 - `knowledge_base_ids` 是推荐字段，可传一个或多个知识库 ID。
 - `knowledge_base_id` 是旧版单知识库字段，仅为兼容保留。
+- `knowledge_ids` 用于指定单个或多个文档。HybRAG API 里的 `knowledge_id` 对应业务语义中的文档 ID；上传文件、导入 URL 或创建手动知识后，响应里的 `data.id` 就是该文档的 `knowledge_id`。
+- 如果只想在某一份或几份文档内检索，把这些文档 ID 放到 `knowledge_ids`；字段名不是 `document_id` 或 `document_ids`。
 - `session_id` 由 `POST /sessions` 返回；同一用户多轮对话复用同一个 `session_id`，新话题可以重新创建。
 - 个人 API Key 请求中的 `knowledge_base_ids` 必须在 Key 创建时绑定的范围内，否则会返回 `403`。
+
+```bash
+curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"query\": \"只根据指定文档回答这个问题\",
+    \"knowledge_base_ids\": [\"$KB_ID\"],
+    \"knowledge_ids\": [\"$KNOWLEDGE_ID\"],
+    \"channel\": \"api\",
+    \"disable_title\": true
+  }"
+```
 
 ## 229 实测结论
 

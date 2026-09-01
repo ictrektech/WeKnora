@@ -29,7 +29,7 @@
 |------|------|------|------|
 | `query` | string | 是 | 查询文本 |
 | `knowledge_base_ids` | string[] | 否 | 知识库 ID 列表 |
-| `knowledge_ids` | string[] | 否 | 知识文件 ID 列表，指定具体文件进行检索 |
+| `knowledge_ids` | string[] | 否 | 知识文件 ID 列表，指定具体文件进行检索；业务上的 `document_id` 对应这里的 `knowledge_id` |
 | `agent_id` | string | 否 | 自定义 Agent ID，指定使用的智能体 |
 | `summary_model_id` | string | 否 | 覆盖默认的摘要模型 ID |
 | `mentioned_items` | object[] | 否 | @提及的知识库和文件列表 |
@@ -77,7 +77,7 @@ Agent 模式支持更智能的问答，包括工具调用、网络搜索、多�
 |------|------|------|------|
 | `query` | string | 是 | 查询文本 |
 | `knowledge_base_ids` | string[] | 否 | 知识库 ID 列表，可动态指定本次查询使用的知识库 |
-| `knowledge_ids` | string[] | 否 | 知识文件 ID 列表，可动态指定本次查询使用的具体文件 |
+| `knowledge_ids` | string[] | 否 | 知识文件 ID 列表，可动态指定本次查询使用的具体文件；业务上的 `document_id` 对应这里的 `knowledge_id` |
 | `agent_enabled` | bool | 否 | 是否启用 Agent 模式（默认 false，优先使用 Agent 配置） |
 | `agent_id` | string | 否 | 自定义 Agent ID，指定使用的智能体（支持共享 Agent） |
 | `web_search_enabled` | bool | 否 | 是否启用网络搜索（默认 false） |

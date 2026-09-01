@@ -135,6 +135,21 @@ curl -sS -X POST "$BASE/knowledge-search" \
   }" | jq
 ```
 
+如需限定到某一份或几份文档，使用 `knowledge_ids`。这里的 `knowledge_id` 就是业务语义里的文档 ID：上传文件、导入 URL 或创建手动知识后，响应里的 `data.id` 即为该文档 ID；也可以从知识库文档列表接口返回的每条记录 `id` 获取。
+
+```bash
+KNOWLEDGE_ID="<knowledge_id>"
+
+curl -sS -X POST "$BASE/knowledge-search" \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"query\": \"只检索这份文档里的内容\",
+    \"knowledge_base_ids\": [\"$KB_ID\"],
+    \"knowledge_ids\": [\"$KNOWLEDGE_ID\"]
+  }" | jq
+```
+
 指定知识库问答：
 
 ```bash
@@ -144,6 +159,7 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
   -d "{
     \"query\": \"请用一句话概括这份知识库的重点\",
     \"knowledge_base_ids\": [\"$KB_ID\"],
+    \"knowledge_ids\": [\"$KNOWLEDGE_ID\"],
     \"channel\": \"api\",
     \"disable_title\": true
   }"
@@ -174,6 +190,7 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
 | 普通用户外部访问自己的 RAG | 已覆盖 | 支持 VOS token 和个人 API Key 两种方式 |
 | 不长期使用 admin 账号 | 已覆盖 | 普通用户可自建个人 API Key；VOS token 也继承普通用户身份 |
 | 指定 Knowledge Base / KB ID | 已覆盖 | `knowledge_base_ids` 支持一个或多个知识库 ID |
+| 指定 Document / Knowledge ID | 应用侧已有 API | 请求字段为 `knowledge_ids`；文档 ID 对应 HybRAG 的 `knowledge_id` |
 | Conversation / Session ID | 已覆盖 | `POST /sessions` 创建，`/knowledge-chat/:session_id` 复用 |
 | Authentication 方法 | 已覆盖 | `X-API-Key` 与 `Authorization: Bearer <VOS_ACCESS_TOKEN>` |
 | RAG Query / Chat API | 已覆盖 | `/knowledge-chat/:session_id`，SSE 输出 |

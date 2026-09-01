@@ -17,7 +17,7 @@
 | query               | string   | 是   | 搜索查询文本                                              |
 | knowledge_base_id   | string   | 否   | 单个知识库 ID（向后兼容）；与 `knowledge_base_ids` 互斥    |
 | knowledge_base_ids  | string[] | 否   | 多个知识库 ID 列表，跨知识库搜索                          |
-| knowledge_ids       | string[] | 否   | 进一步限定到指定知识（文件）；不传则在整库范围内搜索       |
+| knowledge_ids       | string[] | 否   | 进一步限定到指定知识（文件）；业务上的 `document_id` 对应这里的 `knowledge_id`；不传则在整库范围内搜索 |
 
 > 必须指定 `knowledge_base_id` 或 `knowledge_base_ids` 中的至少一个。
 
@@ -47,11 +47,13 @@ curl --location 'http://localhost:8080/api/v1/knowledge-search' \
 }'
 
 # 搜索指定文件
+# 文件上传或知识列表返回的文档记录 id 即为 knowledge_id；请求字段使用 knowledge_ids。
 curl --location 'http://localhost:8080/api/v1/knowledge-search' \
 --header 'X-API-Key: sk-xxxxx' \
 --header 'Content-Type: application/json' \
 --data '{
     "query": "如何使用知识库",
+    "knowledge_base_ids": ["kb-00000001"],
     "knowledge_ids": ["4c4e7c1a-09cf-485b-a7b5-24b8cdc5acf5"]
 }'
 ```

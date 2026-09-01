@@ -120,6 +120,25 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
 - 无会话检索 `POST /knowledge-search` 也支持 `knowledge_base_ids`；`knowledge_base_id` 仅作为旧版单库字段保留。
 - 如果 API Key 创建时设置了知识库范围，请求中的知识库 ID 必须在该范围内。
 
+### 指定文档 / Knowledge ID
+
+- HybRAG API 中的 `knowledge_id` 对应业务语义里的单个文档、文件、URL 或手动录入知识条目；也就是客户常说的 `document_id`。
+- 创建或上传文档后，响应里的 `data.id` 就是该文档的 `knowledge_id`；也可以通过知识库文档列表接口读取每条文档记录的 `id`、`file_name`、`title`。
+- `POST /knowledge-search`、`POST /knowledge-chat/:session_id` 和 `POST /agent-chat/:session_id` 均支持请求体字段 `knowledge_ids`，用于把检索限制在一份或几份文档内。
+- 字段名是 `knowledge_ids`，不是 `document_id` 或 `document_ids`；可与 `knowledge_base_ids` 一起传，进一步限定到指定知识库下的指定文档。
+
+```bash
+curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
+  -H "X-API-Key: $API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "只根据这两份文档回答",
+    "knowledge_base_ids": ["<knowledge_base_id>"],
+    "knowledge_ids": ["<knowledge_id_1>", "<knowledge_id_2>"],
+    "channel": "api"
+  }'
+```
+
 ### Conversation / Session ID
 
 - `session_id` 来自 `POST /sessions` 响应中的 `data.id`。
