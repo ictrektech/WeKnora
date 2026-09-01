@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -78,20 +79,53 @@ func (s *OllamaService) StartService(ctx context.Context) error {
 	// Check if service is available
 	err := s.client.Heartbeat(ctx)
 	if err != nil {
-		logger.GetLogger(ctx).Warnf("ollama service unavailable: %v", err)
-		s.isAvailable = false
-
-		// If configured as optional, don't return an error
-		if s.isOptional {
-			logger.GetLogger(ctx).Info("ollama service set as optional, will continue running the application")
+		if fallbackErr := s.checkGatewayReady(ctx); fallbackErr == nil {
+			logger.GetLogger(ctx).Warnf("ollama heartbeat failed but gateway health check succeeded: %v", err)
+			s.isAvailable = true
 			return nil
-		}
+		} else {
+			logger.GetLogger(ctx).Warnf("ollama service unavailable: heartbeat=%v gateway=%v", err, fallbackErr)
+			s.isAvailable = false
 
-		return fmt.Errorf("ollama service unavailable: %w", err)
+			// If configured as optional, don't return an error
+			if s.isOptional {
+				logger.GetLogger(ctx).Info("ollama service set as optional, will continue running the application")
+				return nil
+			}
+
+			return fmt.Errorf("ollama service unavailable: %w", err)
+		}
 	}
 
 	s.isAvailable = true
 	return nil
+}
+
+func (s *OllamaService) checkGatewayReady(ctx context.Context) error {
+	baseURL := strings.TrimRight(s.baseURL, "/")
+	baseURL = strings.TrimSuffix(baseURL, "/v1")
+	paths := []string{"/api/tags", "/v1/models"}
+
+	var lastErr error
+	for _, path := range paths {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+path, nil)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		_ = resp.Body.Close()
+		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+			return nil
+		}
+		lastErr = fmt.Errorf("%s returned status %d", path, resp.StatusCode)
+	}
+	return lastErr
 }
 
 // IsAvailable returns whether the service is available
