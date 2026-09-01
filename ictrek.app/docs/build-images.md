@@ -13,11 +13,10 @@ swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 
 vLLM、Ollama、model_hub 等模型后端不在这个构建流程里。它们使用官方镜像或各自组件的镜像流程。
 
-WeKnora 这些镜像本身不包含 CUDA 运行时依赖，所以 tag 不应带 `cu130` 之类 CUDA 标记。当前推荐 tag：
+WeKnora 这些镜像本身不包含 CUDA 运行时依赖，所以 tag 不应带 `cu130` 之类 CUDA 标记。构建脚本默认读取 `ictrek.app/VERSION`，将 patch 版本加一后按 VOS 版本生成 tag；也可以用 `--tag` 覆盖：
 
 ```text
-amd_YYYYMMDD
-arm_YYYYMMDD
+当前 VERSION=0.1.45 时：amd_0.1.46、arm_0.1.46
 ```
 
 构建前不要在远程构建机上跑 git。先把本地工作树同步过去：
@@ -49,13 +48,14 @@ EOF
 只构建单个服务镜像时使用：
 
 ```bash
-./build_image.sh --app-only
-./build_image.sh --frontend-only
-./build_image.sh --docreader-only
-./build_image.sh --sandbox-only
+./build_image.sh --target amd --app-only
+./build_image.sh --target amd --frontend-only
+./build_image.sh --target amd --docreader-only
+./build_image.sh --target amd --sandbox-only
 ```
 
 `--no-push` 用于只做本机构建检查；`--no-feishu` 用于不更新飞书发布表。
+脚本只读取并计算下一个 patch 版本，不会修改 `ictrek.app/VERSION`；正式发布时再由 `scripts/update_version.sh` 更新 VOS 版本。
 
 飞书发布表规则：
 
@@ -115,11 +115,12 @@ swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 ```
 
 The images do not contain CUDA runtime dependencies, so tags should not include
-CUDA markers. Current target prefixes are:
+CUDA markers. By default, the build script reads `ictrek.app/VERSION`, increments
+the patch version, and uses that VOS version in the tag. Use `--tag` to override
+the generated value:
 
 ```text
-amd_YYYYMMDD
-arm_YYYYMMDD
+When VERSION=0.1.45: amd_0.1.46, arm_0.1.46
 ```
 
 Even when the deployment host has CUDA-capable GPUs, the WeKnora app, frontend,
@@ -162,14 +163,17 @@ can pull or start upstream images instead of ictrek SWR release images.
 To build only one service image:
 
 ```bash
-./build_image.sh --app-only
-./build_image.sh --frontend-only
-./build_image.sh --docreader-only
-./build_image.sh --sandbox-only
+./build_image.sh --target amd --app-only
+./build_image.sh --target amd --frontend-only
+./build_image.sh --target amd --docreader-only
+./build_image.sh --target amd --sandbox-only
 ```
 
 Use `--no-push` for a local build check and `--no-feishu` when the image should
 not update the release table.
+The script only reads and calculates the next patch version; it does not modify
+`ictrek.app/VERSION`. Update the VOS version separately with
+`scripts/update_version.sh` for an official release.
 
 The script defaults to reachable mirrors for remote builds:
 
@@ -219,8 +223,8 @@ weknora-sandbox    -> swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbo
 
 If a column is missing, `build_image.sh` creates the service header and writes
 the repository URI in the second row. After all selected images are pushed, the
-script writes the generated tag to each selected service column for the current
-date row. New service columns are not tied to fixed letters such as `AE`,
+script writes the selected tag to each selected service column for
+the current date row. New service columns are not tied to fixed letters such as `AE`,
 `AF`, or `AG`; the script first reuses an existing service column and otherwise
 appends the next empty column after the current component block.
 

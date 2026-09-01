@@ -11,6 +11,8 @@ set -euo pipefail
 #   swr.cn-southwest-2.myhuaweicloud.com/ictrek/weknora-sandbox:<tag>
 
 REGISTRY_PREFIX="swr.cn-southwest-2.myhuaweicloud.com/ictrek"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VOS_VERSION_FILE="${WEKNORA_VOS_VERSION_FILE:-${SCRIPT_DIR}/ictrek.app/VERSION}"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.json}"
 FEISHU_SPREADSHEET_TOKEN="Htotsn3oahO1zxt73YMcaB1zn8e"
 TARGET="${WEKNORA_BUILD_TARGET:-}"
@@ -56,9 +58,9 @@ Options:
   --no-feishu            Do not update Feishu after push
   --feishu-only          Do not build or push; only write selected service tags to Feishu
   --dry-run              Print the plan without building or writing Feishu
-  --target TARGET        Build target tag prefix: amd or arm (default: detect current machine)
+  --target TARGET        Build target platform: amd or arm (default: detect current machine)
   --sheet SHEET          Override Feishu sheet title list; comma-separated values are accepted
-  --tag TAG              Override the generated tag
+  --tag TAG              Override the auto-generated tag (default: target + next VOS patch version)
   -h, --help             Show this help
 
 Environment:
@@ -71,6 +73,8 @@ Environment:
   GOPROXY_ARG            Optional Go proxy for app image
   GOPRIVATE_ARG          Optional Go private module pattern for app image
   GOSUMDB_ARG            Optional Go checksum DB setting, default off in Dockerfile
+  WEKNORA_VOS_VERSION_FILE
+                         Optional VOS version file; defaults to ictrek.app/VERSION
   DOCKER_CLI_VERSION     Optional Docker CLI version bundled into the app image
   WEKNORA_BUILD_ENGINE   auto (default), buildx, or docker. auto prefers buildx
                          and falls back to docker build.
@@ -551,6 +555,11 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --tag)
+      [[ -n "${2:-}" ]] || {
+        err "--tag requires a value"
+        usage
+        exit 1
+      }
       TAG_OVERRIDE="$2"
       shift 2
       ;;
@@ -624,8 +633,34 @@ if [[ "$DRY_RUN" != "1" && "$SKIP_BUILD" != "1" ]]; then
   esac
 fi
 
-DATE="$(date +%Y%m%d)"
-TAG="${TAG_OVERRIDE:-${PROFILE_TAG}_${DATE}}"
+next_vos_version() {
+  local version major minor patch
+
+  [[ -f "$VOS_VERSION_FILE" ]] || {
+    err "VOS version file not found: ${VOS_VERSION_FILE}"
+    return 1
+  }
+
+  version="$(tr -d '[:space:]' < "$VOS_VERSION_FILE")"
+  if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    err "Invalid VOS version in ${VOS_VERSION_FILE}: ${version}"
+    return 1
+  fi
+
+  major="${BASH_REMATCH[1]}"
+  minor="${BASH_REMATCH[2]}"
+  patch="${BASH_REMATCH[3]}"
+  printf '%s.%s.%s\n' "$major" "$minor" "$((patch + 1))"
+}
+
+if [[ -n "$TAG_OVERRIDE" ]]; then
+  TAG="$TAG_OVERRIDE"
+else
+  NEXT_VOS_VERSION="$(next_vos_version)"
+  TAG="${PROFILE_TAG}_${NEXT_VOS_VERSION}"
+  log "VOS_VERSION_FILE=${VOS_VERSION_FILE}"
+  log "NEXT_VOS_VERSION=${NEXT_VOS_VERSION}"
+fi
 
 log "TARGET=${TARGET}"
 log "PROFILE_TAG=${PROFILE_TAG}"
