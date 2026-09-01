@@ -812,7 +812,7 @@ const apiKeyCapabilityGroups = TENANT_API_KEY_CAPABILITY_GROUPS
 const PERSONAL_API_KEY_CAPABILITIES = new Set<TenantAPIKeyCapability>(['retrieve', 'chat', 'ingest'])
 
 const canManageWorkspaceAPIKeys = computed(() => (
-  authStore.canAccessAllTenants || authStore.currentTenantRole === 'owner'
+  authStore.canAccessAllTenants
 ))
 
 const effectiveAPIKeyCapabilities = computed(() => (
@@ -1288,10 +1288,8 @@ async function load() {
       throw new Error(t('integrations.api.loadFailed'))
     }
     tenantId.value = Number(tenant.id)
-    await Promise.all([
-      loadAPIKeys(),
-      loadKnowledgeBaseOptions(),
-    ])
+    void loadAPIKeys()
+    void loadKnowledgeBaseOptions()
 
     if (canManageWorkspaceAPIKeys.value) {
       const cfgResp = await getAPIPrincipalConfig(tenantId.value)
@@ -1639,7 +1637,7 @@ async function createScopedAPIKey() {
     apiKeyDialogVisible.value = false
     apiKey.value = resp.data.api_key
     MessagePlugin.success(t('integrations.api.apiKeyCreated'))
-    await loadAPIKeys()
+    void loadAPIKeys()
   } catch (err: any) {
     MessagePlugin.error(err?.message || t('integrations.api.createApiKeyFailed'))
   } finally {

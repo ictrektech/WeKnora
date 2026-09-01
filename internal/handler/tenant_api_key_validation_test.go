@@ -49,6 +49,19 @@ func TestValidateTenantAPIKeyRequestPersonalKeyRequiresKnowledgeBaseScope(t *tes
 	}
 }
 
+func TestAPIKeyOwnerFilterTreatsOnlyCrossTenantUserAsWorkspaceKeyManager(t *testing.T) {
+	ordinaryOwner := &types.User{ID: "jhu", CanAccessAllTenants: false}
+	ownerUserID := apiKeyOwnerFilterForUser(ordinaryOwner)
+	if ownerUserID == nil || *ownerUserID != "jhu" {
+		t.Fatalf("ordinary tenant owner should be limited to personal API keys, got %v", ownerUserID)
+	}
+
+	platformAdmin := &types.User{ID: "admin", CanAccessAllTenants: true}
+	if ownerUserID := apiKeyOwnerFilterForUser(platformAdmin); ownerUserID != nil {
+		t.Fatalf("platform admin should manage workspace API keys, got %v", ownerUserID)
+	}
+}
+
 // TestValidateTenantAPIKeyKnowledgeBaseOwnership 验证知识库白名单的租户边界。
 // 输入同租户、其他租户和不存在的知识库 ID；仅同租户 ID 应通过。
 func TestValidateTenantAPIKeyKnowledgeBaseOwnership(t *testing.T) {

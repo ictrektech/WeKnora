@@ -911,15 +911,15 @@ func (h *TenantHandler) apiKeyOwnerFilter(ctx context.Context) (*string, *errors
 	if err != nil || user == nil {
 		return nil, errors.NewUnauthorizedError("authentication required")
 	}
-	if user.CanAccessAllTenants {
-		return nil, nil
-	}
-	if types.TenantRoleFromContext(ctx).HasPermission(types.TenantRoleOwner) {
-		workspaceOwnerID := ""
-		return &workspaceOwnerID, nil
+	return apiKeyOwnerFilterForUser(user), nil
+}
+
+func apiKeyOwnerFilterForUser(user *types.User) *string {
+	if user == nil || user.CanAccessAllTenants {
+		return nil
 	}
 	ownerUserID := user.ID
-	return &ownerUserID, nil
+	return &ownerUserID
 }
 
 func (h *TenantHandler) apiKeyWriteOwner(ctx context.Context, fullAccess bool) (*string, bool, *errors.AppError) {

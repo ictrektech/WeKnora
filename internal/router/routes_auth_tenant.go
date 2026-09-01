@@ -16,7 +16,7 @@ import (
 //   - GET   /:id          Viewer+ (read tenant settings)
 //   - PUT   /:id          Owner+ (mutate tenant config)
 //   - DELETE /:id         Owner+ (also normally a CanAccessAllTenants op)
-//   - GET/POST/PUT/DELETE /:id/api-keys   Viewer+ (personal API keys) or Owner+ (workspace API keys)
+//   - GET/POST/PUT/DELETE /:id/api-keys   Viewer+ (personal API keys) or CanAccessAllTenants (workspace API keys)
 //   - GET    /:id/members            Viewer+ (any member can see who else is in)
 //   - POST   /:id/members            Owner+ (only Owner can add new members)
 //   - PUT    /:id/members/:user_id   Owner+ (only Owner can change roles)

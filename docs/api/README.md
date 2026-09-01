@@ -63,8 +63,8 @@ X-Request-ID: unique_request_id
 
 在「设置 → API 集成」创建 API Key。
 
-- 普通用户创建的是**个人 API Key**，只绑定当前用户，可选择 `retrieve`、`chat`、`ingest` 等能力，并且必须限制到自己可访问的知识库范围。
-- 空间 Owner / 跨空间管理员可以创建工作区级 API Key，可按需开放 `manage_kbs`、`manage_models` 等空间管理能力，或创建 full-access Key。
+- 普通用户创建的是**个人 API Key**，只绑定当前用户，可选择 `retrieve`、`chat`、`ingest` 等能力，并且必须限制到自己可访问的知识库范围；即使该用户是自己个人空间的 Owner，也不会因此获得工作区级 API Key 权限。
+- 平台级管理员（`CanAccessAllTenants=true`）可以创建工作区级 API Key，可按需开放 `manage_kbs`、`manage_models` 等空间管理能力，或创建 full-access Key。
 
 请妥善保管 API Key，避免泄露。明文 Key 只在创建时返回；如需更换，删除旧 Key 后重新创建。
 
@@ -72,7 +72,7 @@ X-Request-ID: unique_request_id
 
 HybRAG 作为 VOS App 打开时，前端会尝试使用 VOS 当前用户自动登录。不在 VOS iframe 内运行的外部服务、脚本或浏览器插件可以通过 VOS 应用路径或宿主机直连端口调用 HybRAG REST API。当前支持两条认证路径：
 
-1. **个人 API Key**：普通用户在 HybRAG「API 集成」里为自己创建 API Key，外部应用发送 `X-API-Key`。这是最简单、长期稳定的服务端集成方式。
+1. **个人 API Key**：普通用户在 HybRAG「API 集成」里为自己创建 API Key，外部应用发送 `X-API-Key`。这是最简单、长期稳定的服务端集成方式；Key 只继承该用户自己的知识库访问范围，不需要 admin 账号预先代发。
 2. **VOS/OAuth Bearer token**：外部应用先通过 VOS/OAuth 登录流程取得该普通用户的 VOS access token，再发送 `Authorization: Bearer <VOS token>`。HybRAG 会调用 VOS `/v1000/oauth2/userinfo` 校验；失败时按旧 VOS `/v1000/user/check` 降级。校验成功后按该 VOS 用户映射出的 HybRAG 用户权限执行。
 
 因此，外部应用访问用户自己的知识库**不需要 admin 账号**。使用个人 API Key 时由该普通用户自己创建；使用 VOS/OAuth Bearer token 时继承该 VOS 用户映射后的 HybRAG 权限。
