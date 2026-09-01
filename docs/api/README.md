@@ -8,6 +8,7 @@
 - [认证机制](#认证机制)
 - [非 VOS 场景调用 RAG API](#非-vos-场景调用-rag-api)
 - [VOS 外部调用实测流程](./vos-external-api.md)
+- [VOS 外部 API 验证与客户需求覆盖](./vos-external-api-validation.md)
 - [错误处理](#错误处理)
 - [文件与图片引用（`resource://` 与直链）](#文件与图片引用resource-与直链)
 - [API 概览](#api-概览)

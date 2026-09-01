@@ -10,12 +10,14 @@
 
 如果安装 HybRAG 时修改过 `HYBRAG_FRONTEND_PORT` 或 `HYBRAG_API_PORT`，请使用实际安装端口。
 
+229 环境的完整实测结果和客户需求覆盖表见：[VOS 外部 API 验证与客户需求覆盖](./vos-external-api-validation.md)。
+
 ## 权限模型
 
 外部应用访问用户自己的知识库不需要 admin 账号，有两条方式：
 
 1. 普通用户个人 API Key：普通用户登录 HybRAG 后，在「设置 -> API 集成」创建自己的 API Key。该 Key 只绑定当前用户，只能访问创建时选择的知识库范围。
-2. VOS/OAuth Bearer Token：外部应用先通过 VOS 登录或 OAuth 流程拿到普通用户的 VOS access token，再交给 HybRAG 校验。HybRAG 会映射为对应本地用户，并按该用户权限执行。
+2. VOS/OAuth Bearer Token：外部应用先通过 VOS 登录或 OAuth 流程拿到普通用户的 VOS access token，再作为 `Authorization: Bearer <VOS_ACCESS_TOKEN>` 调用 HybRAG。HybRAG 会校验该 token，映射为对应本地用户，并按该用户权限执行。
 
 只有平台级管理员（`CanAccessAllTenants=true`）可以创建工作区级 API Key。普通用户即使是自己个人空间的 Owner，也只能创建个人 API Key，不能创建 full-access 或成员、模型、数据源等高权限 Key。
 
@@ -88,22 +90,22 @@ VOS_TOKEN=$(curl -sS -X POST "$VOS_BASE/v1000/user/login" \
 
 生产集成如果已经在 VOS OAuth 流程中拿到了 access token，可直接使用该 token，不需要再调用用户名密码登录。
 
-### 2. 交换 HybRAG 登录态
+### 2. 直接调用 HybRAG
 
 ```bash
 BASE="http://<VOS主机IP>:29081/api/v1"
 
+curl -sS "$BASE/auth/me" \
+  -H "Authorization: Bearer $VOS_TOKEN" | jq
+```
+
+也可以先交换成 HybRAG 本地登录态，再用返回的 HybRAG token 调用后续接口：
+
+```bash
 HYBRAG_TOKEN=$(curl -sS -X POST "$BASE/auth/vos-oidc" \
   -H "Content-Type: application/json" \
   -d "{\"access_token\":\"$VOS_TOKEN\"}" \
   | jq -r '.token')
-```
-
-检查当前 HybRAG 用户：
-
-```bash
-curl -sS "$BASE/auth/me" \
-  -H "Authorization: Bearer $HYBRAG_TOKEN" | jq
 ```
 
 ### 3. 创建个人 API Key
@@ -112,7 +114,7 @@ curl -sS "$BASE/auth/me" \
 
 ```bash
 curl -sS "$BASE/knowledge-bases?creator=all" \
-  -H "Authorization: Bearer $HYBRAG_TOKEN" | jq
+  -H "Authorization: Bearer $VOS_TOKEN" | jq
 ```
 
 创建只允许检索和问答的个人 API Key：
@@ -121,7 +123,7 @@ curl -sS "$BASE/knowledge-bases?creator=all" \
 KB_ID="<knowledge_base_id>"
 
 API_KEY=$(curl -sS -X POST "$BASE/tenants/<tenant_id>/api-keys" \
-  -H "Authorization: Bearer $HYBRAG_TOKEN" \
+  -H "Authorization: Bearer $VOS_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
     \"name\": \"external-rag-readonly\",
