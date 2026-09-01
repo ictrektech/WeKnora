@@ -120,6 +120,12 @@
               <p>{{ $t('integrations.api.externalGuideKbDesc') }}</p>
             </div>
           </div>
+          <div class="external-api-guide__actions">
+            <t-button size="small" variant="outline" @click="openApiDoc">
+              <template #icon><t-icon name="file" /></template>
+              API 使用指南
+            </t-button>
+          </div>
           <div class="code-panel external-api-guide__snippet">
             <div class="code-panel__toolbar">
               <span class="code-panel__label">{{ $t('integrations.api.externalGuideRagExample') }}</span>
@@ -504,6 +510,108 @@
     </SettingDrawer>
 
     <SettingDrawer
+      v-model:visible="apiDocDrawerVisible"
+      class="api-doc-drawer"
+      title="HybRAG API 使用指南"
+      description="面向外部系统集成，说明如何从 VOS 内访问 HybRAG RAG API。"
+      icon="file"
+      width="760px"
+      :min-width="560"
+      :max-width="1120"
+      storage-key="setting-drawer:width:api-doc"
+      :hide-footer="true"
+    >
+      <div class="api-doc">
+        <section class="api-doc-section">
+          <h3>接入地址</h3>
+          <p>HybRAG 的 RAG API 统一使用 <code>/api/v1</code> 前缀。VOS 内推荐使用应用路径；如果安装包启用了宿主机端口映射，也可以直接访问 RAG API 映射端口。</p>
+          <div class="api-doc-endpoints">
+            <div class="api-doc-endpoint">
+              <span>VOS 应用路径</span>
+              <code>{{ apiBaseUrl }}</code>
+              <t-button size="small" variant="text" @click="copy(apiBaseUrl)">
+                <template #icon><t-icon name="file-copy" /></template>
+                {{ $t('integrations.api.copy') }}
+              </t-button>
+            </div>
+            <div v-if="directHostApiBaseUrl" class="api-doc-endpoint">
+              <span>宿主机直连</span>
+              <code>{{ directHostApiBaseUrl }}</code>
+              <t-button size="small" variant="text" @click="copy(directHostApiBaseUrl)">
+                <template #icon><t-icon name="file-copy" /></template>
+                {{ $t('integrations.api.copy') }}
+              </t-button>
+            </div>
+          </div>
+        </section>
+
+        <section class="api-doc-section">
+          <h3>两条认证路径</h3>
+          <div class="api-doc-paths">
+            <article>
+              <h4>路径一：普通用户个人 API Key</h4>
+              <p>普通用户登录 HybRAG 后，在「设置 -> API 集成」创建自己的个人 API Key，并绑定可访问的知识库范围。外部服务端保存该 Key 后，用 <code>X-API-Key</code> 调用 API。这个 Key 只代表创建它的用户，不需要 admin 代发，也不能自动获得空间级高权限。</p>
+            </article>
+            <article>
+              <h4>路径二：VOS/OAuth Bearer Token</h4>
+              <p>外部应用先通过 VOS/OAuth 登录流程取得普通用户的 access token，然后把它作为 <code>Authorization: Bearer &lt;VOS_TOKEN&gt;</code> 传给 HybRAG。HybRAG 校验 token 后按该 VOS 用户身份和权限执行，适合需要严格继承 VOS 当前用户权限的场景。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="api-doc-section">
+          <h3>知识库、文档与会话</h3>
+          <ul class="api-doc-list">
+            <li><code>knowledge_base_ids</code> 指定一个或多个知识库 ID。</li>
+            <li><code>knowledge_id</code> 对应业务语义中的单个文档、文件、URL 或手动知识条目；客户说的 <code>document_id</code> 在 HybRAG API 中就是 <code>knowledge_id</code>。</li>
+            <li>上传文件、导入 URL 或创建手动知识后，响应里的 <code>data.id</code> 就是该文档的 <code>knowledge_id</code>；知识库文档列表接口返回的每条记录 <code>id</code> 也是 <code>knowledge_id</code>。</li>
+            <li><code>knowledge_ids</code> 可用于把 <code>knowledge-search</code>、<code>knowledge-chat</code>、<code>agent-chat</code> 限制在一份或几份文档内。</li>
+            <li><code>session_id</code> 由 <code>POST /sessions</code> 返回；同一用户多轮对话复用同一个 session，新话题可以新建 session。</li>
+          </ul>
+        </section>
+
+        <section class="api-doc-section">
+          <h3>核心 API</h3>
+          <div class="api-doc-api-grid">
+            <div><code>GET /auth/me</code><span>确认当前调用主体</span></div>
+            <div><code>GET /knowledge-bases</code><span>列出当前用户可见知识库</span></div>
+            <div><code>POST /sessions</code><span>创建会话，返回 session id</span></div>
+            <div><code>POST /knowledge-search</code><span>只检索，不调用 LLM 生成答案</span></div>
+            <div><code>POST /knowledge-chat/:session_id</code><span>知识库 RAG 问答，SSE 输出</span></div>
+            <div><code>POST /agent-chat/:session_id</code><span>智能体问答，可结合工具和 Agent 配置</span></div>
+          </div>
+        </section>
+
+        <section class="api-doc-section">
+          <h3>请求示例</h3>
+          <div class="api-doc-snippets">
+            <div class="code-panel">
+              <div class="code-panel__toolbar">
+                <span class="code-panel__label">个人 API Key 路径</span>
+                <t-button size="small" variant="text" class="code-panel__copy" @click="copy(apiKeyGuideExample)">
+                  <template #icon><t-icon name="file-copy" /></template>
+                  {{ $t('integrations.api.copy') }}
+                </t-button>
+              </div>
+              <pre class="code-panel__pre">{{ apiKeyGuideExample }}</pre>
+            </div>
+
+            <div class="code-panel">
+              <div class="code-panel__toolbar">
+                <span class="code-panel__label">VOS/OAuth Token 路径</span>
+                <t-button size="small" variant="text" class="code-panel__copy" @click="copy(vosBearerGuideExample)">
+                  <template #icon><t-icon name="file-copy" /></template>
+                  {{ $t('integrations.api.copy') }}
+                </t-button>
+              </div>
+              <pre class="code-panel__pre">{{ vosBearerGuideExample }}</pre>
+            </div>
+          </div>
+        </section>
+      </div>
+    </SettingDrawer>
+
+    <SettingDrawer
       :visible="apiKeyDialogVisible"
       class="api-key-create-drawer"
       :title="$t('integrations.api.createApiKey')"
@@ -788,6 +896,7 @@ const agents = ref<CustomAgent[]>([])
 const agentsLoading = ref(false)
 const agentsError = ref('')
 const playgroundDrawerVisible = ref(false)
+const apiDocDrawerVisible = ref(false)
 const playgroundController = ref<AbortController | null>(null)
 const showHMACSecret = ref(false)
 const wailsApiBaseURL = ref<string | null>(null)
@@ -1246,7 +1355,7 @@ const ragChatExample = computed(() => {
     `curl -N -X POST ${apiBaseUrl.value}/knowledge-chat/<session_id> \\`,
     `${apiKeyHeader} \\`,
     `${contentType} \\`,
-    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"channel":"api"}'`,
+    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"knowledge_ids":["<knowledge_id，可选>"],"channel":"api"}'`,
     '',
     '# 方式二：普通用户 VOS/OAuth Bearer token',
     t('integrations.api.requestExampleCreateSession'),
@@ -1259,9 +1368,65 @@ const ragChatExample = computed(() => {
     `curl -N -X POST ${apiBaseUrl.value}/knowledge-chat/<session_id> \\`,
     `${vosTokenHeader} \\`,
     `${contentType} \\`,
-    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"channel":"api"}'`,
+    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"knowledge_ids":["<knowledge_id，可选>"],"channel":"api"}'`,
   ].join('\n')
 })
+
+const apiKeyGuideExample = computed(() => [
+  'BASE="' + apiBaseUrl.value + '"',
+  'API_KEY="<普通用户个人 API Key>"',
+  'KB_ID="<knowledge_base_id>"',
+  'KNOWLEDGE_ID="<knowledge_id，可选；即业务文档 ID>"',
+  '',
+  '# 1. 确认当前调用主体',
+  'curl -sS "$BASE/auth/me" \\',
+  '  -H "X-API-Key: $API_KEY"',
+  '',
+  '# 2. 创建会话，保存返回的 data.id',
+  'SESSION_ID="$(curl -sS -X POST "$BASE/sessions" \\',
+  '  -H "X-API-Key: $API_KEY" \\',
+  '  -H "Content-Type: application/json" \\',
+  '  -d \'{"title":"外部系统 RAG 会话"}\' | jq -r \'.data.id\')"',
+  '',
+  '# 3. 无会话检索；knowledge_ids 可限制到一份或几份文档',
+  'curl -sS -X POST "$BASE/knowledge-search" \\',
+  '  -H "X-API-Key: $API_KEY" \\',
+  '  -H "Content-Type: application/json" \\',
+  '  -d "{\\"query\\":\\"检索这份文档的重点\\",\\"knowledge_base_ids\\":[\\"$KB_ID\\"],\\"knowledge_ids\\":[\\"$KNOWLEDGE_ID\\"]}"',
+  '',
+  '# 4. RAG 问答，返回 SSE',
+  'curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \\',
+  '  -H "X-API-Key: $API_KEY" \\',
+  '  -H "Content-Type: application/json" \\',
+  '  -d "{\\"query\\":\\"只根据指定知识库回答\\",\\"knowledge_base_ids\\":[\\"$KB_ID\\"],\\"knowledge_ids\\":[\\"$KNOWLEDGE_ID\\"],\\"channel\\":\\"api\\",\\"disable_title\\":true}"',
+].join('\n'))
+
+const vosBearerGuideExample = computed(() => [
+  'BASE="' + apiBaseUrl.value + '"',
+  'VOS_TOKEN="<普通用户 VOS/OAuth access token>"',
+  'KB_ID="<knowledge_base_id>"',
+  'KNOWLEDGE_ID="<knowledge_id，可选；即业务文档 ID>"',
+  '',
+  '# 1. HybRAG 校验 VOS token，并映射为当前 VOS 用户',
+  'curl -sS "$BASE/auth/me" \\',
+  '  -H "Authorization: Bearer $VOS_TOKEN"',
+  '',
+  '# 2. 列出该 VOS 用户可见的知识库',
+  'curl -sS "$BASE/knowledge-bases" \\',
+  '  -H "Authorization: Bearer $VOS_TOKEN"',
+  '',
+  '# 3. 创建会话，保存返回的 data.id',
+  'SESSION_ID="$(curl -sS -X POST "$BASE/sessions" \\',
+  '  -H "Authorization: Bearer $VOS_TOKEN" \\',
+  '  -H "Content-Type: application/json" \\',
+  '  -d \'{"title":"VOS 用户 RAG 会话"}\' | jq -r \'.data.id\')"',
+  '',
+  '# 4. RAG 问答，HybRAG 按该 VOS 用户权限执行',
+  'curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \\',
+  '  -H "Authorization: Bearer $VOS_TOKEN" \\',
+  '  -H "Content-Type: application/json" \\',
+  '  -d "{\\"query\\":\\"只根据指定知识库回答\\",\\"knowledge_base_ids\\":[\\"$KB_ID\\"],\\"knowledge_ids\\":[\\"$KNOWLEDGE_ID\\"],\\"channel\\":\\"api\\",\\"disable_title\\":true}"',
+].join('\n'))
 
 const activeExampleText = computed(() => (
   form.mode === 'signed_token' && exampleTab.value === 'jwt'
@@ -1593,7 +1758,7 @@ const saveDesktopPort = async () => {
 }
 
 function openApiDoc() {
-  window.open('https://github.com/ictrektech/WeKnora/blob/main/docs/api/README.md', '_blank')
+  apiDocDrawerVisible.value = true
 }
 
 function openCreateAPIKeyDialog() {
@@ -2063,6 +2228,137 @@ onBeforeUnmount(stopPlayground)
 
 .external-api-guide__snippet {
   margin-top: 0;
+}
+
+.external-api-guide__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.api-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-bottom: 12px;
+}
+
+.api-doc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--td-component-stroke);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  h3,
+  h4,
+  p {
+    margin: 0;
+  }
+
+  h3 {
+    color: var(--td-text-color-primary);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
+  h4 {
+    color: var(--td-text-color-primary);
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.45;
+  }
+
+  p,
+  li {
+    color: var(--td-text-color-secondary);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  code {
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: var(--td-bg-color-secondarycontainer);
+    color: var(--td-text-color-primary);
+    font-family: var(--app-font-family-mono);
+    font-size: 12px;
+  }
+}
+
+.api-doc-endpoints,
+.api-doc-paths,
+.api-doc-api-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.api-doc-endpoint,
+.api-doc-paths article,
+.api-doc-api-grid > div {
+  min-width: 0;
+  border: 1px solid var(--td-component-stroke);
+  border-radius: 8px;
+  background: var(--td-bg-color-container);
+}
+
+.api-doc-endpoint {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+
+  span {
+    color: var(--td-text-color-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  code {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.api-doc-paths article {
+  padding: 13px 14px;
+
+  h4 {
+    margin-bottom: 6px;
+  }
+}
+
+.api-doc-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.api-doc-api-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px 12px;
+
+  span {
+    color: var(--td-text-color-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+}
+
+.api-doc-snippets {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .api-key-section__header {
@@ -2571,6 +2867,17 @@ onBeforeUnmount(stopPlayground)
 }
 
 @media (max-width: 640px) {
+  .api-doc-endpoints,
+  .api-doc-paths,
+  .api-doc-api-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .api-doc-endpoint {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
   .config-row {
     grid-template-columns: 1fr;
     align-items: stretch;
