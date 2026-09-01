@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | Go 后端源码调试 | 已实现 | 支持 `go run`；安装 Air 后自动热重载。 |
 | 前端源码调试 | 已实现 | Vite 热更新，默认代理到 `127.0.0.1:8080`。 |
-| 基础设施 | 已实现 | 使用本目录的隔离 Compose 和 `.local-data/ictrek`。 |
+| 基础设施 | 已实现 | 使用本目录的隔离 Compose 和 `/data/hybrag-dev-data`。 |
 | 模型初始化 | 部分落地 | 默认提供 tc232 vLLM YAML；也提供宿主机 Ollama YAML。 |
 | VOS iframe 免登录 | 未启用 | 本地源码模式使用普通注册/登录，`HYBRAG_VOS_SSO_ENABLED=false`。 |
 | VOS 发布部署 | 不在本流程 | 发布和安装仍以 `ictrek.app/README.md`、`src/` 和 `package.sh` 为准。 |
@@ -85,15 +85,15 @@ curl -fsS http://127.0.0.1:11434/api/tags
 | --- | --- | --- |
 | 前端 Vite | `http://localhost:5173` | — |
 | Go API | `http://localhost:8080` | — |
-| PostgreSQL | `127.0.0.1:15432` | `.local-data/ictrek/postgres` |
-| Redis | `127.0.0.1:6380` | `.local-data/ictrek/redis` |
-| DocReader | `127.0.0.1:15051` | `.local-data/ictrek/docreader` |
-| Neo4j Bolt | `bolt://127.0.0.1:27687` | `.local-data/ictrek/neo4j` |
+| PostgreSQL | `127.0.0.1:15432` | `/data/hybrag-dev-data/postgres` |
+| Redis | `127.0.0.1:6380` | `/data/hybrag-dev-data/redis` |
+| DocReader | `127.0.0.1:15051` | `/data/hybrag-dev-data/docreader` |
+| Neo4j Bolt | `bolt://127.0.0.1:27687` | `/data/hybrag-dev-data/neo4j` |
 | Neo4j Browser | `http://127.0.0.1:27474` | — |
 | QA vLLM | `http://127.0.0.1:38118/v1` | 外部模型目录 |
 | bge-m3 vLLM | `http://127.0.0.1:32223/v1` | 外部模型目录 |
 
-`stop` 只移除开发容器和网络，不删除 `.local-data/ictrek`。如需清空本地数据库，请先确认目标路径，再单独备份或删除该目录。
+`stop` 只移除开发容器和网络，不删除 `/data/hybrag-dev-data`。如需清空本地数据库，请先确认目标路径，再单独备份或删除该目录。
 
 ## 常用命令
 
@@ -124,7 +124,7 @@ go install github.com/air-verse/air@latest
 
 | 配置 | 默认值 | 用途 |
 | --- | --- | --- |
-| `ICTREK_DEV_DATA_DIR` | `.local-data/ictrek` | 基础设施持久化根目录。 |
+| `ICTREK_DEV_DATA_DIR` | `/data/hybrag-dev-data` | 基础设施持久化根目录；可在 `.env` 中改为其他绝对路径或项目相对路径。 |
 | `ICTREK_DEV_DB_PORT` | `15432` | 宿主机 PostgreSQL 端口。 |
 | `ICTREK_DEV_REDIS_PORT` | `6380` | 宿主机 Redis 端口。 |
 | `ICTREK_DEV_DOCREADER_PORT` | `15051` | 宿主机 DocReader 端口。 |
@@ -140,7 +140,7 @@ go install github.com/air-verse/air@latest
 
 本地源码调试不使用 `ictrek.app/src/docker-compose.yml`，也不使用 `VOS_APP_STORAGE_PATH`。VOS app 的 Model Hub、PGV、Traefik、iframe 路由和 OIDC Fastpath 只在 VOS 安装环境验证；本地调试使用普通登录和本地端口。
 
-如果要验证 VOS 安装包，请回到 `ictrek.app/README.md` 的打包/安装流程。不要在 VOS app 的真实部署目录执行本地 `stop`，也不要把 `.local-data/ictrek` 复制到 VOS 应用存储目录。
+如果要验证 VOS 安装包，请回到 `ictrek.app/README.md` 的打包/安装流程。不要在 VOS app 的真实部署目录执行本地 `stop`，也不要把本地开发数据目录复制到 VOS 应用存储目录。
 
 ## 排错
 

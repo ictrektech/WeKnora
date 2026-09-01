@@ -19,6 +19,7 @@ ENV_FILE="${ICTREK_DEV_ENV_FILE:-$PROJECT_ROOT/.env}"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 PROJECT_NAME="${ICTREK_DEV_COMPOSE_PROJECT:-weknora-ictrek-local-dev}"
 DEFAULT_MODEL_CONFIG="ictrek.app/docs/local-dev/config/builtin_models.tc232.yaml"
+DEFAULT_DEV_DATA_DIR="/data/hybrag-dev-data"
 
 log_info() {
     printf "%b\n" "${BLUE}[INFO]${NC} $*"
@@ -168,7 +169,7 @@ model_config_file() {
 }
 
 refresh_config() {
-    DEV_DATA_DIR="${ICTREK_DEV_DATA_DIR:-$PROJECT_ROOT/.local-data/ictrek}"
+    DEV_DATA_DIR="${ICTREK_DEV_DATA_DIR:-$DEFAULT_DEV_DATA_DIR}"
     if [[ "$DEV_DATA_DIR" != /* ]]; then
         DEV_DATA_DIR="$PROJECT_ROOT/$DEV_DATA_DIR"
     fi
@@ -324,7 +325,7 @@ setup_env() {
     set_env_value DOCREADER_ADDR "127.0.0.1:$DEV_DOCREADER_PORT"
     set_env_value DOCREADER_PORT "$DEV_DOCREADER_PORT"
     set_env_value DOCREADER_TRANSPORT grpc
-    set_env_value ICTREK_DEV_DATA_DIR "${ICTREK_DEV_DATA_DIR:-.local-data/ictrek}"
+    set_env_value ICTREK_DEV_DATA_DIR "$DEV_DATA_DIR"
     set_env_value ICTREK_DEV_DB_PORT "$DEV_DB_PORT"
     set_env_value ICTREK_DEV_REDIS_PORT "$DEV_REDIS_PORT"
     set_env_value ICTREK_DEV_DOCREADER_PORT "$DEV_DOCREADER_PORT"
@@ -333,7 +334,11 @@ setup_env() {
     set_env_value ICTREK_DEV_NEO4J_BOLT_PORT "$DEV_NEO4J_BOLT_PORT"
     set_env_value ICTREK_DEV_VLLM_PORT "$DEV_VLLM_PORT"
     set_env_value ICTREK_DEV_BGE_VLLM_PORT "$DEV_BGE_VLLM_PORT"
-    set_env_value LOCAL_STORAGE_BASE_DIR .local-data/ictrek/files
+    if [ -z "${LOCAL_STORAGE_BASE_DIR:-}" ] || [ "$LOCAL_STORAGE_BASE_DIR" = "/data/files" ]; then
+        set_env_value LOCAL_STORAGE_BASE_DIR "$DEV_DATA_DIR/files"
+    else
+        set_env_value LOCAL_STORAGE_BASE_DIR "$LOCAL_STORAGE_BASE_DIR"
+    fi
     set_env_value SERVER_PORT "$DEV_APP_PORT"
     set_env_value APP_PORT "$DEV_APP_PORT"
     set_env_value VITE_DEV_PROXY_TARGET "http://127.0.0.1:$DEV_APP_PORT"

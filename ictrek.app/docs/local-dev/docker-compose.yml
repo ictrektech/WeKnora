@@ -15,7 +15,7 @@ services:
       POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres123!@#}"
       POSTGRES_DB: "${DB_NAME:-WeKnora}"
     volumes:
-      - "${ICTREK_DEV_DATA_DIR:-.local-data/ictrek}/postgres:/var/lib/postgresql/data"
+      - "${ICTREK_DEV_DATA_DIR:-/data/hybrag-dev-data}/postgres:/var/lib/postgresql/data"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-WeKnora}"]
       interval: 10s
@@ -30,7 +30,7 @@ services:
       - "127.0.0.1:${ICTREK_DEV_REDIS_PORT:-6380}:6379"
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-redis123!@#}"]
     volumes:
-      - "${ICTREK_DEV_DATA_DIR:-.local-data/ictrek}/redis:/data"
+      - "${ICTREK_DEV_DATA_DIR:-/data/hybrag-dev-data}/redis:/data"
     restart: unless-stopped
 
   docreader:
@@ -94,7 +94,7 @@ services:
       DOCREADER_PDF_MAX_CHART_REGION_AREA: "${DOCREADER_PDF_MAX_CHART_REGION_AREA:-}"
       DOCREADER_PDF_MAX_FIGURE_HEIGHT_RATIO: "${DOCREADER_PDF_MAX_FIGURE_HEIGHT_RATIO:-}"
     volumes:
-      - "${ICTREK_DEV_DATA_DIR:-.local-data/ictrek}/docreader:/tmp/docreader"
+      - "${ICTREK_DEV_DATA_DIR:-/data/hybrag-dev-data}/docreader:/tmp/docreader"
     healthcheck:
       test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
       interval: 30s
@@ -117,7 +117,7 @@ services:
       NEO4J_apoc_import_file_use__neo4j__config: "true"
       NEO4JLABS_PLUGINS: '["apoc"]'
     volumes:
-      - "${ICTREK_DEV_DATA_DIR:-.local-data/ictrek}/neo4j:/data"
+      - "${ICTREK_DEV_DATA_DIR:-/data/hybrag-dev-data}/neo4j:/data"
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell -u \"$${NEO4J_AUTH%%/*}\" -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1;' >/dev/null 2>&1"]
       interval: 30s
