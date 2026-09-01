@@ -5,13 +5,33 @@ import (
 	"testing"
 )
 
-func TestAuthorizeTenantAPIKeyKnowledgeTargetsRejectsKnowledgeIDs(t *testing.T) {
+func TestAuthorizeTenantAPIKeyKnowledgeTargetsAllowsKnowledgeIDsWithAllowedKnowledgeBase(t *testing.T) {
 	ctx := WithTenantAPIKeyScope(context.Background(), TenantAPIKeyScope{
 		KnowledgeBaseIDs: StringArray{"kb-1"},
 	})
 	err := AuthorizeTenantAPIKeyKnowledgeTargets(ctx, []string{"kb-1"}, []string{"doc-1"})
+	if err != nil {
+		t.Fatalf("expected knowledge_ids with an allowed knowledge base to be allowed, got %v", err)
+	}
+}
+
+func TestAuthorizeTenantAPIKeyKnowledgeTargetsRejectsKnowledgeIDsWithoutKnowledgeBase(t *testing.T) {
+	ctx := WithTenantAPIKeyScope(context.Background(), TenantAPIKeyScope{
+		KnowledgeBaseIDs: StringArray{"kb-1"},
+	})
+	err := AuthorizeTenantAPIKeyKnowledgeTargets(ctx, nil, []string{"doc-1"})
 	if err == nil {
-		t.Fatal("expected forbidden when knowledge_ids supplied under KB-restricted key")
+		t.Fatal("expected forbidden when knowledge_ids are supplied without a verified knowledge base")
+	}
+}
+
+func TestAuthorizeTenantAPIKeyKnowledgeTargetsRejectsOutOfScopeKnowledgeBase(t *testing.T) {
+	ctx := WithTenantAPIKeyScope(context.Background(), TenantAPIKeyScope{
+		KnowledgeBaseIDs: StringArray{"kb-1"},
+	})
+	err := AuthorizeTenantAPIKeyKnowledgeTargets(ctx, []string{"kb-2"}, []string{"doc-1"})
+	if err == nil {
+		t.Fatal("expected forbidden when knowledge_base_ids are outside the API key scope")
 	}
 }
 

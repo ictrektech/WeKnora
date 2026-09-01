@@ -7,9 +7,9 @@
 - [基础信息](#基础信息)
 - [认证机制](#认证机制)
 - [非 VOS 场景调用 RAG API](#非-vos-场景调用-rag-api)
-- [VOS 外部调用实测流程](./vos-external-api.md)
-- [VOS 外部 API 验证与客户需求覆盖](./vos-external-api-validation.md)
-- [VOS 外部 API 驗證與客戶需求覆蓋（繁體中文）](./vos-external-api-validation.zh-TW.md)
+- [VOS 外部调用 HybRAG API 接入指南](./vos-external-api.md)
+- [VOS 外部 API 接入检查清单](./vos-external-api-validation.md)
+- [VOS 外部 API 接入檢查清單（繁體中文）](./vos-external-api-validation.zh-TW.md)
 - [错误处理](#错误处理)
 - [文件与图片引用（`resource://` 与直链）](#文件与图片引用resource-与直链)
 - [API 概览](#api-概览)
@@ -122,7 +122,7 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
 
 ### 指定文档 / Knowledge ID
 
-- HybRAG API 中的 `knowledge_id` 对应业务语义里的单个文档、文件、URL 或手动录入知识条目；也就是客户常说的 `document_id`。
+- HybRAG API 中的 `knowledge_id` 对应业务语义里的单个文档、文件、URL 或手动录入知识条目；业务系统里的 `document_id` 可按 `knowledge_id` 传入。
 - 创建或上传文档后，响应里的 `data.id` 就是该文档的 `knowledge_id`；也可以通过知识库文档列表接口读取每条文档记录的 `id`、`file_name`、`title`。
 - `POST /knowledge-search`、`POST /knowledge-chat/:session_id` 和 `POST /agent-chat/:session_id` 均支持请求体字段 `knowledge_ids`，用于把检索限制在一份或几份文档内。
 - 字段名是 `knowledge_ids`，不是 `document_id` 或 `document_ids`；可与 `knowledge_base_ids` 一起传，进一步限定到指定知识库下的指定文档。

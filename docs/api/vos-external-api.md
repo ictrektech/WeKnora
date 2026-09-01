@@ -1,4 +1,4 @@
-# VOS 外部调用 HybRAG API 实测流程
+# VOS 外部调用 HybRAG API 接入指南
 
 [返回目录](./README.md)
 
@@ -10,7 +10,7 @@
 
 如果安装 HybRAG 时修改过 `HYBRAG_FRONTEND_PORT` 或 `HYBRAG_API_PORT`，请使用实际安装端口。
 
-229 环境的完整实测结果和客户需求覆盖表见：[VOS 外部 API 验证与客户需求覆盖](./vos-external-api-validation.md)。
+更多接入检查项见：[VOS 外部 API 接入检查清单](./vos-external-api-validation.md)。
 
 ## 权限模型
 
@@ -41,7 +41,7 @@ curl -sS "$BASE/auth/me" \
 SESSION_ID=$(curl -sS -X POST "$BASE/sessions" \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"title":"外部 API 测试"}' | jq -r '.data.id')
+  -d '{"title":"外部系统 RAG 会话"}' | jq -r '.data.id')
 ```
 
 指定知识库发起 RAG 问答：
@@ -157,11 +157,9 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
   }"
 ```
 
-## 229 实测结论
+## 集成确认项
 
-在 `192.168.1.229` 上实测确认：
-
-- VOS 普通用户可以通过 `/v1000/user/login` 取得 VOS access token。
-- HybRAG `/auth/vos-oidc` 可以校验该 token，并映射为 HybRAG 普通用户。
-- 普通用户 `can_access_all_tenants=false`，不应创建工作区级高权限 API Key。
-- 修复后，普通用户只能创建绑定知识库范围的个人 API Key；`manage_members`、`manage_models`、`manage_datasources`、`full_access` 等工作区级权限只对平台级管理员开放。
+- 普通用户可以通过 VOS 登录或 OAuth 流程取得 VOS access token。
+- HybRAG `/auth/vos-oidc` 可以校验该 token，并映射为 HybRAG 本地用户。
+- 普通用户 `can_access_all_tenants=false`，不能创建工作区级高权限 API Key。
+- 普通用户只能创建绑定知识库范围的个人 API Key；`manage_members`、`manage_models`、`manage_datasources`、`full_access` 等工作区级权限只对平台级管理员开放。

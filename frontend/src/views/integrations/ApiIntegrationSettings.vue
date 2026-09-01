@@ -522,92 +522,53 @@
       :hide-footer="true"
     >
       <div class="api-doc">
-        <section class="api-doc-section">
-          <h3>接入地址</h3>
-          <p>HybRAG 的 RAG API 统一使用 <code>/api/v1</code> 前缀。VOS 内推荐使用应用路径；如果安装包启用了宿主机端口映射，也可以直接访问 RAG API 映射端口。</p>
-          <div class="api-doc-endpoints">
-            <div class="api-doc-endpoint">
-              <span>VOS 应用路径</span>
-              <code>{{ apiBaseUrl }}</code>
-              <t-button size="small" variant="text" @click="copy(apiBaseUrl)">
-                <template #icon><t-icon name="file-copy" /></template>
-                {{ $t('integrations.api.copy') }}
-              </t-button>
-            </div>
-            <div v-if="directHostApiBaseUrl" class="api-doc-endpoint">
-              <span>宿主机直连</span>
-              <code>{{ directHostApiBaseUrl }}</code>
-              <t-button size="small" variant="text" @click="copy(directHostApiBaseUrl)">
-                <template #icon><t-icon name="file-copy" /></template>
-                {{ $t('integrations.api.copy') }}
-              </t-button>
-            </div>
+        <aside class="api-doc-nav">
+          <t-input
+            v-model="apiDocSearch"
+            clearable
+            placeholder="搜索 API 文档"
+            class="api-doc-search"
+          >
+            <template #prefix-icon><t-icon name="search" /></template>
+          </t-input>
+          <div class="api-doc-nav__list">
+            <button
+              v-for="doc in filteredApiDocs"
+              :key="doc.slug"
+              type="button"
+              class="api-doc-nav__item"
+              :class="{ 'api-doc-nav__item--active': doc.slug === selectedApiDocSlug }"
+              @click="selectedApiDocSlug = doc.slug"
+            >
+              <span>{{ doc.title }}</span>
+              <small>{{ doc.fileName }}</small>
+            </button>
           </div>
-        </section>
-
-        <section class="api-doc-section">
-          <h3>两条认证路径</h3>
-          <div class="api-doc-paths">
-            <article>
-              <h4>路径一：普通用户个人 API Key</h4>
-              <p>普通用户登录 HybRAG 后，在「设置 -> API 集成」创建自己的个人 API Key，并绑定可访问的知识库范围。外部服务端保存该 Key 后，用 <code>X-API-Key</code> 调用 API。这个 Key 只代表创建它的用户，不需要 admin 代发，也不能自动获得空间级高权限。</p>
-            </article>
-            <article>
-              <h4>路径二：VOS/OAuth Bearer Token</h4>
-              <p>外部应用先通过 VOS/OAuth 登录流程取得普通用户的 access token，然后把它作为 <code>Authorization: Bearer &lt;VOS_TOKEN&gt;</code> 传给 HybRAG。HybRAG 校验 token 后按该 VOS 用户身份和权限执行，适合需要严格继承 VOS 当前用户权限的场景。</p>
-            </article>
-          </div>
-        </section>
-
-        <section class="api-doc-section">
-          <h3>知识库、文档与会话</h3>
-          <ul class="api-doc-list">
-            <li><code>knowledge_base_ids</code> 指定一个或多个知识库 ID。</li>
-            <li><code>knowledge_id</code> 对应业务语义中的单个文档、文件、URL 或手动知识条目；客户说的 <code>document_id</code> 在 HybRAG API 中就是 <code>knowledge_id</code>。</li>
-            <li>上传文件、导入 URL 或创建手动知识后，响应里的 <code>data.id</code> 就是该文档的 <code>knowledge_id</code>；知识库文档列表接口返回的每条记录 <code>id</code> 也是 <code>knowledge_id</code>。</li>
-            <li><code>knowledge_ids</code> 可用于把 <code>knowledge-search</code>、<code>knowledge-chat</code>、<code>agent-chat</code> 限制在一份或几份文档内。</li>
-            <li><code>session_id</code> 由 <code>POST /sessions</code> 返回；同一用户多轮对话复用同一个 session，新话题可以新建 session。</li>
-          </ul>
-        </section>
-
-        <section class="api-doc-section">
-          <h3>核心 API</h3>
-          <div class="api-doc-api-grid">
-            <div><code>GET /auth/me</code><span>确认当前调用主体</span></div>
-            <div><code>GET /knowledge-bases</code><span>列出当前用户可见知识库</span></div>
-            <div><code>POST /sessions</code><span>创建会话，返回 session id</span></div>
-            <div><code>POST /knowledge-search</code><span>只检索，不调用 LLM 生成答案</span></div>
-            <div><code>POST /knowledge-chat/:session_id</code><span>知识库 RAG 问答，SSE 输出</span></div>
-            <div><code>POST /agent-chat/:session_id</code><span>智能体问答，可结合工具和 Agent 配置</span></div>
-          </div>
-        </section>
-
-        <section class="api-doc-section">
-          <h3>请求示例</h3>
-          <div class="api-doc-snippets">
-            <div class="code-panel">
-              <div class="code-panel__toolbar">
-                <span class="code-panel__label">个人 API Key 路径</span>
-                <t-button size="small" variant="text" class="code-panel__copy" @click="copy(apiKeyGuideExample)">
-                  <template #icon><t-icon name="file-copy" /></template>
-                  {{ $t('integrations.api.copy') }}
-                </t-button>
-              </div>
-              <pre class="code-panel__pre">{{ apiKeyGuideExample }}</pre>
+        </aside>
+        <article class="api-doc-reader">
+          <header class="api-doc-reader__header">
+            <div>
+              <h3>{{ selectedApiDoc?.title || 'API 文档' }}</h3>
+              <p>内容来自 <code>docs/api/{{ selectedApiDoc?.fileName }}</code>，重新打包 Web 镜像后会随 Markdown 更新。</p>
             </div>
-
-            <div class="code-panel">
-              <div class="code-panel__toolbar">
-                <span class="code-panel__label">VOS/OAuth Token 路径</span>
-                <t-button size="small" variant="text" class="code-panel__copy" @click="copy(vosBearerGuideExample)">
-                  <template #icon><t-icon name="file-copy" /></template>
-                  {{ $t('integrations.api.copy') }}
-                </t-button>
-              </div>
-              <pre class="code-panel__pre">{{ vosBearerGuideExample }}</pre>
-            </div>
-          </div>
-        </section>
+            <t-button
+              v-if="selectedApiDoc"
+              size="small"
+              variant="outline"
+              @click="copy(selectedApiDoc.raw)"
+            >
+              <template #icon><t-icon name="file-copy" /></template>
+              {{ $t('integrations.api.copy') }}
+            </t-button>
+          </header>
+          <div
+            v-if="selectedApiDoc"
+            class="api-doc-markdown"
+            @click="handleApiDocMarkdownClick"
+            v-html="selectedApiDocHtml"
+          ></div>
+          <t-empty v-else description="没有匹配的 API 文档" />
+        </article>
       </div>
     </SettingDrawer>
 
@@ -837,11 +798,13 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
+import { marked } from 'marked'
 import { copyWithToast } from '@/utils/clipboard'
 import { getCurrentUser } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { listAgents, BUILTIN_SMART_REASONING_ID, type CustomAgent } from '@/api/agent'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
+import { sanitizeMarkdownHTML } from '@/utils/security'
 import {
   createTenantAPIKey,
   deleteTenantAPIKey,
@@ -866,6 +829,72 @@ import {
 } from '@/config/apiKeyCapabilities'
 import { normalizeAPIKeyKnowledgeBaseIDs } from './apiKeyScope'
 import { consumeApiPlaygroundSSE } from './apiPlaygroundSSE'
+
+type ApiDocItem = {
+  slug: string
+  fileName: string
+  title: string
+  raw: string
+}
+
+const apiDocModules = import.meta.glob('../../../../docs/api/*.md', {
+  eager: true,
+  query: '?raw',
+  import: 'default',
+}) as Record<string, string>
+
+const apiDocOrder = [
+  'README',
+  'vos-external-api',
+  'auth',
+  'tenant',
+  'knowledge-base',
+  'knowledge',
+  'knowledge-search',
+  'chat',
+  'session',
+  'message',
+  'agent',
+  'mcp-service',
+  'model',
+  'vector-store',
+  'storage-backend',
+  'web-search',
+  'tag',
+  'faq',
+  'chunk',
+  'skill',
+  'evaluation',
+  'organization',
+  'initialization',
+  'system',
+]
+
+function apiDocSortWeight(slug: string) {
+  const index = apiDocOrder.indexOf(slug)
+  return index >= 0 ? index : apiDocOrder.length
+}
+
+function extractMarkdownTitle(fileName: string, raw: string) {
+  const match = raw.match(/^#\s+(.+)$/m)
+  return match?.[1]?.trim() || fileName.replace(/\.md$/, '')
+}
+
+const apiDocs: ApiDocItem[] = Object.entries(apiDocModules)
+  .map(([path, raw]) => {
+    const fileName = path.split('/').pop() || path
+    const slug = fileName.replace(/\.md$/, '')
+    return {
+      slug,
+      fileName,
+      title: extractMarkdownTitle(fileName, raw),
+      raw,
+    }
+  })
+  .sort((a, b) => {
+    const weight = apiDocSortWeight(a.slug) - apiDocSortWeight(b.slug)
+    return weight !== 0 ? weight : a.fileName.localeCompare(b.fileName)
+  })
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -897,6 +926,8 @@ const agentsLoading = ref(false)
 const agentsError = ref('')
 const playgroundDrawerVisible = ref(false)
 const apiDocDrawerVisible = ref(false)
+const apiDocSearch = ref('')
+const selectedApiDocSlug = ref(apiDocs.find((doc) => doc.slug === 'vos-external-api')?.slug || apiDocs[0]?.slug || '')
 const playgroundController = ref<AbortController | null>(null)
 const showHMACSecret = ref(false)
 const wailsApiBaseURL = ref<string | null>(null)
@@ -1212,6 +1243,44 @@ const knowledgeBaseOptions = computed(() => knowledgeBases.value.map((kb) => ({
   value: kb.id,
 })))
 
+const filteredApiDocs = computed(() => {
+  const keyword = apiDocSearch.value.trim().toLowerCase()
+  if (!keyword) return apiDocs
+  return apiDocs.filter((doc) => (
+    doc.title.toLowerCase().includes(keyword)
+    || doc.fileName.toLowerCase().includes(keyword)
+    || doc.raw.toLowerCase().includes(keyword)
+  ))
+})
+
+const selectedApiDoc = computed(() => (
+  apiDocs.find((doc) => doc.slug === selectedApiDocSlug.value)
+  || filteredApiDocs.value[0]
+  || null
+))
+
+const apiDocSlugSet = new Set(apiDocs.map((doc) => doc.slug))
+
+function rewriteApiDocLinks(markdown: string) {
+  return markdown.replace(/\]\(([^)]+\.md)(#[^)]+)?\)/g, (match, href: string, hash = '') => {
+    const fileName = href.split('/').pop() || ''
+    const slug = fileName.replace(/\.md$/, '')
+    if (!apiDocSlugSet.has(slug)) return match
+    return `](#api-doc:${slug}${hash || ''})`
+  })
+}
+
+const selectedApiDocHtml = computed(() => {
+  const doc = selectedApiDoc.value
+  if (!doc) return ''
+  const html = marked.parse(rewriteApiDocLinks(doc.raw), {
+    async: false,
+    gfm: true,
+    breaks: false,
+  }) as string
+  return sanitizeMarkdownHTML(html)
+})
+
 const hasUnsavedSecretChange = computed(() => {
   const trimmed = secretInput.value.trim()
   if (!trimmed) return false
@@ -1371,62 +1440,6 @@ const ragChatExample = computed(() => {
     `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"knowledge_ids":["<knowledge_id，可选>"],"channel":"api"}'`,
   ].join('\n')
 })
-
-const apiKeyGuideExample = computed(() => [
-  'BASE="' + apiBaseUrl.value + '"',
-  'API_KEY="<普通用户个人 API Key>"',
-  'KB_ID="<knowledge_base_id>"',
-  'KNOWLEDGE_ID="<knowledge_id，可选；即业务文档 ID>"',
-  '',
-  '# 1. 确认当前调用主体',
-  'curl -sS "$BASE/auth/me" \\',
-  '  -H "X-API-Key: $API_KEY"',
-  '',
-  '# 2. 创建会话，保存返回的 data.id',
-  'SESSION_ID="$(curl -sS -X POST "$BASE/sessions" \\',
-  '  -H "X-API-Key: $API_KEY" \\',
-  '  -H "Content-Type: application/json" \\',
-  '  -d \'{"title":"外部系统 RAG 会话"}\' | jq -r \'.data.id\')"',
-  '',
-  '# 3. 无会话检索；knowledge_ids 可限制到一份或几份文档',
-  'curl -sS -X POST "$BASE/knowledge-search" \\',
-  '  -H "X-API-Key: $API_KEY" \\',
-  '  -H "Content-Type: application/json" \\',
-  '  -d "{\\"query\\":\\"检索这份文档的重点\\",\\"knowledge_base_ids\\":[\\"$KB_ID\\"],\\"knowledge_ids\\":[\\"$KNOWLEDGE_ID\\"]}"',
-  '',
-  '# 4. RAG 问答，返回 SSE',
-  'curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \\',
-  '  -H "X-API-Key: $API_KEY" \\',
-  '  -H "Content-Type: application/json" \\',
-  '  -d "{\\"query\\":\\"只根据指定知识库回答\\",\\"knowledge_base_ids\\":[\\"$KB_ID\\"],\\"knowledge_ids\\":[\\"$KNOWLEDGE_ID\\"],\\"channel\\":\\"api\\",\\"disable_title\\":true}"',
-].join('\n'))
-
-const vosBearerGuideExample = computed(() => [
-  'BASE="' + apiBaseUrl.value + '"',
-  'VOS_TOKEN="<普通用户 VOS/OAuth access token>"',
-  'KB_ID="<knowledge_base_id>"',
-  'KNOWLEDGE_ID="<knowledge_id，可选；即业务文档 ID>"',
-  '',
-  '# 1. HybRAG 校验 VOS token，并映射为当前 VOS 用户',
-  'curl -sS "$BASE/auth/me" \\',
-  '  -H "Authorization: Bearer $VOS_TOKEN"',
-  '',
-  '# 2. 列出该 VOS 用户可见的知识库',
-  'curl -sS "$BASE/knowledge-bases" \\',
-  '  -H "Authorization: Bearer $VOS_TOKEN"',
-  '',
-  '# 3. 创建会话，保存返回的 data.id',
-  'SESSION_ID="$(curl -sS -X POST "$BASE/sessions" \\',
-  '  -H "Authorization: Bearer $VOS_TOKEN" \\',
-  '  -H "Content-Type: application/json" \\',
-  '  -d \'{"title":"VOS 用户 RAG 会话"}\' | jq -r \'.data.id\')"',
-  '',
-  '# 4. RAG 问答，HybRAG 按该 VOS 用户权限执行',
-  'curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \\',
-  '  -H "Authorization: Bearer $VOS_TOKEN" \\',
-  '  -H "Content-Type: application/json" \\',
-  '  -d "{\\"query\\":\\"只根据指定知识库回答\\",\\"knowledge_base_ids\\":[\\"$KB_ID\\"],\\"knowledge_ids\\":[\\"$KNOWLEDGE_ID\\"],\\"channel\\":\\"api\\",\\"disable_title\\":true}"',
-].join('\n'))
 
 const activeExampleText = computed(() => (
   form.mode === 'signed_token' && exampleTab.value === 'jwt'
@@ -1759,6 +1772,19 @@ const saveDesktopPort = async () => {
 
 function openApiDoc() {
   apiDocDrawerVisible.value = true
+}
+
+function handleApiDocMarkdownClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  const anchor = target?.closest('a')
+  if (!anchor) return
+  const href = anchor.getAttribute('href') || ''
+  if (!href.startsWith('#api-doc:')) return
+  event.preventDefault()
+  const slug = href.replace(/^#api-doc:/, '').split('#')[0]
+  if (apiDocSlugSet.has(slug)) {
+    selectedApiDocSlug.value = slug
+  }
 }
 
 function openCreateAPIKeyDialog() {
@@ -2237,48 +2263,108 @@ onBeforeUnmount(stopPlayground)
 }
 
 .api-doc {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  padding-bottom: 12px;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 18px;
+  min-height: 640px;
 }
 
-.api-doc-section {
+.api-doc-nav {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--td-component-stroke);
+  gap: 10px;
+  min-width: 0;
+  padding-right: 14px;
+  border-right: 1px solid var(--td-component-stroke);
+}
 
-  &:last-child {
-    border-bottom: none;
+.api-doc-search {
+  flex: 0 0 auto;
+}
+
+.api-doc-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.api-doc-nav__item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--td-text-color-primary);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--td-bg-color-container-hover);
   }
 
+  &--active {
+    background: var(--td-brand-color-light);
+    color: var(--td-brand-color);
+  }
+
+  span,
+  small {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  small {
+    color: var(--td-text-color-placeholder);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+}
+
+.api-doc-reader {
+  min-width: 0;
+}
+
+.api-doc-reader__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--td-component-stroke);
+
   h3,
-  h4,
   p {
     margin: 0;
   }
 
   h3 {
     color: var(--td-text-color-primary);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     line-height: 1.45;
   }
 
-  h4 {
-    color: var(--td-text-color-primary);
-    font-size: 14px;
-    font-weight: 650;
-    line-height: 1.45;
-  }
-
-  p,
-  li {
+  p {
+    margin-top: 4px;
     color: var(--td-text-color-secondary);
-    font-size: 13px;
-    line-height: 1.7;
+    font-size: 12px;
+    line-height: 1.6;
   }
 
   code {
@@ -2291,74 +2377,121 @@ onBeforeUnmount(stopPlayground)
   }
 }
 
-.api-doc-endpoints,
-.api-doc-paths,
-.api-doc-api-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
+.api-doc-markdown {
+  color: var(--td-text-color-primary);
+  font-size: 14px;
+  line-height: 1.75;
 
-.api-doc-endpoint,
-.api-doc-paths article,
-.api-doc-api-grid > div {
-  min-width: 0;
-  border: 1px solid var(--td-component-stroke);
-  border-radius: 8px;
-  background: var(--td-bg-color-container);
-}
+  :deep(h1),
+  :deep(h2),
+  :deep(h3),
+  :deep(h4) {
+    margin: 24px 0 10px;
+    color: var(--td-text-color-primary);
+    font-weight: 700;
+    line-height: 1.35;
+  }
 
-.api-doc-endpoint {
-  display: grid;
-  grid-template-columns: 100px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  :deep(h1:first-child),
+  :deep(h2:first-child),
+  :deep(h3:first-child) {
+    margin-top: 0;
+  }
 
-  span {
-    color: var(--td-text-color-secondary);
+  :deep(h1) {
+    font-size: 24px;
+  }
+
+  :deep(h2) {
+    font-size: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--td-component-stroke);
+  }
+
+  :deep(h3) {
+    font-size: 17px;
+  }
+
+  :deep(h4) {
+    font-size: 15px;
+  }
+
+  :deep(p),
+  :deep(ul),
+  :deep(ol),
+  :deep(blockquote),
+  :deep(table),
+  :deep(pre) {
+    margin: 0 0 14px;
+  }
+
+  :deep(ul),
+  :deep(ol) {
+    padding-left: 22px;
+  }
+
+  :deep(li + li) {
+    margin-top: 4px;
+  }
+
+  :deep(a) {
+    color: var(--td-brand-color);
+    text-decoration: none;
+  }
+
+  :deep(a:hover) {
+    text-decoration: underline;
+  }
+
+  :deep(code) {
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--td-bg-color-secondarycontainer);
+    color: var(--td-text-color-primary);
+    font-family: var(--app-font-family-mono);
     font-size: 12px;
-    line-height: 1.4;
   }
 
-  code {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  :deep(pre) {
+    overflow: auto;
+    padding: 14px 16px;
+    border-radius: 8px;
+    background: #0f172a;
+    color: #e5e7eb;
   }
-}
 
-.api-doc-paths article {
-  padding: 13px 14px;
-
-  h4 {
-    margin-bottom: 6px;
+  :deep(pre code) {
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    white-space: pre;
   }
-}
 
-.api-doc-list {
-  margin: 0;
-  padding-left: 18px;
-}
+  :deep(table) {
+    display: block;
+    width: 100%;
+    overflow: auto;
+    border-collapse: collapse;
+  }
 
-.api-doc-api-grid > div {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 11px 12px;
+  :deep(th),
+  :deep(td) {
+    padding: 8px 10px;
+    border: 1px solid var(--td-component-stroke);
+    vertical-align: top;
+  }
 
-  span {
+  :deep(th) {
+    background: var(--td-bg-color-secondarycontainer);
+    font-weight: 700;
+  }
+
+  :deep(blockquote) {
+    padding: 8px 12px;
+    border-left: 3px solid var(--td-brand-color);
+    background: var(--td-brand-color-light);
     color: var(--td-text-color-secondary);
-    font-size: 12px;
-    line-height: 1.45;
   }
-}
-
-.api-doc-snippets {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
 .api-key-section__header {
@@ -2867,15 +3000,14 @@ onBeforeUnmount(stopPlayground)
 }
 
 @media (max-width: 640px) {
-  .api-doc-endpoints,
-  .api-doc-paths,
-  .api-doc-api-grid {
+  .api-doc {
     grid-template-columns: 1fr;
+    min-height: 520px;
   }
 
-  .api-doc-endpoint {
-    grid-template-columns: 1fr;
-    align-items: stretch;
+  .api-doc-nav {
+    position: static;
+    max-height: 220px;
   }
 
   .config-row {
