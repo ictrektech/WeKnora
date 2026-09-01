@@ -7,6 +7,9 @@ x-hybrag-frontend-base:
     APP_HOST: hybrag-app
     APP_PORT: 8080
     APP_SCHEME: http
+    HYBRAG_API_PORT: ${HYBRAG_API_PORT:-29081}
+  ports: &id020
+  - ${HYBRAG_FRONTEND_PORT:-29080}:80
   labels: &id011
   - traefik.enable=true
   - traefik.docker.network=vos_default
@@ -124,6 +127,8 @@ x-hybrag-app-base:
     vos_default:
       aliases:
       - hybrag-app
+  ports: &id021
+  - ${HYBRAG_API_PORT:-29081}:8080
   environment: *id001
   volumes: &id013
   - ${VOS_APP_STORAGE_PATH}/files:/data/files
@@ -220,6 +225,7 @@ services:
     restart: unless-stopped
     networks: *id009
     environment: *id010
+    ports: *id020
     labels: *id011
     profiles:
     - amd
@@ -231,6 +237,7 @@ services:
   hybrag-app-amd:
     restart: unless-stopped
     networks: *id012
+    ports: *id021
     environment:
       GIN_MODE: ${GIN_MODE:-release}
       TZ: ${TZ:-Asia/Shanghai}
@@ -325,6 +332,7 @@ services:
     restart: unless-stopped
     networks: *id009
     environment: *id010
+    ports: *id020
     labels: *id011
     profiles:
     - arm
@@ -336,6 +344,7 @@ services:
   hybrag-app-arm:
     restart: unless-stopped
     networks: *id012
+    ports: *id021
     environment:
       GIN_MODE: ${GIN_MODE:-release}
       TZ: ${TZ:-Asia/Shanghai}

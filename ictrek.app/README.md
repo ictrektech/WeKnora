@@ -82,6 +82,8 @@ HybRAG 同时保留三类认证方式：
 - VOS/OAuth Bearer token：外部应用已经拿到普通用户的 VOS access token 时，直接用 `Authorization: Bearer <VOS token>` 调 HybRAG 业务 API；HybRAG 会校验并按该 VOS 用户映射出的 HybRAG 用户权限执行。
 - VOS token exchange：其他 VOS app 也可以先把 VOS token 换成 HybRAG token，再用 HybRAG token 调用后续 API。
 
+VOS 包默认同时提供两种 API 访问地址：VOS 应用路径 `https://<VOS地址>/app/com.ictrek.hybrag/api/v1`，以及宿主机直连 `http://<主机IP>:29081/api/v1`。前端直连地址为 `http://<主机IP>:29080`。如果安装时修改过 `HYBRAG_API_PORT` 或 `HYBRAG_FRONTEND_PORT`，以实际安装配置为准。
+
 其他 VOS app 如果要“当前打开应用的 VOS 用户是谁，就访问 HybRAG 中对应用户的空间”，可以直接把 VOS/OAuth token 放到 HybRAG 业务 API 的 Bearer 头里，也可以先调用 token exchange 换取 HybRAG token。不要直接伪造 `X-External-User-ID`。`X-External-User-ID` 只适合可信服务端在已经持有 HybRAG 工作区级 API Key 的情况下做终端用户隔离；它不是免 key 用户登录机制。
 
 ### 身份映射规则

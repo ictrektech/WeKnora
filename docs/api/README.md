@@ -29,7 +29,12 @@ WeKnora 同时提供基于 OpenAPI 的 Swagger 文档。**启动服务后访问 
 - **响应格式**: JSON
 - **认证方式**: `X-API-Key` 或 `Authorization: Bearer <token>`
 
-VOS app 安装时，HybRAG 后端默认在容器内监听 `8080`，由 VOS 平台按应用路径代理到前端和 API；外部调用时使用 VOS 暴露出来的应用地址并保留 `/api/v1` 前缀，例如 `https://<VOS地址>/app/com.ictrek.hybrag/api/v1`（以现场网关实际路由为准）。如果是独立 compose 或调试部署，则使用该部署显式映射的后端端口，例如 `http://<主机IP>:19081/api/v1`。VOS 包默认不把后端 `8080` 直接映射到宿主机公开端口。
+VOS app 安装时，HybRAG 后端在容器内监听 `8080`，同时提供两种访问方式：
+
+- VOS 应用路径：`https://<VOS地址>/app/com.ictrek.hybrag/api/v1`
+- 宿主机直连端口：`http://<主机IP>:29081/api/v1`
+
+VOS 包默认还把前端映射到 `http://<主机IP>:29080`。如果安装时修改过 `HYBRAG_API_PORT` 或 `HYBRAG_FRONTEND_PORT`，以上端口以安装配置为准。旧独立 compose 或调试部署可能使用其他端口，例如历史模板中的 `19081`。
 
 ## 认证机制
 
@@ -65,7 +70,7 @@ X-Request-ID: unique_request_id
 
 ## 非 VOS 场景调用 RAG API
 
-HybRAG 作为 VOS App 打开时，前端会尝试使用 VOS 当前用户自动登录。不在 VOS iframe 内运行的外部服务、脚本或浏览器插件可以直接调用 HybRAG REST API。当前支持两条认证路径：
+HybRAG 作为 VOS App 打开时，前端会尝试使用 VOS 当前用户自动登录。不在 VOS iframe 内运行的外部服务、脚本或浏览器插件可以通过 VOS 应用路径或宿主机直连端口调用 HybRAG REST API。当前支持两条认证路径：
 
 1. **个人 API Key**：普通用户在 HybRAG「API 集成」里为自己创建 API Key，外部应用发送 `X-API-Key`。这是最简单、长期稳定的服务端集成方式。
 2. **VOS/OAuth Bearer token**：外部应用先通过 VOS/OAuth 登录流程取得该普通用户的 VOS access token，再发送 `Authorization: Bearer <VOS token>`。HybRAG 会调用 VOS `/v1000/oauth2/userinfo` 校验；失败时按旧 VOS `/v1000/user/check` 降级。校验成功后按该 VOS 用户映射出的 HybRAG 用户权限执行。

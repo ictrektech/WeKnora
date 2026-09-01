@@ -5,4 +5,6 @@ window.__RUNTIME_CONFIG__ = {
   EMBED_BASE_URL: '',
   // Optional: default UI locale for first-time visitors (zh-CN | en-US | ru-RU | ko-KR)
   DEFAULT_LOCALE: '',
+  // VOS package direct host API port.
+  HYBRAG_API_PORT: 29081,
 };

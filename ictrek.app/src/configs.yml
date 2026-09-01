@@ -51,6 +51,30 @@ configs:
     en: PGV precreates database `WeKnora` by default. Change this if PGV was installed
       with a different database name.
   default: WeKnora
+- name: HYBRAG_FRONTEND_PORT
+  type: integer
+  title:
+    zh-CN: HybRAG 前端外部端口
+    en: HybRAG Frontend Host Port
+  description:
+    zh-CN: 宿主机直接访问 HybRAG Web 前端的端口，默认 `29080`，映射到容器内 `80`。VOS 内仍可通过应用入口打开。
+    en: Host port for direct HybRAG Web access. Defaults to `29080` and maps to container
+      port `80`; the VOS app entry remains available.
+  default: 29080
+  minimum: 1
+  maximum: 65535
+- name: HYBRAG_API_PORT
+  type: integer
+  title:
+    zh-CN: HybRAG RAG API 外部端口
+    en: HybRAG RAG API Host Port
+  description:
+    zh-CN: 宿主机直接访问 HybRAG REST/RAG API 的端口，默认 `29081`，映射到 App 容器内 `8080`；外部系统可直接使用 `http://<主机IP>:29081/api/v1`。
+    en: Host port for direct HybRAG REST/RAG API access. Defaults to `29081` and maps
+      to app container port `8080`; external systems can use `http://<host-ip>:29081/api/v1`.
+  default: 29081
+  minimum: 1
+  maximum: 65535
 - name: ENABLE_GRAPH_RAG
   type: boolean
   title:

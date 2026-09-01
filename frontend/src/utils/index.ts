@@ -8,6 +8,7 @@ declare global {
     __RUNTIME_CONFIG__?: {
       MAX_FILE_SIZE_MB?: number;
       DEFAULT_LOCALE?: string;
+      HYBRAG_API_PORT?: number;
     };
   }
 }

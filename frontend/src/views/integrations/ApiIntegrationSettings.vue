@@ -26,6 +26,19 @@
           </div>
         </div>
 
+        <div v-if="directHostApiBaseUrl" class="row">
+          <div class="row-info">
+            <label>{{ $t('integrations.api.directHostBaseUrl') }}</label>
+            <p>{{ $t('integrations.api.directHostBaseUrlDesc') }}</p>
+          </div>
+          <div class="row-control copy-field">
+            <t-input :model-value="directHostApiBaseUrl" readonly class="mono-input" />
+            <t-button variant="text" :title="$t('integrations.api.copy')" @click="copy(directHostApiBaseUrl)">
+              <t-icon name="file-copy" />
+            </t-button>
+          </div>
+        </div>
+
         <template v-if="showDesktopPortSetting || showDesktopBindPublicSetting">
           <div v-if="showDesktopPortSetting" class="row">
             <div class="row-info">
@@ -1046,6 +1059,14 @@ const apiBaseUrl = computed(() => {
   return `${configured || origin}/api/v1`
 })
 
+const directHostApiBaseUrl = computed(() => {
+  if (typeof window === 'undefined' || !window.location?.hostname) return ''
+  const runtime = (window as Window & { __RUNTIME_CONFIG__?: { HYBRAG_API_PORT?: number } }).__RUNTIME_CONFIG__
+  const port = Number(runtime?.HYBRAG_API_PORT || 29081)
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) return ''
+  return `http://${window.location.hostname}:${port}/api/v1`
+})
+
 const showLanUrlUnavailableHint = computed(() => (
   showDesktopBindPublicSetting.value
   && desktopListenPublicActive.value
@@ -1210,6 +1231,10 @@ const ragChatExample = computed(() => {
   const vosTokenHeader = '  -H "Authorization: Bearer <VOS_OAUTH_ACCESS_TOKEN>"'
   const contentType = '  -H "Content-Type: application/json"'
   return [
+    '# Base URL',
+    `# VOS 应用路径: ${apiBaseUrl.value}`,
+    directHostApiBaseUrl.value ? `# 宿主机直连: ${directHostApiBaseUrl.value}` : '',
+    '',
     '# 方式一：普通用户个人 API Key',
     t('integrations.api.requestExampleCreateSession'),
     `curl -X POST ${apiBaseUrl.value}/sessions \\`,

@@ -6,11 +6,18 @@ case "${DEFAULT_LOCALE:-}" in
   zh-CN|en-US|ru-RU|ko-KR) RUNTIME_DEFAULT_LOCALE="${DEFAULT_LOCALE}" ;;
 esac
 
+RUNTIME_HYBRAG_API_PORT=""
+case "${HYBRAG_API_PORT:-}" in
+  ''|*[!0-9]*) RUNTIME_HYBRAG_API_PORT="29081" ;;
+  *) RUNTIME_HYBRAG_API_PORT="${HYBRAG_API_PORT}" ;;
+esac
+
 # 生成运行时配置文件，注入环境变量到前端
 cat > /usr/share/nginx/html/config.js << EOF
 window.__RUNTIME_CONFIG__ = {
   MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500},
-  DEFAULT_LOCALE: "${RUNTIME_DEFAULT_LOCALE}"
+  DEFAULT_LOCALE: "${RUNTIME_DEFAULT_LOCALE}",
+  HYBRAG_API_PORT: ${RUNTIME_HYBRAG_API_PORT}
 };
 EOF
 
