@@ -75,7 +75,7 @@ x-hybrag-app-env: &id001
   LOCAL_STORAGE_BASE_DIR: ${LOCAL_STORAGE_BASE_DIR:-/data/files}
   STREAM_MANAGER_TYPE: ${STREAM_MANAGER_TYPE:-redis}
   REDIS_ADDR: hybrag-redis:6379
-  REDIS_PASSWORD: ${REDIS_PASSWORD:-hybrag-redis}
+  REDIS_PASSWORD: ${VOS_REDIS_PASSWORD:-${REDIS_PASSWORD:-hybrag-redis}}
   REDIS_DB: ${REDIS_DB:-0}
   REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
   DOCREADER_ADDR: hybrag-docreader:50051
@@ -145,7 +145,7 @@ x-hybrag-app-base:
     retries: 3
     start_period: 60s
 x-hybrag-redis-base:
-  command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
+  command: redis-server --appendonly yes --requirepass ${VOS_REDIS_PASSWORD:-${REDIS_PASSWORD:-hybrag-redis}}
   volumes: &id002
   - ${VOS_APP_STORAGE_PATH}/redis:/data
   networks: &id003
@@ -182,7 +182,7 @@ x-hybrag-neo4j-base:
     start_period: 90s
 services:
   hybrag-redis-amd:
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
+    command: redis-server --appendonly yes --requirepass ${VOS_REDIS_PASSWORD:-${REDIS_PASSWORD:-hybrag-redis}}
     volumes: *id002
     networks: *id003
     restart: unless-stopped
@@ -202,7 +202,7 @@ services:
     image: ${NEO4J_AMD_IMAGE}
     pull_policy: always
   hybrag-redis-arm:
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hybrag-redis}
+    command: redis-server --appendonly yes --requirepass ${VOS_REDIS_PASSWORD:-${REDIS_PASSWORD:-hybrag-redis}}
     volumes: *id002
     networks: *id003
     restart: unless-stopped
@@ -253,7 +253,7 @@ services:
       LOCAL_STORAGE_BASE_DIR: ${LOCAL_STORAGE_BASE_DIR:-/data/files}
       STREAM_MANAGER_TYPE: ${STREAM_MANAGER_TYPE:-redis}
       REDIS_ADDR: hybrag-redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-hybrag-redis}
+      REDIS_PASSWORD: ${VOS_REDIS_PASSWORD:-${REDIS_PASSWORD:-hybrag-redis}}
       REDIS_DB: ${REDIS_DB:-0}
       REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
       DOCREADER_ADDR: hybrag-docreader:50051
@@ -360,7 +360,7 @@ services:
       LOCAL_STORAGE_BASE_DIR: ${LOCAL_STORAGE_BASE_DIR:-/data/files}
       STREAM_MANAGER_TYPE: ${STREAM_MANAGER_TYPE:-redis}
       REDIS_ADDR: hybrag-redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-hybrag-redis}
+      REDIS_PASSWORD: ${VOS_REDIS_PASSWORD:-${REDIS_PASSWORD:-hybrag-redis}}
       REDIS_DB: ${REDIS_DB:-0}
       REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
       DOCREADER_ADDR: hybrag-docreader:50051
