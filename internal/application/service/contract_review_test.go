@@ -78,6 +78,45 @@ func TestBuildReviewClausesKeepsDocumentOrderAndOffsets(t *testing.T) {
 	}
 }
 
+func TestBuildReviewClausesLabelsGeneratedWindowsAsAnalysisSegments(t *testing.T) {
+	content := strings.Repeat("合同内容用于测试分析窗口。\n", 400)
+	clauses := buildReviewClauses("review-1", content)
+	if len(clauses) < 2 {
+		t.Fatalf("expected multiple analysis windows, got %d", len(clauses))
+	}
+	if clauses[0].Title != "Analysis segment 1" {
+		t.Fatalf("generated window title=%q, want %q", clauses[0].Title, "Analysis segment 1")
+	}
+}
+
+func TestReviewDocumentContextIncludesTextOutsidePrimaryWindow(t *testing.T) {
+	primary := "二、合同标的\n视频彩铃服务。"
+	other := "\n三、价格形式及合同价款\n3.2合同价款包含范围：视频彩铃服务计入合同总价。"
+	document := primary + other
+	clause := &types.ContractReviewClause{SourceStart: 0, SourceEnd: len([]rune(primary))}
+
+	context := newReviewDocumentContext(document).CrossWindowContext(clause)
+	if !strings.Contains(context, "合同价款包含范围") || !strings.Contains(context, "视频彩铃服务计入合同总价") {
+		t.Fatalf("cross-window context omitted the related provision: %q", context)
+	}
+}
+
+func TestReviewDocumentContextRetrievesRelatedProvisionFromLongDocument(t *testing.T) {
+	primary := "二、合同标的\n视频彩铃服务需要审查。\n"
+	filler := strings.Repeat("普通背景文本，不包含当前服务主题。\n", 700)
+	other := "3.2合同价款包含范围\n视频彩铃服务已经包含在固定总价中。\n"
+	document := primary + filler + other
+	clause := &types.ContractReviewClause{SourceStart: 0, SourceEnd: len([]rune(primary))}
+
+	context := newReviewDocumentContext(document).CrossWindowContext(clause)
+	if !strings.Contains(context, "合同价款包含范围") || !strings.Contains(context, "视频彩铃服务已经包含在固定总价中") {
+		t.Fatalf("long-document context omitted the related provision: %q", context)
+	}
+	if got := len([]rune(context)); got > contractReviewRelatedContextMaxRunes {
+		t.Fatalf("cross-window context length=%d, want <=%d", got, contractReviewRelatedContextMaxRunes)
+	}
+}
+
 func TestParseReviewModelJSONAcceptsFencedJSONObject(t *testing.T) {
 	var output reviewBatchOutput
 	err := parseModelJSON("```json\n{\"issues\":[{\"risk_level\":\"high\",\"title\":\"Payment\",\"explanation\":\"Early payment\",\"original_quote\":\"pay now\",\"suggestion\":\"pay after delivery\"}]}\n```", &output)
@@ -103,6 +142,56 @@ func TestIssueFingerprintIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestFindReviewQuoteRangeIgnoresFormattingWhitespace(t *testing.T) {
+	body := "视频\n 彩铃服务，费用按发送成功人数结算。"
+	quote := "视频彩铃服务，费用按发送成功人数结算。"
+	start, end, ok := findReviewQuoteRange(body, quote)
+	if !ok {
+		t.Fatal("quote with formatting whitespace should be locatable")
+	}
+	if got := string([]rune(body)[start:end]); got != body {
+		t.Fatalf("source range = %q, want %q", got, body)
+	}
+}
+
+func TestContractPriceScopeSuppressesCoveredInclusionFinding(t *testing.T) {
+	document := "固定总价合同。3.2合同价款包含范围：③视频彩铃服务。④5G多媒体消息服务。3.3其他需说明的事项：无。"
+	result := reviewIssueOutput{
+		Title:         "合同价款未明确包含视频彩铃及5G服务费",
+		Explanation:   "合同未明确上述服务是否包含在总价中。",
+		OriginalQuote: "视频彩铃服务。④5G多媒体消息服务。",
+	}
+	if !contractPriceScopeCoversIssue(document, result) {
+		t.Fatal("explicit price inclusion scope should suppress the missing-inclusion finding")
+	}
+}
+
+func TestContractPriceScopeKeepsSettlementFinding(t *testing.T) {
+	document := "固定总价合同。3.2合同价款包含范围：④5G多媒体消息服务，通信费和数据服务费按发送成功人数结算。3.3其他需说明的事项：无。"
+	result := reviewIssueOutput{
+		Title:         "5G消息发送量与费用结算机制不明确",
+		Explanation:   "合同未定义发送成功的统计口径。",
+		OriginalQuote: "通信费和数据服务费按发送成功人数结算。",
+	}
+	if contractPriceScopeCoversIssue(document, result) {
+		t.Fatal("a settlement ambiguity must remain reviewable")
+	}
+}
+
+func TestReviewIssuesDeduplicateOverlappingEvidence(t *testing.T) {
+	first := reviewIssueOutput{
+		Title:         "5G消息发送量与费用结算机制不明确",
+		OriginalQuote: "计划发送20万条，通信费和数据服务费等费用按发送成功人数据实结算。",
+	}
+	duplicate := reviewIssueOutput{
+		Title:         "数据服务费用结算依据模糊",
+		OriginalQuote: "通信费和数据服务费等费用按发送成功人数据实结算。",
+	}
+	if !reviewIssuesAreDuplicate(first, duplicate) {
+		t.Fatal("overlapping evidence with the same topic should be deduplicated")
+	}
+}
+
 func TestContractReviewPromptsRequireChineseAnalysis(t *testing.T) {
 	for name, prompt := range map[string]string{"clause": contractReviewClauseSystemPrompt, "overview": contractReviewOverviewSystemPrompt} {
 		if !strings.Contains(prompt, "Simplified Chinese") {
@@ -114,6 +203,12 @@ func TestContractReviewPromptsRequireChineseAnalysis(t *testing.T) {
 	}
 	if !strings.Contains(contractReviewClauseSystemPrompt, "exactly one JSON object") || !strings.Contains(contractReviewClauseSystemPrompt, "at most five issues") {
 		t.Fatal("clause prompt must enforce a compact machine-readable response")
+	}
+	if !strings.Contains(contractReviewClauseSystemPrompt, "合同价款包含范围") || !strings.Contains(contractReviewClauseSystemPrompt, "Do not call an explicit provision missing") {
+		t.Fatal("clause prompt must verify provisions that already cover a requirement")
+	}
+	if !strings.Contains(contractReviewClauseSystemPrompt, "cross-window context") || !strings.Contains(contractReviewClauseSystemPrompt, "primary window") {
+		t.Fatal("clause prompt must distinguish primary and cross-window context")
 	}
 }
 
