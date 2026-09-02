@@ -56,8 +56,8 @@ curl --location 'http://localhost:8080/api/v1/knowledge-bases' \
 --header 'Content-Type: application/json' \
 --header 'X-API-Key: sk-xxxxx' \
 --data '{
-    "name": "weknora",
-    "description": "weknora description",
+    "name": "hybrag",
+    "description": "hybrag description",
     "type": "document",
     "is_temporary": false,
     "chunking_config": {
@@ -124,8 +124,8 @@ curl --location 'http://localhost:8080/api/v1/knowledge-bases' \
 {
     "data": {
         "id": "b5829e4a-3845-4624-a7fb-ea3b35e843b0",
-        "name": "weknora",
-        "description": "weknora description",
+        "name": "hybrag",
+        "description": "hybrag description",
         "type": "document",
         "is_temporary": false,
         "tenant_id": 1,
@@ -306,8 +306,8 @@ curl --location --request PUT 'http://localhost:8080/api/v1/knowledge-bases/b582
 --header 'Content-Type: application/json' \
 --header 'X-API-Key: sk-xxxxx' \
 --data '{
-    "name": "weknora new",
-    "description": "weknora description new",
+    "name": "hybrag new",
+    "description": "hybrag description new",
     "config": {
         "chunking_config": {
             "chunk_size": 1000,
@@ -572,7 +572,7 @@ curl --location 'http://localhost:8080/api/v1/knowledge-bases/copy/progress/kb_c
 
 **权限**：需要 `Contributor+`，且对源知识库至少有 `Viewer` 读权限（路由层 `KBAccessRead`）。源知识库必须属于调用者所在空间，否则返回 `403 Forbidden`。
 
-**命名规则**：新 KB 名称在源名称后追加本地化后缀（依据 `Accept-Language` 或 `WEKNORA_LANGUAGE`），例如中文 `原名 副本`、英文 `Original Name Copy`；若同名已存在则递增为 `原名 副本 2`、`Original Name Copy 2` 等。
+**命名规则**：新 KB 名称在源名称后追加本地化后缀（依据 `Accept-Language` 或 `HYBRAG_LANGUAGE`），例如中文 `原名 副本`、英文 `Original Name Copy`；若同名已存在则递增为 `原名 副本 2`、`Original Name Copy 2` 等。
 
 **路径参数**:
 

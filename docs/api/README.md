@@ -1,4 +1,4 @@
-# WeKnora API 文档
+# HybRAG API 文档
 
 ## 目录
 
@@ -16,11 +16,11 @@
 
 ## 概述
 
-WeKnora 提供了一系列 RESTful API，用于创建和管理知识库、检索知识，以及进行基于知识的问答。本文档详细描述了这些 API 的使用方式。
+HybRAG 提供了一系列 RESTful API，用于创建和管理知识库、检索知识，以及进行基于知识的问答。本文档详细描述了这些 API 的使用方式。
 
 ## 最权威参考：Swagger UI
 
-WeKnora 同时提供基于 OpenAPI 的 Swagger 文档。**启动服务后访问 `http://localhost:8080/swagger/index.html`**，可看到所有端点的完整参数、请求/响应 schema，并可直接在浏览器内试调——它随代码自动更新，是最准确的接口参考。
+HybRAG 同时提供基于 OpenAPI 的 Swagger 文档。**启动服务后访问 `http://localhost:8080/swagger/index.html`**，可看到所有端点的完整参数、请求/响应 schema，并可直接在浏览器内试调——它随代码自动更新，是最准确的接口参考。
 
 本目录下的 markdown 文档提供更易读的示例与场景说明，与 swagger 同步维护；当二者出现差异时，以 swagger 为准。
 
@@ -174,7 +174,7 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
 `![示意图](resource://xifDo7NTSL300Lp1goVutw)`。这类引用不能被浏览器直接加载，客户端需要再
 调用带鉴权的 `GET /files?file_path=<引用>` 代理去取字节流。
 
-如果你在把 WeKnora 集成进自己的 App，可以让服务端直接返回**可加载的 http(s) 直链**，省掉这一次
+如果你在把 HybRAG 集成进自己的 App，可以让服务端直接返回**可加载的 http(s) 直链**，省掉这一次
 额外请求：
 
 | 方式 | 用法 | 生效范围 |
@@ -202,7 +202,7 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
 - **需要外链能力。** 直链由存储后端预签名，或由 `APP_EXTERNAL_URL` + `/r/<token>` 提供。二者都不
   可用时（例如 local 存储且未设 `APP_EXTERNAL_URL`），该引用**保持 `resource://` 原样**，客户端
   仍可回退到 `/files` 代理。详见 `.env.example` 中的 `APP_EXTERNAL_URL` 说明。
-- **直链是限时匿名可读的**（WeKnora 签发的 grant 2 小时，MinIO 预签名 24 小时）。任何拿到链接的
+- **直链是限时匿名可读的**（HybRAG 签发的 grant 2 小时，MinIO 预签名 24 小时）。任何拿到链接的
   人在过期前都能读取该文件，请勿写入日志或转发给不应看到该文件的一方。
 - **嵌入式（embed）渠道不支持该参数。** 其访客是匿名的，`/api/v1/embed/...` 下的接口会强制使用
   `handle`（即使传了 `?resource_urls=public`、或部署默认是 `public`），图片仍走渠道维度的鉴权代理。
@@ -213,7 +213,7 @@ curl -N -X POST "$BASE/knowledge-chat/$SESSION_ID" \
 
 ## API 概览
 
-WeKnora API 按功能分为以下几类：
+HybRAG API 按功能分为以下几类：
 
 | 分类 | 描述 | 文档链接 |
 |------|------|----------|

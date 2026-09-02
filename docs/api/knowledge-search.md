@@ -48,6 +48,8 @@ curl --location 'http://localhost:8080/api/v1/knowledge-search' \
 
 # 搜索指定文件
 # 文件上传或知识列表返回的文档记录 id 即为 knowledge_id；请求字段使用 knowledge_ids。
+# 使用已绑定该知识库的个人 API Key 时，也要同时传 knowledge_base_ids，
+# 这样 HybRAG 可以先校验该 Key 对 KB 有访问权限，再校验 knowledge_ids 属于该 KB。
 curl --location 'http://localhost:8080/api/v1/knowledge-search' \
 --header 'X-API-Key: sk-xxxxx' \
 --header 'Content-Type: application/json' \
@@ -57,6 +59,26 @@ curl --location 'http://localhost:8080/api/v1/knowledge-search' \
     "knowledge_ids": ["4c4e7c1a-09cf-485b-a7b5-24b8cdc5acf5"]
 }'
 ```
+
+### 个人 API Key 下限定单个或多个文档
+
+如果个人 API Key 创建时已经绑定到某个知识库，`/knowledge-search` 仍然支持 `knowledge_ids`。请求中需要同时传入该 Key 授权范围内的 `knowledge_base_ids`，再用 `knowledge_ids` 限定一份或几份文档：
+
+```curl
+curl --location 'http://localhost:8080/api/v1/knowledge-search' \
+--header 'X-API-Key: sk-xxxxx' \
+--header 'Content-Type: application/json' \
+--data '{
+    "query": "只检索这两份文档里的内容",
+    "knowledge_base_ids": ["kb-00000001"],
+    "knowledge_ids": [
+        "4c4e7c1a-09cf-485b-a7b5-24b8cdc5acf5",
+        "92e3a8e9-b2fd-42c7-bd7f-74314db22c60"
+    ]
+}'
+```
+
+这里的 `knowledge_base_ids` 用于 API Key 授权范围校验，`knowledge_ids` 用于文档级检索范围限定。不要只传 `knowledge_ids`，也不要使用 `document_id` 或 `document_ids` 字段名。
 
 **响应**:
 
