@@ -35,6 +35,8 @@ func contractReviewError(c *gin.Context, err error) {
 		c.Error(apperrors.NewNotFoundError(err.Error()))
 	case errors.Is(err, service.ErrContractReviewInvalidState), errors.Is(err, service.ErrContractReviewInvalidFile):
 		c.Error(apperrors.NewBadRequestError(err.Error()))
+	case errors.Is(err, service.ErrContractReviewInvalidModel):
+		c.Error(apperrors.NewBadRequestError(err.Error()).WithDetails("MODEL_NOT_AVAILABLE"))
 	case errors.Is(err, service.ErrContractReviewModelMissing):
 		c.Error(apperrors.NewBadRequestError(err.Error()).WithDetails("MODEL_NOT_CONFIGURED"))
 	default:
@@ -82,10 +84,11 @@ func (h *ContractReviewHandler) Get(c *gin.Context) {
 }
 
 type contractReviewUpdateRequest struct {
-	Title            string `json:"title"`
-	PlaybookID       string `json:"playbook_id"`
-	RepresentedParty string `json:"represented_party"`
-	Archived         *bool  `json:"archived"`
+	Title            string  `json:"title"`
+	PlaybookID       string  `json:"playbook_id"`
+	RepresentedParty string  `json:"represented_party"`
+	ModelID          *string `json:"model_id"`
+	Archived         *bool   `json:"archived"`
 }
 
 func (h *ContractReviewHandler) Update(c *gin.Context) {
@@ -98,7 +101,7 @@ func (h *ContractReviewHandler) Update(c *gin.Context) {
 		c.Error(apperrors.NewBadRequestError("invalid request body"))
 		return
 	}
-	r, err := h.service.Update(c.Request.Context(), tenantID, userID, c.Param("id"), req.Title, req.PlaybookID, req.RepresentedParty, req.Archived)
+	r, err := h.service.Update(c.Request.Context(), tenantID, userID, c.Param("id"), req.Title, req.PlaybookID, req.RepresentedParty, req.ModelID, req.Archived)
 	if err != nil {
 		contractReviewError(c, err)
 		return

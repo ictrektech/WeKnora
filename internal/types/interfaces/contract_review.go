@@ -24,7 +24,7 @@ type ContractReviewService interface {
 	Create(context.Context, uint64, string) (*types.ContractReview, error)
 	List(context.Context, uint64, string, bool) ([]*types.ContractReview, error)
 	Get(context.Context, uint64, string, string) (*types.ContractReview, error)
-	Update(context.Context, uint64, string, string, string, string, string, *bool) (*types.ContractReview, error)
+	Update(context.Context, uint64, string, string, string, string, string, *string, *bool) (*types.ContractReview, error)
 	Delete(context.Context, uint64, string, string) error
 	BulkAction(context.Context, uint64, string, []string, types.ContractReviewBulkAction) (*types.ContractReviewBulkResult, error)
 	Upload(context.Context, uint64, string, string, string, string, int64, io.Reader) (*types.ContractReview, error)

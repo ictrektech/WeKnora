@@ -59,6 +59,7 @@ type ContractReview struct {
 	PlaybookID       string                  `json:"playbook_id" gorm:"type:varchar(64);not null"`
 	PlaybookVersion  string                  `json:"playbook_version" gorm:"type:varchar(32);not null"`
 	RepresentedParty ContractReviewParty     `json:"represented_party" gorm:"type:varchar(16);not null"`
+	ModelID          string                  `json:"model_id" gorm:"type:varchar(64);not null;default:''"`
 	ResourceRef      string                  `json:"-" gorm:"type:text"`
 	FileName         string                  `json:"file_name" gorm:"type:varchar(1024);not null;default:''"`
 	FileType         string                  `json:"file_type" gorm:"type:varchar(16);not null;default:''"`

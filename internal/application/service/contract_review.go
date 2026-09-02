@@ -29,6 +29,7 @@ var (
 	ErrContractReviewNotFound     = errors.New("contract review not found")
 	ErrContractReviewInvalidState = errors.New("contract review is not in a valid state for this action")
 	ErrContractReviewInvalidFile  = errors.New("only PDF and DOCX contracts are supported")
+	ErrContractReviewInvalidModel = errors.New("contract review model must be an active knowledge QA model")
 	ErrContractReviewModelMissing = errors.New("no contract review model is configured")
 )
 
@@ -114,7 +115,7 @@ func canUpdateContractReviewConfig(status types.ContractReviewStatus) bool {
 	return status == types.ContractReviewStatusDraft || status == types.ContractReviewStatusReady || status == types.ContractReviewStatusCompleted
 }
 
-func (s *contractReviewService) Update(ctx context.Context, tenantID uint64, userID, id, title, playbook, party string, archived *bool) (*types.ContractReview, error) {
+func (s *contractReviewService) Update(ctx context.Context, tenantID uint64, userID, id, title, playbook, party string, modelID *string, archived *bool) (*types.ContractReview, error) {
 	r, err := s.Get(ctx, tenantID, userID, id)
 	if err != nil {
 		return nil, err
@@ -141,6 +142,18 @@ func (s *contractReviewService) Update(ctx context.Context, tenantID uint64, use
 			return nil, ErrContractReviewInvalidState
 		}
 		r.RepresentedParty = types.ContractReviewParty(party)
+	}
+	if modelID != nil {
+		if !canUpdateContractReviewConfig(r.Status) {
+			return nil, ErrContractReviewInvalidState
+		}
+		selectedModelID := strings.TrimSpace(*modelID)
+		if selectedModelID != "" {
+			if err := s.validateReviewModel(ctx, tenantID, userID, selectedModelID); err != nil {
+				return nil, err
+			}
+		}
+		r.ModelID = selectedModelID
 	}
 	if archived != nil {
 		if r.Status == types.ContractReviewStatusUploading || r.Status == types.ContractReviewStatusAnalyzing || r.Status == types.ContractReviewStatusReviewingClauses {
@@ -200,7 +213,7 @@ func (s *contractReviewService) BulkAction(ctx context.Context, tenantID uint64,
 			err = s.Delete(ctx, tenantID, userID, id)
 		} else {
 			archived := action == types.ContractReviewBulkArchive
-			_, err = s.Update(ctx, tenantID, userID, id, "", "", "", &archived)
+			_, err = s.Update(ctx, tenantID, userID, id, "", "", "", nil, &archived)
 		}
 		item := types.ContractReviewBulkItem{ID: id, Success: err == nil}
 		if err != nil {
@@ -426,6 +439,25 @@ func (s *contractReviewService) fail(ctx context.Context, r *types.ContractRevie
 	return cause
 }
 
+func contractReviewModelContext(ctx context.Context, tenantID uint64, userID string) context.Context {
+	ctx = context.WithValue(ctx, types.TenantIDContextKey, tenantID)
+	if userID != "" {
+		ctx = context.WithValue(ctx, types.UserIDContextKey, userID)
+	}
+	return ctx
+}
+
+func (s *contractReviewService) validateReviewModel(ctx context.Context, tenantID uint64, userID, modelID string) error {
+	if s.models == nil || strings.TrimSpace(modelID) == "" {
+		return ErrContractReviewInvalidModel
+	}
+	model, err := s.models.GetModelByID(contractReviewModelContext(ctx, tenantID, userID), strings.TrimSpace(modelID))
+	if err != nil || model == nil || model.Type != types.ModelTypeKnowledgeQA || model.Status != types.ModelStatusActive {
+		return ErrContractReviewInvalidModel
+	}
+	return nil
+}
+
 type reviewIssueOutput struct {
 	RiskLevel     string `json:"risk_level"`
 	Title         string `json:"title"`
@@ -475,14 +507,37 @@ func parseModelJSON(content string, target any) error {
 	return json.Unmarshal([]byte(strings.TrimSpace(content)), target)
 }
 
-func (s *contractReviewService) resolveReviewModel(ctx context.Context) (chat.Chat, *types.CustomAgent, error) {
-	agent, _ := s.agents.GetAgentByID(ctx, types.BuiltinContractReviewID)
+func (s *contractReviewService) resolveReviewModel(ctx context.Context, review *types.ContractReview) (chat.Chat, *types.CustomAgent, error) {
+	modelCtx := ctx
+	if review != nil {
+		modelCtx = contractReviewModelContext(ctx, review.TenantID, review.UserID)
+	}
+	var agent *types.CustomAgent
+	if s.agents != nil {
+		agent, _ = s.agents.GetAgentByID(modelCtx, types.BuiltinContractReviewID)
+	}
 	modelID := ""
+	if review != nil {
+		modelID = strings.TrimSpace(review.ModelID)
+	}
+	if modelID != "" {
+		if review == nil {
+			return nil, agent, ErrContractReviewInvalidModel
+		}
+		if err := s.validateReviewModel(modelCtx, review.TenantID, review.UserID, modelID); err != nil {
+			return nil, agent, err
+		}
+		model, err := s.models.GetChatModel(modelCtx, modelID)
+		return model, agent, err
+	}
 	if agent != nil {
 		modelID = strings.TrimSpace(agent.Config.ModelID)
 	}
 	if modelID == "" {
-		models, err := s.models.ListModels(ctx)
+		if s.models == nil {
+			return nil, agent, ErrContractReviewModelMissing
+		}
+		models, err := s.models.ListModels(modelCtx)
 		if err != nil {
 			return nil, agent, err
 		}
@@ -504,7 +559,7 @@ func (s *contractReviewService) resolveReviewModel(ctx context.Context) (chat.Ch
 	if modelID == "" {
 		return nil, agent, ErrContractReviewModelMissing
 	}
-	model, err := s.models.GetChatModel(ctx, modelID)
+	model, err := s.models.GetChatModel(modelCtx, modelID)
 	return model, agent, err
 }
 
@@ -575,7 +630,7 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 			return err
 		}
 	}
-	model, agent, err := s.resolveReviewModel(ctx)
+	model, agent, err := s.resolveReviewModel(ctx, r)
 	if err != nil {
 		return s.fail(ctx, r, err)
 	}

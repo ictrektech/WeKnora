@@ -62,6 +62,7 @@ export interface ContractReview {
   playbook_id: string
   playbook_version: string
   represented_party: RepresentedParty
+  model_id: string
   file_name: string
   file_type: '.pdf' | '.docx' | ''
   mime_type: string
@@ -84,7 +85,7 @@ export const listContractReviews = (archived = false) => get<ApiResponse<Contrac
 export const listContractReviewPlaybooks = () => get<ApiResponse<ReviewPlaybook[]>>('/api/v1/contract-review-playbooks')
 export const createContractReview = () => post<ApiResponse<ContractReview>>('/api/v1/contract-reviews')
 export const getContractReview = (id: string) => get<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}`)
-export const updateContractReview = (id: string, data: Partial<Pick<ContractReview, 'title' | 'playbook_id' | 'represented_party'>> & { archived?: boolean }) => patch<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}`, data)
+export const updateContractReview = (id: string, data: Partial<Pick<ContractReview, 'title' | 'playbook_id' | 'represented_party' | 'model_id'>> & { archived?: boolean }) => patch<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}`, data)
 export const deleteContractReview = (id: string) => del(`/api/v1/contract-reviews/${id}`)
 export const bulkContractReviews = (action: ContractReviewBulkAction, ids: string[]) =>
   post<ApiResponse<ContractReviewBulkResult>>(`/api/v1/contract-reviews/bulk/${action}`, { ids })

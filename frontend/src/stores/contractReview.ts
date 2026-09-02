@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+import { listModels, type ModelConfig } from '@/api/model'
 import {
   bulkContractReviews, createContractReview, deleteContractReview, getContractReview, listContractReviewPlaybooks, listContractReviews,
   retryContractReview, startContractReview, streamContractReview, updateContractReview,
@@ -12,6 +13,8 @@ export const useContractReviewStore = defineStore('contractReview', () => {
   const tasks = ref<ContractReview[]>([])
   const current = ref<ContractReview | null>(null)
   const playbooks = ref<ReviewPlaybook[]>([])
+  const models = ref<ModelConfig[]>([])
+  const modelsLoading = ref(false)
   const loading = ref(false)
   const uploadProgress = ref(0)
   let streamController: AbortController | null = null
@@ -23,6 +26,11 @@ export const useContractReviewStore = defineStore('contractReview', () => {
   }
   async function create() { const review = (await createContractReview()).data; current.value = review; return review }
   async function loadPlaybooks() { if (!playbooks.value.length) playbooks.value = (await listContractReviewPlaybooks()).data || [] }
+  async function loadModels(force = false) {
+    if (!force && models.value.length) return
+    modelsLoading.value = true
+    try { models.value = (await listModels('KnowledgeQA')) || [] } finally { modelsLoading.value = false }
+  }
   async function load(id: string) {
     loading.value = true
     // Do not let a detail view render the previous contract while the new
@@ -65,5 +73,5 @@ export const useContractReviewStore = defineStore('contractReview', () => {
   }
   function disconnect() { streamController?.abort(); streamController = null; stopDetailPolling() }
 
-  return { tasks, current, playbooks, loading, uploadProgress, loadList, loadPlaybooks, create, load, update, upload, start, retry, remove, bulk, connect, disconnect }
+  return { tasks, current, playbooks, models, modelsLoading, loading, uploadProgress, loadList, loadPlaybooks, loadModels, create, load, update, upload, start, retry, remove, bulk, connect, disconnect }
 })

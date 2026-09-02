@@ -208,9 +208,9 @@ func TestContractReviewRejectsMutationsWhileAnalysisIsRunning(t *testing.T) {
 	require.NoError(t, svc.repo.Update(context.Background(), review))
 
 	archived := true
-	_, err = svc.Update(context.Background(), 7, "u1", review.ID, "", "", "", &archived)
+	_, err = svc.Update(context.Background(), 7, "u1", review.ID, "", "", "", nil, &archived)
 	require.ErrorIs(t, err, ErrContractReviewInvalidState)
-	_, err = svc.Update(context.Background(), 7, "u1", review.ID, "", "general-contract-review", "customer", nil)
+	_, err = svc.Update(context.Background(), 7, "u1", review.ID, "", "general-contract-review", "customer", nil, nil)
 	require.ErrorIs(t, err, ErrContractReviewInvalidState)
 	_, err = svc.Start(context.Background(), 7, "u1", review.ID)
 	require.ErrorIs(t, err, ErrContractReviewInvalidState)

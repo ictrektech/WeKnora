@@ -15,7 +15,7 @@
         <ContractDocumentViewer v-else ref="viewer" :review-id="review.id" :file-name="review.file_name" :file-type="review.file_type" :issues="review.issues || []" :selected-issue-id="selectedIssue?.id" @marker-click="selectIssueById" @locate-failed="MessagePlugin.warning(t('contractReview.locateFailed'))" />
         <div v-if="uploading" class="upload-overlay"><t-loading size="small" /><span>{{ t('contractReview.uploadingFile', { progress: store.uploadProgress }) }}</span><i><b :style="{ width: `${store.uploadProgress}%` }" /></i></div>
       </div>
-      <ReviewPanel :review="review" :playbooks="store.playbooks" :selected-issue-id="selectedIssue?.id" :busy="busy" :reconfigure="reconfigure" @config-change="saveConfig" @start="startReview" @retry="retryReview" @reconfigure="beginReconfigure" @cancel-reconfigure="cancelReconfigure" @configure="router.push('/platform/agents')" @issue-select="locateIssue" />
+      <ReviewPanel :review="review" :playbooks="store.playbooks" :models="store.models" :models-loading="store.modelsLoading" :selected-issue-id="selectedIssue?.id" :busy="busy" :reconfigure="reconfigure" @config-change="saveConfig" @start="startReview" @retry="retryReview" @reconfigure="beginReconfigure" @cancel-reconfigure="cancelReconfigure" @configure="router.push('/platform/agents')" @issue-select="locateIssue" />
     </div>
   </section>
   <div v-else class="review-loading contract-review-theme"><t-loading /> {{ t('contractReview.loadingReview') }}</div>
@@ -36,24 +36,31 @@ const { t } = useI18n(); const route = useRoute(); const router = useRouter(); c
 const review = computed(() => store.current)
 const title = ref(''); const dragging = ref(false); const uploading = ref(false); const busy = ref(false); const reconfigure = ref(false); const fileInput = ref<HTMLInputElement | null>(null)
 let configSavePromise: Promise<unknown> = Promise.resolve()
-const pendingConfig = ref<{ playbook_id: string; represented_party: RepresentedParty } | null>(null)
-const originalConfig = ref<{ playbook_id: string; represented_party: RepresentedParty } | null>(null)
+type ReviewConfig = { playbook_id: string; represented_party: RepresentedParty; model_id: string }
+const pendingConfig = ref<ReviewConfig | null>(null)
+const originalConfig = ref<ReviewConfig | null>(null)
 const viewer = ref<InstanceType<typeof ContractDocumentViewer> | null>(null); const selectedIssue = ref<ReviewIssue | null>(null)
 
 async function initialize() {
-  try { await store.loadPlaybooks(); const value = await store.load(String(route.params.reviewId)); title.value = value?.title || ''; if (value && ['uploading','analyzing','reviewing_clauses'].includes(value.status)) store.connect(value.id) }
+  try {
+    await store.loadPlaybooks()
+    try { await store.loadModels(true) } catch { MessagePlugin.warning(t('contractReview.modelsLoadFailed')) }
+    const value = await store.load(String(route.params.reviewId)); title.value = value?.title || ''; if (value && ['uploading','analyzing','reviewing_clauses'].includes(value.status)) store.connect(value.id)
+  }
   catch (error: any) { MessagePlugin.error(error?.message || t('contractReview.loadFailed')); router.replace({ name: LEGAL_CONTRACT_REVIEW_ROUTE }) }
 }
 async function saveTitle() { if (!review.value || !title.value.trim() || title.value.trim() === review.value.title) return; try { await store.update(review.value.id, { title:title.value.trim() }) } catch (e:any) { MessagePlugin.error(e?.message || t('contractReview.saveFailed')) } }
-async function saveConfig(data: { playbook_id?: string; represented_party?: RepresentedParty }) {
+async function saveConfig(data: { playbook_id?: string; represented_party?: RepresentedParty; model_id?: string }) {
   if (!review.value) return
   if (reconfigure.value) {
     pendingConfig.value = {
-      playbook_id: data.playbook_id || pendingConfig.value?.playbook_id || review.value.playbook_id,
-      represented_party: data.represented_party || pendingConfig.value?.represented_party || review.value.represented_party,
+      playbook_id: data.playbook_id ?? pendingConfig.value?.playbook_id ?? review.value.playbook_id,
+      represented_party: data.represented_party ?? pendingConfig.value?.represented_party ?? review.value.represented_party,
+      model_id: data.model_id ?? pendingConfig.value?.model_id ?? review.value.model_id ?? '',
     }
     if (data.playbook_id) store.current!.playbook_id = data.playbook_id
     if (data.represented_party) store.current!.represented_party = data.represented_party
+    if (data.model_id !== undefined) store.current!.model_id = data.model_id
     return
   }
   const pending = store.update(review.value.id, data)
@@ -81,7 +88,7 @@ function beginReconfigure(){
   if (!review.value) return
   selectedIssue.value=null
   configSavePromise = Promise.resolve()
-  originalConfig.value = { playbook_id: review.value.playbook_id, represented_party: review.value.represented_party }
+  originalConfig.value = { playbook_id: review.value.playbook_id, represented_party: review.value.represented_party, model_id: review.value.model_id || '' }
   pendingConfig.value = { ...originalConfig.value }
   reconfigure.value=true
 }
@@ -89,6 +96,7 @@ function cancelReconfigure(){
   if (store.current && originalConfig.value) {
     store.current.playbook_id = originalConfig.value.playbook_id
     store.current.represented_party = originalConfig.value.represented_party
+    store.current.model_id = originalConfig.value.model_id
   }
   pendingConfig.value = null; originalConfig.value = null; reconfigure.value=false
 }
