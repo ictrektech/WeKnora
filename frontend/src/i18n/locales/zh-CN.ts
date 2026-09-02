@@ -85,6 +85,7 @@ export default {
     findingsAppearHere: '发现的问题会显示在这里。',
     noIssues: '未发现问题',
     generalClause: '一般条款',
+    analysisSegment: '分析片段 {number}',
     reviewed: '已审查',
     pending: '待审查',
     issueCount: '{count} 个问题',

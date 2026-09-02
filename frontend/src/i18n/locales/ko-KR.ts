@@ -85,6 +85,7 @@ export default {
     findingsAppearHere: '발견된 문제가 여기에 표시됩니다.',
     noIssues: '문제가 발견되지 않았습니다',
     generalClause: '일반 조항',
+    analysisSegment: '분석 구간 {number}',
     reviewed: '검토됨',
     pending: '대기 중',
     issueCount: '문제 {count}개',

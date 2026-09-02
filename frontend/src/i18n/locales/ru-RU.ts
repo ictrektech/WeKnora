@@ -85,6 +85,7 @@ export default {
     findingsAppearHere: 'Обнаруженные проблемы появятся здесь.',
     noIssues: 'Проблем не найдено',
     generalClause: 'Общий пункт',
+    analysisSegment: 'Фрагмент анализа {number}',
     reviewed: 'Проверено',
     pending: 'Ожидает проверки',
     issueCount: 'Проблем: {count}',

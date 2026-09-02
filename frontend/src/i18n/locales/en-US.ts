@@ -85,6 +85,7 @@ export default {
     findingsAppearHere: 'Findings will appear here.',
     noIssues: 'No issues found',
     generalClause: 'General clause',
+    analysisSegment: 'Analysis segment {number}',
     reviewed: 'Reviewed',
     pending: 'Pending',
     issueCount: '{count} issues',
