@@ -90,6 +90,39 @@ func TestValidateReviewBatchIsolatesUnlocatableIssueEvidence(t *testing.T) {
 	}
 }
 
+func TestValidateReviewBatchIsolatesOversizedOriginalQuote(t *testing.T) {
+	document, units := reviewValidationFixture()
+	content, err := json.Marshal(map[string]any{
+		"issues": []map[string]any{
+			{
+				"category": "payment", "finding_type": "ambiguity", "risk_level": "medium",
+				"title": "付款期限表述不清", "explanation": "付款期限需要明确。", "original_quote": "付款：30日内支付。",
+				"suggestion": "明确付款起算日和到期日。", "evidence_refs": []string{"primary"},
+			},
+			{
+				"category": "term", "finding_type": "missing", "risk_level": "low",
+				"title": "期限信息需要核对", "explanation": "模型返回的证据过长。",
+				"original_quote": strings.Repeat("过长证据。", contractReviewMaxQuoteRunes),
+				"suggestion":     "补充并核对期限条款。", "evidence_refs": []string{"primary"},
+			},
+		},
+		"facts": []any{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	validated, failures, err := validateReviewBatchWithEvidenceIsolation(string(content), document, units)
+	if err != nil {
+		t.Fatalf("oversized original_quote should be isolatable: %v", err)
+	}
+	if len(validated.Issues) != 1 || validated.Issues[0].Title != "付款期限表述不清" {
+		t.Fatalf("unexpected retained issues: %+v", validated.Issues)
+	}
+	if len(failures) != 1 || failures[0].Index != 2 {
+		t.Fatalf("unexpected isolated failures: %+v", failures)
+	}
+}
+
 func TestValidateReviewBatchEvidenceIsolationKeepsNonEvidenceFailuresFatal(t *testing.T) {
 	document, units := reviewValidationFixture()
 	content := strings.Replace(validReviewBatchJSON("付款：30日内支付。"), `"medium"`, `"unknown"`, 1)

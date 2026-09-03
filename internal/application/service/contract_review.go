@@ -47,7 +47,11 @@ const (
 
 const (
 	contractReviewClauseDefaultMaxCompletionTokens = 4096
-	contractReviewClauseRetryMaxCompletionTokens   = 4096
+	// Give the recovery attempt enough room to finish a valid JSON response
+	// when the model uses the normal clause budget for an overly verbose first
+	// response. The first attempt remains bounded at the agent-configured
+	// budget; only a failed/truncated response gets the larger retry budget.
+	contractReviewClauseRetryMaxCompletionTokens   = 8192
 	contractReviewClauseChunkSize                  = 2800
 	contractReviewClauseChunkOverlap               = 120
 	contractReviewFullDocumentContextMaxRunes      = 12000

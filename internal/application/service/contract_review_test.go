@@ -196,7 +196,7 @@ func TestContractReviewPromptsRequireChineseAnalysis(t *testing.T) {
 }
 
 func TestContractReviewClauseRetryUsesBoundedCompletionBudget(t *testing.T) {
-	for current, want := range map[int]int{0: 4096, 1800: 4096, 4096: 4096, 8192: 8192, 12000: 12000} {
+	for current, want := range map[int]int{0: 8192, 1800: 8192, 4096: 8192, 8192: 8192, 12000: 12000} {
 		if got := contractReviewClauseRetryTokens(current); got != want {
 			t.Fatalf("retry tokens for %d = %d, want %d", current, got, want)
 		}

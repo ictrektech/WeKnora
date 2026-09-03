@@ -313,7 +313,7 @@ func isRecoverableReviewEvidenceError(err error) bool {
 		return false
 	}
 	message := strings.ToLower(err.Error())
-	for _, marker := range []string{"evidence quote", "evidence_id", "evidence_refs"} {
+	for _, marker := range []string{"original_quote", "evidence quote", "evidence_id", "evidence_refs"} {
 		if strings.Contains(message, marker) {
 			return true
 		}
