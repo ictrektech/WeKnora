@@ -1,0 +1,3 @@
+-- source_revision and source_text_hash are owned by 000103. This repair
+-- migration intentionally has no destructive rollback: removing the columns
+-- here would make a database that is correctly at 000103 invalid.

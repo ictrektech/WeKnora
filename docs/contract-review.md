@@ -47,4 +47,4 @@ API 前缀为 `/api/v1`，所有记录按当前用户和工作空间隔离。
 - 审查模型必须返回结构化 JSON；服务会限制每个条款最多五个问题，并对截断或无效 JSON 自动重试一次。
 - 问题中的 `original_quote` 保留合同原文，用于在 PDF/DOCX 预览中定位；无法定位的模型问题不会写入结果。
 - 当前内置规则集只有 `general-contract-review`，审查提示词和方法说明位于 `skills/preloaded/contract-review/`。
-- 数据库迁移为 PostgreSQL `000097_contract_reviews`、`000098_contract_review_model` 和 SQLite `000013_contract_reviews`、`000014_contract_review_model`。
+- 数据库迁移为 PostgreSQL `000101_contract_reviews`、`000102_contract_review_model`、`000103_contract_review_quality`、`000104_contract_review_quality_source_fields` 和 SQLite `000013_contract_reviews`、`000014_contract_review_model`、`000015_contract_review_quality`。

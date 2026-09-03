@@ -1,4 +1,4 @@
--- Mirrors migrations/versioned/000099_contract_review_quality.up.sql.
+-- Mirrors migrations/versioned/000103_contract_review_quality.up.sql.
 -- New rows are initialized by the service; legacy rows use the migration
 -- default quality_status=legacy.
 

@@ -1,4 +1,4 @@
--- Repair deployments where 000099 was recorded as applied before the source
+-- Repair deployments where 000103 was recorded as applied before the source
 -- provenance fields were present in the migration file. Keep this additive
 -- and idempotent so it is safe for both repaired and fresh databases.
 
