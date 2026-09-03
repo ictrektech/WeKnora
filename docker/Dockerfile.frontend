@@ -19,6 +19,7 @@ FROM nginx:stable-alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/templates/default.conf.template
+COPY frontend/nginx-api-proxy.conf /etc/nginx/api-proxy.conf
 COPY frontend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
