@@ -437,7 +437,10 @@ func (s *sessionService) resolveKnowledgeBasesFromAgent(
 // This is called once at the request entry point to avoid repeated queries later in the pipeline.
 // Logic:
 //   - For each knowledgeBaseID: resolve actual TenantID (own, org-shared, or in retrieval-tenant scope for shared agent)
-//   - For each knowledgeID: find its knowledgeBaseID; if the KB is already in the list, skip; otherwise add SearchTargetTypeKnowledge
+//   - For each knowledgeID: find its knowledgeBaseID and add a document-scoped target.
+//   - When a KB and knowledge IDs from that same KB are both provided, the
+//     explicit knowledge IDs narrow that KB instead of being swallowed by a
+//     broader full-KB target.
 func (s *sessionService) buildSearchTargets(
 	ctx context.Context,
 	tenantID uint64,
@@ -450,9 +453,6 @@ func (s *sessionService) buildSearchTargets(
 
 	// Build a map from KB ID to TenantID for all KBs we need to process
 	kbTenantMap := make(map[string]uint64)
-
-	// Track which KBs are fully searched
-	fullKBSet := make(map[string]bool)
 
 	// First pass: batch-fetch KBs, then resolve tenant per ID (tenant scope already set by caller)
 	callerTenantRole := types.TenantRoleFromContext(ctx)
@@ -497,21 +497,6 @@ func (s *sessionService) buildSearchTargets(
 		return kbTenantMap[kbID]
 	}
 
-	if len(knowledgeBaseIDs) > 0 {
-		for _, kbID := range knowledgeBaseIDs {
-			fullKBSet[kbID] = true
-			kbTenant := resolveKBTenant(kbID)
-			if len(tagIDsByKB[kbID]) > 0 {
-				continue
-			}
-			targets = append(targets, &types.SearchTarget{
-				Type:            types.SearchTargetTypeKnowledgeBase,
-				KnowledgeBaseID: kbID,
-				TenantID:        kbTenant,
-			})
-		}
-	}
-
 	kbToKnowledgeIDs := make(map[string][]string)
 
 	// Process individual knowledge IDs (include shared KB files the user has access to)
@@ -522,8 +507,7 @@ func (s *sessionService) buildSearchTargets(
 			return targets, nil // Return what we have, don't fail
 		}
 
-		// Group knowledge IDs by their KB, excluding those already covered by full KB search
-		// Also track KB tenant IDs from knowledge items
+		// Group knowledge IDs by their KB, also tracking tenant IDs from items.
 		for _, k := range knowledgeList {
 			if k == nil || k.KnowledgeBaseID == "" {
 				continue
@@ -531,10 +515,6 @@ func (s *sessionService) buildSearchTargets(
 			// Track KB -> TenantID mapping from knowledge items
 			if kbTenantMap[k.KnowledgeBaseID] == 0 {
 				kbTenantMap[k.KnowledgeBaseID] = k.TenantID
-			}
-			// Skip if this KB is already fully searched without a tag scope.
-			if fullKBSet[k.KnowledgeBaseID] && len(tagIDsByKB[k.KnowledgeBaseID]) == 0 {
-				continue
 			}
 			kbToKnowledgeIDs[k.KnowledgeBaseID] = append(kbToKnowledgeIDs[k.KnowledgeBaseID], k.ID)
 		}
@@ -554,6 +534,20 @@ func (s *sessionService) buildSearchTargets(
 				TenantID:                kbTenant,
 				KnowledgeIDs:            kidList,
 				DisableRecallThresholds: true,
+			})
+		}
+	}
+
+	if len(knowledgeBaseIDs) > 0 {
+		for _, kbID := range knowledgeBaseIDs {
+			kbTenant := resolveKBTenant(kbID)
+			if len(tagIDsByKB[kbID]) > 0 || len(kbToKnowledgeIDs[kbID]) > 0 {
+				continue
+			}
+			targets = append(targets, &types.SearchTarget{
+				Type:            types.SearchTargetTypeKnowledgeBase,
+				KnowledgeBaseID: kbID,
+				TenantID:        kbTenant,
 			})
 		}
 	}

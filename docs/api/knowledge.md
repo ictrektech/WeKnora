@@ -216,7 +216,7 @@ curl --location 'http://localhost:8080/api/v1/knowledge-bases/kb-00000001/knowle
 --data '{
     "title": "产品使用指南",
     "content": "# 产品使用指南\n\n## 快速入门\n\n这是一份产品使用指南...",
-    "status": "published",
+    "status": "publish",
     "tag_id": "tag-00000001"
 }'
 ```

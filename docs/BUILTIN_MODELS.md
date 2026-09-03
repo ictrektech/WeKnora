@@ -49,6 +49,7 @@ builtin_models:
       base_url: <string>
       api_key: <string, supports ${ENV_VAR}>
       provider: <string>                     # openai | generic | moonshot | ...
+      context_window: <int, optional>        # 对话/VLM 上下文窗口（token）；省略则默认 200000
       embedding_parameters:                  # 仅 Embedding 类型
         dimension: <int>
         truncate_prompt_tokens: <int>
@@ -99,6 +100,7 @@ builtin_models:
       base_url: https://api.openai.com/v1
       api_key: ${OPENAI_API_KEY}
       provider: openai
+      context_window: 200000
 
   - id: builtin-openai-embeddings
     name: text-embedding-3-small
@@ -202,7 +204,7 @@ services:
 
 ### 方式二：直接 SQL 插入
 
-支持的 provider：`generic`（自定义）、`openai`、`aliyun`、`zhipu`、`volcengine`、`hunyuan`、`deepseek`、`minimax`、`mimo`、`siliconflow`、`jina`、`openrouter`、`requesty`、`gemini`、`modelscope`、`moonshot`、`qianfan`、`qiniu`、`longcat`、`gpustack`
+支持的 provider：`generic`（自定义）、`openai`、`aliyun`、`zhipu`、`volcengine`、`hunyuan`、`deepseek`、`minimax`、`mimo`、`siliconflow`、`jina`、`openrouter`、`litellm`、`requesty`、`gemini`、`modelscope`、`moonshot`、`qianfan`、`qiniu`、`longcat`、`gpustack`
 
 直接 SQL 插入时不要设置 `managed_by = 'yaml'`，除非你明确希望这条记录跟随 YAML 生命周期。默认空值表示手工维护，YAML loader 不会软删除它。
 

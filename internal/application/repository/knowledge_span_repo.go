@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/common"
 	"github.com/Tencent/WeKnora/internal/types"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -71,6 +72,12 @@ func (r *knowledgeSpanRepository) Upsert(ctx context.Context, row *types.Knowled
 	if row.Attempt == 0 {
 		row.Attempt = 1
 	}
+	// Error fields may originate from third-party parser/model responses.
+	// Normalize them at the persistence boundary so SQLite/PostgreSQL and the
+	// tracing API never receive malformed UTF-8.
+	row.ErrorCode = common.CleanInvalidUTF8(row.ErrorCode)
+	row.ErrorMessage = common.CleanInvalidUTF8(row.ErrorMessage)
+	row.ErrorDetail = common.CleanInvalidUTF8(row.ErrorDetail)
 	// We let GORM populate created_at/updated_at via the autoCreate /
 	// autoUpdate tags. ON CONFLICT updates only the fields that may
 	// transition between calls — name/kind/parent are immutable once
@@ -173,6 +180,7 @@ func (r *knowledgeSpanRepository) GetSpan(ctx context.Context, knowledgeID strin
 // Postgres-specific WITH RECURSIVE would be denser but harder to test on
 // the SQLite Lite backend. The iterative path stays portable.
 func (r *knowledgeSpanRepository) CancelDescendants(ctx context.Context, knowledgeID string, attempt int, parentSpanID, reason string) (int64, error) {
+	reason = common.CleanInvalidUTF8(reason)
 	frontier := []string{parentSpanID}
 	var totalAffected int64
 	for depth := 0; depth < 16 && len(frontier) > 0; depth++ {
@@ -225,6 +233,8 @@ func (r *knowledgeSpanRepository) CancelDescendants(ctx context.Context, knowled
 func (r *knowledgeSpanRepository) CancelAllOpenSpans(
 	ctx context.Context, knowledgeID string, attempt int, errorCode, reason string,
 ) (int64, error) {
+	errorCode = common.CleanInvalidUTF8(errorCode)
+	reason = common.CleanInvalidUTF8(reason)
 	now := time.Now()
 	updates := map[string]any{
 		"status":        types.SpanStatusCancelled,
@@ -295,6 +305,8 @@ func (r *knowledgeSpanRepository) CancelOpenSpansByName(
 	if knowledgeID == "" || attempt <= 0 || name == "" {
 		return 0, nil
 	}
+	errorCode = common.CleanInvalidUTF8(errorCode)
+	reason = common.CleanInvalidUTF8(reason)
 	now := time.Now()
 	res := r.db.WithContext(ctx).Model(&types.KnowledgeProcessingSpan{}).
 		Where("knowledge_id = ? AND attempt = ? AND name = ? AND status IN ?",

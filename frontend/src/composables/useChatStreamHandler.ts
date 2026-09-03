@@ -34,6 +34,18 @@ export interface UseChatStreamHandlerOptions {
   debug?: boolean
 }
 
+function mergeToolCallArguments(previous: unknown, incoming: unknown): Record<string, unknown> {
+  const prev =
+    previous && typeof previous === 'object' && !Array.isArray(previous)
+      ? (previous as Record<string, unknown>)
+      : {}
+  const next =
+    incoming && typeof incoming === 'object' && !Array.isArray(incoming)
+      ? (incoming as Record<string, unknown>)
+      : { value: incoming }
+  return { ...prev, ...next }
+}
+
 export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   const { t } = useI18n()
   const {
@@ -462,6 +474,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     isCompleted = false,
     isFallback = false,
     agentDurationMs = 0,
+    usage?: unknown,
   ) => {
     const events: ChatMessage[] = []
 
@@ -524,10 +537,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       })
     }
 
-    if (agentDurationMs > 0) {
+    if (agentDurationMs > 0 || usage) {
       events.push({
         type: 'agent_complete',
         total_duration_ms: agentDurationMs,
+        usage,
       })
     }
 
@@ -583,6 +597,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             Boolean(item.is_completed),
             Boolean(item.is_fallback),
             Number(item.agent_duration_ms) || 0,
+            item.usage,
           ),
         )
         item.hideContent = true
@@ -818,6 +833,27 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
         break
       }
+      case 'context_compacted': {
+        // Shown in the timeline rather than swallowed: after a compaction the
+        // agent no longer sees the earlier rounds, and without a marker that
+        // reads as the model ignoring what it was told.
+        if (!message.agentEventStream) message.agentEventStream = []
+        const d = dataPayload || {}
+        ;(message.agentEventStream as ChatMessage[]).push({
+          type: 'context_compacted',
+          event_id: data.id || `compaction-${Date.now()}`,
+          reason: d.reason,
+          round: d.round,
+          tokens_before: d.tokens_before,
+          tokens_after: d.tokens_after,
+          messages_before: d.messages_before,
+          messages_after: d.messages_after,
+          summary: d.summary,
+          degraded: d.degraded,
+          split_turn: d.split_turn,
+        })
+        break
+      }
       case 'tool_approval_required': {
         if (!message.agentEventStream) message.agentEventStream = []
         const d = dataPayload || {}
@@ -930,7 +966,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           }
           if (toolCallEvent) {
             if (incomingToolName) toolCallEvent.tool_name = incomingToolName
-            if (incomingArguments) toolCallEvent.arguments = incomingArguments
+            if (incomingArguments) {
+              toolCallEvent.arguments = mergeToolCallArguments(toolCallEvent.arguments, incomingArguments)
+            }
             toolCallEvent.pending = true
             if (!toolCallEvent.timestamp) toolCallEvent.timestamp = Date.now()
             pending.set(toolCallId, toolCallEvent)
@@ -980,9 +1018,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           if (toolCallEvent) {
             toolCallEvent.pending = false
             toolCallEvent.success = success
-            toolCallEvent.output = success
-              ? dataPayload.output || data.content
-              : dataPayload.error || data.content
+            // Keep stdout/markdown on failure. The error field is often just
+            // "exited with code 1" plus a retry hint; the streams live on
+            // output / tool_data and are what the terminal card should show.
+            toolCallEvent.output = dataPayload.output || data.content
             toolCallEvent.error = !success ? dataPayload.error || data.content : undefined
             const duration =
               dataPayload.duration_ms !== undefined ? dataPayload.duration_ms : dataPayload.duration
@@ -1058,6 +1097,14 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
         break
       }
+      case 'artifacts_pending': {
+        const pendingCount = Number((dataPayload as any)?.count)
+        message.artifactsCollecting = true
+        if (Number.isFinite(pendingCount) && pendingCount > 0) {
+          message.artifactsPendingCount = pendingCount
+        }
+        break
+      }
       case 'complete': {
         log('[Agent] Complete event received')
         loading.value = false
@@ -1084,11 +1131,17 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         if (Array.isArray(streamedArtifacts) && streamedArtifacts.length) {
           message.artifacts = streamedArtifacts
         }
+        message.artifactsCollecting = false
+        const usage = (dataPayload as any)?.usage || (data as any).usage
+        if (usage) {
+          message.usage = usage
+        }
         if (message.agentEventStream) {
           ;(message.agentEventStream as ChatMessage[]).push({
             type: 'agent_complete',
             total_duration_ms: dataPayload?.total_duration_ms || 0,
             total_steps: dataPayload?.total_steps || 0,
+            usage,
           })
         }
         break
@@ -1107,6 +1160,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         isReplying.value = false
         fullContent.value = ''
         currentAssistantMessageId.value = ''
+        message.artifactsCollecting = false
         break
       }
     }
@@ -1191,20 +1245,18 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       return
     }
 
-    const isAgentOnlyResponse =
-      isAgentStreamSession() &&
-      (getChunkType(data) === 'thinking' ||
-        getChunkType(data) === 'tool_call' ||
-        getChunkType(data) === 'tool_result' ||
-        getChunkType(data) === 'reflection')
+    const agentOnlyChunkTypes = new Set([
+      'thinking',
+      'tool_call',
+      'tool_result',
+      'reflection',
+      'artifacts_pending',
+      'context_compacted',
+    ])
+    const chunkType = getChunkType(data)
+    const isAgentOnlyResponse = isAgentStreamSession() && agentOnlyChunkTypes.has(chunkType)
 
-    if (
-      !isAgentStreamSession() &&
-      (getChunkType(data) === 'thinking' ||
-        getChunkType(data) === 'tool_call' ||
-        getChunkType(data) === 'tool_result' ||
-        getChunkType(data) === 'reflection')
-    ) {
+    if (!isAgentStreamSession() && agentOnlyChunkTypes.has(chunkType)) {
       const message = resolveActiveAssistantMessage(data)
       if (message) message.isRagMode = true
       loading.value = false

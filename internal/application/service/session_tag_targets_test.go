@@ -190,6 +190,25 @@ func TestBuildSearchTargets_ExplicitKnowledgeScopeDisablesRecallThresholds(t *te
 	assert.True(t, targets[0].DisableRecallThresholds)
 }
 
+func TestBuildSearchTargets_KnowledgeIDsNarrowMatchingFullKB(t *testing.T) {
+	svc := newTagTargetSessionService()
+
+	targets, err := svc.buildSearchTargets(
+		tagTargetContext(),
+		100,
+		[]string{"doc-kb"},
+		[]string{"doc-1"},
+		nil,
+	)
+
+	require.NoError(t, err)
+	require.Len(t, targets, 1)
+	assert.Equal(t, types.SearchTargetTypeKnowledge, targets[0].Type)
+	assert.Equal(t, "doc-kb", targets[0].KnowledgeBaseID)
+	assert.Equal(t, []string{"doc-1"}, targets[0].KnowledgeIDs)
+	assert.True(t, targets[0].DisableRecallThresholds)
+}
+
 func TestBuildSearchTargets_DocumentTagScopeIntersectsExplicitKnowledgeIDs(t *testing.T) {
 	svc := newTagTargetSessionService()
 

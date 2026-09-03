@@ -53,6 +53,7 @@ type knowledgeBaseService struct {
 	syncLogRepo     interfaces.SyncLogRepository
 	dsScheduler     *datasource.Scheduler
 	audit           interfaces.AuditLogService
+	resourceCatalog interfaces.ResourceCatalog
 }
 
 // NewKnowledgeBaseService creates a new knowledge base service
@@ -77,6 +78,7 @@ func NewKnowledgeBaseService(repo interfaces.KnowledgeBaseRepository,
 	syncLogRepo interfaces.SyncLogRepository,
 	dsScheduler *datasource.Scheduler,
 	audit interfaces.AuditLogService,
+	resourceCatalog interfaces.ResourceCatalog,
 ) interfaces.KnowledgeBaseService {
 	return &knowledgeBaseService{
 		repo:            repo,
@@ -100,6 +102,7 @@ func NewKnowledgeBaseService(repo interfaces.KnowledgeBaseRepository,
 		syncLogRepo:     syncLogRepo,
 		dsScheduler:     dsScheduler,
 		audit:           audit,
+		resourceCatalog: resourceCatalog,
 	}
 }
 
@@ -1205,7 +1208,7 @@ func (s *knowledgeBaseService) ProcessKBDelete(ctx context.Context, t *asynq.Tas
 			}
 			storageAdjust -= knowledge.StorageSize
 		}
-		deleteExtractedImages(ctx, s.fileSvc, imageURLs)
+		deleteExtractedImages(ctx, s.fileSvc, knowledgeResourceOwners(s.resourceCatalog, knowledgeIDs...), imageURLs)
 		if storageAdjust != 0 {
 			if err := s.tenantRepo.AdjustStorageUsed(ctx, tenantID, storageAdjust); err != nil {
 				logger.Warnf(ctx, "Failed to adjust tenant storage: %v", err)

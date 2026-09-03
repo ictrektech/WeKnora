@@ -49,6 +49,8 @@ type ModelParametersDTO struct {
 	CustomHeaders       map[string]string         `json:"custom_headers,omitempty"`
 	SupportsVision      bool                      `json:"supports_vision"`
 	DesensitizeBaseURL  string                    `json:"desensitize_base_url,omitempty"`
+	ContextWindow       int                       `json:"context_window,omitempty"`
+	MaxOutputTokens     int                       `json:"max_output_tokens,omitempty"`
 	MaxConcurrency      int                       `json:"max_concurrency,omitempty"`
 	AppID               string                    `json:"app_id,omitempty"`
 }
@@ -71,6 +73,8 @@ func NewModelResponse(ctx context.Context, m *types.Model) *ModelResponse {
 		CustomHeaders:       m.Parameters.CustomHeaders,
 		SupportsVision:      m.Parameters.SupportsVision,
 		DesensitizeBaseURL:  m.Parameters.DesensitizeBaseURL,
+		ContextWindow:       m.Parameters.ContextWindow,
+		MaxOutputTokens:     m.Parameters.MaxOutputTokens,
 		MaxConcurrency:      m.Parameters.MaxConcurrency,
 		AppID:               m.Parameters.AppID,
 	}
@@ -86,8 +90,9 @@ func NewModelResponse(ctx context.Context, m *types.Model) *ModelResponse {
 	if m.IsBuiltin && !canManageBuiltin {
 		// Builtin: strip everything that could reveal per-tenant config.
 		// EmbeddingParameters and ParameterSize / Provider / InterfaceType /
-		// SupportsVision are intentionally preserved (they describe the
-		// capability surface, not the configured endpoint).
+		// SupportsVision / ContextWindow / MaxOutputTokens are intentionally
+		// preserved (they describe the capability surface, not the configured
+		// endpoint).
 		params.BaseURL = ""
 		params.ExtraConfig = nil
 		params.CustomHeaders = nil
