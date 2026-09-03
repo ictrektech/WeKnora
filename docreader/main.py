@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -36,6 +37,22 @@ def to_valid_utf8_text(s: Optional[str]) -> str:
         return ""
     s = _SURROGATE_RE.sub("\ufffd", s)
     return s.encode("utf-8", errors="replace").decode("utf-8")
+
+
+def _response_metadata(result) -> dict:
+    """Convert parser metadata to RPC-safe strings, including source units."""
+    metadata = dict(result.metadata or {})
+    if result.source_units:
+        metadata["source_units_json"] = json.dumps(
+            result.source_units,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    return {
+        k: to_valid_utf8_text(str(v))
+        for k, v in metadata.items()
+        if v is not None
+    }
 
 
 for handler in logging.root.handlers[:]:
@@ -206,9 +223,7 @@ class DocReaderServicer(docreader_pb2_grpc.DocReaderServicer):
                     markdown_content=_c(result.content),
                     image_refs=image_refs,
                     image_dir_path=image_dir,
-                    metadata={k: _c(str(v)) for k, v in result.metadata.items()}
-                    if result.metadata
-                    else {},
+                    metadata=_response_metadata(result),
                 )
                 logger.info(
                     "Read response: content_len=%d, images=%d",
@@ -254,9 +269,7 @@ class DocReaderServicer(docreader_pb2_grpc.DocReaderServicer):
                 meta=ReadStreamMeta(
                     markdown_content=_c(result.content),
                     image_dir_path="",
-                    metadata={k: _c(str(v)) for k, v in result.metadata.items()}
-                    if result.metadata
-                    else {},
+                    metadata=_response_metadata(result),
                     image_count=image_count,
                 )
             )

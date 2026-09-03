@@ -413,6 +413,12 @@ class PDFRouterIntegrationTest(unittest.TestCase):
         self.assertEqual(doc.metadata["page_count"], 2)
         self.assertEqual(doc.metadata["scanned_page_count"], 2)
         self.assertEqual(len(doc.images), 2)
+        self.assertEqual(len(doc.source_units), 2)
+        self.assertEqual(
+            [(unit["unit_id"], unit["page"], unit["source_start"], unit["source_end"]) for unit in doc.source_units],
+            [("page-1", 1, 0, len("![imgonly_page_1.jpg](images/imgonly_page_1.jpg)")),
+             ("page-2", 2, len("![imgonly_page_1.jpg](images/imgonly_page_1.jpg)\n\n"), len(doc.content))],
+        )
         self.assertIn("images/imgonly_page_1.jpg", doc.images)
         self.assertIn("![imgonly_page_1.jpg](images/imgonly_page_1.jpg)", doc.content)
         # JPEG magic bytes after decoding.

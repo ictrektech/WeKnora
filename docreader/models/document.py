@@ -74,6 +74,13 @@ class Document(BaseModel):
         default_factory=dict,
         description="metadata fields",
     )
+    # Ordered source blocks are serialized by the RPC layer as metadata so
+    # older clients can continue to read documents. Offsets refer to
+    # ``content`` and use end-exclusive Unicode code-point ranges.
+    source_units: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="source document units with content offsets",
+    )
 
     def set_content(self, content: str) -> None:
         """Set document content."""

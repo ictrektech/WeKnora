@@ -45,6 +45,7 @@ from PIL import Image
 from docreader.config import CONFIG
 from docreader.models.document import Document as DocumentModel
 from docreader.parser.base_parser import BaseParser
+from docreader.source_units import assemble_source_blocks
 from docreader.utils import endecode
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,94 @@ def table_to_gfm_markdown(table: Any) -> str:
         lines.append("| " + " | ".join(row) + " |")
     return "\n".join(lines)
 
+
+def _table_source_block(table: Any, table_index: int) -> Optional[Dict[str, Any]]:
+    """Build a source block whose text is the rendered GFM table."""
+    rows: List[List[str]] = []
+    for row in table.rows:
+        cells = [_gfm_cell_text(cell.text) for cell in row.cells]
+        if cells:
+            rows.append(cells)
+    if not rows:
+        return None
+
+    width = max(len(row) for row in rows)
+    if width == 0:
+        return None
+    padded = [row + [""] * (width - len(row)) for row in rows]
+    lines = [
+        "| " + " | ".join(padded[0]) + " |",
+        "| " + " | ".join("---" for _ in padded[0]) + " |",
+    ]
+    lines.extend("| " + " | ".join(row) + " |" for row in padded[1:])
+    markdown = "\n".join(lines)
+
+    children: List[Dict[str, Any]] = []
+    line_offsets: List[int] = []
+    line_offset = 0
+    for line in lines:
+        line_offsets.append(line_offset)
+        line_offset += len(line) + 1
+
+    for row_index, row in enumerate(padded):
+        line_index = 0 if row_index == 0 else row_index + 1
+        rendered_line = lines[line_index]
+        line_offset = line_offsets[line_index]
+        cursor = 0
+        for cell_index, cell in enumerate(row):
+            if not cell:
+                continue
+            cell_start = rendered_line.find(cell, cursor)
+            if cell_start < 0:
+                continue
+            children.append({
+                "unit_id": (
+                    f"table-{table_index + 1}-row-{row_index + 1}-"
+                    f"cell-{cell_index + 1}"
+                ),
+                "kind": "table-cell",
+                "source_start": line_offset + cell_start,
+                "source_end": line_offset + cell_start + len(cell),
+            })
+            cursor = cell_start + len(cell)
+
+    return {
+        "unit_id": f"table-{table_index + 1}",
+        "kind": "table",
+        "text": markdown,
+        "children": children,
+    }
+
+
+def _line_source_block(line: "LineData", unit_id: str) -> Dict[str, Any]:
+    """Build a page block and paragraph children for one processed line."""
+    text = line.text or ""
+    children: List[Dict[str, Any]] = []
+    offset = 0
+    for paragraph_index, segment in enumerate(text.splitlines(keepends=True)):
+        paragraph = segment.rstrip("\r\n")
+        if paragraph.strip():
+            children.append({
+                "unit_id": f"{unit_id}-paragraph-{paragraph_index + 1}",
+                "kind": "paragraph",
+                "source_start": offset,
+                "source_end": offset + len(paragraph),
+            })
+        offset += len(segment)
+    if not children and text.strip():
+        children.append({
+            "unit_id": f"{unit_id}-paragraph-1",
+            "kind": "paragraph",
+            "source_start": 0,
+            "source_end": len(text),
+        })
+    return {
+        "unit_id": unit_id,
+        "kind": "page",
+        "page": line.page_num + 1,
+        "text": text,
+        "children": children,
+    }
 
 class ImageData:
     """Represents a processed image of document content"""
@@ -183,6 +272,7 @@ class DocxParser(BaseParser):
                 max_workers=max_workers,
                 to_page=self.max_pages,
             )
+            ordered_source_blocks = docx_processor.ordered_source_blocks
             processing_time = time.time() - start_time
             logger.info(
                 f"Docx processing completed in {processing_time:.2f}s, "
@@ -192,13 +282,15 @@ class DocxParser(BaseParser):
             logger.info("Processing document sections")
             section_start_time = time.time()
 
-            text_parts = []
+            source_blocks = []
             image_parts: Dict[str, str] = {}
 
             for sec_idx, line in enumerate(all_lines):
                 try:
                     if line.text is not None and line.text != "":
-                        text_parts.append(line.text)
+                        source_blocks.append(_line_source_block(
+                            line, f"page-{line.page_num + 1}-block-{len(source_blocks) + 1}"
+                        ))
                         if sec_idx < 3 or sec_idx % 50 == 0:
                             logger.info(
                                 f"Added section {sec_idx + 1} text: {line.text[:50]}..."
@@ -223,11 +315,12 @@ class DocxParser(BaseParser):
                 f"Section processing completed in {section_processing_time:.2f}s"
             )
             logger.info("Combining all text parts")
-            # Prefer body-order markdown (paragraphs interleaved with tables).
-            # Fall back to page-section text if composition produced nothing.
-            text = (ordered_text or "").strip()
-            if not text:
-                text = "\n\n".join([part for part in text_parts if part])
+            # Prefer body-order Markdown and keep source ranges aligned with it.
+            # Fall back to page blocks if the ordered composition is empty.
+            if ordered_text:
+                text, source_units = assemble_source_blocks(ordered_source_blocks)
+            else:
+                text, source_units = assemble_source_blocks(source_blocks)
 
             # Check if the generated text is empty
             if not text:
@@ -241,7 +334,7 @@ class DocxParser(BaseParser):
             )
 
             image_parts.update(inline_images)
-            return DocumentModel(content=text, images=image_parts)
+            return DocumentModel(content=text, images=image_parts, source_units=source_units)
         except Exception as e:
             logger.error(f"Error parsing DOCX document: {str(e)}")
             logger.error(f"Detailed stack trace: {traceback.format_exc()}")
@@ -265,7 +358,7 @@ class DocxParser(BaseParser):
                 f"contains {len(doc.paragraphs)} paragraphs "
                 f"and {len(doc.tables)} tables"
             )
-            text_parts = []
+            source_blocks = []
 
             # Extract paragraph text
             para_count = len(doc.paragraphs)
@@ -275,7 +368,11 @@ class DocxParser(BaseParser):
                 if i % 100 == 0:
                     logger.info(f"Processing paragraph {i + 1}/{para_count}")
                 if para.text.strip():
-                    text_parts.append(para.text.strip())
+                    source_blocks.append({
+                        "unit_id": f"paragraph-{i + 1}",
+                        "kind": "paragraph",
+                        "text": para.text.strip(),
+                    })
                     para_with_text += 1
 
             logger.info(f"Extracted text from {para_with_text}/{para_count} paragraphs")
@@ -296,7 +393,27 @@ class DocxParser(BaseParser):
                         [cell.text.strip() for cell in row.cells if cell.text.strip()]
                     )
                     if row_text:
-                        text_parts.append(row_text)
+                        children = []
+                        cursor = 0
+                        for cell_index, cell_text in enumerate(
+                            [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                        ):
+                            cell_start = row_text.find(cell_text, cursor)
+                            if cell_start < 0:
+                                continue
+                            children.append({
+                                "unit_id": f"table-{i + 1}-row-{rows_processed}-cell-{cell_index + 1}",
+                                "kind": "table-cell",
+                                "source_start": cell_start,
+                                "source_end": cell_start + len(cell_text),
+                            })
+                            cursor = cell_start + len(cell_text)
+                        source_blocks.append({
+                            "unit_id": f"table-{i + 1}-row-{rows_processed}",
+                            "kind": "table-row",
+                            "text": row_text,
+                            "children": children,
+                        })
                         table_has_content = True
 
                 if table_has_content:
@@ -308,7 +425,7 @@ class DocxParser(BaseParser):
             )
 
             # Combine text
-            result_text = "\n\n".join(text_parts)
+            result_text, source_units = assemble_source_blocks(source_blocks)
             processing_time = time.time() - start_time
             logger.info(
                 f"Simplified parsing complete in {processing_time:.2f}s, "
@@ -320,7 +437,7 @@ class DocxParser(BaseParser):
                 logger.warning("No text extracted using simplified method")
                 return DocumentModel()
 
-            return DocumentModel(content=result_text)
+            return DocumentModel(content=result_text, source_units=source_units)
         except Exception as backup_error:
             processing_time = time.time() - start_time
             logger.error(
@@ -338,6 +455,7 @@ class Docx:
         self.picture_cache = {}
         self.enable_multimodal = enable_multimodal
         self.upload_file = upload_file
+        self.ordered_source_blocks: List[Dict[str, Any]] = []
 
     def get_picture(self, document, paragraph) -> Optional[Image.Image]:
         logger.info("Extracting image from paragraph")
@@ -572,7 +690,10 @@ class Docx:
             max_workers,
         )
 
-        ordered_text = self._compose_ordered_markdown(pages_to_process)
+        self.ordered_source_blocks = self._compose_ordered_source_blocks(
+            pages_to_process
+        )
+        ordered_text, _ = assemble_source_blocks(self.ordered_source_blocks)
 
         # Clean up document resources
         self.doc = None
@@ -1068,20 +1189,22 @@ class Docx:
             except Exception as e:
                 logger.error(f"Failed to remove temporary file: {str(e)}")
 
-    def _compose_ordered_markdown(self, pages_to_process: List[int]) -> str:
-        """Walk body paragraphs and tables in document order and emit GFM.
-
-        Paragraph processing is page-limited; tables are included only when they
-        sit within that same paragraph range so max_pages does not leak later
-        tables into the parsed text.
-        """
+    def _compose_ordered_source_blocks(
+        self, pages_to_process: List[int]
+    ) -> List[Dict[str, Any]]:
+        """Build source blocks for body content in document order."""
         allowed = set()
         for page in pages_to_process:
             allowed.update(self.para_page_mapping.get(page, []))
         min_allowed = min(allowed) if allowed else 0
         max_allowed = max(allowed) if allowed else -1
 
-        parts: List[str] = []
+        paragraph_pages = {}
+        for page, paragraph_indices in self.para_page_mapping.items():
+            for paragraph_index in paragraph_indices:
+                paragraph_pages.setdefault(paragraph_index, page + 1)
+
+        blocks: List[Dict[str, Any]] = []
         para_i = 0
         tbl_i = 0
         paragraphs = self.doc.paragraphs
@@ -1092,7 +1215,15 @@ class Docx:
                 if para_i in allowed and para_i < len(paragraphs):
                     text = (paragraphs[para_i].text or "").strip()
                     if text:
-                        parts.append(text)
+                        block: Dict[str, Any] = {
+                            "unit_id": f"paragraph-{para_i + 1}",
+                            "kind": "paragraph",
+                            "text": text,
+                        }
+                        page = paragraph_pages.get(para_i)
+                        if page is not None:
+                            block["page"] = page
+                        blocks.append(block)
                 para_i += 1
                 continue
             if child.tag != _W_TBL:
@@ -1110,10 +1241,17 @@ class Docx:
                 ):
                     markdown = table_to_gfm_markdown(table)
                     if markdown:
-                        parts.append(markdown)
+                        source_block = _table_source_block(table, tbl_i)
+                        if source_block:
+                            blocks.append(source_block)
             tbl_i += 1
 
-        return "\n\n".join(parts)
+        return blocks
+
+    def _compose_ordered_markdown(self, pages_to_process: List[int]) -> str:
+        """Walk body paragraphs and tables in document order and emit GFM."""
+        blocks = self._compose_ordered_source_blocks(pages_to_process)
+        return assemble_source_blocks(blocks)[0]
 
     def _safe_concat_images(self, images):
         """Safely concatenate image lists

@@ -28,6 +28,7 @@ import unicodedata
 from docreader.config import CONFIG
 from docreader.models.document import Document
 from docreader.parser.base_parser import BaseParser
+from docreader.source_units import assemble_source_blocks
 from docreader.parser.concurrency import parser_worker_limit
 
 logger = logging.getLogger(__name__)
@@ -1444,10 +1445,20 @@ class PDFScannedParser(BaseParser):
                 markdown_lines.append(f"![{page_filename}]({ref_path})")
                 images[ref_path] = base64.b64encode(rendered[i]).decode("utf-8")
 
-            text = "\n\n".join(markdown_lines)
+            source_blocks = [
+                {
+                    "unit_id": f"page-{i + 1}",
+                    "kind": "page-image",
+                    "page": i + 1,
+                    "text": line,
+                }
+                for i, line in enumerate(markdown_lines)
+            ]
+            text, source_units = assemble_source_blocks(source_blocks)
             return Document(
                 content=text,
                 images=images,
+                source_units=source_units,
                 metadata={
                     "image_source_type": "scanned_pdf",
                     "page_count": page_count,
@@ -1629,24 +1640,43 @@ class PDFParser(BaseParser):
         # Assemble markdown in reading order.
         embedded_count = 0
         vector_figure_count = 0
-        blocks = []
+        source_blocks = []
         for i in range(page_count):
             if classes[i] == "scanned":
                 page_filename = f"{base_name}_page_{i+1}.jpg"
-                blocks.append(f"![{page_filename}](images/{page_filename})")
+                page_text = f"![{page_filename}](images/{page_filename})"
+                source_blocks.append({
+                    "unit_id": f"page-{i + 1}",
+                    "kind": "page",
+                    "page": i + 1,
+                    "text": page_text,
+                })
             else:
                 stripped = texts[i].strip()
                 if stripped:
-                    blocks.append(stripped)
+                    source_blocks.append({
+                        "unit_id": f"page-{i + 1}",
+                        "kind": "page",
+                        "page": i + 1,
+                        "text": stripped,
+                    })
                 vector_figure_count += len(vector_clips.get(i, []))
                 page_images = list(embedded.get(i, []))
                 page_images.sort(key=lambda item: item[2], reverse=True)
                 for ref_path, _b64, _y in page_images:
                     fname = os.path.basename(ref_path)
-                    blocks.append(f"![{fname}]({ref_path})")
+                    image_text = f"![{fname}]({ref_path})"
+                    source_blocks.append({
+                        "unit_id": f"page-{i + 1}-image-{embedded_count + 1}",
+                        "kind": "page-image",
+                        "page": i + 1,
+                        "text": image_text,
+                    })
                     embedded_count += 1
 
-        content_text = "\n\n".join(blocks).strip()
+        # Keep the assembled text exactly as the source-unit ranges describe;
+        # trimming here would shift ranges at the document boundaries.
+        content_text, source_units = assemble_source_blocks(source_blocks)
 
         metadata = {
             "page_count": page_count,
@@ -1667,4 +1697,4 @@ class PDFParser(BaseParser):
             embedded_count,
             len(content_text),
         )
-        return Document(content=content_text, images=images, metadata=metadata)
+        return Document(content=content_text, images=images, metadata=metadata, source_units=source_units)
