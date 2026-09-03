@@ -1,20 +1,12 @@
 routers:
-  - id: com-ictrek-hybrag
-    kind: group
+  - id: hybrag
+    kind: page
     title:
       zh-CN: HybRAG
       en: HybRAG
     icon: lucide:brain-circuit
     order: 210
-    children:
-      - id: hybrag
-        kind: page
-        title:
-          zh-CN: 知识库
-          en: Knowledge Base
-        icon: lucide:brain-circuit
-        iframe-src: /app/com.ictrek.hybrag/?v=__APP_VERSION__
-        order: 10
-        keep-alive: true
-        entry-point: true
-        embed: true
+    iframe-src: /app/com.ictrek.hybrag/?v=__APP_VERSION__
+    keep-alive: true
+    entry-point: true
+    embed: true
