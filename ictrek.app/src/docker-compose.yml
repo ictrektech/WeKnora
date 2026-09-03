@@ -19,7 +19,7 @@ x-hybrag-frontend-base:
   - traefik.http.routers.hybrag-top-open.service=hybrag-web
   - traefik.http.routers.hybrag-top-open.middlewares=hybrag-top-open-redirect
   - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\.ictrek\.hybrag/?(?:\?.*)?$
-  - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag
+  - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.hybrag/hybrag
   - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.permanent=false
   - traefik.http.routers.hybrag-web.rule=PathPrefix(`/app/com.ictrek.hybrag`)
   - traefik.http.routers.hybrag-web.service=hybrag-web

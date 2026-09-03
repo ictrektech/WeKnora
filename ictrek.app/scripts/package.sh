@@ -3,10 +3,9 @@ set -euo pipefail
 
 APP_NAME="hybrag"
 APP_ID="com.ictrek.hybrag"
-ROUTER_GROUP_ID="com-ictrek-hybrag"
 ROUTER_PAGE_ID="hybrag"
 ROUTER_IFRAME_SRC="/app/com.ictrek.hybrag/?v=__APP_VERSION__"
-ROUTER_HASH_PATH="#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag"
+ROUTER_HASH_PATH="#/app/com.ictrek.hybrag/hybrag"
 FRONTEND_BASE_PATH="/app/com.ictrek.hybrag"
 SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.components.json}"
@@ -541,25 +540,28 @@ verify_package() {
   fi
   routers_text="$(tar xOf "$app_tarball" routers.yml)"
   router_iframe_src="${ROUTER_IFRAME_SRC/__APP_VERSION__/${APP_VERSION}}"
-  if ! printf '%s\n' "$routers_text" | grep -Fq "  - id: ${ROUTER_GROUP_ID}"; then
-    die "routers.yml must declare top-level group id ${ROUTER_GROUP_ID}"
+  if ! printf '%s\n' "$routers_text" | grep -Fq "  - id: ${ROUTER_PAGE_ID}"; then
+    die "routers.yml must declare top-level page id ${ROUTER_PAGE_ID}"
   fi
-  if ! printf '%s\n' "$routers_text" | grep -Fq "      - id: ${ROUTER_PAGE_ID}"; then
-    die "routers.yml must declare sidebar page id ${ROUTER_PAGE_ID}"
+  if ! printf '%s\n' "$routers_text" | grep -q 'kind:[[:space:]]*page'; then
+    die "routers.yml top-level router must be a page"
   fi
-  if ! printf '%s\n' "$routers_text" | grep -Fq "        iframe-src: ${router_iframe_src}"; then
-    die "routers.yml sidebar iframe-src must be ${router_iframe_src}"
+  if printf '%s\n' "$routers_text" | grep -q 'children:[[:space:]]*$'; then
+    die "routers.yml must not use child pages for the HybRAG entry"
+  fi
+  if ! printf '%s\n' "$routers_text" | grep -Fq "    iframe-src: ${router_iframe_src}"; then
+    die "routers.yml page iframe-src must be ${router_iframe_src}"
   fi
   if printf '%s\n' "$routers_text" | grep -Eq 'iframe-src:[[:space:]]*https?://'; then
     die "routers.yml iframe-src must use a VOS same-origin /app/<app-id>/ path"
   fi
   if ! printf '%s\n' "$routers_text" | grep -q 'entry-point:[[:space:]]*true'; then
-    die "routers.yml sidebar page must declare entry-point: true"
+    die "routers.yml page must declare entry-point: true"
   fi
   if ! printf '%s\n' "$routers_text" | grep -q 'embed:[[:space:]]*true'; then
     die "routers.yml must declare embed: true for sidebar iframe"
   fi
-  sidebar_route="#/app/${APP_ID}/${ROUTER_GROUP_ID}/${ROUTER_PAGE_ID}"
+  sidebar_route="#/app/${APP_ID}/${ROUTER_PAGE_ID}"
   log "VOS sidebar route: ${sidebar_route}"
 }
 

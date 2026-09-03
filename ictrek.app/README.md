@@ -390,15 +390,14 @@ HybRAG 是 public repo，因此当前组织级 Feishu secrets 可被 GitHub Acti
 
 `manifest.yml` 保留 `frontend.enabled: true` 和 `frontend.basePath: /app/com.ictrek.hybrag`，用于兼容当前仍从应用列表读取 `frontend_enabled/frontend_base_path` 的 VOS“我的应用”打开按钮。
 
-`routers.yml` 使用固定的 group/page 入口。真实页面作为 VOS iframe 页面加载，并保留 `entry-point: true` 和 `embed: true`。Compose/Traefik 会把顶层文档请求 `/app/com.ictrek.hybrag/` 重定向到 VOS hash；iframe 请求继续进入真实应用页面，不会被重定向。
+`routers.yml` 使用顶层单 page 入口，避免在 VOS 侧边栏中再出现应用下的子页面。真实页面作为 VOS iframe 页面加载，并保留 `entry-point: true` 和 `embed: true`。Compose/Traefik 会把顶层文档请求 `/app/com.ictrek.hybrag/` 重定向到 VOS hash；iframe 请求继续进入真实应用页面，不会被重定向。
 
 HybRAG 的固定入口契约是：
 
 - `app id`: `com.ictrek.hybrag`
-- `group.id`: `com-ictrek-hybrag`
 - `page.id`: `hybrag`
 - `iframe-src`: `/app/com.ictrek.hybrag/?v=${VERSION}`
-- VOS 内部侧边栏路径：`#/app/com.ictrek.hybrag/com-ictrek-hybrag/hybrag`
+- VOS 内部侧边栏路径：`#/app/com.ictrek.hybrag/hybrag`
 
 `scripts/package.sh` 会在生成 `app.tar.gz` 后校验以上字段；不匹配时直接失败。新增或修改入口时必须同步更新模板和脚本校验值。
 
