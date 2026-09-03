@@ -40,14 +40,14 @@ var contractReviewPlaybooks = []types.ContractReviewPlaybook{{
 }}
 
 const (
-	contractReviewClauseSystemPrompt = "You are a senior commercial contracts lawyer reviewing a primary contract-text window together with cross-window context from the same contract. The primary window may contain several legal sections, repeated service descriptions, and page-break artifacts; its Clause title is only an analysis-window label, not a legal clause number. Read the entire primary window, including headings and nearby provisions. Use cross-window context to check whether another provision explicitly covers, limits, or contradicts a requirement. A requirement stated under a heading such as 合同价款包含范围 counts as covered even if it is not repeated under another heading. Do not call an explicit provision missing. Distinguish a real omission from a contradiction or a genuinely ambiguous settlement rule. Create issues only when the evidence quote appears in the primary window; do not create an issue solely from cross-window context because that text is reviewed in its own window. If two observations are the same underlying risk, return one consolidated issue. Return exactly one JSON object and nothing else. Do not output markdown, code fences, headings, citations, a full-contract report, or reasoning text. If there are no concrete risks, return {\"issues\":[]}. Return at most five issues. Keep titles concise; keep explanations and suggestions concise (preferably under 180 Chinese characters each). Do not invent quotations. " +
-		"Write issue titles, explanations, and suggestions in Simplified Chinese. Keep original_quote exactly in the contract's original language and wording so it can be located in the source document."
-	contractReviewOverviewSystemPrompt = "Return a concise, evidence-based contract review overview as valid JSON only. Write executive_summary, contract_type, and key_recommendations in Simplified Chinese. Preserve party names and other proper nouns in their original form."
+	contractReviewClauseSystemPrompt = "You are a senior commercial contracts lawyer reviewing a primary contract-text window together with cross-window context from the same contract. The primary window may contain several legal sections, repeated descriptions, and page-break artifacts; its title is only an analysis-window label, not a legal clause number. Read the entire primary window, including headings and nearby provisions. Use cross-window context to check whether another explicit provision covers, limits, or contradicts a requirement. Distinguish a real omission from a contradiction or a genuinely ambiguous rule. Every issue must be supported by an exact passage in at least one supplied evidence unit; prefer the primary unit for issues about this window, but a supporting unit is allowed when it contains the exact passage establishing coverage, contradiction, or a related requirement. If two observations are the same underlying risk, return one consolidated issue. Return exactly one JSON object and nothing else. Do not output markdown, code fences, headings, citations, a full-contract report, or reasoning text. Return at most five issues. Contract facts are extracted by the service from the full source after clause review; do not extract facts in this response and always return facts as an empty array. " +
+		"Every issue must include category, finding_type, risk_level, title, explanation, original_quote, suggestion, and evidence_refs. Use only evidence_id values supplied in the prompt. Write issue titles, explanations, and suggestions in Simplified Chinese. Keep original_quote exactly in the contract's original language and wording. Copy a contiguous exact passage from the cited evidence unit. Make it long and distinctive enough to identify one location; include a nearby heading, clause number, or other unique context when a short phrase is repeated. If no unique exact passage is available, omit the issue."
+	contractReviewOverviewSystemPrompt = "Return a concise, evidence-based contract review overview as valid JSON only. Do not decide the final risk level; it is computed by the service. Write executive_summary, contract_type, and key_recommendations in Simplified Chinese. Preserve party names and other proper nouns in their original form. Summarize only the supplied verified issues and facts."
 )
 
 const (
 	contractReviewClauseDefaultMaxCompletionTokens = 4096
-	contractReviewClauseRetryMaxCompletionTokens   = 8192
+	contractReviewClauseRetryMaxCompletionTokens   = 4096
 	contractReviewClauseChunkSize                  = 2800
 	contractReviewClauseChunkOverlap               = 120
 	contractReviewFullDocumentContextMaxRunes      = 12000
@@ -94,7 +94,14 @@ func (s *contractReviewService) Create(ctx context.Context, tenantID uint64, use
 }
 
 func (s *contractReviewService) List(ctx context.Context, tenantID uint64, userID string, archived bool) ([]*types.ContractReview, error) {
-	return s.repo.List(ctx, tenantID, userID, archived)
+	rows, err := s.repo.List(ctx, tenantID, userID, archived)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		normalizeContractReviewForRead(row)
+	}
+	return rows, nil
 }
 
 func (s *contractReviewService) Get(ctx context.Context, tenantID uint64, userID, id string) (*types.ContractReview, error) {
@@ -102,7 +109,94 @@ func (s *contractReviewService) Get(ctx context.Context, tenantID uint64, userID
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrContractReviewNotFound
 	}
+	if err == nil {
+		normalizeContractReviewForRead(r)
+	}
 	return r, err
+}
+
+func normalizeContractReviewForRead(review *types.ContractReview) {
+	if review == nil {
+		return
+	}
+	if review.QualityStatus == "" {
+		if review.Status == types.ContractReviewStatusCompleted || review.Status == types.ContractReviewStatusFailed {
+			review.QualityStatus = types.ContractReviewQualityLegacy
+		} else {
+			review.QualityStatus = types.ContractReviewQualityPending
+		}
+	}
+	if len(review.Locator) == 0 {
+		review.Locator = types.JSON(`{}`)
+	}
+	if len(review.Warnings) == 0 {
+		review.Warnings = types.JSON(`[]`)
+	}
+	// Get() preloads these collections. A settled empty slice therefore means
+	// "loaded and no rows", while a running nil slice still means that the
+	// stream has not delivered the findings yet.
+	if review.Issues == nil && (review.Status == types.ContractReviewStatusCompleted || review.Status == types.ContractReviewStatusFailed) {
+		review.Issues = []*types.ContractReviewIssue{}
+	}
+	if review.Clauses == nil && (review.Status == types.ContractReviewStatusCompleted || review.Status == types.ContractReviewStatusFailed) {
+		review.Clauses = []*types.ContractReviewClause{}
+	}
+	if review.SourceTextHash == "" {
+		review.SourceTextHash = review.SourceHash
+	}
+	for _, clause := range review.Clauses {
+		if clause != nil && clause.SourceRevision == "" {
+			clause.SourceRevision = review.SourceRevision
+		}
+	}
+	locatorUnits := contractReviewLocatorUnits(review.Locator)
+	for _, issue := range review.Issues {
+		if issue == nil {
+			continue
+		}
+		issue.SourceRevision = review.SourceRevision
+		var refs []string
+		if len(issue.EvidenceRefs) > 0 {
+			_ = json.Unmarshal(issue.EvidenceRefs, &refs)
+		}
+		issue.Evidence = make([]types.ContractReviewEvidence, 0, len(refs))
+		for index, ref := range uniqueReviewStrings(refs) {
+			role := types.ContractReviewEvidenceSupporting
+			if index == 0 {
+				role = types.ContractReviewEvidencePrimary
+			}
+			status := "unsupported"
+			evidenceStart, evidenceEnd := 0, 0
+			pageStart, pageEnd := 0, 0
+			if unit, ok := locatorUnits[ref]; ok {
+				status = "located"
+				evidenceStart, evidenceEnd = unit.SourceStart, unit.SourceEnd
+				pageStart, pageEnd = unit.Page, unit.Page
+			} else if index == 0 && contractReviewLocatorSupportsRange(locatorUnits, issue.SourceStart, issue.SourceEnd, review.ExtractedContent) {
+				// Analysis evidence IDs are derived from source ranges and are
+				// intentionally distinct from parser unit IDs. The primary issue
+				// range remains authoritative when a parser unit contains it.
+				status = "located"
+				evidenceStart, evidenceEnd = issue.SourceStart, issue.SourceEnd
+			}
+			if review.QualityStatus == types.ContractReviewQualityLegacy || review.SourceRevision == "" {
+				status = "unsupported"
+			}
+			issue.Evidence = append(issue.Evidence, types.ContractReviewEvidence{
+				EvidenceID: ref, Role: role, SourceRevision: review.SourceRevision,
+				SourceTextHash: review.SourceTextHash, SourceStart: evidenceStart,
+				SourceEnd: evidenceEnd, PageStart: pageStart, PageEnd: pageEnd, Status: status,
+			})
+		}
+		switch {
+		case len(issue.Evidence) == 0 && review.QualityStatus == types.ContractReviewQualityLegacy:
+			issue.EvidenceStatus = "unsupported"
+		case len(issue.Evidence) == 0:
+			issue.EvidenceStatus = "not_found"
+		default:
+			issue.EvidenceStatus = issue.Evidence[0].Status
+		}
+	}
 }
 
 func validParty(value string) bool {
@@ -122,11 +216,38 @@ func canUpdateContractReviewConfig(status types.ContractReviewStatus) bool {
 	return status == types.ContractReviewStatusDraft || status == types.ContractReviewStatusReady || status == types.ContractReviewStatusCompleted
 }
 
+func contractReviewTaskMatchesRun(p types.ContractReviewTaskPayload, review *types.ContractReview) bool {
+	if review == nil {
+		return false
+	}
+	if strings.TrimSpace(p.AnalysisRunID) == "" || p.AnalysisRunID != review.AnalysisRunID {
+		return false
+	}
+	if strings.TrimSpace(p.ConfigHash) != "" && p.ConfigHash != review.ConfigHash {
+		return false
+	}
+	return true
+}
+
+func (s *contractReviewService) updateReviewForRun(ctx context.Context, review *types.ContractReview, runID string) error {
+	if strings.TrimSpace(runID) == "" {
+		return s.repo.Update(ctx, review)
+	}
+	if err := s.repo.UpdateForRun(ctx, review, runID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errContractReviewStaleRun
+		}
+		return err
+	}
+	return nil
+}
+
 func (s *contractReviewService) Update(ctx context.Context, tenantID uint64, userID, id, title, playbook, party string, modelID *string, archived *bool) (*types.ContractReview, error) {
 	r, err := s.Get(ctx, tenantID, userID, id)
 	if err != nil {
 		return nil, err
 	}
+	previousPlaybook, previousParty, previousModel := r.PlaybookID, r.RepresentedParty, r.ModelID
 	if strings.TrimSpace(title) != "" {
 		r.Title = strings.TrimSpace(title)
 		r.TitleCustomized = true
@@ -161,6 +282,20 @@ func (s *contractReviewService) Update(ctx context.Context, tenantID uint64, use
 			}
 		}
 		r.ModelID = selectedModelID
+	}
+	if r.Status == types.ContractReviewStatusCompleted &&
+		(previousPlaybook != r.PlaybookID || previousParty != r.RepresentedParty || previousModel != r.ModelID) {
+		r.AnalysisRunID, r.ConfigHash = "", ""
+		r.QualityStatus = types.ContractReviewQualityStale
+		warning := types.ContractReviewWarning{Code: "CONFIG_CHANGED", Message: "审查配置已变更，现有结果需要重新审查"}
+		warnings, warningErr := appendContractReviewWarning(r.Warnings, warning)
+		if warningErr != nil {
+			return nil, warningErr
+		}
+		r.Warnings = warnings
+		if updatedOverview, overviewErr := updateContractReviewOverviewQuality(r.Overview, r.QualityStatus, warnings); overviewErr == nil {
+			r.Overview = updatedOverview
+		}
 	}
 	if archived != nil {
 		if r.Status == types.ContractReviewStatusUploading || r.Status == types.ContractReviewStatusAnalyzing || r.Status == types.ContractReviewStatusReviewingClauses {
@@ -276,13 +411,17 @@ func (s *contractReviewService) Upload(ctx context.Context, tenantID uint64, use
 		}
 	}
 	oldRef := r.ResourceRef
+	oldRunID := r.AnalysisRunID
 	r.ResourceRef, r.FileName, r.FileType, r.MimeType, r.FileSize = ref, safe, ext, strings.TrimSpace(mimeType), int64(len(data))
 	r.Status, r.Progress, r.ErrorMessage, r.ExtractedContent = types.ContractReviewStatusUploading, 5, "", ""
+	r.AnalysisRunID, r.ConfigHash, r.SourceHash = newContractReviewAnalysisRunID(), "", ""
+	r.SourceRevision, r.SourceTextHash = "", ""
+	r.QualityStatus, r.Warnings, r.Locator = types.ContractReviewQualityPending, types.JSON(`[]`), types.JSON(`{}`)
 	r.Overview = types.JSON(`{}`)
 	if !r.TitleCustomized {
 		r.Title = strings.TrimSuffix(safe, ext)
 	}
-	if err := s.repo.ClearResults(ctx, r.ID); err != nil {
+	if err := s.clearReviewResults(ctx, r.ID, oldRunID); err != nil {
 		_ = s.files.DeleteFile(ctx, ref)
 		return nil, err
 	}
@@ -295,7 +434,9 @@ func (s *contractReviewService) Upload(ctx context.Context, tenantID uint64, use
 	}
 	if err := s.enqueue(ctx, types.TypeContractReviewDocumentProcess, r, 2, 10*time.Minute); err != nil {
 		r.Status, r.ErrorMessage = types.ContractReviewStatusFailed, "failed to schedule document parsing"
-		_ = s.repo.Update(ctx, r)
+		if updateErr := s.repo.Update(ctx, r); updateErr != nil {
+			return r, fmt.Errorf("%w (also failed to persist scheduling failure: %v)", err, updateErr)
+		}
 		return r, err
 	}
 	return r, nil
@@ -321,7 +462,20 @@ func (s *contractReviewService) Start(ctx context.Context, tenantID uint64, user
 	if r.Status != types.ContractReviewStatusReady {
 		return nil, ErrContractReviewInvalidState
 	}
+	if r.SourceTextHash == "" && r.SourceHash == "" && strings.TrimSpace(r.ExtractedContent) != "" {
+		r.SourceHash = contractReviewSourceHash(r.ExtractedContent)
+	}
+	if r.SourceTextHash == "" {
+		r.SourceTextHash = r.SourceHash
+	}
+	if r.SourceRevision == "" && r.SourceTextHash != "" {
+		r.SourceRevision = "text-v2:" + r.SourceTextHash
+	}
 	r.Status, r.Progress, r.ErrorMessage = types.ContractReviewStatusAnalyzing, 20, ""
+	r.AnalysisRunID = newContractReviewAnalysisRunID()
+	r.ConfigHash = contractReviewConfigHash(r)
+	r.QualityStatus = types.ContractReviewQualityPending
+	r.Warnings = types.JSON(`[]`)
 	now := time.Now()
 	r.StartedAt, r.CompletedAt = &now, nil
 	if err := s.repo.Update(ctx, r); err != nil {
@@ -329,7 +483,9 @@ func (s *contractReviewService) Start(ctx context.Context, tenantID uint64, user
 	}
 	if err := s.enqueue(ctx, types.TypeContractReviewAnalyze, r, 1, 30*time.Minute); err != nil {
 		r.Status, r.ErrorMessage = types.ContractReviewStatusFailed, "failed to schedule contract review"
-		_ = s.repo.Update(ctx, r)
+		if updateErr := s.repo.Update(ctx, r); updateErr != nil {
+			return r, fmt.Errorf("%w (also failed to persist scheduling failure: %v)", err, updateErr)
+		}
 		return r, err
 	}
 	return r, nil
@@ -343,12 +499,33 @@ func (s *contractReviewService) Retry(ctx context.Context, tenantID uint64, user
 	if !canRetryContractReview(r.Status) {
 		return nil, ErrContractReviewInvalidState
 	}
+	oldRunID := r.AnalysisRunID
+	if err := s.clearReviewResults(ctx, r.ID, oldRunID); err != nil {
+		return nil, err
+	}
+	r.AnalysisRunID = newContractReviewAnalysisRunID()
+	if r.SourceTextHash == "" {
+		r.SourceTextHash = r.SourceHash
+	}
+	if r.SourceRevision == "" && r.SourceTextHash != "" {
+		r.SourceRevision = "text-v2:" + r.SourceTextHash
+	}
+	r.ConfigHash = contractReviewConfigHash(r)
+	r.QualityStatus = types.ContractReviewQualityPending
+	r.Warnings = types.JSON(`[]`)
 	if r.ExtractedContent == "" {
 		r.Status, r.Progress, r.ErrorMessage = types.ContractReviewStatusUploading, 5, ""
 		if err := s.repo.Update(ctx, r); err != nil {
 			return nil, err
 		}
-		return r, s.enqueue(ctx, types.TypeContractReviewDocumentProcess, r, 2, 10*time.Minute)
+		if err := s.enqueue(ctx, types.TypeContractReviewDocumentProcess, r, 2, 10*time.Minute); err != nil {
+			r.Status, r.ErrorMessage = types.ContractReviewStatusFailed, "failed to schedule document parsing"
+			if updateErr := s.repo.Update(ctx, r); updateErr != nil {
+				return r, fmt.Errorf("%w (also failed to persist scheduling failure: %v)", err, updateErr)
+			}
+			return r, err
+		}
+		return r, nil
 	}
 	r.Status, r.Progress, r.ErrorMessage = types.ContractReviewStatusAnalyzing, 20, ""
 	r.CompletedAt = nil
@@ -357,24 +534,32 @@ func (s *contractReviewService) Retry(ctx context.Context, tenantID uint64, user
 	r.Issues = nil
 	now := time.Now()
 	r.StartedAt = &now
-	if err := s.repo.ClearResults(ctx, r.ID); err != nil {
-		return nil, err
-	}
 	if err := s.repo.Update(ctx, r); err != nil {
 		return nil, err
 	}
 	if err := s.enqueue(ctx, types.TypeContractReviewAnalyze, r, 1, 30*time.Minute); err != nil {
 		r.Status, r.ErrorMessage = types.ContractReviewStatusFailed, "failed to schedule contract review"
-		_ = s.repo.Update(ctx, r)
+		if updateErr := s.repo.Update(ctx, r); updateErr != nil {
+			return r, fmt.Errorf("%w (also failed to persist scheduling failure: %v)", err, updateErr)
+		}
 		return r, err
 	}
 	return r, nil
 }
 
 func (s *contractReviewService) enqueue(ctx context.Context, taskType string, r *types.ContractReview, retries int, timeout time.Duration) error {
-	payload, _ := json.Marshal(types.ContractReviewTaskPayload{TenantID: r.TenantID, UserID: r.UserID, ReviewID: r.ID})
-	queue, _ := types.QueueForTaskType(taskType)
-	_, err := s.tasks.Enqueue(asynq.NewTask(taskType, payload), asynq.Queue(queue), asynq.MaxRetry(retries), asynq.Timeout(timeout))
+	payload, err := json.Marshal(types.ContractReviewTaskPayload{TenantID: r.TenantID, UserID: r.UserID, ReviewID: r.ID, AnalysisRunID: r.AnalysisRunID, ConfigHash: r.ConfigHash})
+	if err != nil {
+		return fmt.Errorf("marshal contract review task payload: %w", err)
+	}
+	queue, ok := types.QueueForTaskType(taskType)
+	if !ok {
+		return fmt.Errorf("no queue configured for contract review task %q", taskType)
+	}
+	if s.tasks == nil {
+		return errors.New("contract review task queue is not configured")
+	}
+	_, err = s.tasks.Enqueue(asynq.NewTask(taskType, payload), asynq.Queue(queue), asynq.MaxRetry(retries), asynq.Timeout(timeout))
 	return err
 }
 
@@ -397,12 +582,20 @@ func (s *contractReviewService) ProcessDocument(ctx context.Context, task *asynq
 		}
 		return err
 	}
+	if !contractReviewTaskMatchesRun(p, r) {
+		return nil
+	}
 	if r.Status != types.ContractReviewStatusUploading && !(r.Status == types.ContractReviewStatusFailed && r.ExtractedContent == "") {
 		return nil
 	}
 	if r.Status == types.ContractReviewStatusFailed {
 		r.Status, r.ErrorMessage = types.ContractReviewStatusUploading, ""
-		_ = s.repo.Update(ctx, r)
+		if err := s.updateReviewForRun(ctx, r, r.AnalysisRunID); err != nil {
+			if errors.Is(err, errContractReviewStaleRun) {
+				return nil
+			}
+			return err
+		}
 	}
 	f, err := s.files.GetFile(ctx, r.ResourceRef)
 	if err != nil {
@@ -426,24 +619,72 @@ func (s *contractReviewService) ProcessDocument(ctx context.Context, task *asynq
 		}
 		return s.fail(ctx, r, errors.New(result.Error))
 	}
-	if _, err := s.Get(ctx, p.TenantID, p.UserID, p.ReviewID); err != nil {
+	latest, err := s.Get(ctx, p.TenantID, p.UserID, p.ReviewID)
+	if err != nil {
 		// A user may delete a review while parsing is in flight. Never recreate
 		// or update the soft-deleted aggregate after the parser returns.
+		if errors.Is(err, ErrContractReviewNotFound) {
+			return nil
+		}
+		return err
+	}
+	if !contractReviewTaskMatchesRun(p, latest) {
 		return nil
 	}
-	meta, _ := json.Marshal(result.Metadata)
-	r.ExtractedContent, r.Metadata = strings.TrimSpace(result.MarkdownContent), types.JSON(meta)
-	if r.ExtractedContent == "" {
+	r = latest
+	meta, err := json.Marshal(result.Metadata)
+	if err != nil {
+		return s.fail(ctx, r, fmt.Errorf("marshal document metadata: %w", err))
+	}
+	// Keep the parser's exact assembled text. Source-unit offsets and the text
+	// hash are defined over this value; trimming here would shift every locator
+	// after a leading/trailing paragraph separator.
+	r.ExtractedContent, r.Metadata = result.MarkdownContent, types.JSON(meta)
+	if strings.TrimSpace(r.ExtractedContent) == "" {
 		return s.fail(ctx, r, errors.New("the contract contains no extractable text"))
 	}
+	r.SourceHash = contractReviewSourceHash(r.ExtractedContent)
+	r.SourceTextHash = r.SourceHash
+	r.SourceRevision = firstNonEmptyReviewString(result.Metadata["source_revision"], "text-v2:"+r.SourceTextHash)
+	locator, err := buildContractReviewLocator(r.SourceTextHash, r.ExtractedContent, result.Metadata)
+	if err != nil {
+		return s.fail(ctx, r, fmt.Errorf("build contract locator: %w", err))
+	}
+	var locatorMap map[string]any
+	if err := json.Unmarshal(locator, &locatorMap); err != nil {
+		return s.fail(ctx, r, fmt.Errorf("decode contract locator: %w", err))
+	}
+	locatorMap["source_revision"] = r.SourceRevision
+	locatorMap["source_text_hash"] = r.SourceTextHash
+	locatorBytes, err := json.Marshal(locatorMap)
+	if err != nil {
+		return s.fail(ctx, r, fmt.Errorf("marshal contract locator: %w", err))
+	}
+	locator = types.JSON(locatorBytes)
+	r.Locator = locator
 	r.Status, r.Progress, r.ErrorMessage = types.ContractReviewStatusReady, 15, ""
-	return s.repo.Update(ctx, r)
+	r.QualityStatus = types.ContractReviewQualityPending
+	r.ConfigHash = contractReviewConfigHash(r)
+	return s.updateReviewForRun(ctx, r, r.AnalysisRunID)
 }
 
 func (s *contractReviewService) fail(ctx context.Context, r *types.ContractReview, cause error) error {
 	r.Status, r.ErrorMessage = types.ContractReviewStatusFailed, cause.Error()
-	_ = s.repo.Update(ctx, r)
+	r.QualityStatus = types.ContractReviewQualityInvalid
+	if err := s.updateReviewForRun(ctx, r, r.AnalysisRunID); err != nil {
+		if errors.Is(err, errContractReviewStaleRun) {
+			return nil
+		}
+		return fmt.Errorf("%w (also failed to persist failure state: %v)", cause, err)
+	}
 	return cause
+}
+
+func (s *contractReviewService) clearReviewResults(ctx context.Context, reviewID, runID string) error {
+	if strings.TrimSpace(runID) == "" {
+		return s.repo.ClearResults(ctx, reviewID)
+	}
+	return s.repo.ClearResultsForRun(ctx, reviewID, runID)
 }
 
 func contractReviewModelContext(ctx context.Context, tenantID uint64, userID string) context.Context {
@@ -466,14 +707,22 @@ func (s *contractReviewService) validateReviewModel(ctx context.Context, tenantI
 }
 
 type reviewIssueOutput struct {
-	RiskLevel     string `json:"risk_level"`
-	Title         string `json:"title"`
-	Explanation   string `json:"explanation"`
-	OriginalQuote string `json:"original_quote"`
-	Suggestion    string `json:"suggestion"`
+	Category      string   `json:"category"`
+	FindingType   string   `json:"finding_type"`
+	RiskLevel     string   `json:"risk_level"`
+	Title         string   `json:"title"`
+	Explanation   string   `json:"explanation"`
+	OriginalQuote string   `json:"original_quote"`
+	Suggestion    string   `json:"suggestion"`
+	EvidenceRefs  []string `json:"evidence_refs"`
+
+	resolvedStart  int    `json:"-"`
+	resolvedEnd    int    `json:"-"`
+	canonicalQuote string `json:"-"`
 }
 type reviewBatchOutput struct {
 	Issues []reviewIssueOutput `json:"issues"`
+	Facts  []reviewFactOutput  `json:"facts"`
 }
 type reviewOverviewOutput struct {
 	OverallRisk        string   `json:"overall_risk"`
@@ -488,21 +737,12 @@ var (
 	reviewNumberedHeading = regexp.MustCompile(`^(?:[一二三四五六七八九十百千万]+、\s*|\d+(?:\.\d+)+\s*)\S`)
 )
 
-var contractReviewContextMarkers = []string{
-	"合同价款包含范围", "价款包含范围", "价格形式", "合同价款", "合同总价款",
-	"服务范围", "服务内容", "服务标准", "付款", "支付", "结算", "验收",
-	"履约保证金", "保证金", "违约责任", "违约", "解除", "赔偿", "知识产权",
-	"保密", "不可抗力", "争议", "仲裁", "诉讼", "合同期限", "服务期限",
-	"发票", "税费", "变更", "终止", "转包", "分包", "数据", "个人信息",
-}
-
 type reviewDocumentSection struct {
 	start      int
 	end        int
 	heading    string
 	text       string
 	normalized string
-	priority   int
 }
 
 type reviewDocumentContext struct {
@@ -523,36 +763,12 @@ func reviewHeadingText(line string) string {
 	return ""
 }
 
-func reviewSectionPriority(heading string) int {
-	normalized := normalizeReviewQuoteText(heading)
-	for _, marker := range contractReviewContextMarkers {
-		marker = normalizeReviewQuoteText(marker)
-		if !strings.Contains(normalized, marker) {
-			continue
-		}
-		if marker == "合同价款包含范围" || marker == "价款包含范围" {
-			return 50
-		}
-		return 20
-	}
-	return 0
-}
-
 // reviewContextSearchTerms extracts lightweight lexical anchors without
-// relying on a language-specific tokenizer. Chinese trigrams preserve useful
-// phrases such as “视频彩铃” and “服务范围”; ASCII runs preserve terms such
-// as “5G”. The returned weight is higher for known legal cross-reference
-// markers so their sections remain visible even when the primary window uses
-// broad wording.
+// relying on a language-specific tokenizer. Chinese trigrams and ASCII runs
+// provide generic lexical overlap for locating related sections.
 func reviewContextSearchTerms(value string) map[string]int {
 	normalized := normalizeReviewQuoteText(value)
 	terms := make(map[string]int)
-	for _, marker := range contractReviewContextMarkers {
-		marker = normalizeReviewQuoteText(marker)
-		if strings.Contains(normalized, marker) {
-			terms[marker] = 4
-		}
-	}
 
 	runes := []rune(normalized)
 	for index := 0; index+2 < len(runes); index++ {
@@ -608,7 +824,6 @@ func appendReviewDocumentSection(ctx *reviewDocumentContext, start, end int, hea
 		heading:    heading,
 		text:       text,
 		normalized: normalizeReviewQuoteText(text),
-		priority:   reviewSectionPriority(heading),
 	})
 }
 
@@ -696,10 +911,11 @@ func reviewContextSectionSnippet(section reviewDocumentSection, terms map[string
 	matchStart := -1
 	matchWeight := -1
 	for term, weight := range terms {
-		start, _, found := findReviewQuoteRange(text, term)
-		if !found {
+		ranges := findReviewQuoteRanges(text, term)
+		if len(ranges) == 0 {
 			continue
 		}
+		start := ranges[0].Start
 		if weight > matchWeight || (weight == matchWeight && (matchStart < 0 || start < matchStart)) {
 			matchStart, matchWeight = start, weight
 		}
@@ -771,12 +987,6 @@ func (ctx *reviewDocumentContext) CrossWindowContext(clause *types.ContractRevie
 	body := string(ctx.runes[start:end])
 	terms := reviewContextSearchTerms(body)
 	scores := make([]int, len(ctx.sections))
-	for index, section := range ctx.sections {
-		if section.start >= start && section.end <= end {
-			continue
-		}
-		scores[index] = section.priority
-	}
 	for term, weight := range terms {
 		for _, sectionIndex := range ctx.termSections[term] {
 			section := ctx.sections[sectionIndex]
@@ -836,6 +1046,7 @@ func buildReviewClauses(reviewID, content string) []*types.ContractReviewClause 
 	cfg.ChunkSize = contractReviewClauseChunkSize
 	cfg.ChunkOverlap = contractReviewClauseChunkOverlap
 	parts := chunker.Split(content, cfg)
+	sourceHash := contractReviewSourceHash(content)
 	rows := make([]*types.ContractReviewClause, 0, len(parts))
 	for idx, part := range parts {
 		title := fmt.Sprintf("Analysis segment %d", idx+1)
@@ -846,17 +1057,13 @@ func buildReviewClauses(reviewID, content string) []*types.ContractReviewClause 
 		if len([]rune(excerpt)) > 360 {
 			excerpt = string([]rune(excerpt)[:360]) + "…"
 		}
-		rows = append(rows, &types.ContractReviewClause{ReviewID: reviewID, Sequence: idx, Title: title, Excerpt: excerpt, SourceStart: part.Start, SourceEnd: part.End})
+		rows = append(rows, &types.ContractReviewClause{ReviewID: reviewID, Sequence: idx, Title: title, Excerpt: excerpt, SourceStart: part.Start, SourceEnd: part.End, EvidenceID: contractReviewEvidenceID(sourceHash, part.Start, part.End)})
 	}
 	return rows
 }
 
 func parseModelJSON(content string, target any) error {
-	content = strings.TrimSpace(content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	return json.Unmarshal([]byte(strings.TrimSpace(content)), target)
+	return decodeContractReviewJSON(content, target)
 }
 
 func (s *contractReviewService) resolveReviewModel(ctx context.Context, review *types.ContractReview) (chat.Chat, *types.CustomAgent, error) {
@@ -916,14 +1123,13 @@ func (s *contractReviewService) resolveReviewModel(ctx context.Context, review *
 }
 
 func validRisk(value string) types.ContractReviewRiskLevel {
-	switch strings.ToLower(value) {
-	case "high":
-		return types.ContractReviewRiskHigh
-	case "low":
-		return types.ContractReviewRiskLow
-	default:
-		return types.ContractReviewRiskMedium
+	risk, err := normalizeContractReviewRisk(value)
+	if err != nil {
+		// Do not turn an invalid model value into a valid-looking risk level.
+		// Strict batch validation rejects this before an issue is persisted.
+		return ""
 	}
+	return risk
 }
 
 func contractReviewClauseMaxCompletionTokens(agent *types.CustomAgent) int {
@@ -964,111 +1170,13 @@ func issueFingerprint(reviewID, clauseID, title, quote string) string {
 func normalizeReviewQuoteText(value string) string {
 	var normalized strings.Builder
 	normalized.Grow(len(value))
-	for _, r := range strings.ToLower(value) {
+	for _, r := range value {
 		if unicode.IsSpace(r) || r == '\u200b' || r == '\u200c' || r == '\u200d' || r == '\ufeff' {
 			continue
 		}
 		normalized.WriteRune(r)
 	}
 	return normalized.String()
-}
-
-// findReviewQuoteRange returns rune offsets in haystack. The offsets point to
-// the original text, so whitespace ignored during matching is still included
-// in the stored source range.
-func findReviewQuoteRange(haystack, needle string) (int, int, bool) {
-	target := []rune(normalizeReviewQuoteText(needle))
-	if len(target) == 0 {
-		return 0, 0, false
-	}
-
-	source := []rune(haystack)
-	normalized := make([]rune, 0, len(source))
-	offsets := make([][2]int, 0, len(source))
-	for index, r := range source {
-		if unicode.IsSpace(r) || r == '\u200b' || r == '\u200c' || r == '\u200d' || r == '\ufeff' {
-			continue
-		}
-		normalized = append(normalized, unicode.ToLower(r))
-		offsets = append(offsets, [2]int{index, index + 1})
-	}
-	if len(target) > len(normalized) {
-		return 0, 0, false
-	}
-
-	for start := 0; start+len(target) <= len(normalized); start++ {
-		matched := true
-		for offset, r := range target {
-			if normalized[start+offset] != r {
-				matched = false
-				break
-			}
-		}
-		if matched {
-			return offsets[start][0], offsets[start+len(target)-1][1], true
-		}
-	}
-	return 0, 0, false
-}
-
-func reviewIssueText(result reviewIssueOutput) string {
-	return normalizeReviewQuoteText(result.Title + result.Explanation + result.OriginalQuote)
-}
-
-func reviewIssueMentionsCoveredService(result reviewIssueOutput) (bool, bool) {
-	text := reviewIssueText(result)
-	return strings.Contains(text, "视频彩铃"), strings.Contains(text, "5g") || strings.Contains(text, "多媒体消息")
-}
-
-func looksLikeMissingPriceInclusionIssue(result reviewIssueOutput) bool {
-	text := reviewIssueText(result)
-	if !strings.Contains(text, "包含") && !strings.Contains(text, "计入") {
-		return false
-	}
-	for _, marker := range []string{"未明确包含", "未说明包含", "未约定包含", "未明确是否包含", "未说明是否包含", "未约定是否包含", "是否包含", "未明确计入", "未说明计入", "未约定计入", "是否计入"} {
-		if strings.Contains(text, marker) {
-			return true
-		}
-	}
-	return false
-}
-
-// contractPriceScopeCoversIssue is a narrow, conservative guard for the most
-// common false positive: a model reports that a service is not included in
-// the contract price even though the contract has an explicit price-scope
-// section listing that service. A settlement ambiguity is intentionally not
-// suppressed because it is a different, valid risk.
-func contractPriceScopeCoversIssue(document string, result reviewIssueOutput) bool {
-	if !looksLikeMissingPriceInclusionIssue(result) {
-		return false
-	}
-	videoMentioned, fiveGMentioned := reviewIssueMentionsCoveredService(result)
-	if !videoMentioned && !fiveGMentioned {
-		return false
-	}
-
-	normalizedDocument := normalizeReviewQuoteText(document)
-	start := strings.Index(normalizedDocument, "合同价款包含范围")
-	if start < 0 {
-		start = strings.Index(normalizedDocument, "价款包含范围")
-	}
-	if start < 0 {
-		return false
-	}
-	scope := normalizedDocument[start:]
-	for _, marker := range []string{"3.3", "四、合同标的", "4.1合同标的"} {
-		if end := strings.Index(scope, marker); end > 0 {
-			scope = scope[:end]
-			break
-		}
-	}
-	if videoMentioned && !strings.Contains(scope, "视频彩铃") {
-		return false
-	}
-	if fiveGMentioned && (!strings.Contains(scope, "5g") || !strings.Contains(scope, "多媒体消息")) {
-		return false
-	}
-	return true
 }
 
 func reviewTitleBigrams(value string) map[string]struct{} {
@@ -1128,17 +1236,39 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 		}
 		return err
 	}
-	if r.Status != types.ContractReviewStatusAnalyzing && r.Status != types.ContractReviewStatusReviewingClauses && r.Status != types.ContractReviewStatusFailed {
+	// Analysis tasks must carry both the run id and the configuration snapshot.
+	// Older queued tasks are intentionally ignored instead of being allowed to
+	// write results into a newer run.
+	if strings.TrimSpace(p.AnalysisRunID) == "" || strings.TrimSpace(p.ConfigHash) == "" ||
+		!contractReviewTaskMatchesRun(p, r) || p.ConfigHash != r.ConfigHash {
 		return nil
 	}
-	if r.Status == types.ContractReviewStatusFailed {
-		if err := s.repo.ClearResults(ctx, r.ID); err != nil {
+	if r.Status != types.ContractReviewStatusAnalyzing && r.Status != types.ContractReviewStatusReviewingClauses {
+		return nil
+	}
+	runID := r.AnalysisRunID
+	if r.SourceTextHash == "" && r.SourceHash == "" {
+		r.SourceHash = contractReviewSourceHash(r.ExtractedContent)
+		r.SourceTextHash = r.SourceHash
+		r.SourceRevision = "text-v2:" + r.SourceTextHash
+		locator, locatorErr := buildContractReviewLocator(r.SourceTextHash, r.ExtractedContent, nil)
+		if locatorErr != nil {
+			return s.fail(ctx, r, locatorErr)
+		}
+		r.Locator = locator
+		r.ConfigHash = contractReviewConfigHash(r)
+		if err := s.updateReviewForRun(ctx, r, runID); err != nil {
+			if errors.Is(err, errContractReviewStaleRun) {
+				return nil
+			}
 			return err
 		}
-		r.Status, r.Progress, r.ErrorMessage = types.ContractReviewStatusAnalyzing, 20, ""
-		if err := s.repo.Update(ctx, r); err != nil {
-			return err
-		}
+	}
+	if r.SourceTextHash == "" {
+		r.SourceTextHash = r.SourceHash
+	}
+	if r.SourceRevision == "" && r.SourceTextHash != "" {
+		r.SourceRevision = "text-v2:" + r.SourceTextHash
 	}
 	model, agent, err := s.resolveReviewModel(ctx, r)
 	if err != nil {
@@ -1148,11 +1278,17 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 	if len(clauses) == 0 {
 		return s.fail(ctx, r, errors.New("no reviewable clauses found"))
 	}
-	if err := s.repo.ReplaceClauses(ctx, r.ID, clauses); err != nil {
+	if err := s.repo.ReplaceClausesForRun(ctx, r.ID, runID, clauses); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
 		return s.fail(ctx, r, err)
 	}
 	r.Status, r.Progress = types.ContractReviewStatusReviewingClauses, 25
-	if err := s.repo.Update(ctx, r); err != nil {
+	if err := s.updateReviewForRun(ctx, r, runID); err != nil {
+		if errors.Is(err, errContractReviewStaleRun) {
+			return nil
+		}
 		return err
 	}
 	// The built-in contract-review agent has a user-facing full-report prompt
@@ -1165,14 +1301,26 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 		temperature = agent.Config.Temperature
 	}
 	thinking := false
-	format := json.RawMessage(`{"type":"object","properties":{"issues":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"risk_level":{"type":"string","enum":["high","medium","low"]},"title":{"type":"string","maxLength":80},"explanation":{"type":"string","maxLength":540},"original_quote":{"type":"string","maxLength":360},"suggestion":{"type":"string","maxLength":540}},"required":["risk_level","title","explanation","original_quote","suggestion"],"additionalProperties":false}}},"required":["issues"],"additionalProperties":false}`)
+	format := json.RawMessage(`{"type":"object","properties":{"issues":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"category":{"type":"string","enum":["scope","parties","payment","term","acceptance","liability","dispute_resolution","guarantee","confidentiality","intellectual_property","data_security","compliance","other"]},"finding_type":{"type":"string","enum":["missing","contradiction","ambiguity","placeholder","external_reference","inconsistency"]},"risk_level":{"type":"string","enum":["high","medium","low"]},"title":{"type":"string","maxLength":80},"explanation":{"type":"string","maxLength":540},"original_quote":{"type":"string","maxLength":360},"suggestion":{"type":"string","maxLength":540},"evidence_refs":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"string"}}},"required":["category","finding_type","risk_level","title","explanation","original_quote","suggestion","evidence_refs"],"additionalProperties":false}},"facts":{"type":"array","maxItems":12,"items":{"type":"object","properties":{"type":{"type":"string","enum":["party","date","term","amount","payment","deposit","acceptance","dispute","placeholder","reference"]},"key":{"type":"string","maxLength":80},"value":{"type":"string","maxLength":540},"normalized_value":{"type":"string","maxLength":160},"unit":{"type":"string","maxLength":40},"currency":{"type":"string","maxLength":16},"condition":{"type":"string","maxLength":180},"evidence_quote":{"type":"string","maxLength":360},"evidence_refs":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"string"}}},"required":["type","key","value","evidence_quote","evidence_refs"],"additionalProperties":false}}},"required":["issues","facts"],"additionalProperties":false}`)
 	issueSeq := 0
+	// Facts are extracted once from the complete source after all clause
+	// windows finish. Keep the response schema explicit so a clause model
+	// cannot emit partial, independently located fact candidates.
+	format = json.RawMessage(strings.Replace(string(format), `"maxItems":12`, `"maxItems":0`, 1))
 	acceptedReviewIssues := make([]reviewIssueOutput, 0)
+	modelIssueWarnings := make([]types.ContractReviewWarning, 0)
+	allFacts := make([]types.ContractReviewFact, 0)
 	contentRunes := []rune(r.ExtractedContent)
 	documentContext := newReviewDocumentContext(r.ExtractedContent)
 	for idx, clause := range clauses {
 		latest, getErr := s.Get(ctx, p.TenantID, p.UserID, p.ReviewID)
 		if getErr != nil {
+			if errors.Is(getErr, ErrContractReviewNotFound) {
+				return nil
+			}
+			return getErr
+		}
+		if !contractReviewTaskMatchesRun(p, latest) {
 			return nil
 		}
 		if latest.DeletedAt.Valid {
@@ -1181,23 +1329,28 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 		if clause.SourceStart < 0 || clause.SourceEnd > len(contentRunes) || clause.SourceStart >= clause.SourceEnd {
 			return s.fail(ctx, r, fmt.Errorf("invalid source range for clause %d", idx+1))
 		}
-		body := string(contentRunes[clause.SourceStart:clause.SourceEnd])
-		playbook, _ := contractReviewPlaybook(r.PlaybookID)
-		crossWindowContext := documentContext.CrossWindowContext(clause)
-		prompt := fmt.Sprintf("Playbook: %s v%s\nRepresented party: %s\nAnalysis-window title: %s\nThe primary text below may contain multiple numbered sections or repeated descriptions. Treat every heading and the complete window as context; do not infer that a requirement is missing merely because it appears under a different heading. Issues must quote the primary text.\nPrimary contract text:\n%s", playbook.Name, r.PlaybookVersion, r.RepresentedParty, clause.Title, body)
-		if crossWindowContext != "" {
-			prompt += "\n\nCross-window context from the same contract (use this to verify coverage, limits, or contradictions; do not create an issue solely from this context, and do not quote it unless the same text also appears in the primary contract text):\n" + crossWindowContext
+		units := reviewPromptEvidenceUnits(firstNonEmptyReviewString(r.SourceTextHash, r.SourceHash), clause, r.ExtractedContent, documentContext)
+		if len(units) == 0 {
+			return s.fail(ctx, r, fmt.Errorf("no evidence units found for clause %d", idx+1))
 		}
-		var out reviewBatchOutput
+		playbook, _ := contractReviewPlaybook(r.PlaybookID)
+		prompt := fmt.Sprintf("Playbook: %s v%s\nRepresented party: %s\nAnalysis-window title: %s\nPrimary evidence window_id=%s. Prefer this ID for issues about the current window. A supporting evidence ID may be used only when the exact quoted passage is in that supporting unit and it establishes coverage, contradiction, or a related requirement. Every issue must cite one or more exact evidence units. The service extracts facts from the full source after all clause windows finish; return facts as []. Copy original_quote as a contiguous exact passage from the cited unit; do not paraphrase, combine unrelated passages, or invent values. Include a nearby heading, clause number, or other distinctive context so each passage identifies one location when a short phrase is repeated. If an exact unique passage is not available, omit that issue.\nEvidence units:\n%s", playbook.Name, r.PlaybookVersion, r.RepresentedParty, clause.Title, clause.EvidenceID, renderReviewEvidencePrompt(units))
+		var validated reviewValidatedBatch
 		var callErr error
+		lastBatchResponse := ""
 		for attempt := 0; attempt < 2; attempt++ {
 			attemptPrompt := prompt
 			attemptMaxTokens := maxTokens
 			if attempt > 0 {
 				attemptMaxTokens = contractReviewClauseRetryTokens(maxTokens)
-				attemptPrompt += "\nRecovery instruction: the previous response was not a complete valid JSON object. Output only the compact {\"issues\": [...]} object now; do not add any explanation, report headings, citations, or markdown."
+				recoveryHint := "Use a contiguous exact passage that is unique in the cited source units; if that cannot be done, omit the item."
+				if strings.Contains(callErr.Error(), "ambiguous") {
+					recoveryHint = "The previous quotation was ambiguous. Replace it with a longer, distinctive contiguous exact passage containing a nearby heading or clause number; if no unique passage is available, omit the item."
+				} else if strings.Contains(callErr.Error(), "cannot be located") {
+					recoveryHint = "The previous quotation could not be located. Copy the passage character-for-character from one cited evidence unit, or omit the item."
+				}
+				attemptPrompt += fmt.Sprintf("\nRecovery instruction: the previous response failed validation (%s). Prioritize a valid compact response over completeness: return no more than three issues and facts: [] for this window, and omit any issue whose exact quote is uncertain. %s Output only the compact {\"issues\": [...],\"facts\": []} object now; do not add any explanation, report headings, citations, or markdown.", callErr, recoveryHint)
 			}
-			out = reviewBatchOutput{}
 			resp, e := model.Chat(ctx, []chat.Message{{Role: "system", Content: systemPrompt}, {Role: "user", Content: attemptPrompt}}, &chat.ChatOptions{Temperature: temperature, MaxCompletionTokens: attemptMaxTokens, Thinking: &thinking, Format: format})
 			if e != nil {
 				callErr = e
@@ -1207,89 +1360,236 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 				callErr = errors.New("model returned no response")
 				continue
 			}
+			lastBatchResponse = resp.Content
 			if contractReviewOutputReachedLimit(resp) {
 				callErr = fmt.Errorf("model output reached the %d-token completion limit", attemptMaxTokens)
 				continue
 			}
-			callErr = parseModelJSON(resp.Content, &out)
+			validated, callErr = validateReviewBatchJSON(resp.Content, r.ExtractedContent, units)
 			if callErr == nil {
 				break
 			}
 		}
 		if callErr != nil {
-			return s.fail(ctx, r, fmt.Errorf("review clause %d: %w", idx+1, callErr))
+			// A malformed model quote is isolated only after both normal attempts
+			// fail. The quote remains unusable and is never persisted as evidence;
+			// unrelated validated issues can still produce a useful, explicitly
+			// degraded review result.
+			if strings.TrimSpace(lastBatchResponse) != "" {
+				partial, failures, partialErr := validateReviewBatchWithEvidenceIsolation(lastBatchResponse, r.ExtractedContent, units)
+				if partialErr == nil && len(failures) > 0 {
+					validated = partial
+					callErr = nil
+					for _, failure := range failures {
+						modelIssueWarnings = append(modelIssueWarnings, types.ContractReviewWarning{
+							Code:       "MODEL_ISSUE_EVIDENCE_UNLOCATED",
+							Message:    fmt.Sprintf("第 %d 条模型审查问题的原文证据无法可靠定位，已忽略该条；请以已定位的问题为准", failure.Index),
+							ClauseID:   clause.ID,
+							EvidenceID: clause.EvidenceID,
+						})
+					}
+				}
+			}
+			if callErr != nil {
+				return s.fail(ctx, r, fmt.Errorf("review clause %d: %w", idx+1, callErr))
+			}
 		}
-		if _, getErr := s.Get(ctx, p.TenantID, p.UserID, p.ReviewID); getErr != nil {
+		latest, getErr = s.Get(ctx, p.TenantID, p.UserID, p.ReviewID)
+		if getErr != nil {
+			if errors.Is(getErr, ErrContractReviewNotFound) {
+				return nil
+			}
+			return getErr
+		}
+		if !contractReviewTaskMatchesRun(p, latest) {
 			return nil
 		}
-		for _, result := range out.Issues {
-			result.Title = strings.TrimSpace(result.Title)
-			result.Explanation = strings.TrimSpace(result.Explanation)
-			result.OriginalQuote = strings.TrimSpace(result.OriginalQuote)
-			result.Suggestion = strings.TrimSpace(result.Suggestion)
-			if result.Title == "" || result.OriginalQuote == "" {
+		for _, result := range validated.Issues {
+			if reviewIssueAlreadyAcceptedAtEvidence(result, acceptedReviewIssues) {
 				continue
 			}
-			if contractPriceScopeCoversIssue(r.ExtractedContent, result) {
-				// The document explicitly lists this service under the price
-				// inclusion section. Keep a possible settlement issue, but do
-				// not persist the unsupported "not included" finding.
-				continue
+			evidenceRefs, marshalErr := json.Marshal(result.EvidenceRefs)
+			if marshalErr != nil {
+				return s.fail(ctx, r, fmt.Errorf("marshal issue evidence refs: %w", marshalErr))
 			}
-			if reviewIssueAlreadyAccepted(result, acceptedReviewIssues) {
-				continue
-			}
-			relativeStart, relativeEnd, found := findReviewQuoteRange(body, result.OriginalQuote)
-			if !found {
-				// An unlocatable quote is not reliable evidence and would
-				// otherwise be shown at the beginning of the analysis window.
-				continue
-			}
-			start := clause.SourceStart + relativeStart
-			end := clause.SourceStart + relativeEnd
 			issue := &types.ContractReviewIssue{ID: uuid.NewSHA1(uuid.NameSpaceOID, []byte(issueFingerprint(r.ID, clause.ID, result.Title, result.OriginalQuote))).String(), ReviewID: r.ID, ClauseID: clause.ID,
-				Fingerprint: issueFingerprint(r.ID, clause.ID, result.Title, result.OriginalQuote), Sequence: issueSeq, RiskLevel: validRisk(result.RiskLevel), Title: strings.TrimSpace(result.Title),
-				Explanation: result.Explanation, OriginalQuote: result.OriginalQuote, Suggestion: result.Suggestion, SourceStart: start, SourceEnd: end}
-			if err := s.repo.UpsertIssue(ctx, issue); err != nil {
+				Fingerprint: issueFingerprint(r.ID, clause.ID, result.Title, result.OriginalQuote), Sequence: issueSeq, RiskLevel: validRisk(result.RiskLevel), Category: result.Category, FindingType: result.FindingType, Title: result.Title,
+				Explanation: result.Explanation, OriginalQuote: result.canonicalQuote, Suggestion: result.Suggestion, EvidenceRefs: types.JSON(evidenceRefs), SourceStart: result.resolvedStart, SourceEnd: result.resolvedEnd}
+			if err := s.repo.UpsertIssueForRun(ctx, issue, runID); err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil
+				}
 				return s.fail(ctx, r, err)
 			}
 			acceptedReviewIssues = append(acceptedReviewIssues, result)
 			issueSeq++
 			clause.IssueCount++
 		}
+		if len(validated.Facts) > 0 {
+			return s.fail(ctx, r, fmt.Errorf("review clause %d: model returned facts although fact extraction is service-owned", idx+1))
+		}
 		clause.ReviewStatus = "completed"
-		_ = s.repo.UpdateClause(ctx, clause)
+		if err := s.repo.UpdateClauseForRun(ctx, clause, runID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return s.fail(ctx, r, fmt.Errorf("persist clause %d result: %w", idx+1, err))
+		}
 		r.Progress = 25 + int(float64(idx+1)/float64(len(clauses))*60)
-		_ = s.repo.Update(ctx, r)
+		if err := s.updateReviewForRun(ctx, r, runID); err != nil {
+			if errors.Is(err, errContractReviewStaleRun) {
+				return nil
+			}
+			return err
+		}
 	}
+	allFacts = extractContractReviewFacts(r.ExtractedContent, firstNonEmptyReviewString(r.SourceTextHash, r.SourceHash))
+	warnings := append([]types.ContractReviewWarning{}, modelIssueWarnings...)
+	warnings = append(warnings, reviewFactConsistencyWarnings(allFacts)...)
+	structuralWarnings := reviewDocumentStructureWarnings(r.ExtractedContent, firstNonEmptyReviewString(r.SourceTextHash, r.SourceHash))
+	warnings = append(warnings, structuralWarnings...)
+	if len(contractReviewLocatorUnits(r.Locator)) == 0 {
+		warnings = append(warnings, types.ContractReviewWarning{Code: "LOCATOR_UNSUPPORTED", Message: "解析器未提供可验证的文档定位单元，当前结果暂不支持精确定位"})
+	}
+	if len(partiesFromReviewFacts(allFacts)) == 0 {
+		warnings = append(warnings, types.ContractReviewWarning{Code: "PARTIES_NOT_IDENTIFIED", Message: "未能从合同原文中识别到有证据支持的当事方"})
+	}
+	warnings = dedupeContractReviewWarnings(warnings)
 	detail, err := s.Get(ctx, p.TenantID, p.UserID, p.ReviewID)
 	if err != nil {
 		return err
 	}
-	counts := map[string]int{"high": 0, "medium": 0, "low": 0}
-	for _, issue := range detail.Issues {
-		counts[string(issue.RiskLevel)]++
+	// Deterministic source-structure findings (blank/placeholder fields,
+	// unchecked dispute options, and external references) are materialized as
+	// ordinary issues. This keeps them visible in the same evidence workflow as
+	// model findings while their risk level remains owned by this rule set.
+	derivedSequence := len(detail.Issues)
+	for _, warning := range structuralWarnings {
+		category := contractReviewWarningCategory(r.ExtractedContent, warning)
+		findingType := contractReviewWarningFindingType(warning.Code)
+		duplicate := false
+		for _, existing := range detail.Issues {
+			if contractReviewIssueCoversWarning(existing, warning, category, findingType) {
+				duplicate = true
+				break
+			}
+		}
+		if duplicate {
+			continue
+		}
+		issue, clause, buildErr := buildContractReviewStructureIssue(r.ID, firstNonEmptyReviewString(r.SourceTextHash, r.SourceHash), r.ExtractedContent, warning, clauses, derivedSequence)
+		if buildErr != nil {
+			return s.fail(ctx, r, fmt.Errorf("build structural contract issue: %w", buildErr))
+		}
+		if err := s.repo.UpsertIssueForRun(ctx, issue, runID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return s.fail(ctx, r, fmt.Errorf("persist structural contract issue: %w", err))
+		}
+		for warningIndex := range warnings {
+			if warnings[warningIndex].EvidenceID == warning.EvidenceID {
+				warnings[warningIndex].ClauseID = clause.ID
+			}
+		}
+		derivedSequence++
 	}
-	overviewPrompt := fmt.Sprintf("请用简体中文总结本次合同审查并返回 JSON。合同文件名：%s。当前代表方：%s。风险数量：高风险=%d，中风险=%d，低风险=%d。问题标题：", r.FileName, r.RepresentedParty, counts["high"], counts["medium"], counts["low"])
-	for _, issue := range detail.Issues {
-		overviewPrompt += issue.Title + "; "
+	if len(structuralWarnings) > 0 {
+		// Re-read after deterministic issue insertion so the derived counts and
+		// recommendation list include both model and rule-based findings.
+		detail, err = s.Get(ctx, p.TenantID, p.UserID, p.ReviewID)
+		if err != nil {
+			return err
+		}
 	}
-	overviewFormat := json.RawMessage(`{"type":"object","properties":{"overall_risk":{"enum":["high","medium","low"]},"executive_summary":{"type":"string"},"contract_type":{"type":"string"},"parties":{"type":"array","items":{"type":"string"}},"key_recommendations":{"type":"array","items":{"type":"string"}}},"required":["overall_risk","executive_summary","contract_type","parties","key_recommendations"]}`)
+	aggregate := aggregateContractReviewRisks(detail.Issues)
+	issueSummaries := make([]map[string]any, 0, len(detail.Issues))
+	for _, issue := range detail.Issues {
+		if issue == nil {
+			continue
+		}
+		issueSummaries = append(issueSummaries, map[string]any{"id": issue.ID, "risk_level": issue.RiskLevel, "category": issue.Category, "finding_type": issue.FindingType, "title": issue.Title, "explanation": issue.Explanation, "suggestion": issue.Suggestion, "evidence_refs": issue.EvidenceRefs})
+	}
+	factJSON, marshalErr := json.Marshal(allFacts)
+	if marshalErr != nil {
+		return s.fail(ctx, r, fmt.Errorf("marshal contract review facts: %w", marshalErr))
+	}
+	issueJSON, marshalErr := json.Marshal(issueSummaries)
+	if marshalErr != nil {
+		return s.fail(ctx, r, fmt.Errorf("marshal contract review issue summaries: %w", marshalErr))
+	}
+	overviewPrompt := fmt.Sprintf("请用简体中文总结本次合同审查并返回 JSON。合同文件名：%s。当前代表方：%s。以下是服务端已验证的问题和事实，只能依据这些内容总结。问题 JSON：%s\n事实 JSON：%s\n最终风险数量由服务端计算为：高=%d，中=%d，低=%d。", r.FileName, r.RepresentedParty, issueJSON, factJSON, aggregate.Counts["high"], aggregate.Counts["medium"], aggregate.Counts["low"])
+	overviewFormat := json.RawMessage(`{"type":"object","properties":{"executive_summary":{"type":"string","maxLength":540},"contract_type":{"type":"string","maxLength":80},"parties":{"type":"array","items":{"type":"string","maxLength":80}},"key_recommendations":{"type":"array","items":{"type":"string","maxLength":540}}},"required":["executive_summary","contract_type","parties","key_recommendations"],"additionalProperties":false}`)
 	var overview reviewOverviewOutput
-	resp, err := model.Chat(ctx, []chat.Message{{Role: "system", Content: contractReviewOverviewSystemPrompt}, {Role: "user", Content: overviewPrompt}}, &chat.ChatOptions{Temperature: 0.1, MaxCompletionTokens: 1200, Thinking: &thinking, Format: overviewFormat})
-	if err == nil {
-		err = parseModelJSON(resp.Content, &overview)
+	var overviewErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		resp, callErr := model.Chat(ctx, []chat.Message{{Role: "system", Content: contractReviewOverviewSystemPrompt}, {Role: "user", Content: overviewPrompt}}, &chat.ChatOptions{Temperature: 0.1, MaxCompletionTokens: 1200, Thinking: &thinking, Format: overviewFormat})
+		if callErr != nil {
+			overviewErr = callErr
+			continue
+		}
+		if resp == nil {
+			overviewErr = errors.New("overview model returned no response")
+			continue
+		}
+		if contractReviewOutputReachedLimit(resp) {
+			overviewErr = errors.New("overview model output reached the completion limit")
+			continue
+		}
+		overview, overviewErr = validateReviewOverviewJSON(resp.Content)
+		if overviewErr == nil {
+			break
+		}
 	}
+	if overviewErr != nil {
+		warnings = append(warnings, types.ContractReviewWarning{Code: "OVERVIEW_VALIDATION_FAILED", Message: overviewErr.Error()})
+		fallback := reviewOverviewOutput{ExecutiveSummary: "条款审查已完成，但概览生成失败，请查看问题明细。", ContractType: "unknown", Parties: partiesFromReviewFacts(allFacts), KeyRecommendations: []string{}}
+		fallbackJSON, fallbackErr := buildContractReviewOverviewJSON(fallback, detail.Issues, allFacts, types.ContractReviewQualityInvalid, warnings)
+		if fallbackErr != nil {
+			return s.fail(ctx, r, fmt.Errorf("overview validation failed: %w; build fallback failed: %v", overviewErr, fallbackErr))
+		}
+		r.Overview, r.Warnings = fallbackJSON, mustContractReviewWarningsJSON(warnings)
+		r.Status, r.Progress, r.ErrorMessage = types.ContractReviewStatusFailed, 100, fmt.Sprintf("overview validation failed: %v", overviewErr)
+		r.QualityStatus = types.ContractReviewQualityInvalid
+		if persistErr := s.updateReviewForRun(ctx, r, runID); persistErr != nil {
+			if errors.Is(persistErr, errContractReviewStaleRun) {
+				return nil
+			}
+			return fmt.Errorf("%w (also failed to persist overview failure: %v)", overviewErr, persistErr)
+		}
+		return overviewErr
+	}
+	quality := types.ContractReviewQualityValid
+	if len(warnings) > 0 {
+		quality = types.ContractReviewQualityDegraded
+	}
+	overviewJSON, err := buildContractReviewOverviewJSON(overview, detail.Issues, allFacts, quality, warnings)
 	if err != nil {
-		overview = reviewOverviewOutput{OverallRisk: "medium", ExecutiveSummary: "合同审查已完成，请在“问题”中查看详细风险与修改建议。"}
+		return s.fail(ctx, r, fmt.Errorf("build contract review overview: %w", err))
 	}
-	overviewJSON, _ := json.Marshal(map[string]any{"overall_risk": validRisk(overview.OverallRisk), "executive_summary": overview.ExecutiveSummary, "contract_type": overview.ContractType, "parties": overview.Parties, "key_recommendations": overview.KeyRecommendations, "risk_counts": counts})
-	r.Overview, r.Status, r.Progress, r.ErrorMessage = types.JSON(overviewJSON), types.ContractReviewStatusCompleted, 100, ""
+	warningsJSON, err := contractReviewWarningJSON(warnings)
+	if err != nil {
+		return s.fail(ctx, r, fmt.Errorf("marshal contract review warnings: %w", err))
+	}
+	r.Overview, r.Warnings = overviewJSON, warningsJSON
+	r.Status, r.Progress, r.ErrorMessage = types.ContractReviewStatusCompleted, 100, ""
+	r.QualityStatus = quality
 	now := time.Now()
 	r.CompletedAt = &now
-	if err := s.repo.Update(ctx, r); err != nil {
+	if err := s.updateReviewForRun(ctx, r, runID); err != nil {
+		if errors.Is(err, errContractReviewStaleRun) {
+			return nil
+		}
 		logger.ErrorWithFields(ctx, err, nil)
 		return err
 	}
 	return nil
+}
+
+func mustContractReviewWarningsJSON(warnings []types.ContractReviewWarning) types.JSON {
+	encoded, err := contractReviewWarningJSON(warnings)
+	if err != nil {
+		return types.JSON(`[]`)
+	}
+	return encoded
 }

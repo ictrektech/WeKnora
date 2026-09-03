@@ -202,6 +202,70 @@ func (h *ContractReviewHandler) Preview(c *gin.Context) {
 	http.ServeContent(c.Writer, c.Request, r.FileName, r.UpdatedAt, bytes.NewReader(data))
 }
 
+// Locator returns the parser-produced source units used as the stable
+// identity for evidence. It intentionally does not attempt to reconstruct
+// locations from the rendered PDF/DOCX when a legacy review has no locator.
+func (h *ContractReviewHandler) Locator(c *gin.Context) {
+	userID, tenantID, ok := contractReviewContext(c)
+	if !ok {
+		return
+	}
+	r, err := h.service.Get(c.Request.Context(), tenantID, userID, c.Param("id"))
+	if err != nil {
+		contractReviewError(c, err)
+		return
+	}
+	var locator map[string]any
+	if len(r.Locator) > 0 {
+		if err := json.Unmarshal(r.Locator, &locator); err != nil {
+			locator = nil
+		}
+	}
+	if locator == nil {
+		locator = map[string]any{}
+	}
+	if !locatorHasUnits(locator) {
+		if raw, exists := locator["source_units_json"]; exists {
+			locator["units"] = raw
+		} else {
+			var metadata map[string]any
+			if json.Unmarshal(r.Metadata, &metadata) == nil {
+				if raw, exists := metadata["source_units_json"]; exists {
+					locator["units"] = raw
+				}
+			}
+		}
+	}
+	if !locatorHasUnits(locator) {
+		locator["units"] = []any{}
+	}
+	locator["review_id"] = r.ID
+	if r.SourceRevision != "" {
+		locator["source_revision"] = r.SourceRevision
+	}
+	if r.SourceTextHash != "" {
+		locator["source_text_hash"] = r.SourceTextHash
+	} else if r.SourceHash != "" {
+		locator["source_text_hash"] = r.SourceHash
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": locator})
+}
+
+func locatorHasUnits(locator map[string]any) bool {
+	raw, ok := locator["units"]
+	if !ok {
+		return false
+	}
+	if units, ok := raw.([]any); ok {
+		return len(units) > 0
+	}
+	if encoded, ok := raw.(string); ok {
+		var units []any
+		return json.Unmarshal([]byte(encoded), &units) == nil && len(units) > 0
+	}
+	return false
+}
+
 func (h *ContractReviewHandler) Start(c *gin.Context) { h.run(c, false) }
 func (h *ContractReviewHandler) Retry(c *gin.Context) { h.run(c, true) }
 func (h *ContractReviewHandler) run(c *gin.Context, retry bool) {

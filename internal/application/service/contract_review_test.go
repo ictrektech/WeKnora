@@ -117,11 +117,11 @@ func TestReviewDocumentContextRetrievesRelatedProvisionFromLongDocument(t *testi
 	}
 }
 
-func TestParseReviewModelJSONAcceptsFencedJSONObject(t *testing.T) {
+func TestParseReviewModelJSONRejectsFencedJSONObject(t *testing.T) {
 	var output reviewBatchOutput
 	err := parseModelJSON("```json\n{\"issues\":[{\"risk_level\":\"high\",\"title\":\"Payment\",\"explanation\":\"Early payment\",\"original_quote\":\"pay now\",\"suggestion\":\"pay after delivery\"}]}\n```", &output)
-	if err != nil || len(output.Issues) != 1 {
-		t.Fatalf("parse output: %v %#v", err, output)
+	if err == nil {
+		t.Fatalf("markdown-fenced output must be rejected: %#v", output)
 	}
 }
 
@@ -129,8 +129,8 @@ func TestContractReviewRiskNormalization(t *testing.T) {
 	if validRisk("HIGH") != types.ContractReviewRiskHigh {
 		t.Fatal("HIGH should normalize to high")
 	}
-	if validRisk("unknown") != types.ContractReviewRiskMedium {
-		t.Fatal("unknown risk should safely normalize to medium")
+	if validRisk("unknown") != "" {
+		t.Fatal("unknown risk must remain invalid instead of defaulting to medium")
 	}
 }
 
@@ -151,30 +151,6 @@ func TestFindReviewQuoteRangeIgnoresFormattingWhitespace(t *testing.T) {
 	}
 	if got := string([]rune(body)[start:end]); got != body {
 		t.Fatalf("source range = %q, want %q", got, body)
-	}
-}
-
-func TestContractPriceScopeSuppressesCoveredInclusionFinding(t *testing.T) {
-	document := "固定总价合同。3.2合同价款包含范围：③视频彩铃服务。④5G多媒体消息服务。3.3其他需说明的事项：无。"
-	result := reviewIssueOutput{
-		Title:         "合同价款未明确包含视频彩铃及5G服务费",
-		Explanation:   "合同未明确上述服务是否包含在总价中。",
-		OriginalQuote: "视频彩铃服务。④5G多媒体消息服务。",
-	}
-	if !contractPriceScopeCoversIssue(document, result) {
-		t.Fatal("explicit price inclusion scope should suppress the missing-inclusion finding")
-	}
-}
-
-func TestContractPriceScopeKeepsSettlementFinding(t *testing.T) {
-	document := "固定总价合同。3.2合同价款包含范围：④5G多媒体消息服务，通信费和数据服务费按发送成功人数结算。3.3其他需说明的事项：无。"
-	result := reviewIssueOutput{
-		Title:         "5G消息发送量与费用结算机制不明确",
-		Explanation:   "合同未定义发送成功的统计口径。",
-		OriginalQuote: "通信费和数据服务费按发送成功人数结算。",
-	}
-	if contractPriceScopeCoversIssue(document, result) {
-		t.Fatal("a settlement ambiguity must remain reviewable")
 	}
 }
 
@@ -204,16 +180,23 @@ func TestContractReviewPromptsRequireChineseAnalysis(t *testing.T) {
 	if !strings.Contains(contractReviewClauseSystemPrompt, "exactly one JSON object") || !strings.Contains(contractReviewClauseSystemPrompt, "at most five issues") {
 		t.Fatal("clause prompt must enforce a compact machine-readable response")
 	}
-	if !strings.Contains(contractReviewClauseSystemPrompt, "合同价款包含范围") || !strings.Contains(contractReviewClauseSystemPrompt, "Do not call an explicit provision missing") {
-		t.Fatal("clause prompt must verify provisions that already cover a requirement")
+	for _, required := range []string{"explicit provision covers", "evidence_refs", "facts are extracted by the service", "Use only evidence_id values", "exact passage"} {
+		if !strings.Contains(contractReviewClauseSystemPrompt, required) {
+			t.Fatalf("clause prompt must include generic evidence rule %q", required)
+		}
+	}
+	for _, forbidden := range []string{"视频彩铃", "5G消息", "合同价款包含范围"} {
+		if strings.Contains(contractReviewClauseSystemPrompt, forbidden) {
+			t.Fatalf("clause prompt must not contain contract-specific rule %q", forbidden)
+		}
 	}
 	if !strings.Contains(contractReviewClauseSystemPrompt, "cross-window context") || !strings.Contains(contractReviewClauseSystemPrompt, "primary window") {
 		t.Fatal("clause prompt must distinguish primary and cross-window context")
 	}
 }
 
-func TestContractReviewClauseRetryRaisesCompletionBudget(t *testing.T) {
-	for current, want := range map[int]int{0: 8192, 1800: 8192, 4096: 8192, 8192: 8192, 12000: 12000} {
+func TestContractReviewClauseRetryUsesBoundedCompletionBudget(t *testing.T) {
+	for current, want := range map[int]int{0: 4096, 1800: 4096, 4096: 4096, 8192: 8192, 12000: 12000} {
 		if got := contractReviewClauseRetryTokens(current); got != want {
 			t.Fatalf("retry tokens for %d = %d, want %d", current, got, want)
 		}

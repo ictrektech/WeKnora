@@ -16,6 +16,12 @@ func lockContractReview(tx *gorm.DB, reviewID string) error {
 	return tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").Where("id = ?", reviewID).First(&review).Error
 }
 
+func lockContractReviewRun(tx *gorm.DB, reviewID, analysisRunID string) error {
+	var review types.ContractReview
+	return tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").
+		Where("id = ? AND analysis_run_id = ?", reviewID, analysisRunID).First(&review).Error
+}
+
 func NewContractReviewRepository(db *gorm.DB) interfaces.ContractReviewRepository {
 	return &contractReviewRepository{db: db}
 }
@@ -57,6 +63,19 @@ func (r *contractReviewRepository) Update(ctx context.Context, review *types.Con
 	return nil
 }
 
+func (r *contractReviewRepository) UpdateForRun(ctx context.Context, review *types.ContractReview, analysisRunID string) error {
+	result := r.db.WithContext(ctx).Model(&types.ContractReview{}).
+		Where("tenant_id = ? AND user_id = ? AND id = ? AND analysis_run_id = ?", review.TenantID, review.UserID, review.ID, analysisRunID).
+		Select("*").Omit("id", "created_at", "deleted_at", "Clauses", "Issues").Updates(review)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 func (r *contractReviewRepository) Delete(ctx context.Context, tenantID uint64, userID, id string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var review types.ContractReview
@@ -88,9 +107,33 @@ func (r *contractReviewRepository) ReplaceClauses(ctx context.Context, reviewID 
 	})
 }
 
+func (r *contractReviewRepository) ReplaceClausesForRun(ctx context.Context, reviewID, analysisRunID string, rows []*types.ContractReviewClause) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockContractReviewRun(tx, reviewID, analysisRunID); err != nil {
+			return err
+		}
+		if err := tx.Where("review_id = ?", reviewID).Delete(&types.ContractReviewClause{}).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		return tx.Create(&rows).Error
+	})
+}
+
 func (r *contractReviewRepository) UpdateClause(ctx context.Context, row *types.ContractReviewClause) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockContractReview(tx, row.ReviewID); err != nil {
+			return err
+		}
+		return tx.Save(row).Error
+	})
+}
+
+func (r *contractReviewRepository) UpdateClauseForRun(ctx context.Context, row *types.ContractReviewClause, analysisRunID string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockContractReviewRun(tx, row.ReviewID, analysisRunID); err != nil {
 			return err
 		}
 		return tx.Save(row).Error
@@ -108,9 +151,32 @@ func (r *contractReviewRepository) UpsertIssue(ctx context.Context, issue *types
 	})
 }
 
+func (r *contractReviewRepository) UpsertIssueForRun(ctx context.Context, issue *types.ContractReviewIssue, analysisRunID string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockContractReviewRun(tx, issue.ReviewID, analysisRunID); err != nil {
+			return err
+		}
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "fingerprint"}}, DoNothing: true,
+		}).Create(issue).Error
+	})
+}
+
 func (r *contractReviewRepository) ClearResults(ctx context.Context, reviewID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockContractReview(tx, reviewID); err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("review_id = ?", reviewID).Delete(&types.ContractReviewIssue{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Where("review_id = ?", reviewID).Delete(&types.ContractReviewClause{}).Error
+	})
+}
+
+func (r *contractReviewRepository) ClearResultsForRun(ctx context.Context, reviewID, analysisRunID string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockContractReviewRun(tx, reviewID, analysisRunID); err != nil {
 			return err
 		}
 		if err := tx.Unscoped().Where("review_id = ?", reviewID).Delete(&types.ContractReviewIssue{}).Error; err != nil {

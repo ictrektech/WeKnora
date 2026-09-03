@@ -90,3 +90,24 @@ func TestContractReviewHandlerMapsNotFoundAndServesPreview(t *testing.T) {
 	require.Equal(t, "application/pdf", w.Header().Get("Content-Type"))
 	require.Equal(t, "pdf-bytes", w.Body.String())
 }
+
+func TestContractReviewHandlerServesLocatorWithoutGuessingLegacyOffsets(t *testing.T) {
+	review := &types.ContractReview{
+		ID:             "review-1",
+		SourceRevision: "text-v2:rev-1",
+		SourceTextHash: "rev-1",
+		Locator:        types.JSON(`{"version":1,"units":[{"unit_id":"page-1","kind":"page","page":1,"source_start":0,"source_end":4}]}`),
+	}
+	h := NewContractReviewHandler(&contractReviewHandlerStub{
+		getFn: func(context.Context, uint64, string, string) (*types.ContractReview, error) {
+			return review, nil
+		},
+	})
+	r := contractReviewHandlerTestRouter()
+	r.GET("/contract-reviews/:id/document/locator", h.Locator)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/contract-reviews/review-1/document/locator", nil))
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"source_revision":"text-v2:rev-1"`)
+	require.Contains(t, w.Body.String(), `"unit_id":"page-1"`)
+}

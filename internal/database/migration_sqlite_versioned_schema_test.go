@@ -12,7 +12,8 @@ import (
 // versionedSQLiteTables is the set of tables that SQLite migrations must
 // create to stay in sync with the versioned (PostgreSQL) migrations:
 // 000041 task queue, 000053 system settings, 000055 processing spans,
-// 000063 knowledge multi-tags, 000097 contract review, 000098 contract review model.
+// 000063 knowledge multi-tags, 000097 contract review, 000098 contract review model,
+// 000099 contract review quality.
 var versionedSQLiteTables = []string{
 	"task_pending_ops",
 	"task_dead_letters",
@@ -27,18 +28,20 @@ var versionedSQLiteTables = []string{
 // versionedSQLiteColumns maps each existing table to the columns that the
 // versioned migrations add and the SQLite baseline was missing.
 var versionedSQLiteColumns = map[string][]string{
-	"tenants":            {"api_principal_config"},           // 000064
-	"users":              {"is_system_admin"},                // 000053
-	"knowledges":         {"pending_subtasks_count"},         // 000056
-	"messages":           {"attachments", "usage"},           // 000034, 000085
-	"tenant_invitations": {"token", "accepted_count"},        // 000054
-	"embed_channels":     {"allow_memory"},                   // 000060
-	"mcp_oauth_tokens":   {"principal_type", "principal_id"}, // 000064
-	"mcp_tool_approvals": {"enabled"},                        // 000091
-	"contract_reviews":   {"model_id"},                       // 000098
+	"tenants":                 {"api_principal_config"},                                                                                                                      // 000064
+	"users":                   {"is_system_admin"},                                                                                                                           // 000053
+	"knowledges":              {"pending_subtasks_count"},                                                                                                                    // 000056
+	"messages":                {"attachments", "usage"},                                                                                                                      // 000034, 000085
+	"tenant_invitations":      {"token", "accepted_count"},                                                                                                                   // 000054
+	"embed_channels":          {"allow_memory"},                                                                                                                              // 000060
+	"mcp_oauth_tokens":        {"principal_type", "principal_id"},                                                                                                            // 000064
+	"mcp_tool_approvals":      {"enabled"},                                                                                                                                   // 000091
+	"contract_reviews":        {"model_id", "analysis_run_id", "config_hash", "source_revision", "source_text_hash", "source_hash", "locator", "quality_status", "warnings"}, // 000098, 000099
+	"contract_review_clauses": {"evidence_id"},                                                                                                                               // 000099
+	"contract_review_issues":  {"category", "finding_type", "evidence_refs"},                                                                                                 // 000099
 }
 
-const expectedSQLiteMigrationVersion = 14
+const expectedSQLiteMigrationVersion = 15
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

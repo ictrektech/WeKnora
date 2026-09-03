@@ -13,11 +13,16 @@ type ContractReviewRepository interface {
 	List(context.Context, uint64, string, bool) ([]*types.ContractReview, error)
 	Get(context.Context, uint64, string, string) (*types.ContractReview, error)
 	Update(context.Context, *types.ContractReview) error
+	UpdateForRun(context.Context, *types.ContractReview, string) error
 	Delete(context.Context, uint64, string, string) error
 	ReplaceClauses(context.Context, string, []*types.ContractReviewClause) error
+	ReplaceClausesForRun(context.Context, string, string, []*types.ContractReviewClause) error
 	UpdateClause(context.Context, *types.ContractReviewClause) error
+	UpdateClauseForRun(context.Context, *types.ContractReviewClause, string) error
 	UpsertIssue(context.Context, *types.ContractReviewIssue) error
+	UpsertIssueForRun(context.Context, *types.ContractReviewIssue, string) error
 	ClearResults(context.Context, string) error
+	ClearResultsForRun(context.Context, string, string) error
 }
 
 type ContractReviewService interface {
