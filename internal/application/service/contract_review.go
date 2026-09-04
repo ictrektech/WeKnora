@@ -51,13 +51,13 @@ const (
 	// when the model uses the normal clause budget for an overly verbose first
 	// response. The first attempt remains bounded at the agent-configured
 	// budget; only a failed/truncated response gets the larger retry budget.
-	contractReviewClauseRetryMaxCompletionTokens   = 8192
-	contractReviewClauseChunkSize                  = 2800
-	contractReviewClauseChunkOverlap               = 120
-	contractReviewFullDocumentContextMaxRunes      = 12000
-	contractReviewRelatedContextMaxRunes           = 3600
-	contractReviewRelatedPassageMaxRunes           = 900
-	contractReviewDocumentOutlineMaxRunes          = 1400
+	contractReviewClauseRetryMaxCompletionTokens = 8192
+	contractReviewClauseChunkSize                = 2800
+	contractReviewClauseChunkOverlap             = 120
+	contractReviewFullDocumentContextMaxRunes    = 12000
+	contractReviewRelatedContextMaxRunes         = 3600
+	contractReviewRelatedPassageMaxRunes         = 900
+	contractReviewDocumentOutlineMaxRunes        = 1400
 )
 
 func contractReviewPlaybook(id string) (types.ContractReviewPlaybook, bool) {
@@ -1308,9 +1308,10 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 	format := json.RawMessage(`{"type":"object","properties":{"issues":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"category":{"type":"string","enum":["scope","parties","payment","term","acceptance","liability","dispute_resolution","guarantee","confidentiality","intellectual_property","data_security","compliance","other"]},"finding_type":{"type":"string","enum":["missing","contradiction","ambiguity","placeholder","external_reference","inconsistency"]},"risk_level":{"type":"string","enum":["high","medium","low"]},"title":{"type":"string","maxLength":80},"explanation":{"type":"string","maxLength":540},"original_quote":{"type":"string","maxLength":360},"suggestion":{"type":"string","maxLength":540},"evidence_refs":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"string"}}},"required":["category","finding_type","risk_level","title","explanation","original_quote","suggestion","evidence_refs"],"additionalProperties":false}},"facts":{"type":"array","maxItems":12,"items":{"type":"object","properties":{"type":{"type":"string","enum":["party","date","term","amount","payment","deposit","acceptance","dispute","placeholder","reference"]},"key":{"type":"string","maxLength":80},"value":{"type":"string","maxLength":540},"normalized_value":{"type":"string","maxLength":160},"unit":{"type":"string","maxLength":40},"currency":{"type":"string","maxLength":16},"condition":{"type":"string","maxLength":180},"evidence_quote":{"type":"string","maxLength":360},"evidence_refs":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"string"}}},"required":["type","key","value","evidence_quote","evidence_refs"],"additionalProperties":false}}},"required":["issues","facts"],"additionalProperties":false}`)
 	issueSeq := 0
 	// Facts are extracted once from the complete source after all clause
-	// windows finish. Keep the response schema explicit so a clause model
-	// cannot emit partial, independently located fact candidates.
+	// windows finish. Keep the legacy facts shape optional for compatibility
+	// with older responses, but do not require it in the clause-stage contract.
 	format = json.RawMessage(strings.Replace(string(format), `"maxItems":12`, `"maxItems":0`, 1))
+	format = json.RawMessage(strings.Replace(string(format), `"required":["issues","facts"]`, `"required":["issues"]`, 1))
 	acceptedReviewIssues := make([]reviewIssueOutput, 0)
 	modelIssueWarnings := make([]types.ContractReviewWarning, 0)
 	allFacts := make([]types.ContractReviewFact, 0)
@@ -1338,7 +1339,7 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 			return s.fail(ctx, r, fmt.Errorf("no evidence units found for clause %d", idx+1))
 		}
 		playbook, _ := contractReviewPlaybook(r.PlaybookID)
-		prompt := fmt.Sprintf("Playbook: %s v%s\nRepresented party: %s\nAnalysis-window title: %s\nPrimary evidence window_id=%s. Prefer this ID for issues about the current window. A supporting evidence ID may be used only when the exact quoted passage is in that supporting unit and it establishes coverage, contradiction, or a related requirement. Every issue must cite one or more exact evidence units. The service extracts facts from the full source after all clause windows finish; return facts as []. Copy original_quote as a contiguous exact passage from the cited unit; do not paraphrase, combine unrelated passages, or invent values. Include a nearby heading, clause number, or other distinctive context so each passage identifies one location when a short phrase is repeated. If an exact unique passage is not available, omit that issue.\nEvidence units:\n%s", playbook.Name, r.PlaybookVersion, r.RepresentedParty, clause.Title, clause.EvidenceID, renderReviewEvidencePrompt(units))
+		prompt := fmt.Sprintf("Playbook: %s v%s\nRepresented party: %s\nAnalysis-window title: %s\nPrimary evidence window_id=%s. Prefer this ID for issues about the current window. A supporting evidence ID may be used only when the exact quoted passage is in that supporting unit and it establishes coverage, contradiction, or a related requirement. Every issue must cite one or more exact evidence units. The service extracts facts from the full source after all clause windows finish; do not return a facts field. Copy original_quote as a contiguous exact passage from the cited unit; do not paraphrase, combine unrelated passages, or invent values. Include a nearby heading, clause number, or other distinctive context so each passage identifies one location when a short phrase is repeated. If an exact unique passage is not available, omit that issue.\nEvidence units:\n%s", playbook.Name, r.PlaybookVersion, r.RepresentedParty, clause.Title, clause.EvidenceID, renderReviewEvidencePrompt(units))
 		var validated reviewValidatedBatch
 		var callErr error
 		lastBatchResponse := ""
@@ -1353,7 +1354,7 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 				} else if strings.Contains(callErr.Error(), "cannot be located") {
 					recoveryHint = "The previous quotation could not be located. Copy the passage character-for-character from one cited evidence unit, or omit the item."
 				}
-				attemptPrompt += fmt.Sprintf("\nRecovery instruction: the previous response failed validation (%s). Prioritize a valid compact response over completeness: return no more than three issues and facts: [] for this window, and omit any issue whose exact quote is uncertain. %s Output only the compact {\"issues\": [...],\"facts\": []} object now; do not add any explanation, report headings, citations, or markdown.", callErr, recoveryHint)
+				attemptPrompt += fmt.Sprintf("\nRecovery instruction: the previous response failed validation (%s). Prioritize a valid compact response over completeness: return no more than three issues for this window, and omit any issue whose exact quote is uncertain. %s Output only the compact {\"issues\": [...]} object now; do not add any facts field, explanation, report headings, citations, or markdown.", callErr, recoveryHint)
 			}
 			resp, e := model.Chat(ctx, []chat.Message{{Role: "system", Content: systemPrompt}, {Role: "user", Content: attemptPrompt}}, &chat.ChatOptions{Temperature: temperature, MaxCompletionTokens: attemptMaxTokens, Thinking: &thinking, Format: format})
 			if e != nil {
@@ -1397,6 +1398,14 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 			if callErr != nil {
 				return s.fail(ctx, r, fmt.Errorf("review clause %d: %w", idx+1, callErr))
 			}
+		}
+		if validated.SkippedDuplicateIssues > 0 {
+			modelIssueWarnings = append(modelIssueWarnings, types.ContractReviewWarning{
+				Code:       "MODEL_ISSUE_DUPLICATE",
+				Message:    fmt.Sprintf("第 %d 个分析片段中模型返回 %d 条重复问题，已忽略重复项；请以保留的问题为准", idx+1, validated.SkippedDuplicateIssues),
+				ClauseID:   clause.ID,
+				EvidenceID: clause.EvidenceID,
+			})
 		}
 		latest, getErr = s.Get(ctx, p.TenantID, p.UserID, p.ReviewID)
 		if getErr != nil {

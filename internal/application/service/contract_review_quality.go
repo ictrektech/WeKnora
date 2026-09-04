@@ -98,8 +98,9 @@ type reviewResolvedEvidence struct {
 }
 
 type reviewValidatedBatch struct {
-	Issues []reviewIssueOutput
-	Facts  []types.ContractReviewFact
+	Issues                 []reviewIssueOutput
+	Facts                  []types.ContractReviewFact
+	SkippedDuplicateIssues int
 }
 
 type reviewIssueValidationFailure struct {
@@ -199,7 +200,10 @@ func validateReviewBatchJSON(content, document string, units []reviewEvidenceUni
 	if err != nil {
 		return reviewValidatedBatch{}, err
 	}
-	if err := requireContractReviewJSONFields(fields, "issues", "facts"); err != nil {
+	// Clause review owns issue extraction. Facts are derived from the complete
+	// source text after all clause windows finish, so the model may omit the
+	// service-owned facts field entirely.
+	if err := requireContractReviewJSONFields(fields, "issues"); err != nil {
 		return reviewValidatedBatch{}, err
 	}
 
@@ -226,7 +230,12 @@ func validateReviewBatchJSON(content, document string, units []reviewEvidenceUni
 		}
 		identity := fmt.Sprintf("%s\x00%s\x00%d\x00%d", strings.ToLower(issue.Category), strings.ToLower(issue.FindingType), issue.resolvedStart, issue.resolvedEnd)
 		if _, exists := seenIssues[identity]; exists {
-			return reviewValidatedBatch{}, fmt.Errorf("duplicate issue evidence in issue %d", index+1)
+			// A model can describe the same risk more than once, especially when
+			// the source contains repeated provisions or overlapping context. The
+			// first fully validated issue is authoritative; one duplicate must not
+			// discard the rest of an otherwise usable batch.
+			validated.SkippedDuplicateIssues++
+			continue
 		}
 		seenIssues[identity] = struct{}{}
 		validated.Issues = append(validated.Issues, issue)
@@ -251,7 +260,9 @@ func validateReviewBatchWithEvidenceIsolation(content, document string, units []
 	if err != nil {
 		return reviewValidatedBatch{}, nil, err
 	}
-	if err := requireContractReviewJSONFields(fields, "issues", "facts"); err != nil {
+	// Keep the same contract as validateReviewBatchJSON: facts are optional at
+	// this stage because they are service-owned and may be omitted by the model.
+	if err := requireContractReviewJSONFields(fields, "issues"); err != nil {
 		return reviewValidatedBatch{}, nil, err
 	}
 
@@ -267,8 +278,13 @@ func validateReviewBatchWithEvidenceIsolation(content, document string, units []
 		return reviewValidatedBatch{}, nil, fmt.Errorf("issues must be an array: %w", err)
 	}
 	var rawFacts []json.RawMessage
-	if err := json.Unmarshal(raw.Facts, &rawFacts); err != nil {
-		return reviewValidatedBatch{}, nil, fmt.Errorf("facts must be an array: %w", err)
+	if len(raw.Facts) > 0 {
+		if strings.EqualFold(strings.TrimSpace(string(raw.Facts)), "null") {
+			return reviewValidatedBatch{}, nil, errors.New(`contract review model output field "facts" must not be null`)
+		}
+		if err := json.Unmarshal(raw.Facts, &rawFacts); err != nil {
+			return reviewValidatedBatch{}, nil, fmt.Errorf("facts must be an array: %w", err)
+		}
 	}
 	if len(rawIssues) > contractReviewMaxIssues {
 		return reviewValidatedBatch{}, nil, fmt.Errorf("contract review model returned %d issues; maximum is %d", len(rawIssues), contractReviewMaxIssues)
@@ -297,7 +313,8 @@ func validateReviewBatchWithEvidenceIsolation(content, document string, units []
 		}
 		identity := fmt.Sprintf("%s\x00%s\x00%d\x00%d", strings.ToLower(issue.Category), strings.ToLower(issue.FindingType), issue.resolvedStart, issue.resolvedEnd)
 		if _, exists := seenIssues[identity]; exists {
-			return reviewValidatedBatch{}, nil, fmt.Errorf("duplicate issue evidence in issue %d", index+1)
+			validated.SkippedDuplicateIssues++
+			continue
 		}
 		seenIssues[identity] = struct{}{}
 		validated.Issues = append(validated.Issues, issue)

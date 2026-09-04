@@ -29,11 +29,10 @@ func validReviewBatchJSON(quote string) string {
 	return string(encoded)
 }
 
-func TestValidateReviewBatchRejectsMalformedMissingAndUnknownRisk(t *testing.T) {
+func TestValidateReviewBatchRejectsMalformedAndUnknownRisk(t *testing.T) {
 	document, units := reviewValidationFixture()
 	for name, content := range map[string]string{
 		"malformed":        "{not-json}",
-		"missing facts":    `{"issues":[]}`,
 		"unknown risk":     strings.Replace(validReviewBatchJSON("付款：30日内支付。"), `"medium"`, `"unknown"`, 1),
 		"punctuation edit": validReviewBatchJSON("付款：30日内支付！"),
 	} {
@@ -42,6 +41,87 @@ func TestValidateReviewBatchRejectsMalformedMissingAndUnknownRisk(t *testing.T) 
 				t.Fatal("invalid model output must fail validation")
 			}
 		})
+	}
+}
+
+func TestValidateReviewBatchAcceptsMissingFacts(t *testing.T) {
+	document, units := reviewValidationFixture()
+	validated, err := validateReviewBatchJSON(`{"issues":[]}`, document, units)
+	if err != nil {
+		t.Fatalf("facts are service-owned and may be omitted: %v", err)
+	}
+	if len(validated.Issues) != 0 || len(validated.Facts) != 0 {
+		t.Fatalf("unexpected validated batch: %+v", validated)
+	}
+}
+
+func TestValidateReviewBatchSkipsDuplicateIssueEvidence(t *testing.T) {
+	document, units := reviewValidationFixture()
+	content, err := json.Marshal(map[string]any{
+		"issues": []map[string]any{
+			{
+				"category": "payment", "finding_type": "ambiguity", "risk_level": "medium",
+				"title": "付款期限表述不清", "explanation": "付款期限需要明确。", "original_quote": "付款：30日内支付。",
+				"suggestion": "明确付款起算日和到期日。", "evidence_refs": []string{"primary"},
+			},
+			{
+				"category": "payment", "finding_type": "ambiguity", "risk_level": "medium",
+				"title": "付款时间存在重复风险", "explanation": "同一付款期限被重复识别。", "original_quote": "付款：30日内支付。",
+				"suggestion": "合并重复的付款风险。", "evidence_refs": []string{"primary"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	validated, err := validateReviewBatchJSON(string(content), document, units)
+	if err != nil {
+		t.Fatalf("duplicate issue evidence should be isolated: %v", err)
+	}
+	if len(validated.Issues) != 1 || validated.Issues[0].Title != "付款期限表述不清" {
+		t.Fatalf("unexpected retained issues: %+v", validated.Issues)
+	}
+	if validated.SkippedDuplicateIssues != 1 {
+		t.Fatalf("skipped duplicate count=%d, want 1", validated.SkippedDuplicateIssues)
+	}
+}
+
+func TestValidateReviewBatchIsolationSkipsDuplicateIssueEvidence(t *testing.T) {
+	document, units := reviewValidationFixture()
+	content, err := json.Marshal(map[string]any{
+		"issues": []map[string]any{
+			{
+				"category": "payment", "finding_type": "ambiguity", "risk_level": "medium",
+				"title": "付款期限表述不清", "explanation": "付款期限需要明确。", "original_quote": "付款：30日内支付。",
+				"suggestion": "明确付款起算日和到期日。", "evidence_refs": []string{"primary"},
+			},
+			{
+				"category": "term", "finding_type": "missing", "risk_level": "low",
+				"title": "期限信息需要核对", "explanation": "该条引用无法在原文中定位。", "original_quote": "这段文字不在合同原文中。",
+				"suggestion": "补充并核对期限条款。", "evidence_refs": []string{"primary"},
+			},
+			{
+				"category": "payment", "finding_type": "ambiguity", "risk_level": "medium",
+				"title": "付款时间存在重复风险", "explanation": "同一付款期限被重复识别。", "original_quote": "付款：30日内支付。",
+				"suggestion": "合并重复的付款风险。", "evidence_refs": []string{"primary"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	validated, failures, err := validateReviewBatchWithEvidenceIsolation(string(content), document, units)
+	if err != nil {
+		t.Fatalf("duplicate issue evidence should not block evidence isolation: %v", err)
+	}
+	if len(validated.Issues) != 1 || validated.Issues[0].Title != "付款期限表述不清" {
+		t.Fatalf("unexpected retained issues: %+v", validated.Issues)
+	}
+	if len(failures) != 1 || failures[0].Index != 2 {
+		t.Fatalf("unexpected isolated failures: %+v", failures)
+	}
+	if validated.SkippedDuplicateIssues != 1 {
+		t.Fatalf("skipped duplicate count=%d, want 1", validated.SkippedDuplicateIssues)
 	}
 }
 
@@ -73,7 +153,6 @@ func TestValidateReviewBatchIsolatesUnlocatableIssueEvidence(t *testing.T) {
 				"suggestion": "补充并核对期限条款。", "evidence_refs": []string{"primary"},
 			},
 		},
-		"facts": []any{},
 	})
 	if err != nil {
 		t.Fatal(err)
