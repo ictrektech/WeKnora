@@ -19,6 +19,10 @@ export default {
     updated: 'Updated',
     allReviews: 'All reviews',
     reviewTitle: 'Review title',
+    taskName: 'Task name',
+    taskNamePlaceholder: 'Enter a task name (optional)',
+    taskNameHint: 'Leave blank to use the file name.',
+    reviewConfiguration: 'Review configuration',
     saved: 'Saved',
     loadingReviews: 'Loading reviews…',
     noReviews: 'No contract reviews',
@@ -200,6 +204,7 @@ export default {
       issues: 'Issues',
       clauses: 'Clauses',
       suggestions: 'Suggestions',
+      configuration: 'Configuration',
     },
     risk: {
       high: 'High risk',

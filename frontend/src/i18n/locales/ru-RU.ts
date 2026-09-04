@@ -19,6 +19,10 @@ export default {
     updated: 'Обновлено',
     allReviews: 'Все проверки',
     reviewTitle: 'Название проверки',
+    taskName: 'Название задачи',
+    taskNamePlaceholder: 'Введите название задачи (необязательно)',
+    taskNameHint: 'Если оставить поле пустым, будет использовано имя файла.',
+    reviewConfiguration: 'Настройки проверки',
     saved: 'Сохранено',
     loadingReviews: 'Загрузка проверок…',
     noReviews: 'Проверок договоров нет',
@@ -200,6 +204,7 @@ export default {
       issues: 'Проблемы',
       clauses: 'Пункты',
       suggestions: 'Рекомендации',
+      configuration: 'Настройки',
     },
     risk: {
       high: 'Высокий риск',

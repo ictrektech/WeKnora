@@ -19,6 +19,10 @@ export default {
     updated: '更新时间',
     allReviews: '全部审查',
     reviewTitle: '审查标题',
+    taskName: '任务名称',
+    taskNamePlaceholder: '请输入任务名称（可选）',
+    taskNameHint: '留空则使用文件名。',
+    reviewConfiguration: '审查配置',
     saved: '已保存',
     loadingReviews: '正在加载审查记录…',
     noReviews: '暂无合同审查',
@@ -200,6 +204,7 @@ export default {
       issues: '问题',
       clauses: '条款',
       suggestions: '建议',
+      configuration: '审查配置',
     },
     risk: {
       high: '高风险',

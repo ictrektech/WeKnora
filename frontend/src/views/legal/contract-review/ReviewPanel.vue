@@ -10,6 +10,7 @@
 
     <div v-if="setupMode" class="review-setup">
       <div class="review-setup__intro"><t-icon :name="reconfigure ? 'refresh' : review.status === 'draft' ? 'upload' : 'check-circle'" size="20px" aria-hidden="true" /><div><strong>{{ t(reconfigure ? 'contractReview.reconfigureReview' : review.status === 'draft' ? 'contractReview.uploadFirst' : 'contractReview.readyToReview') }}</strong><p>{{ t(reconfigure ? 'contractReview.reconfigureDescription' : review.status === 'draft' ? 'contractReview.uploadFirstDescription' : 'contractReview.readyDescription') }}</p></div></div>
+      <label class="review-setup__title">{{ t('contractReview.taskName') }}<input data-testid="contract-review-task-name" type="text" :value="review.title" maxlength="512" :placeholder="t('contractReview.taskNamePlaceholder')" :aria-label="t('contractReview.taskName')" @blur="emit('titleChange', ($event.target as HTMLInputElement).value)" @keydown.enter="($event.target as HTMLInputElement).blur()" /><small>{{ t('contractReview.taskNameHint') }}</small></label>
       <label>{{ t('contractReview.model') }}<select :value="review.model_id || ''" :disabled="modelsLoading" @change="emit('configChange', { model_id: ($event.target as HTMLSelectElement).value })"><option value="">{{ t('contractReview.useDefaultModel') }}</option><option v-if="!modelsLoading && !reviewModels.length" value="" disabled>{{ t('contractReview.noAvailableModels') }}</option><option v-for="model in reviewModels" :key="model.id" :value="model.id" :disabled="!isModelActive(model)">{{ modelDisplayName(model) }}{{ !isModelActive(model) ? ` (${t('contractReview.modelUnavailable')})` : '' }}</option></select><button v-if="!modelsLoading && !reviewModels.length" class="configure-model" type="button" @click="emit('configure')">{{ t('contractReview.configureModel') }}</button></label>
       <label>{{ t('contractReview.playbook') }}<select :value="review.playbook_id" @change="emit('configChange', { playbook_id: ($event.target as HTMLSelectElement).value })"><option v-for="playbook in playbooks" :key="playbook.id" :value="playbook.id">{{ playbook.name }}</option></select></label>
       <label>{{ t('contractReview.representedParty') }}<select :value="review.represented_party" @change="emit('configChange', { represented_party: ($event.target as HTMLSelectElement).value as RepresentedParty })"><option value="customer">{{ t('contractReview.parties.customer') }}</option><option value="vendor">{{ t('contractReview.parties.vendor') }}</option><option value="neutral">{{ t('contractReview.parties.neutral') }}</option></select></label>
@@ -23,7 +24,20 @@
         <button v-for="tab in tabs" :key="tab" :data-testid="`contract-result-tab-${tab}`" type="button" role="tab" :aria-selected="activeTab === tab" :tabindex="activeTab === tab ? 0 : -1" :class="{ active: activeTab === tab }" @click="activeTab = tab">{{ t(`contractReview.tabs.${tab}`) }}<span v-if="tab === 'issues' && issuesLoaded">{{ issues.length }}</span><span v-else-if="tab === 'issues'" aria-hidden="true">—</span></button>
       </nav>
       <div class="review-panel__content">
-        <section v-if="activeTab === 'overview'" class="overview-pane" role="tabpanel">
+        <section v-if="activeTab === 'configuration'" class="configuration-pane" role="tabpanel" data-testid="contract-review-configuration">
+          <div class="configuration-card">
+            <h3>{{ t('contractReview.reviewConfiguration') }}</h3>
+            <dl>
+              <div><dt>{{ t('contractReview.taskName') }}</dt><dd :title="review.title">{{ review.title || '—' }}</dd></div>
+              <div><dt>{{ t('contractReview.model') }}</dt><dd :title="selectedModelName">{{ selectedModelName }}</dd></div>
+              <div><dt>{{ t('contractReview.playbook') }}</dt><dd :title="selectedPlaybookName">{{ selectedPlaybookName }}</dd></div>
+              <div><dt>{{ t('contractReview.representedParty') }}</dt><dd>{{ representedPartyLabel }}</dd></div>
+              <div><dt>{{ t('contractReview.document') }}</dt><dd :title="review.file_name">{{ review.file_name || t('contractReview.draftNoDocument') }}</dd></div>
+              <div><dt>{{ t('contractReview.statusLabel') }}</dt><dd>{{ statusLabel }}</dd></div>
+            </dl>
+          </div>
+        </section>
+        <section v-else-if="activeTab === 'overview'" class="overview-pane" role="tabpanel">
           <div class="overall-risk"><span>{{ t('contractReview.overallRisk') }}</span><RiskBadge :risk="overallRisk" /><span v-if="issuesLoaded" class="overview-issue-total">{{ t('contractReview.issueCount', { count: issues.length }) }}</span><span class="quality-badge" :class="`quality-badge--${qualityStatus}`">{{ qualityStatusLabel }}</span></div>
           <p v-if="summary" class="summary">{{ summary }}</p>
           <p v-else class="summary summary--empty">{{ isRunning ? t('contractReview.overviewPending') : t('contractReview.summaryUnavailable') }}</p>
@@ -97,9 +111,9 @@ const props = defineProps<{
   evidenceCandidateCounts?: Record<string, number>
   locatorStatus?: LocatorLoadStatus
 }>()
-const emit = defineEmits<{ start: []; retry: []; reconfigure: []; cancelReconfigure: []; configure: []; issueSelect: [issue: ReviewIssue]; evidenceSelect: [payload: { issueId: string; index: number }]; configChange: [data: { playbook_id?: string; represented_party?: RepresentedParty; model_id?: string }] }>()
+const emit = defineEmits<{ start: []; retry: []; reconfigure: []; cancelReconfigure: []; configure: []; titleChange: [value: string]; issueSelect: [issue: ReviewIssue]; evidenceSelect: [payload: { issueId: string; index: number }]; configChange: [data: { playbook_id?: string; represented_party?: RepresentedParty; model_id?: string }] }>()
 const { t } = useI18n()
-const tabs = ['overview', 'issues', 'suggestions'] as const
+const tabs = ['overview', 'issues', 'suggestions', 'configuration'] as const
 const activeTab = ref<(typeof tabs)[number]>('overview')
 const riskOrder: RiskLevel[] = ['high', 'medium', 'low']
 const issues = computed(() => props.review.issues || [])
@@ -129,6 +143,14 @@ const overallRisk = computed<RiskLevel | undefined>(() => {
 const sortedIssues = computed(() => [...issues.value].sort((a,b) => riskOrder.indexOf(a.risk_level)-riskOrder.indexOf(b.risk_level) || a.sequence-b.sequence))
 const priorityIssues = computed(() => sortedIssues.value.slice(0, 3))
 const statusLabel = computed(() => t(`contractReview.status.${props.review.status}`))
+const selectedModelName = computed(() => {
+  const modelID = props.review.model_id?.trim()
+  if (!modelID) return t('contractReview.useDefaultModel')
+  const model = props.models.find(item => item.id === modelID)
+  return model ? modelDisplayName(model) : modelID
+})
+const selectedPlaybookName = computed(() => props.playbooks.find(item => item.id === props.review.playbook_id)?.name || props.review.playbook_id || '—')
+const representedPartyLabel = computed(() => t(`contractReview.parties.${props.review.represented_party}`))
 const summary = computed(() => props.review.overview?.executive_summary?.trim() || '')
 const parties = computed(() => props.review.overview?.parties || [])
 const recommendations = computed(() => props.review.overview?.key_recommendations || [])
@@ -219,8 +241,12 @@ const RiskBadge = defineComponent({ props: { risk: { type: String as PropType<Ri
 .review-panel__header{min-height:72px;padding:15px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--legal-border);box-sizing:border-box;.eyebrow{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--legal-text-secondary);}h2{margin:3px 0 0;font-size:16px;font-weight:650;}}
 .review-panel__actions{display:flex;align-items:center;gap:8px}.rerun-button{height:28px;display:inline-flex;align-items:center;gap:4px;padding:0 8px;border:1px solid var(--legal-border);border-radius:4px;background:var(--legal-bg-surface);color:var(--legal-text-secondary);font-size:10px;font-weight:650;cursor:pointer;&:hover{border-color:var(--legal-ai);color:var(--legal-ai-strong)}&:disabled{opacity:.45;cursor:not-allowed}}
 .status-dot{padding:4px 8px;border-radius:4px;background:var(--legal-bg-hover);font-size:11px;color:var(--legal-text-secondary);&:before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;background:var(--legal-text-disabled);}&--analyzing:before,&--reviewing_clauses:before{background:var(--legal-warning);animation:pulse 1.4s infinite;}&--completed:before{background:var(--legal-ai-strong);}&--failed:before{background:var(--legal-risk);}}
-.review-setup{padding:24px 20px;display:flex;flex-direction:column;gap:20px;.review-setup__intro{display:flex;gap:10px;padding-bottom:18px;border-bottom:1px solid var(--legal-border);color:var(--legal-ai-strong);strong{font-size:14px;color:var(--legal-text-primary);}p{margin:5px 0 0;font-size:12px;line-height:1.5;color:var(--legal-text-secondary);}}label{display:flex;flex-direction:column;gap:7px;font-size:11px;font-weight:650;color:var(--legal-text-secondary);text-transform:uppercase;letter-spacing:.05em;}select{height:38px;padding:0 10px;border:1px solid var(--legal-border);border-radius:5px;background:var(--legal-bg-surface);color:var(--legal-text-primary);font:inherit;text-transform:none;letter-spacing:0;&:focus{outline:2px solid var(--legal-focus-ring);border-color:var(--legal-ai);}&:disabled{opacity:.65;cursor:wait;}}.configure-model{align-self:flex-start;padding:0;border:0;background:transparent;color:var(--legal-ai-strong);font-size:11px;cursor:pointer;&:hover{text-decoration:underline;}}}.review-setup__actions{display:flex;gap:8px;align-items:center}.review-setup__actions .primary-action{flex:1;margin:0}.cancel-config{height:40px;padding:0 13px;border:1px solid var(--legal-border);border-radius:5px;background:var(--legal-bg-surface);color:var(--legal-text-secondary);font-weight:600;cursor:pointer;&:disabled{opacity:.5;cursor:not-allowed}}
+.review-setup{padding:24px 20px;display:flex;flex-direction:column;gap:20px;.review-setup__intro{display:flex;gap:10px;padding-bottom:18px;border-bottom:1px solid var(--legal-border);color:var(--legal-ai-strong);strong{font-size:14px;color:var(--legal-text-primary);}p{margin:5px 0 0;font-size:12px;line-height:1.5;color:var(--legal-text-secondary);}}label{display:flex;flex-direction:column;gap:7px;font-size:11px;font-weight:650;color:var(--legal-text-secondary);text-transform:uppercase;letter-spacing:.05em;}select{height:38px;padding:0 10px;border:1px solid var(--legal-border);border-radius:5px;background:var(--legal-bg-surface);color:var(--legal-text-primary);font:inherit;text-transform:none;letter-spacing:0;&:focus{outline:2px solid var(--legal-focus-ring);border-color:var(--legal-ai);}&:disabled{opacity:.65;cursor:wait;}}.configure-model{align-self:flex-start;padding:0;border:0;background:transparent;color:var(--legal-ai-strong);font-size:11px;cursor:pointer;&:hover{text-decoration:underline;}}}
+.review-setup__title input{height:38px;padding:0 10px;border:1px solid var(--legal-border);border-radius:5px;background:var(--legal-bg-surface);color:var(--legal-text-primary);font:inherit;text-transform:none;letter-spacing:0;&::placeholder{color:var(--legal-text-secondary);}&:focus{outline:2px solid var(--legal-focus-ring);border-color:var(--legal-ai);}}
+.review-setup__title small{font-size:10px;font-weight:400;line-height:1.4;text-transform:none;letter-spacing:0;color:var(--legal-text-secondary);}
+.review-setup__actions{display:flex;gap:8px;align-items:center}.review-setup__actions .primary-action{flex:1;margin:0}.cancel-config{height:40px;padding:0 13px;border:1px solid var(--legal-border);border-radius:5px;background:var(--legal-bg-surface);color:var(--legal-text-secondary);font-weight:600;cursor:pointer;&:disabled{opacity:.5;cursor:not-allowed}}
 .primary-action{height:40px;border:0;border-radius:5px;background:var(--legal-brand);color:#fff;font-weight:650;cursor:pointer;&:hover:not(:disabled){background:var(--legal-brand-hover);}&:disabled{background:var(--legal-text-disabled);cursor:not-allowed;}}
+.configuration-pane{padding:0}.configuration-card{padding:14px;border:1px solid var(--legal-border);border-radius:5px;background:var(--legal-bg-hover);h3{margin:0 0 14px;font-size:12px;font-weight:650;color:var(--legal-text-primary)}dl{margin:0;display:grid;gap:14px}dl>div{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;align-items:baseline}dt{color:var(--legal-text-secondary);font-size:10px;text-transform:uppercase;letter-spacing:.04em}dd{min-width:0;margin:0;overflow:hidden;color:var(--legal-text-primary);font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}}
 .review-progress{padding:13px 20px;border-bottom:1px solid var(--legal-border);background:var(--legal-ai-soft);font-size:12px;.review-progress__row{display:flex;justify-content:space-between}.review-progress__track{height:3px;margin-top:9px;background:var(--legal-border);i{display:block;height:100%;background:var(--legal-ai);transition:width .4s;}}p{margin:8px 0 0;color:var(--legal-text-secondary);font-size:11px;}}
 .review-error{margin:14px 20px;padding:13px;border:1px solid var(--legal-risk);background:var(--legal-risk-soft);border-radius:5px;color:var(--legal-risk-strong);p{font-size:12px;word-break:break-word;}button{margin:9px 8px 0 0;border:1px solid var(--legal-risk);background:var(--legal-bg-surface);color:var(--legal-risk-strong);border-radius:4px;padding:6px 10px;cursor:pointer;&:focus-visible{outline:2px solid var(--legal-focus-ring);outline-offset:1px;}}}
 .review-tabs{height:43px;display:flex;padding:0 13px;border-bottom:1px solid var(--legal-border);button{position:relative;padding:0 8px;border:0;background:transparent;color:var(--legal-text-secondary);font-size:12px;cursor:pointer;&.active{color:var(--legal-brand);font-weight:650;&:after{content:'';position:absolute;left:8px;right:8px;bottom:-1px;height:2px;background:var(--legal-brand);}}&:focus-visible{outline:2px solid var(--legal-focus-ring);outline-offset:-2px;}span{margin-left:4px;color:var(--legal-text-secondary);}}}

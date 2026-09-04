@@ -15,7 +15,7 @@
         <ContractDocumentViewer v-else ref="viewer" :review-id="review.id" :file-name="review.file_name" :file-type="review.file_type" :issues="review.issues" :selected-issue-id="selectedIssue?.id" :source-revision="review.source_revision || review.source_hash" :locator="locator" :locator-status="locatorStatus" @marker-click="selectIssueById" @evidence-status="setEvidenceStatus" @locate-failed="handleLocateFailed" @retry-locator="retryLocator" />
         <div v-if="uploading" class="upload-overlay"><t-loading size="small" /><span>{{ t('contractReview.uploadingFile', { progress: store.uploadProgress }) }}</span><i><b :style="{ width: `${store.uploadProgress}%` }" /></i></div>
       </div>
-        <ReviewPanel ref="reviewPanel" :review="review" :playbooks="store.playbooks" :models="store.models" :models-loading="store.modelsLoading" :selected-issue-id="selectedIssue?.id" :busy="busy" :reconfigure="reconfigure" :evidence-statuses="evidenceStatuses" :evidence-candidate-counts="evidenceCandidateCounts" :locator-status="locatorStatus" @config-change="saveConfig" @start="startReview" @retry="retryReview" @reconfigure="beginReconfigure" @cancel-reconfigure="cancelReconfigure" @configure="router.push('/platform/agents')" @issue-select="locateIssue" @evidence-select="chooseEvidenceCandidate" />
+        <ReviewPanel ref="reviewPanel" :review="review" :playbooks="store.playbooks" :models="store.models" :models-loading="store.modelsLoading" :selected-issue-id="selectedIssue?.id" :busy="busy" :reconfigure="reconfigure" :evidence-statuses="evidenceStatuses" :evidence-candidate-counts="evidenceCandidateCounts" :locator-status="locatorStatus" @config-change="saveConfig" @title-change="saveTitleValue" @start="startReview" @retry="retryReview" @reconfigure="beginReconfigure" @cancel-reconfigure="cancelReconfigure" @configure="router.push('/platform/agents')" @issue-select="locateIssue" @evidence-select="chooseEvidenceCandidate" />
     </div>
   </section>
   <div v-else class="review-loading contract-review-theme"><t-loading /> {{ t('contractReview.loadingReview') }}</div>
@@ -35,6 +35,7 @@ import ReviewPanel from './ReviewPanel.vue'
 const { t } = useI18n(); const route = useRoute(); const router = useRouter(); const store = useContractReviewStore()
 const review = computed(() => store.current)
 const title = ref(''); const dragging = ref(false); const uploading = ref(false); const busy = ref(false); const reconfigure = ref(false); const fileInput = ref<HTMLInputElement | null>(null)
+let titleSavePromise: Promise<unknown> = Promise.resolve()
 let configSavePromise: Promise<unknown> = Promise.resolve()
 type ReviewConfig = { playbook_id: string; represented_party: RepresentedParty; model_id: string }
 const pendingConfig = ref<ReviewConfig | null>(null)
@@ -69,7 +70,15 @@ async function initialize() {
   }
   catch (error: any) { MessagePlugin.error(error?.message || t('contractReview.loadFailed')); router.replace({ name: LEGAL_CONTRACT_REVIEW_ROUTE }) }
 }
-async function saveTitle() { if (!review.value || !title.value.trim() || title.value.trim() === review.value.title) return; try { await store.update(review.value.id, { title:title.value.trim() }) } catch (e:any) { MessagePlugin.error(e?.message || t('contractReview.saveFailed')) } }
+function saveTitleValue(value: string) {
+  title.value = value
+  const normalized = value.trim()
+  if (!review.value || !normalized || normalized === review.value.title) return titleSavePromise
+  const pending = store.update(review.value.id, { title: normalized })
+  titleSavePromise = pending.catch((e: any) => { MessagePlugin.error(e?.message || t('contractReview.saveFailed')) })
+  return titleSavePromise
+}
+function saveTitle() { void saveTitleValue(title.value) }
 async function saveConfig(data: { playbook_id?: string; represented_party?: RepresentedParty; model_id?: string }) {
   if (!review.value) return
   if (reconfigure.value) {
@@ -88,13 +97,14 @@ async function saveConfig(data: { playbook_id?: string; represented_party?: Repr
   try { await pending } catch(e:any){ MessagePlugin.error(e?.message || t('contractReview.saveFailed')) }
 }
 function validFile(file: File) { const ext = file.name.toLowerCase().split('.').pop(); return ext === 'pdf' || ext === 'docx' }
-async function upload(file?: File) { if (!review.value || !file) return; if (!validFile(file)) { MessagePlugin.warning(t('contractReview.invalidFile')); return } uploading.value = true; evidenceStatuses.value = {}; evidenceCandidateCounts.value = {}; try { await store.upload(review.value.id, file); title.value = store.current?.title || title.value } catch(e:any){ MessagePlugin.error(e?.message || t('contractReview.uploadFailed')) } finally { uploading.value = false } }
+async function upload(file?: File) { if (!review.value || !file) return; if (!validFile(file)) { MessagePlugin.warning(t('contractReview.invalidFile')); return } uploading.value = true; evidenceStatuses.value = {}; evidenceCandidateCounts.value = {}; try { await titleSavePromise; await store.upload(review.value.id, file); title.value = store.current?.title || title.value } catch(e:any){ MessagePlugin.error(e?.message || t('contractReview.uploadFailed')) } finally { uploading.value = false } }
 function onFileInput(event: Event) { void upload((event.target as HTMLInputElement).files?.[0]); (event.target as HTMLInputElement).value = '' }
 function onDrop(event: DragEvent) { dragging.value = false; void upload(event.dataTransfer?.files?.[0]) }
 async function startReview(){
   if(!review.value)return
   busy.value=true
   try {
+    await titleSavePromise
     await configSavePromise
     if (reconfigure.value) {
       if (pendingConfig.value) await store.update(review.value.id, pendingConfig.value)

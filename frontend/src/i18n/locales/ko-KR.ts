@@ -19,6 +19,10 @@ export default {
     updated: '업데이트',
     allReviews: '모든 검토',
     reviewTitle: '검토 제목',
+    taskName: '작업 이름',
+    taskNamePlaceholder: '작업 이름 입력 (선택 사항)',
+    taskNameHint: '비워 두면 파일 이름을 사용합니다.',
+    reviewConfiguration: '검토 설정',
     saved: '저장됨',
     loadingReviews: '검토를 불러오는 중…',
     noReviews: '계약 검토가 없습니다',
@@ -200,6 +204,7 @@ export default {
       issues: '문제',
       clauses: '조항',
       suggestions: '제안',
+      configuration: '검토 설정',
     },
     risk: {
       high: '높은 위험',
