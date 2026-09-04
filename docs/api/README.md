@@ -227,6 +227,7 @@ HybRAG API 按功能分为以下几类：
 | 标签管理 | 管理知识库的标签分类 | [tag.md](./tag.md) |
 | FAQ管理 | 管理FAQ问答对 | [faq.md](./faq.md) |
 | 智能体管理 | 创建和管理自定义智能体 | [agent.md](./agent.md) |
+| 合同审查 | 上传合同并异步获取风险、证据和修改建议 | [contract-review.md](../contract-review.md) |
 | 会话管理 | 创建和管理对话会话 | [session.md](./session.md) |
 | 知识搜索 | 在知识库中搜索内容 | [knowledge-search.md](./knowledge-search.md) |
 | 聊天功能 | 基于知识库和 Agent 进行问答 | [chat.md](./chat.md) |
