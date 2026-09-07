@@ -22,6 +22,8 @@
 ./ictrek.app/docs/local-dev/ictrek-dev.sh start
 ```
 
+如果当前目录已经是 `ictrek.app`，上面的脚本路径应改为 `./docs/local-dev/ictrek-dev.sh`。
+
 然后分别打开两个终端：
 
 ```bash
@@ -51,10 +53,23 @@ ICTREK_DEV_VLLM_MODEL_DIR=/path/to/Qwen-model \
   ./ictrek.app/docs/local-dev/ictrek-dev.sh start-vllm
 ```
 
-脚本默认模型目录是 `/data/jhu/models/hf/QuantTrio--Qwen3.5-9B-AWQ`，也支持直接指向 Hugging Face 的 `snapshots/<revision>/` 父目录。已有同名容器会复用创建时的参数；修改 vLLM 参数前先手工删除该开发容器：
+脚本默认管理容器 `qwen35-9b-awq-vllm`，默认模型目录是 `/data/models/QuantTrio--Qwen3.5-9B-AWQ`，也支持直接指向 Hugging Face 的 `snapshots/<revision>/` 父目录。`stop-vllm` 只停止容器并保留容器配置，`start-vllm` 只复用启动参数完全一致的容器；如果参数不一致，命令会失败并提示使用 `restart-vllm`：
 
 ```bash
-docker rm -f weknora-ictrek-dev-vllm
+./ictrek.app/docs/local-dev/ictrek-dev.sh stop-vllm
+./ictrek.app/docs/local-dev/ictrek-dev.sh start-vllm
+./ictrek.app/docs/local-dev/ictrek-dev.sh restart-vllm
+```
+
+如果当前目录已经是 `ictrek.app`，上面三个命令分别使用 `./docs/local-dev/ictrek-dev.sh`。
+
+`restart-vllm` 会优雅停止并删除 `qwen35-9b-awq-vllm`，再按当前配置重新执行 `docker run`。模型目录以只读方式挂载，不会删除模型文件。
+
+显式传入的 `ICTREK_DEV_*` 环境变量优先于 `.env`，例如临时切换到已存在的模型目录：
+
+```bash
+ICTREK_DEV_VLLM_MODEL_DIR=/path/to/Qwen-model \
+  ./docs/local-dev/ictrek-dev.sh restart-vllm
 ```
 
 如果使用宿主机 Ollama，不需要启动 vLLM，切换到 Ollama 配置：
@@ -107,6 +122,9 @@ $DEV status                        # 查看容器状态
 $DEV logs docreader                # 查看 DocReader 日志
 $DEV stop                          # 停止开发基础设施
 $DEV restart                       # 重启开发基础设施
+$DEV stop-vllm                     # 停止 QA vLLM，保留容器
+$DEV start-vllm                    # 启动或复用参数一致的 QA vLLM
+$DEV restart-vllm                  # 按当前参数重建 QA vLLM
 $DEV check                         # 检查配置、端口和模型 endpoint
 ```
 
@@ -130,6 +148,15 @@ go install github.com/air-verse/air@latest
 | `ICTREK_DEV_DOCREADER_PORT` | `15051` | 宿主机 DocReader 端口。 |
 | `ICTREK_DEV_NEO4J_BOLT_PORT` | `27687` | 宿主机 Neo4j Bolt 端口。 |
 | `ICTREK_DEV_VLLM_BASE_URL` | `http://127.0.0.1:38118/v1` | QA/VLM OpenAI-compatible endpoint。 |
+| `ICTREK_DEV_VLLM_CONTAINER` | `qwen35-9b-awq-vllm` | QA vLLM 容器名。 |
+| `ICTREK_DEV_VLLM_MODEL_DIR` | `/data/models/QuantTrio--Qwen3.5-9B-AWQ` | 宿主机模型目录。 |
+| `ICTREK_DEV_VLLM_NETWORK` | `lexai` | Docker 网络；启动前必须已存在。 |
+| `ICTREK_DEV_VLLM_MAX_MODEL_LEN` | `65536` | vLLM `--max-model-len`。 |
+| `ICTREK_DEV_VLLM_MAX_NUM_SEQS` | `20` | vLLM `--max-num-seqs`。 |
+| `ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS` | `4096` | vLLM `--max-num-batched-tokens`。 |
+| `ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION` | `0.3` | vLLM `--gpu-memory-utilization`。 |
+| `ICTREK_DEV_VLLM_SHM_SIZE` | `8g` | Docker `--shm-size`。 |
+| `ICTREK_DEV_VLLM_SECURITY_OPT` | `label=disable` | Docker `--security-opt`。 |
 | `ICTREK_DEV_BGE_VLLM_BASE_URL` | `http://127.0.0.1:32223/v1` | embedding endpoint。 |
 | `ICTREK_DEV_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama 原生 API。 |
 | `BUILTIN_MODELS_CONFIG` | tc232 YAML | 声明式内置模型配置。 |

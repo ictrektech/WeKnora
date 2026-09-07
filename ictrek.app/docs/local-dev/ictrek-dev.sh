@@ -21,6 +21,10 @@ PROJECT_NAME="${ICTREK_DEV_COMPOSE_PROJECT:-weknora-ictrek-local-dev}"
 DEFAULT_MODEL_CONFIG="ictrek.app/docs/local-dev/config/builtin_models.tc232.yaml"
 DEFAULT_DEV_DATA_DIR="/data/hybrag-dev-data"
 
+declare -a EXTERNAL_ICTREK_DEV_ENV_NAMES=()
+declare -A EXTERNAL_ICTREK_DEV_ENV_VALUES=()
+EXTERNAL_ICTREK_DEV_ENV_CAPTURED=0
+
 log_info() {
     printf "%b\n" "${BLUE}[INFO]${NC} $*"
 }
@@ -51,6 +55,8 @@ Usage:
   $0 app                          Run the Go backend from source
   $0 frontend                     Run the Vite frontend from source
   $0 start-vllm                   Start or reuse the optional QA vLLM container
+  $0 stop-vllm                    Stop the QA vLLM container and keep it
+  $0 restart-vllm                 Recreate the QA vLLM container with current parameters
   $0 check                        Check configuration, containers and endpoints
   $0 help                         Show this help
 
@@ -86,12 +92,41 @@ _source_env_file() {
     rm -f "$temporary_file"
 }
 
+capture_external_ictrek_dev_env() {
+    local name
+
+    while IFS= read -r name; do
+        case "$name" in
+            ICTREK_DEV_*)
+                if [[ -v "$name" ]]; then
+                    EXTERNAL_ICTREK_DEV_ENV_NAMES+=("$name")
+                    EXTERNAL_ICTREK_DEV_ENV_VALUES["$name"]="${!name}"
+                fi
+                ;;
+        esac
+    done < <(compgen -A variable ICTREK_DEV_)
+}
+
+restore_external_ictrek_dev_env() {
+    local name
+
+    for name in "${EXTERNAL_ICTREK_DEV_ENV_NAMES[@]}"; do
+        printf -v "$name" '%s' "${EXTERNAL_ICTREK_DEV_ENV_VALUES[$name]}"
+        export "$name"
+    done
+}
+
 load_env() {
     [ -f "$ENV_FILE" ] || return 1
+    if [ "$EXTERNAL_ICTREK_DEV_ENV_CAPTURED" -eq 0 ]; then
+        capture_external_ictrek_dev_env
+        EXTERNAL_ICTREK_DEV_ENV_CAPTURED=1
+    fi
     _source_env_file "$ENV_FILE"
     if [ -f "$PROJECT_ROOT/.env.local" ] && [ "$ENV_FILE" != "$PROJECT_ROOT/.env.local" ]; then
         _source_env_file "$PROJECT_ROOT/.env.local"
     fi
+    restore_external_ictrek_dev_env
 }
 
 ensure_env_file() {
@@ -185,14 +220,19 @@ refresh_config() {
     DEV_BGE_VLLM_PORT="${ICTREK_DEV_BGE_VLLM_PORT:-32223}"
     DEV_BGE_VLLM_BASE_URL="${ICTREK_DEV_BGE_VLLM_BASE_URL:-http://127.0.0.1:${DEV_BGE_VLLM_PORT}/v1}"
     DEV_OLLAMA_BASE_URL="${ICTREK_DEV_OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
-    DEV_VLLM_CONTAINER="${ICTREK_DEV_VLLM_CONTAINER:-weknora-ictrek-dev-vllm}"
+    DEV_VLLM_CONTAINER="${ICTREK_DEV_VLLM_CONTAINER:-qwen35-9b-awq-vllm}"
     DEV_VLLM_IMAGE="${ICTREK_DEV_VLLM_IMAGE:-vllm/vllm-openai:v0.18.1-cu130}"
-    DEV_VLLM_MODEL_DIR="${ICTREK_DEV_VLLM_MODEL_DIR:-/data/jhu/models/hf/QuantTrio--Qwen3.5-9B-AWQ}"
+    DEV_VLLM_MODEL_DIR="${ICTREK_DEV_VLLM_MODEL_DIR:-/data/models/QuantTrio--Qwen3.5-9B-AWQ}"
     DEV_VLLM_MODEL_NAME="${ICTREK_DEV_VLLM_MODEL_NAME:-qwen3.5-9b-awq}"
-    DEV_VLLM_MAX_MODEL_LEN="${ICTREK_DEV_VLLM_MAX_MODEL_LEN:-32768}"
-    DEV_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_VLLM_MAX_NUM_SEQS:-8}"
+    DEV_VLLM_NETWORK="${ICTREK_DEV_VLLM_NETWORK:-lexai}"
+    DEV_VLLM_HF_HOME="${ICTREK_DEV_VLLM_HF_HOME:-/tmp/hf-home}"
+    DEV_VLLM_SHM_SIZE="${ICTREK_DEV_VLLM_SHM_SIZE:-8g}"
+    DEV_VLLM_SECURITY_OPT="${ICTREK_DEV_VLLM_SECURITY_OPT:-label=disable}"
+    DEV_VLLM_STOP_TIMEOUT="${ICTREK_DEV_VLLM_STOP_TIMEOUT:-30}"
+    DEV_VLLM_MAX_MODEL_LEN="${ICTREK_DEV_VLLM_MAX_MODEL_LEN:-65536}"
+    DEV_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_VLLM_MAX_NUM_SEQS:-20}"
     DEV_VLLM_MAX_NUM_BATCHED_TOKENS="${ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS:-4096}"
-    DEV_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION:-0.65}"
+    DEV_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION:-0.3}"
 }
 
 export_compose_env() {
@@ -357,7 +397,14 @@ setup_env() {
     set_env_value BUILTIN_MODELS_CONFIG "${requested_model_config}"
     set_env_value ICTREK_DEV_VLLM_BASE_URL "$DEV_VLLM_BASE_URL"
     set_env_value ICTREK_DEV_MODEL_CONFIG "$requested_model_config"
+    set_env_value ICTREK_DEV_VLLM_CONTAINER "$DEV_VLLM_CONTAINER"
+    set_env_value ICTREK_DEV_VLLM_IMAGE "$DEV_VLLM_IMAGE"
+    set_env_value ICTREK_DEV_VLLM_MODEL_DIR "$DEV_VLLM_MODEL_DIR"
     set_env_value ICTREK_DEV_VLLM_MODEL_NAME "$DEV_VLLM_MODEL_NAME"
+    set_env_value ICTREK_DEV_VLLM_NETWORK "$DEV_VLLM_NETWORK"
+    set_env_value ICTREK_DEV_VLLM_HF_HOME "$DEV_VLLM_HF_HOME"
+    set_env_value ICTREK_DEV_VLLM_SHM_SIZE "$DEV_VLLM_SHM_SIZE"
+    set_env_value ICTREK_DEV_VLLM_SECURITY_OPT "$DEV_VLLM_SECURITY_OPT"
     set_env_value ICTREK_DEV_VLLM_MAX_MODEL_LEN "$DEV_VLLM_MAX_MODEL_LEN"
     set_env_value ICTREK_DEV_VLLM_MAX_NUM_SEQS "$DEV_VLLM_MAX_NUM_SEQS"
     set_env_value ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS "$DEV_VLLM_MAX_NUM_BATCHED_TOKENS"
@@ -596,7 +643,110 @@ wait_for_url() {
     return 1
 }
 
+quote_shell_arg() {
+    printf "%q" "$1"
+}
+
+vllm_shm_size_bytes() {
+    local size
+    local number
+    local multiplier
+
+    size="$(printf "%s" "$1" | tr '[:lower:]' '[:upper:]')"
+    if command -v numfmt >/dev/null 2>&1 && numfmt --from=iec "$size" 2>/dev/null; then
+        return 0
+    fi
+
+    case "$size" in
+        *K) number="${size%K}"; multiplier=1024 ;;
+        *M) number="${size%M}"; multiplier=$((1024 * 1024)) ;;
+        *G) number="${size%G}"; multiplier=$((1024 * 1024 * 1024)) ;;
+        *T) number="${size%T}"; multiplier=$((1024 * 1024 * 1024 * 1024)) ;;
+        ''|*[!0-9]) return 1 ;;
+        *) number="$size"; multiplier=1 ;;
+    esac
+    [ -n "$number" ] || return 1
+    [[ "$number" =~ ^[0-9]+$ ]] || return 1
+    printf '%s\n' "$((10#$number * multiplier))"
+}
+
+vllm_container_matches() {
+    local resolved_model_dir="$1"
+    shift
+    local expected_args
+    local actual_args
+    local expected_shm_size
+    local actual_shm_size
+    local actual_mount
+    local actual_port
+    local actual_devices
+
+    # The image entrypoint contributes the leading serve argument to .Args.
+    expected_args="$(printf '%s\n' serve "$@")"
+    actual_args="$(docker inspect --format '{{range .Args}}{{println .}}{{end}}' "$DEV_VLLM_CONTAINER")" || return 1
+    [ "$actual_args" = "$expected_args" ] || return 1
+    [ "$(docker inspect --format '{{json .Config.Entrypoint}}' "$DEV_VLLM_CONTAINER")" = '["vllm","serve"]' ] || return 1
+
+    [ "$(docker inspect --format '{{.Config.Image}}' "$DEV_VLLM_CONTAINER")" = "$DEV_VLLM_IMAGE" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$DEV_VLLM_CONTAINER")" = "$DEV_VLLM_NETWORK" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.IpcMode}}' "$DEV_VLLM_CONTAINER")" = "host" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.Runtime}}' "$DEV_VLLM_CONTAINER")" = "nvidia" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$DEV_VLLM_CONTAINER")" = "no" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.AutoRemove}}' "$DEV_VLLM_CONTAINER")" = "false" ] || return 1
+
+    actual_devices="$(docker inspect --format '{{json .HostConfig.DeviceRequests}}' "$DEV_VLLM_CONTAINER")" || return 1
+    [ "$actual_devices" = '[{"Driver":"","Count":-1,"DeviceIDs":null,"Capabilities":[["gpu"]],"Options":{}}]' ] || return 1
+
+    expected_shm_size="$(vllm_shm_size_bytes "$DEV_VLLM_SHM_SIZE")" || return 1
+    actual_shm_size="$(docker inspect --format '{{.HostConfig.ShmSize}}' "$DEV_VLLM_CONTAINER")" || return 1
+    [ "$actual_shm_size" = "$expected_shm_size" ] || return 1
+
+    actual_mount="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/model"}}{{printf "%s|%s" .Source .Mode}}{{end}}{{end}}' "$DEV_VLLM_CONTAINER")" || return 1
+    [ "$actual_mount" = "${resolved_model_dir}|ro" ] || return 1
+
+    if ! docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$DEV_VLLM_CONTAINER" | grep -Fxq "HF_HOME=$DEV_VLLM_HF_HOME"; then
+        return 1
+    fi
+
+    actual_port="$(docker inspect --format '{{range $port, $bindings := .HostConfig.PortBindings}}{{if eq $port "8000/tcp"}}{{range $bindings}}{{printf "%s:%s" .HostIp .HostPort}}{{end}}{{end}}{{end}}' "$DEV_VLLM_CONTAINER")" || return 1
+    [ "$actual_port" = ":$DEV_VLLM_PORT" ] || return 1
+
+    [ "$(docker inspect --format '{{json .HostConfig.SecurityOpt}}' "$DEV_VLLM_CONTAINER")" = "[\"$DEV_VLLM_SECURITY_OPT\"]" ] || return 1
+}
+
+print_vllm_docker_command() {
+    local resolved_model_dir="$1"
+    shift
+    local arg
+
+    printf '  docker run -d \\\n'
+    printf '    --name %s \\\n' "$(quote_shell_arg "$DEV_VLLM_CONTAINER")"
+    printf '    --gpus all \\\n'
+    printf '    --runtime nvidia \\\n'
+    printf '    --ipc host \\\n'
+    printf '    --shm-size %s \\\n' "$(quote_shell_arg "$DEV_VLLM_SHM_SIZE")"
+    printf '    --security-opt %s \\\n' "$(quote_shell_arg "$DEV_VLLM_SECURITY_OPT")"
+    printf '    --network %s \\\n' "$(quote_shell_arg "$DEV_VLLM_NETWORK")"
+    printf '    -p %s \\\n' "$(quote_shell_arg "$DEV_VLLM_PORT:8000")"
+    printf '    -v %s \\\n' "$(quote_shell_arg "${resolved_model_dir}:/model:ro")"
+    printf '    -e %s \\\n' "$(quote_shell_arg "HF_HOME=$DEV_VLLM_HF_HOME")"
+    printf '    %s' "$(quote_shell_arg "$DEV_VLLM_IMAGE")"
+    for arg in "$@"; do
+        printf ' \\\n    %s' "$(quote_shell_arg "$arg")"
+    done
+    printf '\n'
+}
+
 start_vllm() {
+    local force_recreate=0
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --recreate) force_recreate=1 ;;
+            *) log_error "Unknown start-vllm option: $1"; return 1 ;;
+        esac
+        shift
+    done
+
     cd "$PROJECT_ROOT"
     load_env || { log_error "Missing $ENV_FILE; run: $0 setup"; return 1; }
     refresh_config
@@ -612,44 +762,100 @@ start_vllm() {
         log_error "No config.json found under $DEV_VLLM_MODEL_DIR"
         return 1
     }
+    docker network inspect "$DEV_VLLM_NETWORK" >/dev/null 2>&1 || {
+        log_error "Docker network not found: $DEV_VLLM_NETWORK"
+        return 1
+    }
+
+    local vllm_args=(
+        --host 0.0.0.0
+        --port 8000
+        --model /model
+        --max-model-len "$DEV_VLLM_MAX_MODEL_LEN"
+        --max-num-batched-tokens "$DEV_VLLM_MAX_NUM_BATCHED_TOKENS"
+        --gpu-memory-utilization "$DEV_VLLM_GPU_MEMORY_UTILIZATION"
+        --served-model-name "$DEV_VLLM_MODEL_NAME"
+        --trust-remote-code
+        --max-num-seqs "$DEV_VLLM_MAX_NUM_SEQS"
+        --reasoning-parser qwen3
+        --tool-call-parser qwen3_xml
+        --enable-auto-tool-choice
+        --enforce-eager
+        --enable-prefix-caching
+        --enable-chunked-prefill
+    )
+    local docker_run_args=(
+        docker run -d
+        --name "$DEV_VLLM_CONTAINER"
+        --gpus all
+        --runtime nvidia
+        --ipc host
+        --shm-size "$DEV_VLLM_SHM_SIZE"
+        --security-opt "$DEV_VLLM_SECURITY_OPT"
+        --network "$DEV_VLLM_NETWORK"
+        -p "$DEV_VLLM_PORT:8000"
+        -v "${resolved_model_dir}:/model:ro"
+        -e "HF_HOME=$DEV_VLLM_HF_HOME"
+        "$DEV_VLLM_IMAGE"
+        "${vllm_args[@]}"
+    )
+
+    log_info "Equivalent docker deployment command:"
+    print_vllm_docker_command "$resolved_model_dir" "${vllm_args[@]}"
 
     if docker ps -a --format '{{.Names}}' | grep -Fxq "$DEV_VLLM_CONTAINER"; then
-        if docker ps --format '{{.Names}}' | grep -Fxq "$DEV_VLLM_CONTAINER"; then
-            log_success "vLLM container is already running: $DEV_VLLM_CONTAINER"
+        if [ "$force_recreate" -eq 1 ]; then
+            log_info "Recreating $DEV_VLLM_CONTAINER with the current vLLM parameters"
+            if docker ps --format '{{.Names}}' | grep -Fxq "$DEV_VLLM_CONTAINER"; then
+                docker stop --time "$DEV_VLLM_STOP_TIMEOUT" "$DEV_VLLM_CONTAINER" >/dev/null
+            fi
+            docker rm "$DEV_VLLM_CONTAINER" >/dev/null
+        elif vllm_container_matches "$resolved_model_dir" "${vllm_args[@]}"; then
+            if docker ps --format '{{.Names}}' | grep -Fxq "$DEV_VLLM_CONTAINER"; then
+                log_success "vLLM container is already running with consistent parameters: $DEV_VLLM_CONTAINER"
+            else
+                docker start "$DEV_VLLM_CONTAINER" >/dev/null
+                log_success "Started existing vLLM container with consistent parameters: $DEV_VLLM_CONTAINER"
+            fi
+            wait_for_url "vLLM" "${DEV_VLLM_BASE_URL%/}/models" "${ICTREK_DEV_VLLM_WAIT_SEC:-900}" || true
+            return 0
         else
-            docker start "$DEV_VLLM_CONTAINER" >/dev/null
-            log_success "Started existing vLLM container: $DEV_VLLM_CONTAINER"
+            log_error "Existing container $DEV_VLLM_CONTAINER has different startup parameters"
+            log_error "Run $0 restart-vllm to recreate it with the current configuration"
+            return 1
         fi
-        log_warning "Existing containers retain their original vLLM arguments; remove $DEV_VLLM_CONTAINER to apply changes"
-        wait_for_url "vLLM" "${DEV_VLLM_BASE_URL%/}/models" "${ICTREK_DEV_VLLM_WAIT_SEC:-900}" || true
-        return 0
     fi
 
     log_info "Starting vLLM container $DEV_VLLM_CONTAINER"
     log_info "Model: $resolved_model_dir"
-    docker run -d \
-        --name "$DEV_VLLM_CONTAINER" \
-        --gpus all \
-        --ipc host \
-        --shm-size 4g \
-        -p "127.0.0.1:${DEV_VLLM_PORT}:8000" \
-        -v "$resolved_model_dir:/model:ro" \
-        "$DEV_VLLM_IMAGE" \
-        --host 0.0.0.0 \
-        --port 8000 \
-        --model /model \
-        --served-model-name "$DEV_VLLM_MODEL_NAME" \
-        --max-model-len "$DEV_VLLM_MAX_MODEL_LEN" \
-        --max-num-seqs "$DEV_VLLM_MAX_NUM_SEQS" \
-        --max-num-batched-tokens "$DEV_VLLM_MAX_NUM_BATCHED_TOKENS" \
-        --gpu-memory-utilization "$DEV_VLLM_GPU_MEMORY_UTILIZATION" \
-        --trust-remote-code \
-        --reasoning-parser qwen3 \
-        --tool-call-parser qwen3_xml \
-        --enable-auto-tool-choice \
-        >/dev/null
+    log_info "vLLM tuning: max_model_len=$DEV_VLLM_MAX_MODEL_LEN, max_num_seqs=$DEV_VLLM_MAX_NUM_SEQS, gpu_memory_utilization=$DEV_VLLM_GPU_MEMORY_UTILIZATION"
+    "${docker_run_args[@]}" >/dev/null
     log_success "Started vLLM on $DEV_VLLM_BASE_URL"
     wait_for_url "vLLM" "${DEV_VLLM_BASE_URL%/}/models" "${ICTREK_DEV_VLLM_WAIT_SEC:-900}" || true
+}
+
+stop_vllm() {
+    cd "$PROJECT_ROOT"
+    if [ -f "$ENV_FILE" ]; then
+        load_env
+    fi
+    refresh_config
+    check_docker
+
+    if ! docker ps -a --format '{{.Names}}' | grep -Fxq "$DEV_VLLM_CONTAINER"; then
+        log_warning "vLLM container does not exist: $DEV_VLLM_CONTAINER"
+        return 0
+    fi
+    if docker ps --format '{{.Names}}' | grep -Fxq "$DEV_VLLM_CONTAINER"; then
+        docker stop --time "$DEV_VLLM_STOP_TIMEOUT" "$DEV_VLLM_CONTAINER" >/dev/null
+        log_success "Stopped vLLM container: $DEV_VLLM_CONTAINER"
+    else
+        log_info "vLLM container is already stopped: $DEV_VLLM_CONTAINER"
+    fi
+}
+
+restart_vllm() {
+    start_vllm --recreate
 }
 
 check_url() {
@@ -732,6 +938,8 @@ case "$command_name" in
     app) start_app "$@" ;;
     frontend) start_frontend "$@" ;;
     start-vllm) start_vllm "$@" ;;
+    stop-vllm) stop_vllm "$@" ;;
+    restart-vllm) restart_vllm "$@" ;;
     check) check_setup "$@" ;;
     help|-h|--help) show_help ;;
     *) log_error "Unknown command: $command_name"; show_help; exit 1 ;;
