@@ -1,14 +1,33 @@
 package router
 
 import (
+	apperrors "github.com/Tencent/WeKnora/internal/errors"
 	"github.com/Tencent/WeKnora/internal/handler"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/gin-gonic/gin"
 )
 
+// legalWorkspaceEnabled gates the contract review surface without changing
+// the underlying data. Missing legacy config is enabled by types' default.
+func legalWorkspaceEnabled() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tenant, ok := types.TenantInfoFromContext(c.Request.Context())
+		if ok && !tenant.LegalWorkspaceConfig.IsEnabled() {
+			c.Error(apperrors.NewForbiddenError("legal workspace is disabled"))
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 func RegisterContractReviewRoutes(r *gin.RouterGroup, h *handler.ContractReviewHandler, g *rbacGuards) {
-	r.GET("/contract-review-playbooks", g.Viewer(), h.Playbooks)
-	reviews := r.Group("/contract-reviews")
+	r.GET("/contract-review-playbooks", legalWorkspaceEnabled(), g.Viewer(), h.Playbooks)
+	// This is deliberately outside the gated review group. Owners must be able
+	// to purge data even after disabling the workspace, and the purge is never
+	// implied by changing the access switch.
+	r.DELETE("/legal-workspace-data", g.Owner(), h.DeleteTenantData)
+	reviews := r.Group("/contract-reviews", legalWorkspaceEnabled())
 	{
 		reviews.GET("", g.Viewer(), h.List)
 		reviews.POST("", g.Viewer(), h.Create)

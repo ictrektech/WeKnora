@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import i18n from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities'
+import { useLegalWorkspaceStore } from '@/stores/legalWorkspace'
 import type { DeploymentCapabilityKey } from '@/config/deploymentCapabilities'
 
 type MenuChild = Record<string, any>
@@ -29,7 +30,7 @@ export const useMenuStore = defineStore('menuStore', () => {
       childrenPath: 'chat',
       children: createMenuChildren()
     },
-    { title: '', titleKey: 'legalWorkspace.contractReview', icon: 'file-add', path: 'legal' },
+    { title: '', titleKey: 'legalWorkspace.title', icon: 'institution', path: 'legal' },
     { title: '', titleKey: 'menu.knowledgeBase', icon: 'zhishiku', path: 'knowledge-bases' },
     { title: '', titleKey: 'menu.agents', icon: 'agent', path: 'agents', requiredCapability: 'agents' },
     { title: '', titleKey: 'menu.organizations', icon: 'organization', path: 'organizations', requiredCapability: 'organizations' },
@@ -70,11 +71,15 @@ export const useMenuStore = defineStore('menuStore', () => {
   const visibleMenuArr = computed(() => {
     const authStore = useAuthStore()
     const deploymentCapabilities = useDeploymentCapabilitiesStore()
+    const legalWorkspace = useLegalWorkspaceStore()
     return menuArr.filter(item => {
       if (authStore.isLiteMode && liteHiddenPaths.has(item.path)) {
         return false
       }
       if (item.path === 'organizations' && !authStore.hasRole('admin')) {
+        return false
+      }
+      if (item.path === 'legal' && !legalWorkspace.enabled) {
         return false
       }
       if (!deploymentCapabilities.isSupported(item.requiredCapability)) {

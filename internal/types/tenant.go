@@ -118,6 +118,9 @@ type Tenant struct {
 	RetrievalConfig *RetrievalConfig `yaml:"retrieval_config" json:"retrieval_config" gorm:"type:jsonb"`
 	// Memory config: workspace switch for cross-session long-term memory
 	MemoryConfig *MemoryConfig `yaml:"memory_config" json:"memory_config" gorm:"type:jsonb"`
+	// Legal workspace config: tenant-level entry/access switch for contract review.
+	// Nil is treated as enabled for backwards compatibility with legacy tenants.
+	LegalWorkspaceConfig *LegalWorkspaceConfig `yaml:"legal_workspace_config" json:"legal_workspace_config" gorm:"column:legal_workspace_config;type:jsonb"`
 	// API principal config: controls how X-API-Key requests map to terminal principals.
 	APIPrincipalConfig *APIPrincipalConfig `yaml:"api_principal_config" json:"-" gorm:"type:jsonb"`
 	// Creation time
@@ -145,6 +148,9 @@ func (t *Tenant) GetEffectiveEngines() []RetrieverEngineParams {
 func (t *Tenant) BeforeCreate(tx *gorm.DB) error {
 	if t.RetrieverEngines.Engines == nil {
 		t.RetrieverEngines.Engines = []RetrieverEngineParams{}
+	}
+	if t.LegalWorkspaceConfig == nil {
+		t.LegalWorkspaceConfig = DefaultLegalWorkspaceConfig()
 	}
 	return nil
 }

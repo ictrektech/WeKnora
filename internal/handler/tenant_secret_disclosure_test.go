@@ -163,6 +163,31 @@ func TestGetTenantKVViewerAllowedForNonSecretKey(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestLegalWorkspaceKVDefaultsEnabledAndIsReadableByViewer(t *testing.T) {
+	tenant := &types.Tenant{ID: 42}
+	engine := newTenantHandlerTestEngine(t, types.TenantRoleViewer, tenant)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/tenants/kv/legal-workspace-config", nil)
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"success":true,"data":{"enabled":true}}`, rec.Body.String())
+}
+
+func TestLegalWorkspaceKVUpdatePersistsEnabled(t *testing.T) {
+	tenant := &types.Tenant{ID: 42}
+	engine := newTenantHandlerTestEngine(t, types.TenantRoleAdmin, tenant)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/tenants/kv/legal-workspace-config", strings.NewReader(`{"enabled":false}`))
+	req.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"success":true,"data":{"enabled":false}}`, rec.Body.String())
+	require.NotNil(t, tenant.LegalWorkspaceConfig)
+	assert.False(t, tenant.LegalWorkspaceConfig.Enabled)
+}
+
 func TestPutTenantParserConfigAdminPreservesRedactedSecrets(t *testing.T) {
 	t.Setenv("SSRF_WHITELIST_EXTRA", "example.com")
 	secutils.ResetSSRFWhitelistForTest()

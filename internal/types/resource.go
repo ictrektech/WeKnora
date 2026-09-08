@@ -28,6 +28,7 @@ const (
 	ResourceOwnerKnowledge         = "knowledge"
 	ResourceOwnerMessage           = "message"
 	ResourceOwnerTemporaryDocument = "temporary_document"
+	ResourceOwnerContractReview    = "contract_review"
 )
 
 // Resource binding relations describe why an owner claims a resource.

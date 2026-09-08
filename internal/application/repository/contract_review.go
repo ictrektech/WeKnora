@@ -92,6 +92,51 @@ func (r *contractReviewRepository) Delete(ctx context.Context, tenantID uint64, 
 	})
 }
 
+// DeleteTenantData hard-deletes a tenant's contract-review aggregates and all
+// dependent rows in one transaction. Resource bindings are removed here too;
+// the returned references are cleaned from physical storage by the service
+// after this transaction commits. This keeps a retry safe when the storage
+// provider is temporarily unavailable.
+func (r *contractReviewRepository) DeleteTenantData(ctx context.Context, tenantID uint64) ([]types.ContractReviewResource, error) {
+	var resources []types.ContractReviewResource
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var reviews []types.ContractReview
+		if err := tx.Unscoped().Select("id", "resource_ref").Where("tenant_id = ?", tenantID).Find(&reviews).Error; err != nil {
+			return err
+		}
+		if len(reviews) == 0 {
+			return nil
+		}
+
+		reviewIDs := make([]string, 0, len(reviews))
+		for _, review := range reviews {
+			reviewIDs = append(reviewIDs, review.ID)
+			if review.ResourceRef != "" {
+				resources = append(resources, types.ContractReviewResource{
+					ReviewID:  review.ID,
+					Reference: review.ResourceRef,
+				})
+			}
+		}
+		if err := tx.Unscoped().Where("review_id IN ?", reviewIDs).Delete(&types.ContractReviewIssue{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("review_id IN ?", reviewIDs).Delete(&types.ContractReviewClause{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("owner_type = ? AND owner_id IN ?", types.ResourceOwnerContractReview, reviewIDs).
+			Delete(&types.ResourceBinding{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Where("tenant_id = ? AND id IN ?", tenantID, reviewIDs).
+			Delete(&types.ContractReview{}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resources, nil
+}
+
 func (r *contractReviewRepository) ReplaceClauses(ctx context.Context, reviewID string, rows []*types.ContractReviewClause) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockContractReview(tx, reviewID); err != nil {

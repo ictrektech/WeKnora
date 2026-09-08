@@ -1,10 +1,30 @@
 export default {
   legalWorkspace: {
+    title: '法律工作台',
     contractReview: '合同审查',
-    platformConsole: '平台控制台',
+    backToPlatform: '返回平台导航',
     settings: '设置',
     collapse: '收起侧边栏',
     expand: '展开侧边栏',
+  },
+  legalWorkspaceSettings: {
+    description: '控制当前工作区是否显示并允许访问法律工作台。关闭只隐藏入口，不会删除已有数据。',
+    introTitle: '法律工作台开关',
+    introDescription: '开启后，工作区成员可以从左侧导航进入法律工作台并使用合同审查。',
+    enableLabel: '启用法律工作台',
+    enableDescription: '关闭后只隐藏法律工作台入口，合同审查记录和上传的合同原文会保留。',
+    saveSuccess: '法律工作台设置已保存',
+    saveFailed: '保存法律工作台设置失败：{message}',
+    deleteTitle: '删除法律工作台数据',
+    deleteDescription: '永久删除当前工作区的全部合同审查记录、合同原文、条款和风险结果。此操作不可恢复。',
+    deleteButton: '删除全部数据',
+    deleteConfirmTitle: '确认删除法律工作台数据？',
+    deleteConfirmBody: '此操作将永久删除当前工作区的全部合同审查记录、上传的合同原文、条款和风险结果，且无法恢复。关闭启用开关不会删除这些数据。请确认是否继续。',
+    deleteSuccess: '法律工作台数据已删除',
+    deleteFailed: '删除法律工作台数据失败：{message}',
+    cancel: '取消',
+    adminOnly: '只有工作区管理员可以修改此设置；只有所有者可以删除法律工作台数据。',
+    disabledMessage: '法律工作台当前已关闭。',
   },
   contractReview: {
     workspaceEyebrow: '法律工作台',
@@ -792,7 +812,8 @@ export default {
       api: 'API 集成',
       chrome: 'Chrome 插件',
       cli: 'CLI',
-      claw: 'Claw Skill'
+      claw: 'Claw Skill',
+      legal: '法律工作台'
     },
     cli: {
       title: 'WeKnora CLI',

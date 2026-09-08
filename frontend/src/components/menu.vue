@@ -53,6 +53,49 @@
 
         <!-- 上半部分：新对话吸顶 + 知识库/智能体/共享空间/历史会话随滚动一起滚走 -->
         <div class="menu_top" ref="scrollContainer" @scroll="handleScroll">
+            <template v-if="isLegalWorkspacePanel">
+                <!-- 法律工作台是页面级 drill-down：进入后替换主导航和会话列表。 -->
+                <div class="legal-panel" :class="{ 'legal-panel--collapsed': uiStore.sidebarCollapsed }">
+                    <template v-if="!uiStore.sidebarCollapsed">
+                        <button type="button" class="legal-panel-back" @click="returnToMainNavigation">
+                            <TIcon name="chevron-left" size="16px" aria-hidden="true" />
+                            <span>{{ t('legalWorkspace.backToPlatform') }}</span>
+                        </button>
+                        <div class="legal-panel-heading">
+                            <div class="legal-panel-heading-icon">
+                                <TIcon name="institution" size="18px" aria-hidden="true" />
+                            </div>
+                            <span>{{ t('legalWorkspace.title') }}</span>
+                        </div>
+                        <button type="button" class="legal-panel-item legal-panel-item--active"
+                            @click="openLegalContractReview">
+                            <span class="legal-panel-item-icon">
+                                <TIcon name="file-search" size="18px" aria-hidden="true" />
+                            </span>
+                            <span class="legal-panel-item-label">{{ t('legalWorkspace.contractReview') }}</span>
+                        </button>
+                    </template>
+                    <template v-else>
+                        <t-tooltip :content="t('legalWorkspace.backToPlatform')" placement="right">
+                            <button type="button" class="menu_item legal-panel-collapsed-action"
+                                @click="returnToMainNavigation" :aria-label="t('legalWorkspace.backToPlatform')">
+                                <div class="menu_item-box">
+                                    <TIcon name="chevron-left" size="18px" aria-hidden="true" />
+                                </div>
+                            </button>
+                        </t-tooltip>
+                        <t-tooltip :content="t('legalWorkspace.contractReview')" placement="right">
+                            <button type="button" class="menu_item legal-panel-collapsed-action legal-panel-item--active"
+                                @click="openLegalContractReview" :aria-label="t('legalWorkspace.contractReview')">
+                                <div class="menu_item-box">
+                                    <TIcon name="file-search" size="18px" aria-hidden="true" />
+                                </div>
+                            </button>
+                        </t-tooltip>
+                    </template>
+                </div>
+            </template>
+            <template v-else>
             <!-- 全局搜索入口：点击打开命令面板（⌘K）。展开态移至顶部 logo_row 的图标按钮；
                  折叠态在此处保留为图标项 + 深色 tooltip。 -->
             <div class="menu_box menu_box--cmdk" v-if="uiStore.sidebarCollapsed">
@@ -80,8 +123,10 @@
                         :class="['menu_item', item.childrenPath && item.childrenPath == currentpath ? 'menu_item_c_active' : isMenuItemActive(item.path) ? 'menu_item_active' : '']">
                         <div class="menu_item-box">
                             <div class="menu_icon">
+                                <TIcon v-if="item.icon === 'institution'" :name="item.icon" size="18px" aria-hidden="true" />
                                 <img class="icon"
-                                    :src="getImgSrc(item.icon == 'zhishiku' ? knowledgeIcon : item.icon == 'agent' ? agentIcon : item.icon == 'organization' ? organizationIcon : item.icon == 'logout' ? logoutIcon : item.icon == 'setting' ? settingIcon : item.icon == 'file-add' ? legalIcon : prefixIcon)"
+                                    v-else
+                                    :src="getImgSrc(item.icon == 'zhishiku' ? knowledgeIcon : item.icon == 'agent' ? agentIcon : item.icon == 'organization' ? organizationIcon : item.icon == 'logout' ? logoutIcon : item.icon == 'setting' ? settingIcon : prefixIcon)"
                                     alt="">
                             </div>
                             <template v-if="!uiStore.sidebarCollapsed">
@@ -164,10 +209,11 @@
                     </template>
                 </div>
             </div>
+            </template>
         </div>
 
         <!-- 批量管理底部操作条：固定在侧栏底部、用户头像上方 -->
-        <div v-if="batchMode && !uiStore.sidebarCollapsed" class="batch-inline-footer">
+        <div v-if="batchMode && !uiStore.sidebarCollapsed && !isLegalWorkspacePanel" class="batch-inline-footer">
             <div class="batch-footer-left">
                 <t-checkbox :checked="isAllBatchSelected" :indeterminate="isBatchIndeterminate"
                     @change="toggleBatchSelectAll">
@@ -246,6 +292,7 @@ import { useMenuStore } from '@/stores/menu';
 import { useSessionActivityStore } from '@/stores/sessionActivity';
 import { useAuthStore } from '@/stores/auth';
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities';
+import { useLegalWorkspaceStore } from '@/stores/legalWorkspace';
 import { useOrganizationStore } from '@/stores/organization';
 import { useUIStore } from '@/stores/ui';
 import { useCommandPaletteStore } from '@/stores/commandPalette';
@@ -289,6 +336,7 @@ const { entries: sessionActivityEntries } = storeToRefs(sessionActivity);
 let sessionActivityTimer: ReturnType<typeof setInterval> | undefined;
 const authStore = useAuthStore();
 const deploymentCapabilities = useDeploymentCapabilitiesStore();
+const legalWorkspace = useLegalWorkspaceStore();
 const orgStore = useOrganizationStore();
 const uiStore = useUIStore();
 const commandPaletteStore = useCommandPaletteStore();
@@ -394,6 +442,11 @@ const isInAgentList = computed<boolean>(() => route.name === 'agentList');
 
 // 是否在组织列表页面
 const isInOrganizationList = computed<boolean>(() => route.name === 'organizationList');
+
+// 法律工作台使用页面级 drill-down，列表和详情路由都显示同一个子面板。
+const isLegalWorkspacePanel = computed<boolean>(() =>
+    route.name === 'legalContractReview' || route.name === 'legalContractReviewDetail',
+);
 
 // 统一的菜单项激活状态判断
 const isMenuItemActive = (itemPath: string): boolean => {
@@ -982,6 +1035,11 @@ onMounted(async () => {
 
     window.addEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);
 
+    // Load the tenant-scoped visibility flag independently of the session
+    // list. The optimistic store default keeps existing deployments visible
+    // until the server responds, and a disabled flag removes the entry.
+    void legalWorkspace.load().catch(() => undefined);
+
     isLiteEdition.value = authStore.isLiteMode
     getSystemInfo().then(res => {
         if (res.data?.edition === 'lite') {
@@ -1004,6 +1062,15 @@ onMounted(async () => {
         orgStore.fetchOrganizations();
     }
 });
+
+watch(
+    () => legalWorkspace.enabled,
+    (enabled) => {
+        if (!enabled && isLegalWorkspacePanel.value) {
+            void router.replace('/platform/knowledge-bases');
+        }
+    },
+);
 
 onUnmounted(() => {
     clearInterval(sessionActivityTimer);
@@ -1042,13 +1109,11 @@ let logoutIcon = ref('logout.svg');
 let settingIcon = ref('setting.svg');
 let agentIcon = ref('agent.svg');
 let organizationIcon = ref('organization.svg');
-let legalIcon = ref('file-add.svg');
 let pathPrefix = ref(route.name)
 const getIcon = (path: string) => {
     // 根据当前路由状态更新所有图标
     const kbActiveState = getIconActiveState('knowledge-bases');
     const creatChatActiveState = getIconActiveState('creatChat');
-    const legalActiveState = getIconActiveState('legal');
     const settingsActiveState = getIconActiveState('settings');
     const agentsActiveState = route.name === 'agentList';
     const organizationsActiveState = route.name === 'organizationList';
@@ -1064,9 +1129,6 @@ const getIcon = (path: string) => {
 
     // 对话图标：只在对话创建页面显示绿色，其他情况显示默认
     prefixIcon.value = creatChatActiveState.isCreatChatActive ? 'prefixIcon-green.svg' : 'prefixIcon.svg';
-
-    // 合同审查图标：只在法律工作台显示绿色
-    legalIcon.value = legalActiveState.isLegalActive ? 'file-add-green.svg' : 'file-add.svg';
 
     // 设置图标：只在设置页面显示绿色
     settingIcon.value = settingsActiveState.isSettingsActive ? 'setting-green.svg' : 'setting.svg';
@@ -1098,6 +1160,14 @@ const handleMenuClick = async (path: string) => {
     } else {
         gotopage(path)
     }
+}
+
+const openLegalContractReview = () => {
+    router.push('/platform/contract-review')
+}
+
+const returnToMainNavigation = () => {
+    router.push('/platform/knowledge-bases')
 }
 
 // 处理退出登录确认
@@ -1360,6 +1430,121 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
             top: 0;
             z-index: 2;
             background: var(--td-bg-color-sidebar);
+        }
+    }
+
+    .legal-panel {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        padding-top: 3px;
+    }
+
+    .legal-panel-back,
+    .legal-panel-item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        box-sizing: border-box;
+        border: 0;
+        font-family: var(--app-font-family);
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .legal-panel-back {
+        gap: 6px;
+        height: 34px;
+        padding: 7px 10px;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--td-text-color-secondary);
+        font-size: 13px;
+        font-weight: 500;
+        transition: background-color 0.2s ease, color 0.2s ease;
+
+        &:hover {
+            background: var(--td-bg-color-container-hover);
+            color: var(--td-text-color-primary);
+        }
+    }
+
+    // Only the expanded workspace heading is a compact gray label, matching
+    // the small timeline labels in the home sidebar. The back action and
+    // Contract Review item keep the regular drill-down treatment.
+    .legal-panel:not(.legal-panel--collapsed) {
+        .legal-panel-heading {
+            min-height: 21px;
+            padding: 4px 10px 1px var(--sidebar-inset-x);
+            gap: 0;
+            color: var(--td-text-color-disabled);
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 16px;
+            user-select: none;
+        }
+
+        .legal-panel-heading-icon {
+            display: none;
+        }
+    }
+
+    .legal-panel-heading {
+        display: flex;
+        align-items: center;
+        gap: var(--sidebar-icon-gap);
+        min-height: 42px;
+        padding: 12px var(--sidebar-inset-x) 8px;
+        box-sizing: border-box;
+        color: var(--td-text-color-primary);
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    .legal-panel-heading-icon,
+    .legal-panel-item-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 var(--sidebar-icon-size);
+        width: var(--sidebar-icon-size);
+        height: var(--sidebar-icon-size);
+    }
+
+    .legal-panel .icon {
+        width: 18px;
+        height: 18px;
+    }
+
+    .legal-panel-item {
+        gap: var(--sidebar-icon-gap);
+        min-height: 38px;
+        padding: 8px 10px var(--sidebar-icon-gap);
+        border-radius: 4px;
+        background: transparent;
+        color: var(--td-text-color-primary);
+        font-size: 14px;
+        font-weight: 500;
+        transition: background-color 0.2s ease, color 0.2s ease;
+
+        &:hover,
+        &--active {
+            background: var(--td-bg-color-secondarycontainer);
+            color: var(--td-brand-color);
+        }
+    }
+
+    .legal-panel-collapsed-action {
+        justify-content: center;
+        min-height: 38px;
+        padding: 9px 0;
+        background: transparent;
+        color: var(--td-text-color-secondary);
+
+        &:hover,
+        &.legal-panel-item--active {
+            background: var(--td-bg-color-secondarycontainer);
+            color: var(--td-brand-color);
         }
     }
 

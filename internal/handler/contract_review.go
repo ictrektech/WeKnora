@@ -29,6 +29,21 @@ func NewContractReviewHandler(service interfaces.ContractReviewService) *Contrac
 
 func contractReviewContext(c *gin.Context) (string, uint64, bool) { return favoriteContext(c) }
 
+// contractReviewAccessAllowed keeps the handler safe even when a caller uses
+// a handler directly in a custom route. The normal router also installs the
+// same gate at the route group, while a missing tenant object is left to the
+// existing authentication/context checks for backwards-compatible tests and
+// non-HTTP integrations.
+func contractReviewAccessAllowed(c *gin.Context) bool {
+	tenant, ok := types.TenantInfoFromContext(c.Request.Context())
+	if ok && !tenant.LegalWorkspaceConfig.IsEnabled() {
+		c.Error(apperrors.NewForbiddenError("legal workspace is disabled"))
+		c.Abort()
+		return false
+	}
+	return true
+}
+
 func contractReviewError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrContractReviewNotFound):
@@ -45,6 +60,9 @@ func contractReviewError(c *gin.Context, err error) {
 }
 
 func (h *ContractReviewHandler) List(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return
@@ -58,6 +76,9 @@ func (h *ContractReviewHandler) List(c *gin.Context) {
 }
 
 func (h *ContractReviewHandler) Create(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return
@@ -71,6 +92,9 @@ func (h *ContractReviewHandler) Create(c *gin.Context) {
 }
 
 func (h *ContractReviewHandler) Get(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return
@@ -92,6 +116,9 @@ type contractReviewUpdateRequest struct {
 }
 
 func (h *ContractReviewHandler) Update(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return
@@ -110,6 +137,9 @@ func (h *ContractReviewHandler) Update(c *gin.Context) {
 }
 
 func (h *ContractReviewHandler) Delete(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return
@@ -127,6 +157,9 @@ type contractReviewBulkRequest struct {
 
 func (h *ContractReviewHandler) BulkAction(action types.ContractReviewBulkAction) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if !contractReviewAccessAllowed(c) {
+			return
+		}
 		userID, tenantID, ok := contractReviewContext(c)
 		if !ok {
 			return
@@ -150,6 +183,9 @@ func (h *ContractReviewHandler) BulkAction(action types.ContractReviewBulkAction
 }
 
 func (h *ContractReviewHandler) Upload(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return
@@ -174,6 +210,9 @@ func (h *ContractReviewHandler) Upload(c *gin.Context) {
 }
 
 func (h *ContractReviewHandler) Preview(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return
@@ -206,6 +245,9 @@ func (h *ContractReviewHandler) Preview(c *gin.Context) {
 // identity for evidence. It intentionally does not attempt to reconstruct
 // locations from the rendered PDF/DOCX when a legacy review has no locator.
 func (h *ContractReviewHandler) Locator(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return
@@ -269,6 +311,9 @@ func locatorHasUnits(locator map[string]any) bool {
 func (h *ContractReviewHandler) Start(c *gin.Context) { h.run(c, false) }
 func (h *ContractReviewHandler) Retry(c *gin.Context) { h.run(c, true) }
 func (h *ContractReviewHandler) run(c *gin.Context, retry bool) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return
@@ -288,10 +333,31 @@ func (h *ContractReviewHandler) run(c *gin.Context, retry bool) {
 }
 
 func (h *ContractReviewHandler) Playbooks(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": h.service.Playbooks()})
 }
 
+// DeleteTenantData permanently removes all legal workspace data belonging to
+// the active tenant. The route is Owner-gated and intentionally independent
+// from the enable/disable access switch.
+func (h *ContractReviewHandler) DeleteTenantData(c *gin.Context) {
+	_, tenantID, ok := contractReviewContext(c)
+	if !ok {
+		return
+	}
+	if err := h.service.DeleteTenantData(c.Request.Context(), tenantID); err != nil {
+		contractReviewError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *ContractReviewHandler) Events(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
 	userID, tenantID, ok := contractReviewContext(c)
 	if !ok {
 		return

@@ -12,6 +12,7 @@ import type { DeploymentCapabilityKey } from '@/config/deploymentCapabilities'
 import { MessagePlugin } from 'tdesign-vue-next'
 import i18n from '@/i18n'
 import { normalizeSettingsSection } from '@/config/settingsRoute'
+import { useLegalWorkspaceStore } from '@/stores/legalWorkspace'
 
 /** Lite /桌面 WebView 硬刷新时可能只打开 `/`，用 session 记住上次页面以便恢复 */
 const LITE_LAST_PATH_KEY = 'weknora_lite_last_path'
@@ -100,13 +101,13 @@ const router = createRouter({
           path: "contract-review",
           name: "legalContractReview",
           component: () => import("../views/legal/ContractReviewWorkspace.vue"),
-          meta: { requiresInit: true, requiresAuth: true },
+          meta: { requiresInit: true, requiresAuth: true, requiresLegalWorkspace: true },
         },
         {
           path: "contract-review/:reviewId",
           name: "legalContractReviewDetail",
           component: () => import("../views/legal/contract-review/ContractReviewDetail.vue"),
-          meta: { requiresInit: true, requiresAuth: true },
+          meta: { requiresInit: true, requiresAuth: true, requiresLegalWorkspace: true },
         },
         {
           path: "tenant",
@@ -436,6 +437,21 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresTenant !== false && !authStore.hasValidTenant) {
     next('/onboarding/workspace')
     return
+  }
+
+  if (to.meta.requiresLegalWorkspace === true) {
+    const legalWorkspace = useLegalWorkspaceStore()
+    try {
+      await legalWorkspace.load()
+    } catch {
+      // Older deployments may not have the new config endpoint yet; keep
+      // existing contract-review URLs usable until the backend is upgraded.
+    }
+    if (!legalWorkspace.enabled) {
+      MessagePlugin.warning(i18n.global.t('legalWorkspaceSettings.disabledMessage'))
+      next('/platform/knowledge-bases')
+      return
+    }
   }
 
   // 部署能力只描述“后端是否提供该功能”，不反映服务健康或是否已配置。

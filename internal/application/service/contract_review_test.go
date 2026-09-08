@@ -20,8 +20,78 @@ func newContractReviewServiceTest(t *testing.T) (*contractReviewService, *gorm.D
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&types.ContractReview{}, &types.ContractReviewClause{}, &types.ContractReviewIssue{}))
+	require.NoError(t, db.AutoMigrate(&types.ContractReview{}, &types.ContractReviewClause{}, &types.ContractReviewIssue{}, &types.ResourceBinding{}))
 	return &contractReviewService{repo: contractRepo.NewContractReviewRepository(db)}, db
+}
+
+type contractReviewPurgeFileStub struct {
+	interfaces.FileService
+	deleted []string
+}
+
+func (s *contractReviewPurgeFileStub) DeleteFile(_ context.Context, reference string) error {
+	s.deleted = append(s.deleted, reference)
+	return nil
+}
+
+type contractReviewPurgeCatalogStub struct {
+	interfaces.ResourceCatalog
+	remaining map[string]int64
+}
+
+func (s *contractReviewPurgeCatalogStub) Release(_ context.Context, reference, _ string, _ string) (int64, error) {
+	if count, ok := s.remaining[reference]; ok {
+		return count, nil
+	}
+	return 0, nil
+}
+
+func TestDeleteTenantDataRemovesChildrenAndCleansUnsharedStorage(t *testing.T) {
+	svc, db := newContractReviewServiceTest(t)
+	ctx := context.Background()
+	owned := &types.ContractReview{TenantID: 1, UserID: "u1", ResourceRef: "local://contract-1"}
+	shared := &types.ContractReview{TenantID: 1, UserID: "u2", ResourceRef: "local://contract-shared"}
+	otherTenant := &types.ContractReview{TenantID: 2, UserID: "u3", ResourceRef: "local://other"}
+	for _, review := range []*types.ContractReview{owned, shared, otherTenant} {
+		require.NoError(t, svc.repo.Create(ctx, review))
+	}
+	clause := &types.ContractReviewClause{ReviewID: owned.ID, Sequence: 0, Title: "Payment"}
+	require.NoError(t, svc.repo.ReplaceClauses(ctx, owned.ID, []*types.ContractReviewClause{clause}))
+	issue := &types.ContractReviewIssue{
+		ReviewID: owned.ID, ClauseID: clause.ID, Fingerprint: "purge-fingerprint",
+		RiskLevel: types.ContractReviewRiskHigh, Title: "risk", Explanation: "explanation",
+		OriginalQuote: "quote", Suggestion: "suggestion",
+	}
+	require.NoError(t, svc.repo.UpsertIssue(ctx, issue))
+	require.NoError(t, db.Create(&types.ResourceBinding{
+		ResourceID: "resource-1", TenantID: 1, OwnerType: types.ResourceOwnerContractReview,
+		OwnerID: owned.ID, Relation: types.ResourceRelationSourceFile,
+	}).Error)
+
+	files := &contractReviewPurgeFileStub{}
+	svc.files = files
+	svc.resources = &contractReviewPurgeCatalogStub{remaining: map[string]int64{
+		"local://contract-1":      0,
+		"local://contract-shared": 1,
+	}}
+
+	require.NoError(t, svc.DeleteTenantData(ctx, 1))
+	require.ElementsMatch(t, []string{"local://contract-1"}, files.deleted)
+	var count int64
+	require.NoError(t, db.Unscoped().Model(&types.ContractReview{}).Where("tenant_id = ?", 1).Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, db.Model(&types.ContractReviewClause{}).Where("review_id = ?", owned.ID).Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, db.Model(&types.ContractReviewIssue{}).Where("review_id = ?", owned.ID).Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, db.Model(&types.ResourceBinding{}).Where("owner_id = ?", owned.ID).Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, db.Unscoped().Model(&types.ContractReview{}).Where("tenant_id = ?", 2).Count(&count).Error)
+	require.EqualValues(t, 1, count)
+
+	// A second purge is a no-op and must not repeat physical deletion.
+	require.NoError(t, svc.DeleteTenantData(ctx, 1))
+	require.ElementsMatch(t, []string{"local://contract-1"}, files.deleted)
 }
 
 type contractReviewUploadFileStub struct {

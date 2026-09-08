@@ -1,0 +1,2 @@
+-- No-op: legal_workspace_config is owned by 000106. This migration only
+-- repairs databases whose migration ledger skipped the canonical column.

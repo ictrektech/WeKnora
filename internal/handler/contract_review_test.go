@@ -19,9 +19,10 @@ import (
 
 type contractReviewHandlerStub struct {
 	interfaces.ContractReviewService
-	startFn func(context.Context, uint64, string, string) (*types.ContractReview, error)
-	getFn   func(context.Context, uint64, string, string) (*types.ContractReview, error)
-	openFn  func(context.Context, uint64, string, string) (*types.ContractReview, io.ReadCloser, error)
+	startFn            func(context.Context, uint64, string, string) (*types.ContractReview, error)
+	getFn              func(context.Context, uint64, string, string) (*types.ContractReview, error)
+	openFn             func(context.Context, uint64, string, string) (*types.ContractReview, io.ReadCloser, error)
+	deleteTenantDataFn func(context.Context, uint64) error
 }
 
 func (s *contractReviewHandlerStub) Start(ctx context.Context, tenantID uint64, userID, id string) (*types.ContractReview, error) {
@@ -34,6 +35,10 @@ func (s *contractReviewHandlerStub) Get(ctx context.Context, tenantID uint64, us
 
 func (s *contractReviewHandlerStub) OpenDocument(ctx context.Context, tenantID uint64, userID, id string) (*types.ContractReview, io.ReadCloser, error) {
 	return s.openFn(ctx, tenantID, userID, id)
+}
+
+func (s *contractReviewHandlerStub) DeleteTenantData(ctx context.Context, tenantID uint64) error {
+	return s.deleteTenantDataFn(ctx, tenantID)
 }
 
 func contractReviewHandlerTestRouter() *gin.Engine {
@@ -110,4 +115,39 @@ func TestContractReviewHandlerServesLocatorWithoutGuessingLegacyOffsets(t *testi
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"source_revision":"text-v2:rev-1"`)
 	require.Contains(t, w.Body.String(), `"unit_id":"page-1"`)
+}
+
+func TestContractReviewHandlerRejectsDisabledWorkspaceWithoutDeletingData(t *testing.T) {
+	called := false
+	h := NewContractReviewHandler(&contractReviewHandlerStub{
+		getFn: func(context.Context, uint64, string, string) (*types.ContractReview, error) {
+			called = true
+			return nil, nil
+		},
+		deleteTenantDataFn: func(context.Context, uint64) error {
+			called = true
+			return nil
+		},
+	})
+	r := contractReviewHandlerTestRouter()
+	r.Use(func(c *gin.Context) {
+		ctx := context.WithValue(c.Request.Context(), types.TenantInfoContextKey, &types.Tenant{
+			ID:                   7,
+			LegalWorkspaceConfig: &types.LegalWorkspaceConfig{Enabled: false},
+		})
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	})
+	r.GET("/contract-reviews/:id", h.Get)
+	r.DELETE("/legal-workspace-data", h.DeleteTenantData)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/contract-reviews/review-1", nil))
+	require.Equal(t, http.StatusForbidden, w.Code)
+	require.False(t, called, "disabled review access must not call the service")
+
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/legal-workspace-data", nil))
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.True(t, called, "explicit purge remains available while workspace access is disabled")
 }

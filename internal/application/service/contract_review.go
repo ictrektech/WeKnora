@@ -329,6 +329,54 @@ func (s *contractReviewService) Delete(ctx context.Context, tenantID uint64, use
 	return s.repo.Delete(ctx, tenantID, userID, id)
 }
 
+// DeleteTenantData removes all contract-review database data for a tenant and
+// then cleans source objects. The database operation is atomic and commits
+// before external storage is touched. If storage cleanup fails, the method
+// returns the combined error. Repeating the operation is idempotent for the
+// database state; a provider failure after the commit is surfaced to the
+// caller so the storage cleanup can be handled separately.
+func (s *contractReviewService) DeleteTenantData(ctx context.Context, tenantID uint64) error {
+	resources, err := s.repo.DeleteTenantData(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+
+	seen := make(map[string]struct{}, len(resources))
+	var cleanupErr error
+	for _, resource := range resources {
+		reference := strings.TrimSpace(resource.Reference)
+		if reference == "" {
+			continue
+		}
+		if _, ok := seen[reference]; ok {
+			continue
+		}
+		seen[reference] = struct{}{}
+
+		remaining := int64(-1)
+		if s.resources != nil {
+			remaining, err = s.resources.Release(ctx, reference, types.ResourceOwnerContractReview, resource.ReviewID)
+			if err != nil {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("release contract review resource %q: %w", reference, err))
+				continue
+			}
+		}
+		// A shared resource remains owned by another domain object. Raw legacy
+		// paths return -1 from Release and retain the historical delete path.
+		if remaining > 0 {
+			continue
+		}
+		if s.files == nil {
+			cleanupErr = errors.Join(cleanupErr, errors.New("contract review file service is not configured"))
+			continue
+		}
+		if err := s.files.DeleteFile(ctx, reference); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("delete contract review resource %q: %w", reference, err))
+		}
+	}
+	return cleanupErr
+}
+
 func (s *contractReviewService) BulkAction(ctx context.Context, tenantID uint64, userID string, ids []string, action types.ContractReviewBulkAction) (*types.ContractReviewBulkResult, error) {
 	if len(ids) == 0 || len(ids) > 500 {
 		return nil, fmt.Errorf("contract review bulk action requires between 1 and 500 ids")
@@ -409,7 +457,7 @@ func (s *contractReviewService) Upload(ctx context.Context, tenantID uint64, use
 		return nil, err
 	}
 	if s.resources != nil {
-		if err := s.resources.Bind(ctx, ref, "contract_review", r.ID, "source_file"); err != nil {
+		if err := s.resources.Bind(ctx, ref, types.ResourceOwnerContractReview, r.ID, "source_file"); err != nil {
 			_ = s.files.DeleteFile(ctx, ref)
 			return nil, err
 		}
@@ -1398,6 +1446,14 @@ func (s *contractReviewService) ProcessReview(ctx context.Context, task *asynq.T
 			if callErr != nil {
 				return s.fail(ctx, r, fmt.Errorf("review clause %d: %w", idx+1, callErr))
 			}
+		}
+		if validated.SkippedExcessIssues > 0 {
+			modelIssueWarnings = append(modelIssueWarnings, types.ContractReviewWarning{
+				Code:       "MODEL_ISSUE_LIMIT_EXCEEDED",
+				Message:    fmt.Sprintf("第 %d 个分析片段中模型返回的问题超过单片段上限 %d，已忽略超出的 %d 条；请以保留的问题为准", idx+1, contractReviewMaxIssues, validated.SkippedExcessIssues),
+				ClauseID:   clause.ID,
+				EvidenceID: clause.EvidenceID,
+			})
 		}
 		if validated.SkippedDuplicateIssues > 0 {
 			modelIssueWarnings = append(modelIssueWarnings, types.ContractReviewWarning{

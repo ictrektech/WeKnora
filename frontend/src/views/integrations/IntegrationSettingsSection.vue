@@ -39,6 +39,7 @@
       <ChromeExtensionLanding v-if="tab === 'chrome'" />
       <ClawSkillLanding v-if="tab === 'claw'" />
       <CliIntegrationLanding v-if="tab === 'cli'" />
+      <LegalWorkspaceSettings v-if="tab === 'legal'" />
     </div>
   </div>
 </template>
@@ -52,6 +53,7 @@ import ApiIntegrationSettings from '@/views/integrations/ApiIntegrationSettings.
 import ChromeExtensionLanding from '@/views/integrations/ChromeExtensionLanding.vue'
 import ClawSkillLanding from '@/views/integrations/ClawSkillLanding.vue'
 import CliIntegrationLanding from '@/views/integrations/CliIntegrationLanding.vue'
+import LegalWorkspaceSettings from '@/views/settings/LegalWorkspaceSettings.vue'
 import type { IntegrationTab } from '@/config/integrations'
 
 const filterAgentId = ref('')

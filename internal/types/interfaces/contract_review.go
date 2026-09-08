@@ -23,6 +23,10 @@ type ContractReviewRepository interface {
 	UpsertIssueForRun(context.Context, *types.ContractReviewIssue, string) error
 	ClearResults(context.Context, string) error
 	ClearResultsForRun(context.Context, string, string) error
+	// DeleteTenantData hard-deletes all contract review rows for a tenant,
+	// including child rows and contract-review resource bindings. It returns
+	// source references for post-commit physical storage cleanup.
+	DeleteTenantData(context.Context, uint64) ([]types.ContractReviewResource, error)
 }
 
 type ContractReviewService interface {
@@ -36,6 +40,11 @@ type ContractReviewService interface {
 	OpenDocument(context.Context, uint64, string, string) (*types.ContractReview, io.ReadCloser, error)
 	Start(context.Context, uint64, string, string) (*types.ContractReview, error)
 	Retry(context.Context, uint64, string, string) (*types.ContractReview, error)
+	// DeleteTenantData is an Owner-gated, tenant-wide purge. Database rows are
+	// removed transactionally; storage cleanup errors are returned after the
+	// commit. Repeating the operation is database-idempotent, while any failed
+	// provider cleanup is surfaced for separate retry/operations handling.
+	DeleteTenantData(context.Context, uint64) error
 	Playbooks() []types.ContractReviewPlaybook
 	ProcessDocument(context.Context, *asynq.Task) error
 	ProcessReview(context.Context, *asynq.Task) error

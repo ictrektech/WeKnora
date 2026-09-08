@@ -1,10 +1,30 @@
 export default {
   legalWorkspace: {
+    title: 'Legal Workspace',
     contractReview: 'Contract Review',
-    platformConsole: 'Platform Console',
+    backToPlatform: 'Back to platform navigation',
     settings: 'Settings',
     collapse: 'Collapse sidebar',
     expand: 'Expand sidebar',
+  },
+  legalWorkspaceSettings: {
+    description: 'Control whether the legal workspace is visible and available in this workspace. Turning it off does not delete existing data.',
+    introTitle: 'Legal workspace switch',
+    introDescription: 'When enabled, workspace members can open the legal workspace from the left navigation and use Contract Review.',
+    enableLabel: 'Enable legal workspace',
+    enableDescription: 'Turning this off only hides the entry. Contract reviews and uploaded source documents are retained.',
+    saveSuccess: 'Legal workspace settings saved',
+    saveFailed: 'Failed to save legal workspace settings: {message}',
+    deleteTitle: 'Delete legal workspace data',
+    deleteDescription: 'Permanently delete all contract reviews, source documents, clauses, and findings in this workspace. This cannot be undone.',
+    deleteButton: 'Delete all data',
+    deleteConfirmTitle: 'Delete legal workspace data?',
+    deleteConfirmBody: 'This permanently deletes every contract review, uploaded source document, clause, and finding in the current workspace. It cannot be undone. Turning off the switch above does not delete this data. Confirm that you want to continue.',
+    deleteSuccess: 'Legal workspace data deleted',
+    deleteFailed: 'Failed to delete legal workspace data: {message}',
+    cancel: 'Cancel',
+    adminOnly: 'Workspace admins can change this setting. Only the workspace owner can delete legal workspace data.',
+    disabledMessage: 'The legal workspace is currently disabled.',
   },
   contractReview: {
     workspaceEyebrow: 'Legal workspace',
@@ -6513,7 +6533,8 @@ export default {
       api: 'API Integration',
       chrome: 'Chrome Extension',
       cli: 'CLI',
-      claw: 'Claw Skill'
+      claw: 'Claw Skill',
+      legal: 'Legal Workspace'
     },
     api: {
       title: 'API Integration',

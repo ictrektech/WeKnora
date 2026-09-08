@@ -1452,6 +1452,9 @@ func (h *TenantHandler) GetTenantKV(c *gin.Context) {
 	case "memory-config":
 		h.GetTenantMemoryConfig(c)
 		return
+	case "legal-workspace-config":
+		h.GetLegalWorkspaceConfig(c)
+		return
 	default:
 		logger.Info(ctx, "KV key not supported", "key", key)
 		c.Error(errors.NewBadRequestError("unsupported key"))
@@ -1503,11 +1506,68 @@ func (h *TenantHandler) UpdateTenantKV(c *gin.Context) {
 	case "memory-config":
 		h.updateTenantMemoryConfigInternal(c)
 		return
+	case "legal-workspace-config":
+		h.updateLegalWorkspaceConfigInternal(c)
+		return
 	default:
 		logger.Info(ctx, "KV key not supported", "key", key)
 		c.Error(errors.NewBadRequestError("unsupported key"))
 		return
 	}
+}
+
+// GetLegalWorkspaceConfig returns the tenant-level contract review access
+// switch. Missing legacy values resolve to enabled so existing tenants keep
+// their current behavior.
+func (h *TenantHandler) GetLegalWorkspaceConfig(c *gin.Context) {
+	ctx := c.Request.Context()
+	tenant, ok := types.TenantInfoFromContext(ctx)
+	if !ok {
+		c.Error(errors.NewBadRequestError("Workspace is empty"))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"enabled": tenant.LegalWorkspaceConfig.IsEnabled(),
+		},
+	})
+}
+
+type legalWorkspaceConfigUpdateRequest struct {
+	Enabled *bool `json:"enabled"`
+}
+
+// updateLegalWorkspaceConfigInternal updates only the legal workspace switch.
+// Data is deliberately untouched when disabling the feature.
+func (h *TenantHandler) updateLegalWorkspaceConfigInternal(c *gin.Context) {
+	ctx := c.Request.Context()
+	var req legalWorkspaceConfigUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil {
+		c.Error(errors.NewValidationError("enabled is required and must be a boolean"))
+		return
+	}
+	tenant, ok := types.TenantInfoFromContext(ctx)
+	if !ok {
+		c.Error(errors.NewBadRequestError("Workspace is empty"))
+		return
+	}
+	tenant.LegalWorkspaceConfig = &types.LegalWorkspaceConfig{Enabled: *req.Enabled}
+	updated, err := h.service.UpdateTenant(ctx, tenant)
+	if err != nil {
+		if appErr, isAppErr := errors.IsAppError(err); isAppErr {
+			c.Error(appErr)
+		} else {
+			c.Error(errors.NewInternalServerError("Failed to update legal workspace configuration").WithDetails(err.Error()))
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"enabled": updated.LegalWorkspaceConfig.IsEnabled(),
+		},
+	})
 }
 
 // updateTenantWebSearchConfigInternal updates tenant's web search config

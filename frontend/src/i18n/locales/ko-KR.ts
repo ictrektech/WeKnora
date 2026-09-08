@@ -1,10 +1,30 @@
 export default {
   legalWorkspace: {
+    title: '법률 워크스페이스',
     contractReview: '계약 검토',
-    platformConsole: '플랫폼 콘솔',
+    backToPlatform: '플랫폼 탐색으로 돌아가기',
     settings: '설정',
     collapse: '사이드바 접기',
     expand: '사이드바 펼치기',
+  },
+  legalWorkspaceSettings: {
+    description: '이 워크스페이스에서 법률 워크스페이스를 표시하고 사용할 수 있는지 제어합니다. 끄더라도 기존 데이터는 삭제되지 않습니다.',
+    introTitle: '법률 워크스페이스 전환',
+    introDescription: '켜면 워크스페이스 구성원이 왼쪽 탐색에서 법률 워크스페이스를 열고 계약 검토를 사용할 수 있습니다.',
+    enableLabel: '법률 워크스페이스 사용',
+    enableDescription: '끄면 메뉴만 숨겨집니다. 계약 검토 기록과 업로드한 원문은 보존됩니다.',
+    saveSuccess: '법률 워크스페이스 설정이 저장되었습니다',
+    saveFailed: '법률 워크스페이스 설정을 저장하지 못했습니다: {message}',
+    deleteTitle: '법률 워크스페이스 데이터 삭제',
+    deleteDescription: '이 워크스페이스의 모든 계약 검토, 원문, 조항 및 결과를 영구적으로 삭제합니다. 되돌릴 수 없습니다.',
+    deleteButton: '모든 데이터 삭제',
+    deleteConfirmTitle: '법률 워크스페이스 데이터를 삭제할까요?',
+    deleteConfirmBody: '현재 워크스페이스의 모든 계약 검토, 업로드한 원문, 조항 및 결과가 영구적으로 삭제되며 복구할 수 없습니다. 위의 사용 중지 전환은 데이터를 삭제하지 않습니다. 계속할지 확인하세요.',
+    deleteSuccess: '법률 워크스페이스 데이터가 삭제되었습니다',
+    deleteFailed: '법률 워크스페이스 데이터를 삭제하지 못했습니다: {message}',
+    cancel: '취소',
+    adminOnly: '워크스페이스 관리자만 이 설정을 변경할 수 있으며, 데이터 삭제는 소유자만 수행할 수 있습니다.',
+    disabledMessage: '법률 워크스페이스가 현재 비활성화되어 있습니다.',
   },
   contractReview: {
     workspaceEyebrow: '법률 워크스페이스',
@@ -792,7 +812,8 @@ export default {
       api: 'API 연동',
       chrome: 'Chrome 확장',
       cli: 'CLI',
-      claw: 'Claw Skill'
+      claw: 'Claw Skill',
+      legal: '법률 워크스페이스'
     },
     cli: {
       title: 'WeKnora CLI',
