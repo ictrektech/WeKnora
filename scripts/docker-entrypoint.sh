@@ -2,7 +2,7 @@
 set -e
 
 # ─── Fix ownership of bind-mounted directories ───
-# When users bind-mount host directories (e.g. ./skills/preloaded),
+# When users bind-mount host directories (e.g. ./data/files),
 # the mount inherits the host UID/GID which may differ from the
 # container's appuser. This entrypoint runs as root, fixes ownership,
 # then drops privileges to appuser via gosu — the same pattern used
@@ -10,7 +10,6 @@ set -e
 
 # Directories that may be bind-mounted and need appuser access
 MOUNT_DIRS=(
-    /app/skills/preloaded
     /data/files
 )
 

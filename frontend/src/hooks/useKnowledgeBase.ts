@@ -6,7 +6,6 @@ import {
   uploadKnowledgeFile,
   listKnowledgeFiles,
   getKnowledgeDetails,
-  delKnowledgeDetails,
   getKnowledgeDetailsCon,
 } from "@/api/knowledge-base/index";
 import { knowledgeStore } from "@/stores/knowledge";
@@ -95,32 +94,6 @@ export default function (knowledgeBaseId?: string) {
         total.value = totalResult;
       })
       .catch(() => {});
-  };
-  const delKnowledge = (index: number, item: any, onSuccess?: () => void) => {
-    cardList.value[index].isMore = false;
-    moreIndex.value = -1;
-    return delKnowledgeDetails(item.id)
-      .then(async (result: any) => {
-        if (result.success) {
-          MessagePlugin.info(t('knowledgeBase.deleteSubmitted'));
-          const before = cardList.value.length;
-          cardList.value = cardList.value.filter((card: any) => card.id !== item.id);
-          if (cardList.value.length !== before) {
-            total.value = Math.max(0, total.value - (before - cardList.value.length));
-          }
-          if (onSuccess) {
-            await onSuccess();
-          }
-          return true;
-        } else {
-          MessagePlugin.error(t('knowledgeBase.deleteFailed'));
-          return false;
-        }
-      })
-      .catch(() => {
-        MessagePlugin.error(t('knowledgeBase.deleteFailed'));
-        return false;
-      });
   };
   const openMore = (index: number) => {
     moreIndex.value = index;
@@ -255,7 +228,6 @@ export default function (knowledgeBaseId?: string) {
     moreIndex,
     getKnowled,
     details,
-    delKnowledge,
     openMore,
     onVisibleChange,
     requestMethod,

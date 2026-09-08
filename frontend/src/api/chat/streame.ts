@@ -7,7 +7,6 @@ import {
   sanitizeStreamRequestBody,
   type StreamRequestMeta,
 } from '@/utils/chatRequestDebug';
-
 type StreamChunkHandler = (data: any) => boolean | void
 
 const output = ref('')              // 显示内容
@@ -36,6 +35,12 @@ const dispatchChunk = (chunk: any) => {
   chunks.push(chunk)
   pendingChunks.set(sessionId, chunks)
 }
+import {
+  StreamAuthError,
+  isStreamAuthError,
+  refreshAccessTokenShared,
+  runStreamWithAuthRetry,
+} from '@/utils/authRefresh';
 
 interface StreamOptions {
   // 请求方法 (默认POST)
@@ -58,6 +63,7 @@ export function useStream() {
     const streamKey = `${params.method}:${params.url}:${params.session_id}:${params.query}`
     controllers.get(streamKey)?.abort()
     const currentController = new AbortController()
+    const streamAbort = currentController
     controllers.set(streamKey, currentController)
     streamSessions.set(streamKey, String(params.session_id))
     // 重置状态
@@ -170,11 +176,14 @@ export function useStream() {
         sentAt: Date.now(),
       };
       
-      await fetchEventSource(url, {
+      // Wrapped so an expired access token can be refreshed and the request
+      // replayed once. Nothing has been streamed to the UI yet when the
+      // handshake 401s, so the replay is invisible to the user.
+      const runStream = (authToken: string) => fetchEventSource(url, {
         method: params.method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": embedToken ? `Embed ${embedToken}` : `Bearer ${token}`,
+          "Authorization": embedToken ? `Embed ${embedToken}` : `Bearer ${authToken}`,
           "Accept-Language": i18n.global.locale?.value || localStorage.getItem('locale') || 'zh-CN',
           "X-Request-ID": requestID,
           ...(!embedToken && tenantIdHeader ? { "X-Tenant-ID": tenantIdHeader } : {}),
@@ -185,10 +194,12 @@ export function useStream() {
           params.method == "POST"
             ? JSON.stringify(postBody)
             : null,
-        signal: currentController.signal,
+        signal: streamAbort.signal,
         openWhenHidden: true,
 
         onopen: async (res) => {
+          // 401 is recoverable (refresh + replay); everything else is not.
+          if (res.status === 401) throw new StreamAuthError(res.status);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           console.log(`[TTFB] response:headers request_id=${requestID} elapsed_ms=${(performance.now() - sentAt).toFixed(1)}`);
           isLoading.value = false;
@@ -211,6 +222,7 @@ export function useStream() {
         },
 
         onerror: (err) => {
+          if (isStreamAuthError(err)) throw err;
           throw new Error(`${i18n.global.t('error.streamFailed')}: ${err}`);
         },
 
@@ -221,6 +233,20 @@ export function useStream() {
           isStreaming.value = controllers.size > 0;
           isLoading.value = false;
         },
+      });
+
+      await runStreamWithAuthRetry({
+        run: runStream,
+        initialToken: token,
+        isEmbed: Boolean(embedToken),
+        isCurrent: () => controllers.get(streamKey) === currentController && !streamAbort.signal.aborted,
+        refreshAccessToken: () => refreshAccessTokenShared({
+          messages: {
+            pleaseRelogin: i18n.global.t('error.pleaseRelogin'),
+            tokenRefreshFailed: i18n.global.t('error.tokenRefreshFailed'),
+          },
+        }),
+        reloginMessage: i18n.global.t('error.pleaseRelogin'),
       });
     } catch (err) {
       if (controllers.get(streamKey) === currentController) {

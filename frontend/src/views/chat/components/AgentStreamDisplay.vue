@@ -702,6 +702,7 @@ const TOOL_NAME_KEYS: Record<string, string> = {
   query_understand: 'agentStream.tools.queryUnderstand',
   query_knowledge_graph: 'agentStream.tools.queryKnowledgeGraph',
   read_skill: 'agentStream.tools.readSkill',
+  read_file: 'agentStream.tools.readFile',
   execute_skill_script: 'agentStream.tools.executeSkillScript',
   list_sandbox_files: 'agentStream.tools.listSandboxFiles',
   read_sandbox_file: 'agentStream.tools.readSandboxFile',
@@ -1306,7 +1307,7 @@ function getToolReferenceItems(event: any): KnowledgeReferenceLike[] {
   if (toolName === 'web_fetch') {
     const results = Array.isArray(toolData.results) ? toolData.results : [];
     return results
-      .filter((item: any) => item?.url)
+      .filter((item: any) => item?.url && (!item.status || item.status === 'success'))
       .map((item: any, index: number) => ({
         id: item.url,
         chunk_type: 'web_search',
@@ -2930,7 +2931,7 @@ const getToolTitle = (event: any): string => {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getEventSkillName(event))}...`;
     }
-    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
+    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_file' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getSandboxToolPath(event))}...`;
     }
@@ -3036,7 +3037,7 @@ const getToolTitle = (event: any): string => {
     return formatToolTitleWithDetail(getToolDescription(event), getReadSkillTarget(event));
   }
 
-  if (toolName === 'list_sandbox_files' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
+  if (toolName === 'list_sandbox_files' || toolName === 'read_file' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
     return formatToolTitleWithDetail(getToolDescription(event), getSandboxToolPath(event));
   }
 
@@ -3091,7 +3092,7 @@ const getToolDescription = (event: any): string => {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getEventSkillName(event))}...`;
     }
-    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
+    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_file' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getSandboxToolPath(event))}...`;
     }
@@ -3128,7 +3129,7 @@ const getToolDescription = (event: any): string => {
     return success ? t('agentStream.toolStatus.attachmentParsingDone') : t('agentStream.toolStatus.attachmentParsingFailed');
   } else if (toolName === 'query_understand') {
     return success ? t('agentStream.toolStatus.queryUnderstandDone') : t('agentStream.toolStatus.calledFailed', { name: getLocalizedToolName(toolName) });
-  } else if (toolName === 'shell_exec' || toolName === 'execute_skill_script' || toolName === 'read_skill' || toolName === 'list_sandbox_files' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
+  } else if (toolName === 'shell_exec' || toolName === 'execute_skill_script' || toolName === 'read_skill' || toolName === 'list_sandbox_files' || toolName === 'read_file' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
     const localizedName = getLocalizedToolName(toolName);
     return success ? localizedName : t('agentStream.toolStatus.calledFailed', { name: localizedName });
   } else {

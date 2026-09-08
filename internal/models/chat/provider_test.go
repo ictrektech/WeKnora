@@ -92,7 +92,7 @@ func TestBuildOutbound_Thinking(t *testing.T) {
 	t.Run("ollama openai-compatible think field", func(t *testing.T) {
 		c := newOutboundChat(t, string(provider.ProviderGeneric), "qwen",
 			map[string]string{ExtraConfigThinkingControl: "think"})
-		body, _, useRaw, err := c.buildOutbound(msgs, &ChatOptions{Thinking: ptrBool(false)}, true)
+		body, _, useRaw, err := c.buildOutbound(context.Background(), msgs, &ChatOptions{Thinking: ptrBool(false)}, true)
 		require.NoError(t, err)
 		require.True(t, useRaw)
 		assert.Contains(t, mustJSON(t, body), `"think":false`)
@@ -101,7 +101,7 @@ func TestBuildOutbound_Thinking(t *testing.T) {
 	t.Run("ollama openai-compatible reasoning effort", func(t *testing.T) {
 		c := newOutboundChat(t, string(provider.ProviderGeneric), "qwen",
 			map[string]string{ExtraConfigThinkingControl: "reasoning_effort"})
-		body, _, useRaw, err := c.buildOutbound(msgs, &ChatOptions{Thinking: ptrBool(false)}, true)
+		body, _, useRaw, err := c.buildOutbound(context.Background(), msgs, &ChatOptions{Thinking: ptrBool(false)}, true)
 		require.NoError(t, err)
 		require.True(t, useRaw)
 		assert.Contains(t, mustJSON(t, body), `"reasoning_effort":"none"`)

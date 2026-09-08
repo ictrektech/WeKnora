@@ -10,7 +10,7 @@ WeKnora 由三个可独立开发的进程组成：
 | --- | --- | --- | --- |
 | 主后端 `app` | `cmd/server` + `internal/` | Go | **Go 1.26.0**（`go.mod` 中 `go 1.26.0`），需 CGO（DuckDB、sqlite-vec 绑定） |
 | 文档解析服务 `docreader` | `docreader/` | Python + gRPC | **Python >= 3.10.18**（`docreader/pyproject.toml` 中 `requires-python`），依赖用 **uv** 管理（仓库含 `uv.lock`，Docker 内 `uv sync --locked`） |
-| 前端 `frontend` | `frontend/` | Node.js + Vue 3 | Node 22 系（`devDependencies` 含 `@tsconfig/node22`、`@types/node ^22`），Vite 7 + TypeScript ~6.0 + Vue 3.5 + TDesign，版本号 `0.7.2` |
+| 前端 `frontend` | `frontend/` | Node.js + Vue 3 | Node 22 系（`devDependencies` 含 `@tsconfig/node22`、`@types/node ^22`），Vite 7 + TypeScript ~6.0 + Vue 3.5 + TDesign，版本号 `0.8.0` |
 | CLI | `cli/`（独立 Go module） | Go | Go 1.26（`.github/workflows/cli.yml` 矩阵 `go: ['1.26']`） |
 
 推荐额外安装的开发工具：
@@ -129,7 +129,7 @@ make package-mac-app  # 打 macOS .app（scripts/package-mac-app.sh）
 | --- | --- |
 | `docker-build-app` | 构建 `wechatopenai/weknora-app`（`docker/Dockerfile.app`，注入 `scripts/get_version.sh` 的版本信息） |
 | `docker-build-docreader` | 构建 `wechatopenai/weknora-docreader`（`docker/Dockerfile.docreader`） |
-| `docker-build-frontend` | 先 `scripts/build_frontend_dist.sh`，再构建 `wechatopenai/weknora-ui` |
+| `docker-build-frontend` | 多阶段构建 `wechatopenai/weknora-ui`（builder 内 `npm ci` + `npm run build`，无需宿主机预构建 dist） |
 | `docker-build-all` | 以上三个镜像 |
 | `docker-run` | 确保 `.env` 存在（缺失时从 `.env.example` 复制或 touch）后 `docker-compose up` |
 | `docker-stop` / `docker-restart` | `docker-compose down` / `stop -t 60` + `up` |
@@ -242,8 +242,8 @@ make fmt && make lint && make test
 
 | 文件 | 触发路径 | 作用 |
 | --- | --- | --- |
-| `workflows/app.yml` | 根模块 Go 代码、`go.mod`、`config/`、`migrations/`、`scripts/`、`skills/preloaded/`、`docker/Dockerfile.app` | 主模块检查：gofmt 格式校验（只针对 PR 内的提交）、`go vet`、`go test`、`go build ./cmd/server` |
-| `workflows/frontend.yml` | `frontend/`、`scripts/build_frontend_dist.sh` | Node 24：`npm test` + `npm run type-check` + `npm run build` |
+| `workflows/app.yml` | 根模块 Go 代码、`go.mod`、`config/`、`migrations/`、`scripts/`、`docker/Dockerfile.app` | 主模块检查：gofmt 格式校验（只针对 PR 内的提交）、`go vet`、`go test`、`go build ./cmd/server` |
+| `workflows/frontend.yml` | `frontend/`、`scripts/build_frontend_dist.sh` | Node 24：`npm test` + `npm run type-check` + `npm run build`；另构建 `frontend/Dockerfile` 多阶段镜像（不推送） |
 | `workflows/docreader.yml` | `docreader/`、`testdata/`、`packages/`、相关 Dockerfile | uv 装依赖 → `compileall` → `unittest discover docreader/tests`；再拉起 docreader gRPC 服务跑 `go test ./docreader/client ./docreader/proto` |
 | `workflows/mcp-server.yml` | `mcp-server/` | Python 3.10-3.13 矩阵测试；合入 main 后按 `pyproject.toml` 里的版本号用 PyPI Trusted Publishing 自动发布（版本已存在则跳过上传，不依赖打 tag） |
 | `workflows/cli.yml` | `cli/` | ubuntu/macos/windows 三平台矩阵，Go 1.26，`go build` + `go test -race -coverprofile` + `go vet` + skill wire 词表检查 |

@@ -8,6 +8,7 @@ import { installTDesignIconOfflineGuard } from '@/utils/tdesign-icon-offline'
 import { getAppBasePath } from '@/utils/app-base'
 import i18n from './i18n/embed'
 import EmbedPage from '@/views/embed/EmbedPage.vue'
+import ProtectedResourcePreview from '@/components/ProtectedResourcePreview.vue'
 
 installTDesignIconOfflineGuard()
 
@@ -23,7 +24,7 @@ const router = createRouter({
 })
 
 // Runtime-only Vue build cannot compile string templates — use a render fn.
-const app = createApp({ render: () => h(RouterView) })
+const app = createApp({ render: () => [h(RouterView), h(ProtectedResourcePreview)] })
 
 app.use(TDesign)
 app.use(createPinia())

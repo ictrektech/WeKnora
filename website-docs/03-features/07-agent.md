@@ -32,10 +32,10 @@ WeKnora 提供两种模式，在对话框顶部切换：
 | `AgentEngine` | `internal/agent/engine.go` | ReAct 主循环的驱动者，持有配置、工具注册表、Chat 模型、事件总线等 |
 | `ToolRegistry` | `internal/agent/tools/registry.go` | 工具注册、查找、参数校验、执行、输出截断、资源清理 |
 | 内置工具集 | `internal/agent/tools/*.go` | 24 个内置工具 + 动态注册的 MCP 工具 |
-| Token 估算与压缩 | `internal/agent/token/` | `Estimator`（BPE 估算）与 `CompressContext`（滑动裁剪） |
-| 记忆整合 | `internal/agent/memory/consolidator.go` | LLM 驱动的历史摘要（Memory Consolidation） |
+| Token 估算与压缩 | `internal/agent/token/` + `internal/agent/compaction/` | `Estimator`（BPE 估算）与长轮次上下文压缩（sandbox 工具历史） |
+| 记忆整合 | `internal/application/service/memory/` | 跨会话长期记忆：抽取、召回、主题提升、文档亲和度、整理 |
 | 技能系统 | `internal/agent/skills/` | SKILL.md 的发现、加载与脚本执行（Progressive Disclosure） |
-| 执行沙箱 | `internal/sandbox/` | 技能脚本的 Docker / Cube / E2B 隔离执行与安全校验 |
+| 执行沙箱 | `internal/sandbox/` | 技能脚本与 `shell_exec` 的 Docker / Cube / E2B 会话级隔离执行与安全校验 |
 | 工具审批 | `internal/agent/approval/gate.go` | MCP 危险工具的人工审批（HITL）与会话内 OAuth 授权 |
 | Agent 服务层 | `internal/application/service/agent_service.go` | 组装引擎：注册工具、解析 KB 元信息、初始化技能/沙箱/VLM |
 | 会话问答入口 | `internal/application/service/session_agent_qa.go` | 从 `CustomAgent` 构建运行时 `AgentConfig` 并执行 |
@@ -271,8 +271,8 @@ flowchart TD
 | `database_query` | SQL（SELECT-only） | 只读查询白名单表（`knowledge_bases`/`knowledges`/`chunks`），自动注入 tenant_id 过滤与 `deleted_at IS NULL`；SQL 参数在 UI/Langfuse 中脱敏 |
 | `data_schema` | `knowledge_id`\*（`dN`） | 读取 CSV/Excel 文件的 `table_summary` + `table_column` 类型分块，返回表名、列信息与行数 |
 | `data_analysis` | `knowledge_id`\*、`sql`\* | 把 CSV/Excel 载入 DuckDB 后执行 SQL；多 Sheet Excel 合并为一张表并暴露 `__sheet_name` 列；自动纠正列名大小写/空格差异；会话结束 Cleanup 时 DROP 所建表 |
-| `web_search` | `query`\* | 联网搜索；描述中强制 "KB First" 规则（必须先 grep_chunks + knowledge_search）；结果经 RAG 压缩、缓存进会话级临时知识库，返回 `wN` 页面短 ID |
-| `web_fetch` | `items[]`\*（每项 `url`=`wN`、`prompt`） | 并发抓取网页（SSRF 安全客户端 + DNS pinning，必要时 chromedp 渲染），抽取正文后用小模型按 prompt 摘要；60s 超时。逐 URL 返回 `success`/`failed`/`skipped` 状态与可重试错误码，部分失败不影响其它页面 |
+| `web_search` | `query`\*，可选 `count`、`country`、`freshness`、`content` | 联网搜索，直接返回提供商的标题、摘要和 `wN` 页面短 ID；按任务需要选择知识库或联网检索，Agent 搜索不再自动进行 RAG 压缩；Brave 支持地区/时效过滤，`content=true` 并行抓取前 3 条正文并返回完整正文地址 |
+| `web_fetch` | `items[]`\*（每项 `url`\*=`wN` 或 HTTP(S) URL，可选 `offset`、`limit`） | 并发抓取最多 8 个网页（SSRF 安全客户端 + DNS pinning，必要时 chromedp 渲染），直接返回 Markdown 或支持的文本正文；60s 超时。按字符分页，使用 `next_offset` 续读；完整正文保存在 `full_output_path`，可用 `read_file` 跨轮按行读取；逐 URL 返回 `success`/`failed`/`skipped` 状态与可重试错误码，部分失败不影响其它页面 |
 | `read_skill` | `skill_name`\*、`file_path` | 读取技能 SKILL.md 全文（Level 2）或技能目录内指定文件（Level 3），并列出目录内可执行脚本 |
 | `execute_skill_script` | `skill_name`\*、`script_path`\*、`args[]`、`input`（stdin） | 在沙箱中执行技能脚本，返回 stdout/stderr/exit code/duration/killed |
 | `wiki_search` | `queries[]`\*（正则）、`limit`（默认 10）、`knowledge_base_id` | 在 Wiki 页面（标题/内容/slug/摘要）上做 POSIX 正则搜索，返回带 `bN` 标记的页面与摘要；已见 slug 去重 |
@@ -391,8 +391,8 @@ description: Extract text and tables from PDF files, fill forms, merge documents
 ```
 
 - **Level 1（元数据）**：frontmatter 中的 `name` + `description`，启动时全部注入 system prompt；
-- **Level 2（指令）**：SKILL.md 正文，模型判断匹配后经 `read_skill` 按需加载；
-- **Level 3（资源）**：目录内其他文件（文档、脚本），经 `read_skill(file_path=...)` 或 `execute_skill_script` 使用。
+- **Level 2（指令）**：SKILL.md 正文，模型判断匹配后经 `read_file(path="skill://<name>/SKILL.md")` 按需加载；
+- **Level 3（资源）**：目录内其他文件（文档、脚本），经 `read_file` 或 `shell_exec(skill_name=...)` 使用。
 
 校验规则（`Skill.Validate`）：`name` ≤ 64 字符，仅允许 Unicode 字母/数字/连字符，禁止保留词 `anthropic`/`claude`，禁止 XML 标签；`description` ≤ 1024 字符、禁止 XML 标签。脚本识别按扩展名（`.py`/`.sh`/`.bash`/`.js`/`.ts`/`.rb`/`.pl`/`.php`）。
 
@@ -400,23 +400,23 @@ description: Extract text and tables from PDF files, fill forms, merge documents
 
 | 位置 | 内容 | 用途 |
 | --- | --- | --- |
-| `skills/preloaded/` | `citation-generator`（引用生成器）、`data-processor`（数据处理器，含 analyze.py 等脚本）、`doc-coauthoring`（文档协作）、`document-analyzer`（文档分析器）、`openmaic-classroom`（互动课程生成） | 服务端预置技能，Agent 可勾选 |
+| 空间沙箱镜像 | 管理员安装到沙箱配置的技能（`TenantSkills`） | 对话里可勾选、`@` 提及并执行 |
 | `examples/skills/pdf-processing/` | SKILL.md + `scripts/analyze_form.py`、`scripts/extract_text.py` | 自定义技能示例 |
 | `cli/skills/` | `weknora-shared`、`weknora-rag-search`（经 `//go:embed` 打进 CLI 二进制，`weknora skills install` 释放） | 面向外部 Agent 使用 WeKnora CLI 的技能 |
 
-预置目录解析顺序（`getPreloadedSkillsDir`，`internal/application/service/skill_service.go`）：`WEKNORA_SKILLS_DIR` 环境变量 → 可执行文件旁的默认目录 → 当前工作目录 → 相对默认路径。
+技能来自当前智能体所选沙箱配置上已安装且可用的镜像，不再从宿主机 `skills/preloaded` 目录加载。
 
-加载链路：`skills.Loader.DiscoverSkills` 扫描各技能目录下含 `SKILL.md` 的子目录，解析 frontmatter 缓存元数据；`Manager` 负责 enabled 开关、`allowedSkills` 白名单过滤、`LoadSkill`（Level 2）、`ReadSkillFile`/`ListSkillFiles`（Level 3，带路径穿越防护：Clean 后拒绝 `..` 与绝对路径，并校验最终绝对路径仍在技能目录内）。
+加载链路：已安装技能由 `TenantSkillSource` 提供元数据与文件；测试仍可用 `skills.Loader` 扫描含 `SKILL.md` 的宿主目录。`Manager` 负责 enabled 开关、`allowedSkills` 白名单过滤、`LoadSkill`（Level 2）、`ReadSkillFile`/`ListSkillFiles`（Level 3，带路径穿越防护：Clean 后拒绝 `..` 与绝对路径，并校验最终绝对路径仍在技能目录内）。
 
 Agent 侧的启停在 `configureSkillsFromAgent`（`internal/application/service/session_agent_qa.go`）：
 
 - 智能体未选择空间级沙箱配置时，脚本执行工具不可用，但仍可浏览技能说明；
-- `SkillsSelectionMode`：`all` = 全部预置技能、`selected` = `SelectedSkills` 白名单、`none`/空 = 禁用；
-- 用户 `@技能` 提及会经 `applyPerRequestSkillScope` 把本轮白名单收窄到提及集合，并作为 `PinnedSkillInfo` 注入 `<must_use>` 块（"Must call read_skill(...) before answering"）。
+- `SkillsSelectionMode`：`all` = 当前沙箱已安装技能、`selected` = `SelectedSkills` 白名单、`none`/空 = 禁用；
+- 用户 `@技能` 提及会经 `applyPerRequestSkillScope` 把本轮白名单收窄到提及集合，并作为 `PinnedSkillInfo` 注入 `<must_use>` 块（先 `read_file` 技能说明再作答）。
 
 ### 5.3 与沙箱（internal/sandbox）的关系
 
-`execute_skill_script` → `skills.Manager.ExecuteScript` → `sandbox.Manager.Execute`。Docker、CubeSandbox、E2B 均通过「设置 → 沙箱后端」的同一套空间配置与检查接口维护；远端模板从目标集群实时拉取，缺少 WeKnora 标准模板时自动创建。三者都是会话级持久沙箱，提供 shell_exec、附件暂存与产物收集。本机开发用 Docker 后端连本机 daemon；生产环境使用 E2B 协议后端：E2B Cloud、CubeSandbox，或任意 E2B 兼容控制面，接入方式见 `docs/sandbox-protocol.md`。
+`shell_exec(skill_name=...)` 在已安装技能的运行时里执行命令。Docker、CubeSandbox、E2B 均通过「设置 → 沙箱后端」的同一套空间配置与检查接口维护；远端模板从目标集群实时拉取，缺少 WeKnora 标准模板时自动创建。三者都是会话级持久沙箱，提供 shell_exec、附件暂存与产物收集。本机开发用 Docker 后端连本机 daemon；生产环境使用 E2B 协议后端：E2B Cloud、CubeSandbox，或任意 E2B 兼容控制面，接入方式见 `docs/sandbox-protocol.md`。
 
 **Manager 与校验器**（`internal/sandbox/manager.go`、`validator.go`）：每次执行前，除非 `SkipValidation`，`ScriptValidator` 会做四类静态校验，任一命中即拒绝执行并返回 `ErrSecurityViolation`：
 
@@ -425,19 +425,13 @@ Agent 侧的启停在 `configureSkillsFromAgent`（`internal/application/service
 3. **stdin**：内嵌 shell 命令检测；
 4. 合并入口 `ValidateAll`。
 
-**Docker 沙箱**（`docker.go`，`docker run --rm` 隔离）：
-
-- `--user 1000:1000` 非 root、`--cap-drop ALL`、`--security-opt no-new-privileges`、`--pids-limit 100`；
-- 默认 `--network none`（除非 `AllowNetwork`）；
-- 资源限额：内存默认 `DefaultMemoryLimit = 256MB`（`--memory` + `--memory-swap` 同值禁 swap）、CPU 默认 `DefaultCPULimit = 1.0` 核；
-- 技能目录以只读挂载到 `/workspace`；可选 `--read-only` 根文件系统 + 64MB noexec tmpfs；
-- 按扩展名选择解释器（`.py`→`python3` 等）。
+**Docker 沙箱**（会话级长驻容器，`internal/sandbox/docker_engine.go` / `docker_remote_client.go`）：一个会话一个容器，PID 1 为 `sleep infinity`，脚本、`shell_exec`、附件暂存与产物收集都在同一容器里 exec。默认**关闭**（`WEKNORA_SANDBOX_DOCKER_ENABLED` 或系统设置「网络安全」打开）。exec 一律以沙箱账号 `user`(uid 1000) 运行；超时由容器内 `timeout(1)` 执行，空闲回收读活跃标记 mtime。详细能力、网络策略与安全边界见 [`docs/sandbox-docker-backend.md`](../../docs/sandbox-docker-backend.md)。旧的 `docker run --rm` + 只读 bind mount 模型已移除。
 
 Manager 初始化时：`disabled` 模式的 `disabledSandbox` 拒绝一切执行。
 
 ### 5.4 沙箱文件工具的契约
 
-`write_sandbox_file` / `read_sandbox_file` / `edit_sandbox_file` 三个工具共用一套上限与并发约定，设计目标是：**模型能写出来的文件，必须能读回来、能局部改，且不会因为一次响应写不完就前功尽弃。**
+`write_sandbox_file` / `read_file` / `edit_sandbox_file` 三个工具共用一套上限与并发约定，设计目标是：**模型能写出来的文件，必须能读回来、能局部改，且不会因为一次响应写不完就前功尽弃。**
 
 **写：按 completion 预算给出建议大小，但不据此拒绝。** 工具描述里告诉模型的单次 `content` 建议上限不是写死的常量，而是由本轮 `MaxCompletionTokens` 推导（`writeBudgetBytes`，见 `internal/agent/tools/sandbox_write.go`）。理由是：真正卡住一次写入的从来不是某个字节数，而是模型这一轮还能吐多少 token；如果用户在前端把 `max_completion_token` 调小，一个固定的 256 KiB 上限就成了谎言——模型以为能写，实际参数在半路被截断。
 

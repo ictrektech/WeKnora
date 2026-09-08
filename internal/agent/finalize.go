@@ -110,13 +110,12 @@ Now generate the final answer:`, query, imageRequirement)
 	logger.Debugf(ctx, "[Agent][FinalAnswer] AnswerID: %s", answerID)
 	answerDoneEmitted := false
 
-	budget := e.clampCompletionBudgetToContext(e.tokenEstimator.EstimateMessages(messages))
+	budget := min(completionTokens, e.clampCompletionBudgetToContext(e.tokenEstimator.EstimateMessages(messages)))
 	llmResult, err := e.streamLLMToEventBus(
 		ctx,
 		messages,
 		&chat.ChatOptions{
 			Temperature:         e.config.Temperature,
-			MaxTokens:           budget,
 			MaxCompletionTokens: budget,
 			PromptCacheKey:      sessionID,
 		}, // Thinking disabled for final answer synthesis
