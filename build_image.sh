@@ -248,7 +248,11 @@ verify_app_image_migrations() (
   }
 
   log "Validating ${app_image} migrations 0 -> ${latest_version} against a clean PostgreSQL database"
-  pull_base_image "$postgres_image"
+  if docker image inspect "$postgres_image" >/dev/null 2>&1; then
+    log "PostgreSQL migration test image present locally: ${postgres_image}"
+  else
+    pull_base_image "$postgres_image"
+  fi
   docker network create "$network" >/dev/null
   docker run -d --name "$postgres_container" --network "$network" \
     -e "POSTGRES_PASSWORD=${password}" \
