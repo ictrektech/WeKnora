@@ -101,6 +101,7 @@ type reviewValidatedBatch struct {
 	Issues                 []reviewIssueOutput
 	Facts                  []types.ContractReviewFact
 	SkippedDuplicateIssues int
+	SkippedExcessIssues    int
 }
 
 type reviewIssueValidationFailure struct {
@@ -211,19 +212,27 @@ func validateReviewBatchJSON(content, document string, units []reviewEvidenceUni
 	if err := decodeContractReviewJSON(content, &output); err != nil {
 		return reviewValidatedBatch{}, err
 	}
-	if len(output.Issues) > contractReviewMaxIssues {
-		return reviewValidatedBatch{}, fmt.Errorf("contract review model returned %d issues; maximum is %d", len(output.Issues), contractReviewMaxIssues)
-	}
 	if len(output.Facts) > contractReviewMaxFacts {
 		return reviewValidatedBatch{}, fmt.Errorf("contract review model returned %d facts; maximum is %d", len(output.Facts), contractReviewMaxFacts)
 	}
+	issueCandidates := output.Issues
+	skippedExcessIssues := 0
+	if len(issueCandidates) > contractReviewMaxIssues {
+		// Some model gateways do not enforce maxItems from the response schema.
+		// Preserve the model's priority order within the service limit instead of
+		// failing an otherwise usable clause response. The caller records this as
+		// a degraded result so the discarded tail remains visible to users.
+		skippedExcessIssues = len(issueCandidates) - contractReviewMaxIssues
+		issueCandidates = issueCandidates[:contractReviewMaxIssues]
+	}
 
 	validated := reviewValidatedBatch{
-		Issues: make([]reviewIssueOutput, 0, len(output.Issues)),
-		Facts:  make([]types.ContractReviewFact, 0, len(output.Facts)),
+		Issues:              make([]reviewIssueOutput, 0, len(issueCandidates)),
+		Facts:               make([]types.ContractReviewFact, 0, len(output.Facts)),
+		SkippedExcessIssues: skippedExcessIssues,
 	}
-	seenIssues := make(map[string]struct{}, len(output.Issues))
-	for index, candidate := range output.Issues {
+	seenIssues := make(map[string]struct{}, len(issueCandidates))
+	for index, candidate := range issueCandidates {
 		issue, err := validateReviewIssue(candidate, document, units)
 		if err != nil {
 			return reviewValidatedBatch{}, fmt.Errorf("invalid issue %d: %w", index+1, err)
@@ -286,16 +295,20 @@ func validateReviewBatchWithEvidenceIsolation(content, document string, units []
 			return reviewValidatedBatch{}, nil, fmt.Errorf("facts must be an array: %w", err)
 		}
 	}
-	if len(rawIssues) > contractReviewMaxIssues {
-		return reviewValidatedBatch{}, nil, fmt.Errorf("contract review model returned %d issues; maximum is %d", len(rawIssues), contractReviewMaxIssues)
-	}
 	// Fact extraction is service-owned. Do not silently accept a model fact
 	// batch here; callers must still treat that schema violation as fatal.
 	if len(rawFacts) > 0 {
 		return reviewValidatedBatch{}, nil, errors.New("model returned facts although fact extraction is service-owned")
 	}
+	skippedExcessIssues := 0
+	if len(rawIssues) > contractReviewMaxIssues {
+		// Keep the same bounded, priority-ordered behavior as the normal
+		// validation path when evidence isolation is used after a retry.
+		skippedExcessIssues = len(rawIssues) - contractReviewMaxIssues
+		rawIssues = rawIssues[:contractReviewMaxIssues]
+	}
 
-	validated := reviewValidatedBatch{Issues: make([]reviewIssueOutput, 0, len(rawIssues)), Facts: []types.ContractReviewFact{}}
+	validated := reviewValidatedBatch{Issues: make([]reviewIssueOutput, 0, len(rawIssues)), Facts: []types.ContractReviewFact{}, SkippedExcessIssues: skippedExcessIssues}
 	failures := make([]reviewIssueValidationFailure, 0)
 	seenIssues := make(map[string]struct{}, len(rawIssues))
 	for index, rawIssue := range rawIssues {

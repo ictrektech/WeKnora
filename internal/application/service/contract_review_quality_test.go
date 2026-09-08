@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -29,6 +30,27 @@ func validReviewBatchJSON(quote string) string {
 	return string(encoded)
 }
 
+func reviewBatchJSONWithIssueCount(count int) (string, string, []reviewEvidenceUnit) {
+	quotes := make([]string, 0, count)
+	issues := make([]map[string]any, 0, count)
+	for index := 0; index < count; index++ {
+		quote := fmt.Sprintf("付款条款%d：应在签署后%d日内支付。", index+1, index+1)
+		quotes = append(quotes, quote)
+		issues = append(issues, map[string]any{
+			"category": "payment", "finding_type": "ambiguity", "risk_level": "medium",
+			"title": fmt.Sprintf("付款期限%d表述不清", index+1), "explanation": "付款期限需要明确。", "original_quote": quote,
+			"suggestion": "明确付款起算日和到期日。", "evidence_refs": []string{"primary"},
+		})
+	}
+	document := strings.Join(quotes, "\n")
+	content, _ := json.Marshal(map[string]any{"issues": issues})
+	units := []reviewEvidenceUnit{{
+		ID: "primary", Role: types.ContractReviewEvidencePrimary,
+		Start: 0, End: len([]rune(document)), Text: document, Prompted: true,
+	}}
+	return string(content), document, units
+}
+
 func TestValidateReviewBatchRejectsMalformedAndUnknownRisk(t *testing.T) {
 	document, units := reviewValidationFixture()
 	for name, content := range map[string]string{
@@ -52,6 +74,23 @@ func TestValidateReviewBatchAcceptsMissingFacts(t *testing.T) {
 	}
 	if len(validated.Issues) != 0 || len(validated.Facts) != 0 {
 		t.Fatalf("unexpected validated batch: %+v", validated)
+	}
+}
+
+func TestValidateReviewBatchCapsExcessIssues(t *testing.T) {
+	content, document, units := reviewBatchJSONWithIssueCount(contractReviewMaxIssues + 1)
+	validated, err := validateReviewBatchJSON(content, document, units)
+	if err != nil {
+		t.Fatalf("an over-limit issue batch should remain usable: %v", err)
+	}
+	if len(validated.Issues) != contractReviewMaxIssues {
+		t.Fatalf("retained issues=%d, want %d", len(validated.Issues), contractReviewMaxIssues)
+	}
+	if validated.Issues[0].Title != "付款期限1表述不清" || validated.Issues[contractReviewMaxIssues-1].Title != "付款期限5表述不清" {
+		t.Fatalf("validator must retain the model's first issues in order: %+v", validated.Issues)
+	}
+	if validated.SkippedExcessIssues != 1 {
+		t.Fatalf("skipped excess issue count=%d, want 1", validated.SkippedExcessIssues)
 	}
 }
 
