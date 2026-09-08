@@ -57,6 +57,8 @@ EOF
 `--no-push` 用于只做本机构建检查；`--no-feishu` 用于不更新飞书发布表。
 脚本只读取并计算下一个 patch 版本，不会修改 `ictrek.app/VERSION`；正式发布时再由 `scripts/update_version.sh` 更新 VOS 版本。
 
+每次构建 `weknora` 后端镜像后，脚本会先启动一次性 PostgreSQL，在空库中执行镜像内从 0 到最新版本的完整迁移，并检查 migration 状态及关键表列。只有迁移完成且 `dirty=false` 才会继续推送镜像和写飞书。该临时数据库在检查结束后自动删除，不连接或修改任何部署数据库。
+
 飞书发布表规则：
 
 - 构建写表凭证固定使用构建机 `~/.feishu.json`，不要提交或打印；
@@ -174,6 +176,13 @@ not update the release table.
 The script only reads and calculates the next patch version; it does not modify
 `ictrek.app/VERSION`. Update the VOS version separately with
 `scripts/update_version.sh` for an official release.
+
+After every `weknora` backend image build, the script starts an ephemeral
+PostgreSQL database, executes the image's complete migration chain from version
+0 to the latest version, and checks both migration state and required schema.
+The image is pushed and recorded in Feishu only when the migration finishes
+with `dirty=false`. This check never connects to a deployed database, and its
+temporary database is removed automatically.
 
 The script defaults to reachable mirrors for remote builds:
 

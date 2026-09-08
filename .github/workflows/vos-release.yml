@@ -11,6 +11,19 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: weknora_migration_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d weknora_migration_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v6
         with:
@@ -18,6 +31,24 @@ jobs:
 
       - name: Fetch all release tags
         run: git fetch --force --tags origin
+
+      - name: Verify PostgreSQL migrations from an empty database
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -v "$PWD/migrations/versioned:/migrations:ro" \
+            migrate/migrate:v4.19.1 \
+            -path=/migrations \
+            -database='postgres://postgres:postgres@127.0.0.1:5432/weknora_migration_test?sslmode=disable&options=-c%20app.skip_embedding=true' \
+            up
+          state="$(docker run --rm --network host -e PGPASSWORD=postgres postgres:16-alpine \
+            psql -h 127.0.0.1 -U postgres -d weknora_migration_test -Atc \
+            "SELECT dirty FROM schema_migrations;
+             SELECT CASE WHEN to_regclass('public.tenant_skill_snapshots') IS NOT NULL
+                          AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='tenant_skill_snapshots' AND column_name='planned_name')
+                          AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='tenants' AND column_name='memory_config')
+                         THEN 'schema-ok' ELSE 'schema-incomplete' END;")"
+          test "$state" = $'f\nschema-ok'
 
       - name: Write Feishu component credentials
         run: |

@@ -1,7 +1,7 @@
 -- Description: Skills installed onto a sandbox config, plus the snapshot chain
 -- ledger. Skills live inside the config's snapshot image; these tables are the
 -- metadata projection and the audit trail for the provider-side snapshots.
-DO $$ BEGIN RAISE NOTICE '[Migration 000086] Creating tenant_skills'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000094] Creating tenant_skills'; END $$;
 
 CREATE TABLE IF NOT EXISTS tenant_skills (
     id                    VARCHAR(36)  PRIMARY KEY,
@@ -32,7 +32,7 @@ COMMENT ON COLUMN tenant_skills.enabled IS 'Visibility to the agent only; files 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_tenant_skills_config_name
     ON tenant_skills (sandbox_config_id, name) WHERE deleted_at IS NULL;
 
-DO $$ BEGIN RAISE NOTICE '[Migration 000086] Creating tenant_skill_snapshots'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000094] Creating tenant_skill_snapshots'; END $$;
 
 CREATE TABLE IF NOT EXISTS tenant_skill_snapshots (
     id                  VARCHAR(36)  PRIMARY KEY,
@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS tenant_skill_snapshots (
     skill_id            VARCHAR(36),
     snapshot_id         VARCHAR(255),
     parent_snapshot_id  VARCHAR(255),
+    planned_name        VARCHAR(255),
     generation          INTEGER      NOT NULL DEFAULT 0,
     trigger             VARCHAR(16)  NOT NULL,
     state               VARCHAR(16)  NOT NULL,
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS tenant_skill_snapshots (
 );
 
 COMMENT ON TABLE tenant_skill_snapshots IS 'Image chain ledger. Old snapshots are kept (state=superseded), never deleted on switch, so the recorded IDs stay resolvable.';
+COMMENT ON COLUMN tenant_skill_snapshots.planned_name IS 'Name passed to CreateSnapshot, written before the provider call so an abandoned build stays identifiable';
 
 CREATE INDEX IF NOT EXISTS idx_tenant_skill_snapshots_config
     ON tenant_skill_snapshots (sandbox_config_id);

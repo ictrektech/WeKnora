@@ -79,6 +79,10 @@ Environment:
   DOCKER_CLI_VERSION     Optional Docker CLI version bundled into the app image
   WEKNORA_BUILD_ENGINE   auto (default), buildx, or docker. auto prefers buildx
                          and falls back to docker build.
+  POSTGRES_MIGRATION_TEST_IMAGE
+                         PostgreSQL image used to validate every app image's
+                         complete migration chain (default: ictrek's mirrored
+                         PostgreSQL 18 image).
 EOF
 }
 
@@ -214,6 +218,77 @@ docker_build_with_local_base_fallback() {
   log "Buildx build failed for ${dockerfile}; retrying with docker build --pull=false to use local base images"
   DOCKER_BUILDKIT=1 docker build --pull=false "$@"
 }
+
+verify_app_image_migrations() (
+  set -euo pipefail
+
+  local app_image="$1"
+  local postgres_image="${POSTGRES_MIGRATION_TEST_IMAGE:-registry.ictrek.internal/library/postgres:18}"
+  local suffix="$$-${RANDOM}"
+  local network="weknora-migration-test-${suffix}"
+  local postgres_container="weknora-migration-postgres-${suffix}"
+  local password="weknora-migration-test"
+  local latest_version
+
+  cleanup() {
+    docker rm -f "$postgres_container" >/dev/null 2>&1 || true
+    docker network rm "$network" >/dev/null 2>&1 || true
+  }
+  trap cleanup EXIT
+
+  latest_version="$(
+    find migrations/versioned -maxdepth 1 -type f -name '*.up.sql' -print \
+      | sed -E 's#.*/0*([0-9]+)_.+#\1#' \
+      | sort -n \
+      | tail -1
+  )"
+  [[ -n "$latest_version" ]] || {
+    err "cannot determine latest PostgreSQL migration version"
+    return 1
+  }
+
+  log "Validating ${app_image} migrations 0 -> ${latest_version} against a clean PostgreSQL database"
+  pull_base_image "$postgres_image"
+  docker network create "$network" >/dev/null
+  docker run -d --name "$postgres_container" --network "$network" \
+    -e "POSTGRES_PASSWORD=${password}" \
+    -e POSTGRES_DB=weknora_migration_test \
+    "$postgres_image" >/dev/null
+
+  local ready=0
+  for _ in {1..60}; do
+    if docker exec "$postgres_container" pg_isready -U postgres -d weknora_migration_test >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 1
+  done
+  [[ "$ready" == "1" ]] || {
+    docker logs "$postgres_container" >&2
+    err "temporary PostgreSQL did not become ready"
+    return 1
+  }
+
+  docker run --rm --network "$network" --entrypoint migrate "$app_image" \
+    -path /app/migrations/versioned \
+    -database "postgres://postgres:${password}@${postgres_container}:5432/weknora_migration_test?sslmode=disable&options=-c%20app.skip_embedding=true" \
+    up
+
+  local state
+  state="$(
+    docker exec "$postgres_container" psql -U postgres -d weknora_migration_test -Atc \
+      "SELECT version || ':' || dirty FROM schema_migrations;
+       SELECT CASE WHEN to_regclass('public.tenant_skill_snapshots') IS NOT NULL
+                    AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='tenant_skill_snapshots' AND column_name='planned_name')
+                    AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='tenants' AND column_name='memory_config')
+                   THEN 'schema-ok' ELSE 'schema-incomplete' END;"
+  )"
+  [[ "$state" == "${latest_version}:false"$'\n'"schema-ok" ]] || {
+    err "migration verification returned unexpected state: ${state}"
+    return 1
+  }
+  log "PostgreSQL migration verification passed: version ${latest_version}, dirty=false"
+)
 
 column_letter() {
   python3 - "$1" <<'PY'
@@ -712,6 +787,7 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_APP" == "1" ]]; then
     -f docker/Dockerfile.app \
     -t "${APP_IMAGE}:${TAG}" \
     .
+  verify_app_image_migrations "${APP_IMAGE}:${TAG}"
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
