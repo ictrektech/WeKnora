@@ -19,5 +19,6 @@ test('settled states stop live review updates', () => {
   assert.equal(contractReviewIsSettled('ready'), true)
   assert.equal(contractReviewIsSettled('completed'), true)
   assert.equal(contractReviewIsSettled('failed'), true)
+  assert.equal(contractReviewIsSettled('cancelled'), true)
   assert.equal(contractReviewIsSettled('analyzing'), false)
 })

@@ -141,3 +141,9 @@ API 前缀为 `/api/v1`，所有记录按当前用户和工作空间隔离。JSO
 - 条款问题由模型按分析片段生成，全文事实由服务单独提取；条款问题响应不直接承载事实列表。
 - 当前内置规则集只有 `general-contract-review`，版本为 `1.0`。
 - PostgreSQL 迁移为 `000101_contract_reviews`、`000102_contract_review_model`、`000103_contract_review_quality`、`000104_contract_review_quality_source_fields`；SQLite 迁移为 `000013_contract_reviews`、`000014_contract_review_model`、`000015_contract_review_quality`。
+
+## 取消与卡住任务（已实现）
+
+运行中的合同审查可通过 `POST /api/v1/contract-reviews/:id/cancel` 取消。接口先将当前运行置为 `cancelled`，再尽力停止对应的队列任务；`cancelled` 与 `failed` 都允许重试。
+
+模型任务单次超时为 `30m`，最多自动重试一次。超时 handler 会使用独立的短事务上下文写入 `failed`；若 worker 在写入前退出，后台巡检每 5 分钟运行一次，在两次任务时限加 `10m` 缓冲（当前为 `70m`）后，只有在没有对应活动队列任务时才将记录收敛为 `failed`。队列探测失败会延后回收，避免 Redis 短暂故障误杀正常任务。

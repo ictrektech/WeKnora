@@ -349,6 +349,10 @@ func BuildContainer(container *dig.Container) *dig.Container {
 		// worker pool against one provider, so install an in-process governor.
 		must(container.Invoke(registerLiteModelConcurrencyLimiter))
 	}
+	// Contract-review cancellation and orphan recovery are an optional
+	// capability layered on top of the shared TaskInspector so lightweight
+	// test doubles and Lite mode do not need a wider queue interface.
+	must(container.Provide(provideContractReviewTaskInspector))
 	must(container.Provide(service.NewTemporaryDocumentService))
 	must(container.Provide(service.NewContractReviewService))
 	must(container.Invoke(startTemporaryDocumentCleanup))
@@ -1783,6 +1787,13 @@ func startHousekeepingService(svc *service.HousekeepingService, cleaner interfac
 		svc.Stop()
 		return nil
 	})
+}
+
+func provideContractReviewTaskInspector(inspector interfaces.TaskInspector) interfaces.ContractReviewTaskInspector {
+	if specialized, ok := inspector.(interfaces.ContractReviewTaskInspector); ok {
+		return specialized
+	}
+	return router.NewNoopContractReviewTaskInspector()
 }
 
 func reparseIncompleteKnowledgeOnStart(db *gorm.DB, task interfaces.TaskEnqueuer) {

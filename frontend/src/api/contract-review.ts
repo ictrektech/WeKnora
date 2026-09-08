@@ -3,7 +3,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { getApiBaseUrl } from '@/utils/api-base'
 import { del, get, patch, post, postUpload } from '@/utils/request'
 
-export type ReviewStatus = 'draft' | 'uploading' | 'ready' | 'analyzing' | 'reviewing_clauses' | 'completed' | 'failed'
+export type ReviewStatus = 'draft' | 'uploading' | 'ready' | 'analyzing' | 'reviewing_clauses' | 'completed' | 'failed' | 'cancelled'
 export type RiskLevel = 'high' | 'medium' | 'low'
 export type RepresentedParty = 'customer' | 'vendor' | 'neutral'
 export type EvidenceStatus = 'pending' | 'located' | 'legacy_exact' | 'multiple_matches' | 'not_found' | 'version_mismatch' | 'unsupported' | 'error'
@@ -189,6 +189,7 @@ export const bulkContractReviews = (action: ContractReviewBulkAction, ids: strin
   post<ApiResponse<ContractReviewBulkResult>>(`/api/v1/contract-reviews/bulk/${action}`, { ids })
 export const startContractReview = (id: string) => post<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}/start`)
 export const retryContractReview = (id: string) => post<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}/retry`)
+export const cancelContractReview = (id: string) => post<ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}/cancel`)
 export const getContractReviewDocument = (id: string) => get<ArrayBuffer>(`/api/v1/contract-reviews/${id}/document/preview`, { responseType: 'arraybuffer' })
 export const getContractReviewLocator = (id: string) =>
   get<ApiResponse<ContractReviewLocator>>(`/api/v1/contract-reviews/${id}/document/locator`)

@@ -87,6 +87,20 @@ type KnowledgeBaseTaskCanceller interface {
 	) (deleted int, cancelled int, err error)
 }
 
+// ContractReviewTaskInspector is the optional queue capability used by the
+// contract-review cancel endpoint and the orphaned-review housekeeping sweep.
+// The review row remains the source of truth: queue operations are best effort
+// because a task may already have timed out, been archived, or disappeared
+// with a worker process.
+type ContractReviewTaskInspector interface {
+	// CancelTasksForContractReview removes live document/analysis tasks for
+	// one review run and signals matching active workers to stop.
+	CancelTasksForContractReview(ctx context.Context, reviewID, analysisRunID string) (deleted int, cancelled int, err error)
+	// HasQueuedTasksForContractReview reports whether a live queue task still
+	// belongs to the specified review run.
+	HasQueuedTasksForContractReview(ctx context.Context, reviewID, analysisRunID string) (bool, error)
+}
+
 // RuntimeTaskInspector is the optional operator surface implemented by queue
 // backends that retain inspectable task state. It is separate from
 // TaskInspector so Lite mode and light-weight tests do not need to implement

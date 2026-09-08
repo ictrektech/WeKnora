@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 import { listModels, type ModelConfig } from '@/api/model'
 import {
-  bulkContractReviews, createContractReview, deleteContractReview, getContractReview, getContractReviewLocator, listContractReviewPlaybooks, listContractReviews,
+  bulkContractReviews, cancelContractReview, createContractReview, deleteContractReview, getContractReview, getContractReviewLocator, listContractReviewPlaybooks, listContractReviews,
   retryContractReview, startContractReview, streamContractReview, updateContractReview,
   uploadContractReviewDocument, type ContractReview, type ContractReviewBulkAction, type ContractReviewLocator, type LocatorLoadStatus, type ReviewPlaybook,
 } from '@/api/contract-review'
@@ -60,6 +60,7 @@ export const useContractReviewStore = defineStore('contractReview', () => {
   async function upload(id: string, file: File) { invalidateLocator(id); uploadProgress.value = 0; const review = (await uploadContractReviewDocument(id, file, (v) => uploadProgress.value = v)).data; current.value = review; seedLocatorFromReview(review); connect(id); void loadLocator(id); return review }
   async function start(id: string) { const review = (await startContractReview(id)).data; current.value = review; seedLocatorFromReview(review); connect(id); return review }
   async function retry(id: string) { invalidateLocator(id); const review = (await retryContractReview(id)).data; current.value = review; seedLocatorFromReview(review); connect(id); void loadLocator(id); return review }
+  async function cancel(id: string) { const review = (await cancelContractReview(id)).data; current.value = review; seedLocatorFromReview(review); if (contractReviewIsSettled(review.status)) disconnect(); return review }
   async function remove(id: string) { await deleteContractReview(id); tasks.value = tasks.value.filter((item) => item.id !== id); if (current.value?.id === id) current.value = null }
   async function bulk(action: ContractReviewBulkAction, ids: string[]) {
     const result = (await bulkContractReviews(action, ids)).data
@@ -216,7 +217,7 @@ export const useContractReviewStore = defineStore('contractReview', () => {
   return {
     tasks, current, playbooks, models, modelsLoading, loading, uploadProgress,
     locatorCache, locatorStates,
-    loadList, loadPlaybooks, loadModels, create, load, update, upload, start, retry, remove, bulk, connect, disconnect,
+    loadList, loadPlaybooks, loadModels, create, load, update, upload, start, retry, cancel, remove, bulk, connect, disconnect,
     loadLocator, invalidateLocator,
   }
 })

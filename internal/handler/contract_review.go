@@ -310,6 +310,23 @@ func locatorHasUnits(locator map[string]any) bool {
 
 func (h *ContractReviewHandler) Start(c *gin.Context) { h.run(c, false) }
 func (h *ContractReviewHandler) Retry(c *gin.Context) { h.run(c, true) }
+
+func (h *ContractReviewHandler) Cancel(c *gin.Context) {
+	if !contractReviewAccessAllowed(c) {
+		return
+	}
+	userID, tenantID, ok := contractReviewContext(c)
+	if !ok {
+		return
+	}
+	r, err := h.service.Cancel(c.Request.Context(), tenantID, userID, c.Param("id"))
+	if err != nil {
+		contractReviewError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{"success": true, "data": r})
+}
+
 func (h *ContractReviewHandler) run(c *gin.Context, retry bool) {
 	if !contractReviewAccessAllowed(c) {
 		return

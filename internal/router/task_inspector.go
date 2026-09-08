@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Tencent/WeKnora/internal/logger"
@@ -228,6 +229,50 @@ func (a *asynqTaskInspector) HasQueuedTasksForKnowledgeTypes(
 	for _, queue := range queuesScanned {
 		for _, state := range a.cancellableTaskStates() {
 			if a.queueStateHasMatch(ctx, queue, state.name, state.list, matcher) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// CancelTasksForContractReview removes live document/analysis tasks for one
+// review run and signals matching active workers to stop. A review row is the
+// durable source of truth, so queue inspection remains best effort.
+func (a *asynqTaskInspector) CancelTasksForContractReview(
+	ctx context.Context, reviewID, analysisRunID string,
+) (int, int, error) {
+	if a == nil || a.inspector == nil || reviewID == "" {
+		return 0, 0, nil
+	}
+	deleted, cancelled := a.cancelMatchingTasks(ctx, func(taskType string, payload []byte) bool {
+		return matchesContractReview(taskType, payload, reviewID, analysisRunID)
+	})
+	logger.Infof(ctx,
+		"[TaskInspector] contract_review=%s run=%s cancel summary: deleted_from_queue=%d active_cancel_signaled=%d",
+		reviewID, analysisRunID, deleted, cancelled,
+	)
+	return deleted, cancelled, nil
+}
+
+// HasQueuedTasksForContractReview is the read-only counterpart used by the
+// housekeeping sweep. Archived tasks are intentionally not considered live.
+func (a *asynqTaskInspector) HasQueuedTasksForContractReview(
+	ctx context.Context, reviewID, analysisRunID string,
+) (bool, error) {
+	if a == nil || a.inspector == nil || reviewID == "" {
+		return false, nil
+	}
+	matcher := func(taskType string, payload []byte) bool {
+		return matchesContractReview(taskType, payload, reviewID, analysisRunID)
+	}
+	for _, queue := range queuesScanned {
+		for _, state := range a.cancellableTaskStates() {
+			matched, err := a.contractReviewQueueStateHasMatch(ctx, queue, state.name, state.list, matcher)
+			if err != nil {
+				return false, err
+			}
+			if matched {
 				return true, nil
 			}
 		}
@@ -1045,6 +1090,39 @@ func (a *asynqTaskInspector) queueStateHasMatch(
 	}
 }
 
+// contractReviewQueueStateHasMatch preserves backend errors so housekeeping
+// can defer recovery during a Redis outage instead of treating the outage as
+// proof that no live review task exists.
+func (a *asynqTaskInspector) contractReviewQueueStateHasMatch(
+	ctx context.Context,
+	queue string,
+	state string,
+	list func(string, ...asynq.ListOption) ([]*asynq.TaskInfo, error),
+	matcher taskMatcher,
+) (bool, error) {
+	for page := 1; ; page++ {
+		tasks, err := list(queue, asynq.PageSize(listPageSize), asynq.Page(page))
+		if err != nil {
+			if errors.Is(err, asynq.ErrQueueNotFound) {
+				return false, nil
+			}
+			logger.Warnf(ctx, "[TaskInspector] probe contract review %s queue=%s page=%d: %v", state, queue, page, err)
+			return false, err
+		}
+		if len(tasks) == 0 {
+			return false, nil
+		}
+		for _, task := range tasks {
+			if matcher(task.Type, task.Payload) {
+				return true, nil
+			}
+		}
+		if len(tasks) < listPageSize {
+			return false, nil
+		}
+	}
+}
+
 // matchesKnowledge returns true when the task type is one we cancel
 // AND its payload references the target knowledge ID.
 // ReconcileKnowledgeTasks removes stale-attempt and duplicate queued work.
@@ -1150,6 +1228,17 @@ func matchesKnowledge(taskType string, payload []byte, knowledgeID string) bool 
 	return probe.KnowledgeID == knowledgeID
 }
 
+func matchesContractReview(taskType string, payload []byte, reviewID, analysisRunID string) bool {
+	if taskType != types.TypeContractReviewDocumentProcess && taskType != types.TypeContractReviewAnalyze {
+		return false
+	}
+	var probe types.ContractReviewTaskPayload
+	if err := json.Unmarshal(payload, &probe); err != nil || probe.ReviewID != reviewID {
+		return false
+	}
+	return strings.TrimSpace(analysisRunID) == "" || probe.AnalysisRunID == analysisRunID
+}
+
 // matchesKnowledgeBase identifies work made obsolete by deleting a knowledge
 // base. In addition to direct KB fields, clone/move payloads carry semantic KB
 // references under task-specific field names. knowledgeIDs catches tasks whose
@@ -1210,6 +1299,12 @@ type noopTaskInspector struct{}
 // NewNoopTaskInspector returns a no-op TaskInspector for Lite mode.
 func NewNoopTaskInspector() interfaces.TaskInspector { return noopTaskInspector{} }
 
+// NewNoopContractReviewTaskInspector exposes the Lite-mode no-op through the
+// optional contract-review capability without widening TaskInspector.
+func NewNoopContractReviewTaskInspector() interfaces.ContractReviewTaskInspector {
+	return noopTaskInspector{}
+}
+
 func (noopTaskInspector) CancelTasksForKnowledge(
 	ctx context.Context, knowledgeID string,
 ) (int, int, error) {
@@ -1227,6 +1322,18 @@ func (noopTaskInspector) CancelTasksForKnowledgeTypes(
 // the housekeeping sweep's span/updated_at checks stay authoritative.
 func (noopTaskInspector) HasQueuedTasksForKnowledge(
 	ctx context.Context, knowledgeID string,
+) (bool, error) {
+	return false, nil
+}
+
+func (noopTaskInspector) CancelTasksForContractReview(
+	ctx context.Context, reviewID, analysisRunID string,
+) (int, int, error) {
+	return 0, 0, nil
+}
+
+func (noopTaskInspector) HasQueuedTasksForContractReview(
+	ctx context.Context, reviewID, analysisRunID string,
 ) (bool, error) {
 	return false, nil
 }

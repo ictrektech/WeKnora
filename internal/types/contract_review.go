@@ -23,6 +23,7 @@ const (
 	ContractReviewStatusReviewingClauses ContractReviewStatus = "reviewing_clauses"
 	ContractReviewStatusCompleted        ContractReviewStatus = "completed"
 	ContractReviewStatusFailed           ContractReviewStatus = "failed"
+	ContractReviewStatusCancelled        ContractReviewStatus = "cancelled"
 
 	ContractReviewRiskHigh   ContractReviewRiskLevel = "high"
 	ContractReviewRiskMedium ContractReviewRiskLevel = "medium"

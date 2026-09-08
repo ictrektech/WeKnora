@@ -111,6 +111,12 @@ func (h *HousekeepingService) Stop() {
 // runSweep is exported on the type for testability — tests can drive a
 // single sweep without waiting for the cron tick.
 func (h *HousekeepingService) runSweep(ctx context.Context) {
+	// Contract reviews use a separate pair of queue task types and do not
+	// participate in the knowledge span tree below. Reconcile them first so a
+	// timed-out/archived analysis cannot leave the legal workspace spinning
+	// forever while a later knowledge query fails or returns early.
+	h.sweepContractReviews(ctx)
+
 	threshold := h.staleThreshold()
 	cutoff := time.Now().Add(-threshold)
 
@@ -313,6 +319,70 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 		logger.Warnf(ctx, "[Housekeeping] summary sweep failed: %v", resSummary.Error)
 	} else if resSummary.RowsAffected > 0 {
 		logger.Infof(ctx, "[Housekeeping] recovered %d stuck summary rows", resSummary.RowsAffected)
+	}
+}
+
+// sweepContractReviews is the durable fallback for a review task that was
+// lost after its Asynq timeout/retry lifecycle. A live queue task protects the
+// row from recovery; a queue probe error defers recovery to the next sweep so
+// a Redis outage cannot turn a healthy review into a false failure.
+func (h *HousekeepingService) sweepContractReviews(ctx context.Context) {
+	if h == nil || h.db == nil {
+		return
+	}
+	threshold := contractReviewStaleThreshold()
+	cutoff := time.Now().Add(-threshold)
+	var candidates []types.ContractReview
+	if err := h.db.WithContext(ctx).
+		Where("status IN ?", []types.ContractReviewStatus{
+			types.ContractReviewStatusUploading,
+			types.ContractReviewStatusAnalyzing,
+			types.ContractReviewStatusReviewingClauses,
+		}).
+		Where("COALESCE(started_at, updated_at) < ?", cutoff).
+		Find(&candidates).Error; err != nil {
+		logger.Warnf(ctx, "[Housekeeping] contract review candidate query failed: %v", err)
+		return
+	}
+
+	inspector, _ := h.inspector.(interfaces.ContractReviewTaskInspector)
+	now := time.Now()
+	for _, review := range candidates {
+		if ctx.Err() != nil {
+			return
+		}
+		if inspector != nil {
+			queued, err := inspector.HasQueuedTasksForContractReview(ctx, review.ID, review.AnalysisRunID)
+			if err != nil {
+				logger.Warnf(ctx, "[Housekeeping] contract review queue probe review=%s failed: %v (defer recovery)", review.ID, err)
+				continue
+			}
+			if queued {
+				continue
+			}
+		}
+
+		query := h.db.WithContext(ctx).Model(&types.ContractReview{}).
+			Where("id = ? AND status IN ?", review.ID, []types.ContractReviewStatus{
+				types.ContractReviewStatusUploading,
+				types.ContractReviewStatusAnalyzing,
+				types.ContractReviewStatusReviewingClauses,
+			})
+		if strings.TrimSpace(review.AnalysisRunID) != "" {
+			query = query.Where("analysis_run_id = ?", review.AnalysisRunID)
+		}
+		result := query.Updates(map[string]interface{}{
+			"status":         types.ContractReviewStatusFailed,
+			"error_message":  "合同审查任务超过 " + threshold.String() + " 未完成，已由后台巡检标记失败，可重试。",
+			"quality_status": types.ContractReviewQualityInvalid,
+			"completed_at":   now,
+			"updated_at":     now,
+		})
+		if result.Error != nil {
+			logger.Warnf(ctx, "[Housekeeping] contract review recovery review=%s failed: %v", review.ID, result.Error)
+		} else if result.RowsAffected > 0 {
+			logger.Infof(ctx, "[Housekeeping] recovered stuck contract review review=%s run=%s threshold=%s", review.ID, review.AnalysisRunID, threshold)
+		}
 	}
 }
 

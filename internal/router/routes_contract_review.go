@@ -42,6 +42,7 @@ func RegisterContractReviewRoutes(r *gin.RouterGroup, h *handler.ContractReviewH
 		reviews.GET("/:id/document/locator", g.Viewer(), h.Locator)
 		reviews.POST("/:id/start", g.Viewer(), h.Start)
 		reviews.POST("/:id/retry", g.Viewer(), h.Retry)
+		reviews.POST("/:id/cancel", g.Viewer(), h.Cancel)
 		reviews.GET("/:id/events", g.Viewer(), h.Events)
 	}
 }

@@ -58,6 +58,11 @@ const (
 	contractReviewRelatedContextMaxRunes         = 3600
 	contractReviewRelatedPassageMaxRunes         = 900
 	contractReviewDocumentOutlineMaxRunes        = 1400
+	contractReviewAnalysisTimeout                = 30 * time.Minute
+	contractReviewAnalysisMaxRetries             = 1
+	contractReviewStaleGrace                     = 10 * time.Minute
+	contractReviewFailurePersistTimeout          = 5 * time.Second
+	contractReviewCancelQueueTimeout             = 2 * time.Second
 )
 
 func contractReviewPlaybook(id string) (types.ContractReviewPlaybook, bool) {
@@ -77,12 +82,14 @@ type contractReviewService struct {
 	models    interfaces.ModelService
 	agents    interfaces.CustomAgentService
 	tasks     interfaces.TaskEnqueuer
+	inspector interfaces.ContractReviewTaskInspector
 }
 
 func NewContractReviewService(repo interfaces.ContractReviewRepository, files interfaces.FileService,
 	resources interfaces.ResourceCatalog, reader interfaces.DocumentReader, models interfaces.ModelService,
-	agents interfaces.CustomAgentService, tasks interfaces.TaskEnqueuer) interfaces.ContractReviewService {
-	return &contractReviewService{repo: repo, files: files, resources: resources, reader: reader, models: models, agents: agents, tasks: tasks}
+	agents interfaces.CustomAgentService, tasks interfaces.TaskEnqueuer,
+	inspector interfaces.ContractReviewTaskInspector) interfaces.ContractReviewService {
+	return &contractReviewService{repo: repo, files: files, resources: resources, reader: reader, models: models, agents: agents, tasks: tasks, inspector: inspector}
 }
 
 func (s *contractReviewService) Playbooks() []types.ContractReviewPlaybook {
@@ -124,7 +131,7 @@ func normalizeContractReviewForRead(review *types.ContractReview) {
 		return
 	}
 	if review.QualityStatus == "" {
-		if review.Status == types.ContractReviewStatusCompleted || review.Status == types.ContractReviewStatusFailed {
+		if isSettledContractReviewStatus(review.Status) {
 			review.QualityStatus = types.ContractReviewQualityLegacy
 		} else {
 			review.QualityStatus = types.ContractReviewQualityPending
@@ -139,10 +146,10 @@ func normalizeContractReviewForRead(review *types.ContractReview) {
 	// Get() preloads these collections. A settled empty slice therefore means
 	// "loaded and no rows", while a running nil slice still means that the
 	// stream has not delivered the findings yet.
-	if review.Issues == nil && (review.Status == types.ContractReviewStatusCompleted || review.Status == types.ContractReviewStatusFailed) {
+	if review.Issues == nil && isSettledContractReviewStatus(review.Status) {
 		review.Issues = []*types.ContractReviewIssue{}
 	}
-	if review.Clauses == nil && (review.Status == types.ContractReviewStatusCompleted || review.Status == types.ContractReviewStatusFailed) {
+	if review.Clauses == nil && isSettledContractReviewStatus(review.Status) {
 		review.Clauses = []*types.ContractReviewClause{}
 	}
 	if review.SourceTextHash == "" {
@@ -213,7 +220,22 @@ func validParty(value string) bool {
 }
 
 func canRetryContractReview(status types.ContractReviewStatus) bool {
-	return status == types.ContractReviewStatusFailed || status == types.ContractReviewStatusCompleted
+	return status == types.ContractReviewStatusFailed || status == types.ContractReviewStatusCompleted || status == types.ContractReviewStatusCancelled
+}
+
+func isRunningContractReviewStatus(status types.ContractReviewStatus) bool {
+	return status == types.ContractReviewStatusUploading || status == types.ContractReviewStatusAnalyzing || status == types.ContractReviewStatusReviewingClauses
+}
+
+func isSettledContractReviewStatus(status types.ContractReviewStatus) bool {
+	return status == types.ContractReviewStatusCompleted || status == types.ContractReviewStatusFailed || status == types.ContractReviewStatusCancelled
+}
+
+func contractReviewStaleThreshold() time.Duration {
+	// One full attempt, the configured retry budget, and a small scheduling
+	// buffer. The worker timeout normally persists failure immediately; this is
+	// the last-resort bound for a worker/process that disappears before it can.
+	return contractReviewAnalysisTimeout*time.Duration(contractReviewAnalysisMaxRetries+1) + contractReviewStaleGrace
 }
 
 func canUpdateContractReviewConfig(status types.ContractReviewStatus) bool {
@@ -318,10 +340,55 @@ func (s *contractReviewService) Update(ctx context.Context, tenantID uint64, use
 	return s.Get(ctx, tenantID, userID, id)
 }
 
+// Cancel marks a live review run terminal before touching the queue. The
+// conditional run update makes the database row win any race with a worker:
+// once it is cancelled, stale workers can no longer persist progress, clauses,
+// issues, or a late completed/failed result for that run.
+func (s *contractReviewService) Cancel(ctx context.Context, tenantID uint64, userID, id string) (*types.ContractReview, error) {
+	r, err := s.Get(ctx, tenantID, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if !isRunningContractReviewStatus(r.Status) {
+		return nil, ErrContractReviewInvalidState
+	}
+	r.Status = types.ContractReviewStatusCancelled
+	r.ErrorMessage = "合同审查已取消，可重试。"
+	r.QualityStatus = types.ContractReviewQualityInvalid
+	now := time.Now()
+	r.CompletedAt = &now
+	if err := s.updateReviewForRun(ctx, r, r.AnalysisRunID); err != nil {
+		if errors.Is(err, errContractReviewStaleRun) {
+			// A concurrent cancel/retry already settled this run. Return the
+			// durable row so the endpoint remains idempotent for the user.
+			return s.Get(ctx, tenantID, userID, id)
+		}
+		return nil, err
+	}
+	s.cancelReviewTasks(ctx, r)
+	return s.Get(ctx, tenantID, userID, id)
+}
+
+func (s *contractReviewService) cancelReviewTasks(ctx context.Context, review *types.ContractReview) {
+	if s.inspector == nil || review == nil {
+		return
+	}
+	queueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), contractReviewCancelQueueTimeout)
+	defer cancel()
+	if _, _, err := s.inspector.CancelTasksForContractReview(queueCtx, review.ID, review.AnalysisRunID); err != nil {
+		logger.Warnf(queueCtx, "[ContractReview] cancel queued tasks review=%s run=%s failed: %v", review.ID, review.AnalysisRunID, err)
+	}
+}
+
 func (s *contractReviewService) Delete(ctx context.Context, tenantID uint64, userID, id string) error {
 	r, err := s.Get(ctx, tenantID, userID, id)
 	if err != nil {
 		return err
+	}
+	if isRunningContractReviewStatus(r.Status) {
+		// Deletion is allowed for compatibility with the existing UI. Stop
+		// queued work first; the row deletion itself prevents late writes.
+		s.cancelReviewTasks(ctx, r)
 	}
 	if r.ResourceRef != "" {
 		_ = s.files.DeleteFile(ctx, r.ResourceRef)
@@ -533,7 +600,7 @@ func (s *contractReviewService) Start(ctx context.Context, tenantID uint64, user
 	if err := s.repo.Update(ctx, r); err != nil {
 		return nil, err
 	}
-	if err := s.enqueue(ctx, types.TypeContractReviewAnalyze, r, 1, 30*time.Minute); err != nil {
+	if err := s.enqueue(ctx, types.TypeContractReviewAnalyze, r, contractReviewAnalysisMaxRetries, contractReviewAnalysisTimeout); err != nil {
 		r.Status, r.ErrorMessage = types.ContractReviewStatusFailed, "failed to schedule contract review"
 		if updateErr := s.repo.Update(ctx, r); updateErr != nil {
 			return r, fmt.Errorf("%w (also failed to persist scheduling failure: %v)", err, updateErr)
@@ -589,7 +656,7 @@ func (s *contractReviewService) Retry(ctx context.Context, tenantID uint64, user
 	if err := s.repo.Update(ctx, r); err != nil {
 		return nil, err
 	}
-	if err := s.enqueue(ctx, types.TypeContractReviewAnalyze, r, 1, 30*time.Minute); err != nil {
+	if err := s.enqueue(ctx, types.TypeContractReviewAnalyze, r, contractReviewAnalysisMaxRetries, contractReviewAnalysisTimeout); err != nil {
 		r.Status, r.ErrorMessage = types.ContractReviewStatusFailed, "failed to schedule contract review"
 		if updateErr := s.repo.Update(ctx, r); updateErr != nil {
 			return r, fmt.Errorf("%w (also failed to persist scheduling failure: %v)", err, updateErr)
@@ -721,15 +788,35 @@ func (s *contractReviewService) ProcessDocument(ctx context.Context, task *asynq
 }
 
 func (s *contractReviewService) fail(ctx context.Context, r *types.ContractReview, cause error) error {
-	r.Status, r.ErrorMessage = types.ContractReviewStatusFailed, cause.Error()
+	r.Status, r.ErrorMessage = types.ContractReviewStatusFailed, contractReviewFailureMessage(cause)
 	r.QualityStatus = types.ContractReviewQualityInvalid
-	if err := s.updateReviewForRun(ctx, r, r.AnalysisRunID); err != nil {
+	// Asynq cancels the handler context when a task reaches its timeout. The
+	// failure state must still be durable, so use a short detached context for
+	// this final write. UpdateForRun's active-status predicate prevents this
+	// write from overwriting a user cancellation that won the race.
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), contractReviewFailurePersistTimeout)
+	defer cancel()
+	if err := s.updateReviewForRun(persistCtx, r, r.AnalysisRunID); err != nil {
 		if errors.Is(err, errContractReviewStaleRun) {
 			return nil
 		}
 		return fmt.Errorf("%w (also failed to persist failure state: %v)", cause, err)
 	}
 	return cause
+}
+
+func contractReviewFailureMessage(cause error) string {
+	if cause == nil {
+		return "合同审查失败，可重试。"
+	}
+	switch {
+	case errors.Is(cause, context.DeadlineExceeded):
+		return "合同审查任务超时，可重试。"
+	case errors.Is(cause, context.Canceled):
+		return "合同审查任务已取消，可重试。"
+	default:
+		return cause.Error()
+	}
 }
 
 func (s *contractReviewService) clearReviewResults(ctx context.Context, reviewID, runID string) error {

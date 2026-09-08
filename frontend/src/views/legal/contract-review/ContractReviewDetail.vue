@@ -15,7 +15,7 @@
         <ContractDocumentViewer v-else ref="viewer" :review-id="review.id" :file-name="review.file_name" :file-type="review.file_type" :issues="review.issues" :selected-issue-id="selectedIssue?.id" :source-revision="review.source_revision || review.source_hash" :locator="locator" :locator-status="locatorStatus" @marker-click="selectIssueById" @evidence-status="setEvidenceStatus" @locate-failed="handleLocateFailed" @retry-locator="retryLocator" />
         <div v-if="uploading" class="upload-overlay"><t-loading size="small" /><span>{{ t('contractReview.uploadingFile', { progress: store.uploadProgress }) }}</span><i><b :style="{ width: `${store.uploadProgress}%` }" /></i></div>
       </div>
-        <ReviewPanel ref="reviewPanel" :review="review" :playbooks="store.playbooks" :models="store.models" :models-loading="store.modelsLoading" :selected-issue-id="selectedIssue?.id" :busy="busy" :reconfigure="reconfigure" :evidence-statuses="evidenceStatuses" :evidence-candidate-counts="evidenceCandidateCounts" :locator-status="locatorStatus" @config-change="saveConfig" @title-change="saveTitleValue" @start="startReview" @retry="retryReview" @reconfigure="beginReconfigure" @cancel-reconfigure="cancelReconfigure" @configure="router.push('/platform/agents')" @issue-select="locateIssue" @evidence-select="chooseEvidenceCandidate" />
+        <ReviewPanel ref="reviewPanel" :review="review" :playbooks="store.playbooks" :models="store.models" :models-loading="store.modelsLoading" :selected-issue-id="selectedIssue?.id" :busy="busy" :reconfigure="reconfigure" :evidence-statuses="evidenceStatuses" :evidence-candidate-counts="evidenceCandidateCounts" :locator-status="locatorStatus" @config-change="saveConfig" @title-change="saveTitleValue" @start="startReview" @retry="retryReview" @cancel="cancelReview" @reconfigure="beginReconfigure" @cancel-reconfigure="cancelReconfigure" @configure="router.push('/platform/agents')" @issue-select="locateIssue" @evidence-select="chooseEvidenceCandidate" />
     </div>
   </section>
   <div v-else class="review-loading contract-review-theme"><t-loading /> {{ t('contractReview.loadingReview') }}</div>
@@ -134,6 +134,12 @@ async function retryReview(){
   if(!review.value)return
   selectedIssue.value=null; evidenceStatuses.value = {}; evidenceCandidateCounts.value = {}; busy.value=true
   try{await store.retry(review.value.id)}catch(e:any){MessagePlugin.error(e?.message||t('contractReview.retryFailed'))}finally{busy.value=false}
+}
+async function cancelReview(){
+  if(!review.value || !['uploading','analyzing','reviewing_clauses'].includes(review.value.status))return
+  if(!window.confirm(t('contractReview.cancelReviewConfirm')))return
+  busy.value=true
+  try{await store.cancel(review.value.id);MessagePlugin.success(t('contractReview.cancelReviewSuccess'))}catch(e:any){MessagePlugin.error(e?.message||t('contractReview.cancelReviewFailed'))}finally{busy.value=false}
 }
 function locateIssue(issue:ReviewIssue){ selectedIssue.value=issue; viewer.value?.locateIssue(issue) }
 function selectIssueById(id:string){ const issue=review.value?.issues?.find(item=>item.id===id); if(!issue)return; selectedIssue.value=issue; reviewPanel.value?.focusIssue(id) }

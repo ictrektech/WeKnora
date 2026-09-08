@@ -15,5 +15,5 @@ export function removeSuccessfulRows<T extends { id: string }>(
 }
 
 export function contractReviewIsSettled(status: ReviewStatus): boolean {
-  return status === 'completed' || status === 'failed' || status === 'ready'
+  return status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'ready'
 }

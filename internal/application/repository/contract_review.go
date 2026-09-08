@@ -22,6 +22,16 @@ func lockContractReviewRun(tx *gorm.DB, reviewID, analysisRunID string) error {
 		Where("id = ? AND analysis_run_id = ?", reviewID, analysisRunID).First(&review).Error
 }
 
+func lockActiveContractReviewRun(tx *gorm.DB, reviewID, analysisRunID string) error {
+	var review types.ContractReview
+	return tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").
+		Where("id = ? AND analysis_run_id = ? AND status IN ?", reviewID, analysisRunID, []types.ContractReviewStatus{
+			types.ContractReviewStatusUploading,
+			types.ContractReviewStatusAnalyzing,
+			types.ContractReviewStatusReviewingClauses,
+		}).First(&review).Error
+}
+
 func NewContractReviewRepository(db *gorm.DB) interfaces.ContractReviewRepository {
 	return &contractReviewRepository{db: db}
 }
@@ -65,7 +75,11 @@ func (r *contractReviewRepository) Update(ctx context.Context, review *types.Con
 
 func (r *contractReviewRepository) UpdateForRun(ctx context.Context, review *types.ContractReview, analysisRunID string) error {
 	result := r.db.WithContext(ctx).Model(&types.ContractReview{}).
-		Where("tenant_id = ? AND user_id = ? AND id = ? AND analysis_run_id = ?", review.TenantID, review.UserID, review.ID, analysisRunID).
+		Where("tenant_id = ? AND user_id = ? AND id = ? AND analysis_run_id = ? AND status IN ?", review.TenantID, review.UserID, review.ID, analysisRunID, []types.ContractReviewStatus{
+			types.ContractReviewStatusUploading,
+			types.ContractReviewStatusAnalyzing,
+			types.ContractReviewStatusReviewingClauses,
+		}).
 		Select("*").Omit("id", "created_at", "deleted_at", "Clauses", "Issues").Updates(review)
 	if result.Error != nil {
 		return result.Error
@@ -154,7 +168,7 @@ func (r *contractReviewRepository) ReplaceClauses(ctx context.Context, reviewID 
 
 func (r *contractReviewRepository) ReplaceClausesForRun(ctx context.Context, reviewID, analysisRunID string, rows []*types.ContractReviewClause) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockContractReviewRun(tx, reviewID, analysisRunID); err != nil {
+		if err := lockActiveContractReviewRun(tx, reviewID, analysisRunID); err != nil {
 			return err
 		}
 		if err := tx.Where("review_id = ?", reviewID).Delete(&types.ContractReviewClause{}).Error; err != nil {
@@ -178,7 +192,7 @@ func (r *contractReviewRepository) UpdateClause(ctx context.Context, row *types.
 
 func (r *contractReviewRepository) UpdateClauseForRun(ctx context.Context, row *types.ContractReviewClause, analysisRunID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockContractReviewRun(tx, row.ReviewID, analysisRunID); err != nil {
+		if err := lockActiveContractReviewRun(tx, row.ReviewID, analysisRunID); err != nil {
 			return err
 		}
 		return tx.Save(row).Error
@@ -198,7 +212,7 @@ func (r *contractReviewRepository) UpsertIssue(ctx context.Context, issue *types
 
 func (r *contractReviewRepository) UpsertIssueForRun(ctx context.Context, issue *types.ContractReviewIssue, analysisRunID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockContractReviewRun(tx, issue.ReviewID, analysisRunID); err != nil {
+		if err := lockActiveContractReviewRun(tx, issue.ReviewID, analysisRunID); err != nil {
 			return err
 		}
 		return tx.Clauses(clause.OnConflict{

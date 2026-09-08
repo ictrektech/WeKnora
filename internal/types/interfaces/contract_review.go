@@ -40,6 +40,7 @@ type ContractReviewService interface {
 	OpenDocument(context.Context, uint64, string, string) (*types.ContractReview, io.ReadCloser, error)
 	Start(context.Context, uint64, string, string) (*types.ContractReview, error)
 	Retry(context.Context, uint64, string, string) (*types.ContractReview, error)
+	Cancel(context.Context, uint64, string, string) (*types.ContractReview, error)
 	// DeleteTenantData is an Owner-gated, tenant-wide purge. Database rows are
 	// removed transactionally; storage cleanup errors are returned after the
 	// commit. Repeating the operation is database-idempotent, while any failed
