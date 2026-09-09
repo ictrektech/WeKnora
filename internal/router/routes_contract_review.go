@@ -8,7 +8,7 @@ import (
 )
 
 // legalWorkspaceEnabled gates the contract review surface without changing
-// the underlying data. Missing legacy config is enabled by types' default.
+// the underlying data. Missing legacy config follows the deployment default.
 func legalWorkspaceEnabled() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenant, ok := types.TenantInfoFromContext(c.Request.Context())

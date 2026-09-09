@@ -163,7 +163,8 @@ func TestGetTenantKVViewerAllowedForNonSecretKey(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 }
 
-func TestLegalWorkspaceKVDefaultsEnabledAndIsReadableByViewer(t *testing.T) {
+func TestLegalWorkspaceKVUsesConfiguredDefaultAndIsReadableByViewer(t *testing.T) {
+	t.Setenv(types.LegalWorkspaceDefaultEnabledEnv, "false")
 	tenant := &types.Tenant{ID: 42}
 	engine := newTenantHandlerTestEngine(t, types.TenantRoleViewer, tenant)
 
@@ -171,7 +172,7 @@ func TestLegalWorkspaceKVDefaultsEnabledAndIsReadableByViewer(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/tenants/kv/legal-workspace-config", nil)
 	engine.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.JSONEq(t, `{"success":true,"data":{"enabled":true}}`, rec.Body.String())
+	assert.JSONEq(t, `{"success":true,"data":{"enabled":false}}`, rec.Body.String())
 }
 
 func TestLegalWorkspaceKVUpdatePersistsEnabled(t *testing.T) {

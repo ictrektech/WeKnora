@@ -6,7 +6,7 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 左侧一级入口“法律工作台” | 已实现；默认开启，关闭后隐藏 |
+| 左侧一级入口“法律工作台” | 已实现；新建或未配置工作区默认关闭，可由 `ICTREK_LEGAL_WORKSPACE_DEFAULT_ENABLED` 改为开启；已保存配置优先 |
 | 页面级 drill-down 子导航“合同审查” | 已实现；进入 `/platform/contract-review` 后替换平台侧栏内容 |
 | 设置入口 | 已实现；设置 → 发布集成 → 法律工作台 |
 | 关闭后的数据行为 | 已实现；只隐藏入口并阻止合同审查访问，不删除数据 |
@@ -29,6 +29,19 @@
 
 侧栏 drill-down 在展开状态使用小号灰色二级文字，不复用平台一级菜单的高亮样式；折叠状态保留返回和合同审查图标按钮。
 
+## 通过 `.env` 设置默认状态
+
+在部署目录的 `.env` 中配置：
+
+```dotenv
+ICTREK_LEGAL_WORKSPACE_DEFAULT_ENABLED=false
+```
+
+- `false`、未配置或无法解析时，法律工作台默认关闭；设置为 `true` 时默认开启。
+- 该变量只控制新建工作区，或数据库中尚未保存法律工作台配置的工作区。设置页保存的工作区级开关优先于 `.env`。
+- 修改 `.env` 后需要重启后端容器或 Go 后端进程；不会自动修改已有工作区，也不会删除任何法律工作台数据。
+- 迁移 `000106`/`000107` 和 SQLite `000016` 为已有部署保留了 `enabled: true` 的数据库兼容默认值。因此，已经被迁移回填为 `true` 的旧工作区不会因 `.env=false` 自动关闭；如需关闭，请在设置页切换开关。
+
 ## 数据删除
 
 设置页的“删除全部数据”与启用开关独立。只有工作区 Owner 可以执行；确认提示会说明以下内容将永久删除且不可恢复：
@@ -45,7 +58,7 @@ API 前缀为 `/api/v1`，配置按当前工作区隔离。
 
 | 方法 | 路径 | 权限 | 作用 |
 | --- | --- | --- | --- |
-| `GET` | `/tenants/kv/legal-workspace-config` | Viewer+ | 读取开关；旧数据缺少配置时按启用处理 |
+| `GET` | `/tenants/kv/legal-workspace-config` | Viewer+ | 读取开关；旧数据缺少配置时按部署默认处理 |
 | `PUT` | `/tenants/kv/legal-workspace-config` | Admin+ | 请求体为 `{ "enabled": true\|false }`；关闭不删除数据 |
 | `DELETE` | `/legal-workspace-data` | Owner+ | 删除当前工作区的合同审查数据和不再共享的源文件 |
 
@@ -56,6 +69,6 @@ API 前缀为 `/api/v1`，配置按当前工作区隔离。
 - PostgreSQL 使用 `migrations/versioned/000106_legal_workspace_config.up.sql`。
 - 如果数据库的迁移记录已经到 `000106`，但缺少该列，后续 `migrations/versioned/000107_legal_workspace_config_repair.up.sql` 会幂等补齐字段。
 - SQLite/Lite 使用 `migrations/sqlite/000016_legal_workspace_config.up.sql`。
-- 新字段默认 `enabled: true`，兼容升级前已有合同审查数据。
+- 数据库新字段默认 `enabled: true`，兼容升级前已有合同审查数据；应用创建工作区时使用 `ICTREK_LEGAL_WORKSPACE_DEFAULT_ENABLED` 的默认值。
 - 代码验证包括前端 `npm run type-check`、`npm run check-i18n`，以及后端法律配置、路由、数据清理和 SQLite migration 测试。
 - 发布到实际 VOS 环境前，应在备份数据库上验证迁移、关闭后数据仍存在、重新开启后记录可读，以及删除确认后的共享文件保留行为。

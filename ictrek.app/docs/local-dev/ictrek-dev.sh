@@ -388,6 +388,9 @@ setup_env() {
     set_env_value WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL "${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-admin@weknora.local}"
     set_env_value WEKNORA_AUTH_DEFAULT_TENANT_MODE create_personal
     set_env_value WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED true
+    if [ -z "$(get_env_value ICTREK_LEGAL_WORKSPACE_DEFAULT_ENABLED)" ]; then
+        set_env_value ICTREK_LEGAL_WORKSPACE_DEFAULT_ENABLED false
+    fi
     set_env_value DISABLE_REGISTRATION false
     set_env_value HYBRAG_VOS_SSO_ENABLED false
     set_env_value NEO4J_ENABLE true

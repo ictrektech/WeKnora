@@ -4,18 +4,38 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"os"
+	"strconv"
+	"strings"
 )
 
+// LegalWorkspaceDefaultEnabledEnv controls the default legal workspace state
+// for newly created tenants and tenants without a persisted workspace setting.
+// Persisted tenant settings always take precedence over this environment value.
+const LegalWorkspaceDefaultEnabledEnv = "ICTREK_LEGAL_WORKSPACE_DEFAULT_ENABLED"
+
 // LegalWorkspaceConfig controls access to the tenant's legal workspace.
-// A nil config is intentionally treated as enabled for compatibility with
-// tenants created before this setting existed.
+// A nil config follows the deployment default so operators can choose the
+// initial state for newly created or otherwise unconfigured tenants.
 type LegalWorkspaceConfig struct {
 	Enabled bool `json:"enabled"`
 }
 
-// DefaultLegalWorkspaceConfig returns the backwards-compatible default.
+// DefaultLegalWorkspaceEnabled returns the deployment default for the legal
+// workspace. The default is disabled; an explicit true/false environment value
+// overrides it. Invalid values fail closed to disabled.
+func DefaultLegalWorkspaceEnabled() bool {
+	value := strings.TrimSpace(os.Getenv(LegalWorkspaceDefaultEnabledEnv))
+	if value == "" {
+		return false
+	}
+	enabled, err := strconv.ParseBool(value)
+	return err == nil && enabled
+}
+
+// DefaultLegalWorkspaceConfig returns the deployment-configured default.
 func DefaultLegalWorkspaceConfig() *LegalWorkspaceConfig {
-	return &LegalWorkspaceConfig{Enabled: true}
+	return &LegalWorkspaceConfig{Enabled: DefaultLegalWorkspaceEnabled()}
 }
 
 // EffectiveLegalWorkspaceConfig normalizes a possibly absent config.

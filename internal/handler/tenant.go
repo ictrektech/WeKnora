@@ -1517,8 +1517,8 @@ func (h *TenantHandler) UpdateTenantKV(c *gin.Context) {
 }
 
 // GetLegalWorkspaceConfig returns the tenant-level contract review access
-// switch. Missing legacy values resolve to enabled so existing tenants keep
-// their current behavior.
+// switch. Missing legacy values resolve to the deployment default; persisted
+// tenant settings keep their stored state.
 func (h *TenantHandler) GetLegalWorkspaceConfig(c *gin.Context) {
 	ctx := c.Request.Context()
 	tenant, ok := types.TenantInfoFromContext(ctx)

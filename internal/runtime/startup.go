@@ -78,6 +78,7 @@ var startupEnvVars = []envVarSpec{
 	// Runtime
 	{name: "GIN_MODE"},
 	{name: "AUTO_MIGRATE"},
+	{name: "ICTREK_LEGAL_WORKSPACE_DEFAULT_ENABLED"},
 	// Database
 	{name: "DB_DRIVER"},
 	{name: "DB_HOST"},
