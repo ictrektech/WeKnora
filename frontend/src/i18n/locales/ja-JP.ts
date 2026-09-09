@@ -3587,7 +3587,13 @@ export default {
       retry: '再接続',
       sessionEnded: 'ターミナルセッションが終了しました',
       idleDisconnected: 'アイドル状態のためターミナルが切断されました。サンドボックスは自身のTTLで一時停止します。再接続できます。',
-      authRevoked: 'ログイン状態が無効になったため、ターミナルが切断されました。再度サインインしてから接続してください。'
+      authRevoked: 'ログイン状態が無効になったため、ターミナルが切断されました。再度サインインしてから接続してください。',
+      artifactScope: 'ファイルの範囲',
+      artifactsCurrent: 'このターン',
+      artifactsAll: 'すべて',
+      artifactsSearch: 'ファイル名を検索',
+      artifactsNoMatches: '一致するファイルがありません',
+      paused: 'この会話のサンドボックスは一時停止中です。ターミナルを起動すると再開します。'
     },
     promptLabel: 'プロンプト'
   },
@@ -4541,9 +4547,13 @@ export default {
       toggleOff: 'Web検索を無効化',
       notConfigured: 'Web検索エンジンが未設定です'
     },
-    steerQueueSendNow: '今すぐ送信',
+    steerQueueSendNow: '現在のタスクに追加',
     steerQueueWaiting: '現在の回答が終わってから送信されます',
-    steerQueueInjecting: '次の思考ラウンドを待っています'
+    steerQueueInjecting: '追加内容の適用待ち',
+    steerCurrent: '現在のタスクに追加',
+    steerAfter: '完了後に送信',
+    steerAccepted: 'このタスクへの追加',
+    steerRetry: '再送信'
   },
   manualEditor: {
     description: 'Markdownでナレッジを記述し、リアルタイムでプレビューできます',
@@ -5880,7 +5890,17 @@ export default {
         skills: 'この設定のサンドボックスイメージにスキルをインストールします。設定を保存すれば、いつでも戻って作業できます。'
       },
       terminalIdleDisconnect: 'ターミナルのアイドル切断（秒）',
-      terminalIdleDisconnectHelp: 'ターミナルを開いた後、この時間だけキーボード入力もPTY出力もなければ接続を切断し、サンドボックスはTTLに従って一時停止します。空欄の場合は900秒、最短60秒、最長24時間です。'
+      terminalIdleDisconnectHelp: 'ターミナルを開いた後、この時間だけキーボード入力もPTY出力もなければ接続を切断し、サンドボックスはTTLに従って一時停止します。空欄の場合は900秒、最短60秒、最長24時間です。',
+      skillGuidance: {
+        placeholder: '必要な CLI、インストール手順、環境の制約などを入力',
+        send: '補足を送信',
+        retry: '補足付きで再インストール',
+        pending: '処理待ち',
+        injected: '反映済み',
+        unprocessed: '未処理：再インストール時に追加してください',
+        unavailable: 'この段階では入力できません。完了後に補足付きで再試行できます。',
+        failed: '送信できませんでした。入力は保持されています。再試行してください。'
+      }
     }
   },
   agent: {

@@ -1738,7 +1738,17 @@ export default {
         valueTooLong: 'A value cannot exceed {max} bytes.'
       },
       terminalIdleDisconnect: 'Terminal idle disconnect (s)',
-      terminalIdleDisconnectHelp: 'After the terminal is open, close it if there is no keyboard input or PTY output for this long so the sandbox can pause on its TTL. Empty means 900 seconds; minimum 60 seconds, maximum 24 hours.'
+      terminalIdleDisconnectHelp: 'After the terminal is open, close it if there is no keyboard input or PTY output for this long so the sandbox can pause on its TTL. Empty means 900 seconds; minimum 60 seconds, maximum 24 hours.',
+      skillGuidance: {
+        placeholder: 'Add installation guidance, such as required CLIs, setup documentation, or environment constraints',
+        send: 'Send guidance',
+        retry: 'Reinstall with guidance',
+        pending: 'Pending',
+        injected: 'Injected',
+        unprocessed: 'Not processed; include when reinstalling',
+        unavailable: 'Input is unavailable at this stage. You can reinstall with guidance once this run finishes.',
+        failed: 'Could not send guidance. Your text is preserved; please retry.'
+      }
     },
     skills: {
       title: 'Skill Management',
@@ -2740,9 +2750,13 @@ export default {
     modelLockedByAgent: 'Model selection is locked by the current agent',
     imageUploadDisabledByAgent: 'Image upload is not enabled for this agent',
     goToAgentSettings: 'Go to agent settings',
-    steerQueueSendNow: 'Send now',
+    steerQueueSendNow: 'Supplement current task',
     steerQueueWaiting: 'Will send after the current answer finishes',
-    steerQueueInjecting: 'Waiting for the next thinking round'
+    steerQueueInjecting: 'Waiting to apply update',
+    steerCurrent: 'Supplement current task',
+    steerAfter: 'Send after completion',
+    steerAccepted: 'Added during this task',
+    steerRetry: 'Retry sending'
   },
   createChat: {
     title: 'Hi, I am WeKnora — your knowledge, within reach',
@@ -3805,7 +3819,13 @@ export default {
       retry: 'Reconnect',
       sessionEnded: 'Terminal session ended',
       idleDisconnected: 'The terminal disconnected after being idle. The sandbox will pause on its own TTL. You can reconnect.',
-      authRevoked: 'Your session is no longer valid, so the terminal was disconnected. Sign in again, then reconnect.'
+      authRevoked: 'Your session is no longer valid, so the terminal was disconnected. Sign in again, then reconnect.',
+      artifactScope: 'File scope',
+      artifactsCurrent: 'This turn',
+      artifactsAll: 'All files',
+      artifactsSearch: 'Search filenames',
+      artifactsNoMatches: 'No matching files',
+      paused: 'This conversation\'s sandbox is paused. Starting the terminal resumes it.'
     },
     promptLabel: 'Prompt'
   },

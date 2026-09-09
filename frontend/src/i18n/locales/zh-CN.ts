@@ -3843,7 +3843,13 @@ export default {
       retry: '重新连接',
       sessionEnded: '终端会话已结束',
       idleDisconnected: '终端空闲已断开，沙箱将按工作区 TTL 自行暂停。可重新连接。',
-      authRevoked: '登录状态已失效，终端已断开。请重新登录后再连接。'
+      authRevoked: '登录状态已失效，终端已断开。请重新登录后再连接。',
+      artifactScope: '产物范围',
+      artifactsCurrent: '本轮',
+      artifactsAll: '全部',
+      artifactsSearch: '搜索文件名',
+      artifactsNoMatches: '没有匹配的文件',
+      paused: '本会话的沙箱已暂停。启动终端会唤醒它。'
     },
     promptLabel: '提示词'
   },
@@ -4797,9 +4803,13 @@ export default {
       toggleOff: '关闭网络搜索',
       notConfigured: '未配置网络搜索引擎'
     },
-    steerQueueSendNow: '立即发送',
+    steerQueueSendNow: '补充当前任务',
     steerQueueWaiting: '当前回答结束后发送',
-    steerQueueInjecting: '等待下一轮思考'
+    steerQueueInjecting: '等待接收补充',
+    steerCurrent: '补充当前任务',
+    steerAfter: '完成后发送',
+    steerAccepted: '本轮补充',
+    steerRetry: '重试发送'
   },
   manualEditor: {
     description: '使用 Markdown 编写知识内容，支持实时预览',
@@ -6136,7 +6146,17 @@ export default {
         skills: '把技能装进这份配置的沙箱镜像；配置已保存后可随时回来增删。'
       },
       terminalIdleDisconnect: '交互式终端空闲断开（秒）',
-      terminalIdleDisconnectHelp: '打开终端后，这段时间内没有键盘输入或终端输出就断开连接，沙箱随后按 TTL 自行暂停。留空按 900 秒；最短 60 秒，最长 24 小时。'
+      terminalIdleDisconnectHelp: '打开终端后，这段时间内没有键盘输入或终端输出就断开连接，沙箱随后按 TTL 自行暂停。留空按 900 秒；最短 60 秒，最长 24 小时。',
+      skillGuidance: {
+        placeholder: '补充安装说明，例如需要安装的 CLI、安装文档或环境限制',
+        send: '发送说明',
+        retry: '携带说明重新安装',
+        pending: '待处理',
+        injected: '已注入',
+        unprocessed: '未处理，请重新安装时补充',
+        unavailable: '当前阶段暂不接收说明；安装结束后可携带说明重试。',
+        failed: '发送失败，说明已保留，请重试。'
+      }
     }
   },
   agent: {

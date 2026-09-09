@@ -3843,7 +3843,13 @@ export default {
       retry: '다시 연결',
       sessionEnded: '터미널 세션이 종료되었습니다',
       idleDisconnected: '터미널이 유휴 상태로 연결이 끊어졌습니다. 샌드박스는 TTL에 따라 일시 중지됩니다. 다시 연결할 수 있습니다.',
-      authRevoked: '로그인 상태가 더 이상 유효하지 않아 터미널 연결이 끊어졌습니다. 다시 로그인한 뒤 재연결하세요.'
+      authRevoked: '로그인 상태가 더 이상 유효하지 않아 터미널 연결이 끊어졌습니다. 다시 로그인한 뒤 재연결하세요.',
+      artifactScope: '파일 범위',
+      artifactsCurrent: '이번 응답',
+      artifactsAll: '전체',
+      artifactsSearch: '파일 이름 검색',
+      artifactsNoMatches: '일치하는 파일이 없습니다',
+      paused: '이 대화의 샌드박스가 일시 중지되었습니다. 터미널을 시작하면 다시 시작됩니다.'
     },
     promptLabel: '프롬프트'
   },
@@ -4797,9 +4803,13 @@ export default {
       toggleOff: '웹 검색 끄기',
       notConfigured: '웹 검색 엔진이 구성되지 않았습니다'
     },
-    steerQueueSendNow: '지금 보내기',
+    steerQueueSendNow: '현재 작업에 추가',
     steerQueueWaiting: '현재 답변이 끝난 뒤에 전송됩니다',
-    steerQueueInjecting: '다음 사고 라운드를 기다리는 중'
+    steerQueueInjecting: '추가 내용 반영 대기 중',
+    steerCurrent: '현재 작업에 추가',
+    steerAfter: '완료 후 보내기',
+    steerAccepted: '현재 작업에 추가됨',
+    steerRetry: '다시 보내기'
   },
   manualEditor: {
     description: 'Markdown으로 지식을 작성하고 실시간 미리보기 지원',
@@ -6136,7 +6146,17 @@ export default {
         skills: 'Install skills into this config\'s sandbox image. Once the config is saved you can come back any time.'
       },
       terminalIdleDisconnect: '터미널 유휴 해제 (초)',
-      terminalIdleDisconnectHelp: '터미널을 연 뒤 키보드 입력이나 PTY 출력이 이 시간 동안 없으면 연결을 끊어 샌드박스가 TTL에 따라 일시 중지되도록 합니다. 비워 두면 900초이며, 최소 60초, 최대 24시간입니다.'
+      terminalIdleDisconnectHelp: '터미널을 연 뒤 키보드 입력이나 PTY 출력이 이 시간 동안 없으면 연결을 끊어 샌드박스가 TTL에 따라 일시 중지되도록 합니다. 비워 두면 900초이며, 최소 60초, 최대 24시간입니다.',
+      skillGuidance: {
+        placeholder: '필요한 CLI, 설치 문서, 환경 제약 등 설치 안내를 추가하세요',
+        send: '안내 보내기',
+        retry: '안내를 포함하여 재설치',
+        pending: '처리 대기',
+        injected: '반영됨',
+        unprocessed: '미처리: 재설치 시 포함하세요',
+        unavailable: '현재 단계에서는 입력할 수 없습니다. 완료 후 안내를 포함하여 재설치할 수 있습니다.',
+        failed: '안내를 보내지 못했습니다. 입력 내용은 유지됩니다. 다시 시도하세요.'
+      }
     }
   },
   agent: {
