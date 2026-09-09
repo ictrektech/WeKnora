@@ -169,6 +169,7 @@ export default {
       pending: 'Waiting for location',
       located: 'Stable location',
       legacy_exact: 'Legacy result: location is not reliable',
+      multiple_matches: 'Multiple matches; not highlighted',
       not_found: 'Original text not found',
       version_mismatch: 'Source revision mismatch',
       unsupported: 'Stable location unsupported',

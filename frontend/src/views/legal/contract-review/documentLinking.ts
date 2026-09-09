@@ -2,9 +2,9 @@
  * Pure helpers shared by the contract-review panel and document viewer.
  *
  * Evidence matching is deliberately conservative. The rendered document is
- * searched as one normalized text stream, every exact candidate is returned,
- * and callers decide whether a single candidate is safe to highlight. There
- * is no fuzzy, ellipsis, or first-hit matching here.
+ * searched as one normalized text stream, exact matches are constrained by
+ * the source locator when available, and ambiguous matches are never guessed.
+ * There is no fuzzy or ellipsis matching here.
  */
 
 export type EvidenceStatus = 'pending' | 'located' | 'legacy_exact' | 'multiple_matches' | 'not_found' | 'version_mismatch' | 'unsupported' | 'error'
@@ -24,6 +24,9 @@ export interface ReviewLocatorUnitLike {
   unit_id: string
   source_start: number
   source_end: number
+  kind?: string
+  parent_id?: string
+  text?: string
   page?: number
   rendered_start?: number
   rendered_end?: number
@@ -100,8 +103,8 @@ export function buildNormalizedTextMap(value: string): NormalizedTextMap {
   return { text, offsets }
 }
 
-/** Return every exact match in normalized offsets, including duplicate text. */
-export function findReviewQuoteMatches(renderedText: string, quote: string): ReviewQuoteMatch[] {
+/** Return every exact match so the locator can constrain repeated text. */
+function findReviewQuoteMatches(renderedText: string, quote: string): ReviewQuoteMatch[] {
   const haystack = normalizeReviewText(renderedText)
   const needle = normalizeReviewText(quote)
   if (!needle) return []
@@ -111,13 +114,13 @@ export function findReviewQuoteMatches(renderedText: string, quote: string): Rev
   while (start >= 0) {
     matches.push({ start, end: start + needle.length })
     // Advancing by one also makes the helper correct for overlapping exact
-    // matches. A caller can still reject ambiguity rather than guessing.
+    // matches. Callers must reject ambiguity rather than guessing.
     start = haystack.indexOf(needle, start + 1)
   }
   return matches
 }
 
-/** Compatibility helper: return a location only when it is unambiguous. */
+/** Return a location only when the exact match is unambiguous. */
 export function findReviewQuoteMatch(renderedText: string, quote: string): ReviewQuoteMatch | null {
   const matches = findReviewQuoteMatches(renderedText, quote)
   return matches.length === 1 ? matches[0] : null
@@ -142,6 +145,137 @@ function sourceUnitsForRange(locator: ReviewLocatorLike, sourceStart: number, so
       && unit.source_start < sourceEnd
       && unit.source_end > sourceStart
   })
+}
+
+function sourceUnitsContainingRange(locator: ReviewLocatorLike, sourceStart: number, sourceEnd: number): ReviewLocatorUnitLike[] {
+  return (locator.units || [])
+    .filter((unit) => {
+      return Number.isFinite(unit.source_start)
+        && Number.isFinite(unit.source_end)
+        && unit.source_start <= sourceStart
+        && unit.source_end >= sourceEnd
+    })
+    .sort((left, right) => {
+      const leftSize = left.source_end - left.source_start
+      const rightSize = right.source_end - right.source_start
+      return leftSize - rightSize || left.source_start - right.source_start || left.unit_id.localeCompare(right.unit_id)
+    })
+}
+
+function uniqueMatches(matches: ReviewQuoteMatch[]): ReviewQuoteMatch[] {
+  const seen = new Set<string>()
+  return matches.filter((match) => {
+    const key = `${match.start}:${match.end}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function sourceUnitQuoteOffsets(unit: ReviewLocatorUnitLike, sourceStart: number, sourceEnd: number, quote: string): ReviewQuoteMatch | null {
+  if (!unit.text) return null
+  const unitRunes = Array.from(unit.text)
+  const localStart = sourceStart - unit.source_start
+  const localEnd = sourceEnd - unit.source_start
+  if (!Number.isInteger(localStart) || !Number.isInteger(localEnd) || localStart < 0 || localEnd <= localStart || localEnd > unitRunes.length) return null
+  const sourceQuote = unitRunes.slice(localStart, localEnd).join('')
+  if (normalizeReviewText(sourceQuote) !== normalizeReviewText(quote)) return null
+  const normalizedStart = normalizeReviewText(unitRunes.slice(0, localStart).join('')).length
+  const normalizedEnd = normalizeReviewText(unitRunes.slice(0, localEnd).join('')).length
+  if (normalizedEnd <= normalizedStart) return null
+  return { start: normalizedStart, end: normalizedEnd }
+}
+
+function matchIsOnPages(match: ReviewQuoteMatch, pages: number[], renderedPageRanges: RenderedPageRange[]): boolean {
+  if (!pages.length || !renderedPageRanges.length) return true
+  const selectedPages = new Set(pages)
+  const matchPages = renderedPageRanges
+    .filter((range) => match.start < range.renderedEnd && match.end > range.renderedStart)
+    .map((range) => range.page)
+  return matchPages.length > 0 && matchPages.every((page) => selectedPages.has(page))
+}
+
+function matchesOnPages(matches: ReviewQuoteMatch[], pages: number[], renderedPageRanges: RenderedPageRange[]): ReviewQuoteMatch[] {
+  if (!pages.length || !renderedPageRanges.length) return matches
+  return matches.filter((match) => matchIsOnPages(match, pages, renderedPageRanges))
+}
+
+function renderedUnitRangesForUnit(unit: ReviewLocatorUnitLike, renderedUnitRanges: RenderedUnitRange[]): RenderedUnitRange[] {
+  return renderedUnitRanges.filter((range) => {
+    return range.unitId === unit.unit_id
+      && range.sourceStart <= unit.source_start
+      && range.sourceEnd >= unit.source_end
+      && range.renderedEnd > range.renderedStart
+  })
+}
+
+function matchesThroughRenderedUnit(
+  unit: ReviewLocatorUnitLike,
+  sourceStart: number,
+  sourceEnd: number,
+  quote: string,
+  renderedText: string,
+  exactMatches: ReviewQuoteMatch[],
+  renderedUnitRanges: RenderedUnitRange[],
+  pages: number[],
+  renderedPageRanges: RenderedPageRange[],
+): ReviewQuoteMatch[] {
+  const sourceOffsets = sourceUnitQuoteOffsets(unit, sourceStart, sourceEnd, quote)
+  const explicitRanges = renderedUnitRangesForUnit(unit, renderedUnitRanges)
+  const normalizedRenderedText = normalizeReviewText(renderedText)
+  const normalizedQuote = normalizeReviewText(quote)
+
+  if (sourceOffsets && explicitRanges.length) {
+    const explicitMatches = explicitRanges
+      .map((range) => ({ start: range.renderedStart + sourceOffsets.start, end: range.renderedStart + sourceOffsets.end }))
+      .filter((match, index) => {
+        const range = explicitRanges[index]
+        return match.start >= range.renderedStart
+          && match.end <= range.renderedEnd
+          && match.end <= normalizedRenderedText.length
+          && normalizedRenderedText.slice(match.start, match.end) === normalizedQuote
+          && matchIsOnPages(match, pages, renderedPageRanges)
+      })
+    if (explicitMatches.length) return uniqueMatches(explicitMatches)
+  }
+
+  if (sourceOffsets && unit.text) {
+    const unitMatches = matchesOnPages(findReviewQuoteMatches(renderedText, unit.text), pages, renderedPageRanges)
+    const mappedMatches = unitMatches
+      .map((unitMatch) => ({ start: unitMatch.start + sourceOffsets.start, end: unitMatch.start + sourceOffsets.end }))
+      .filter((match, index) => {
+        const unitMatch = unitMatches[index]
+        return match.start >= unitMatch.start
+          && match.end <= unitMatch.end
+          && match.end <= normalizedRenderedText.length
+          && normalizedRenderedText.slice(match.start, match.end) === normalizedQuote
+          && exactMatches.some((exactMatch) => exactMatch.start === match.start && exactMatch.end === match.end)
+      })
+    if (mappedMatches.length) return uniqueMatches(mappedMatches)
+  }
+
+  if (explicitRanges.length) {
+    return uniqueMatches(exactMatches.filter((match) => {
+      return explicitRanges.some((range) => {
+        return match.start < range.renderedEnd
+          && match.end > range.renderedStart
+          && matchIsOnPages(match, pages, renderedPageRanges)
+      })
+    }))
+  }
+
+  return []
+}
+
+function unitsBySourceSize(units: ReviewLocatorUnitLike[]): ReviewLocatorUnitLike[][] {
+  const groups: ReviewLocatorUnitLike[][] = []
+  for (const unit of units) {
+    const size = unit.source_end - unit.source_start
+    const group = groups.find((candidate) => candidate[0] && candidate[0].source_end - candidate[0].source_start === size)
+    if (group) group.push(unit)
+    else groups.push([unit])
+  }
+  return groups
 }
 
 function finishResolution(
@@ -172,10 +306,12 @@ function finishResolution(
  * Resolve an issue against one rendered document revision.
  *
  * When a locator is available, source offsets and revision checks are
- * authoritative. Optional rendered unit offsets can disambiguate repeated
- * phrases. Without those offsets, duplicate exact matches stay visibly
- * ambiguous. When an older server has no locator endpoint, the result remains
- * explicitly unsupported; a text-only match is never promoted to evidence.
+ * authoritative. Source unit text can map a source-relative quote offset to
+ * the rendered document; optional rendered unit offsets take precedence.
+ * If that mapping is unavailable, a page- or document-unique exact match is
+ * accepted. Repeated matches remain explicitly ambiguous. When an older
+ * server has no locator endpoint, the result remains unsupported; a text-only
+ * match is never promoted to evidence.
  */
 export function resolveReviewEvidence(input: EvidenceResolutionInput): EvidenceResolution {
   const {
@@ -202,9 +338,9 @@ export function resolveReviewEvidence(input: EvidenceResolutionInput): EvidenceR
     return { status: 'error', matches: [], unitIds: [], reason: 'locator-error' }
   }
 
-	const exactMatches = findReviewQuoteMatches(renderedText, quote)
-	if (locatorStatus === 'unsupported' || !locator) {
-		return { status: 'unsupported', matches: exactMatches, unitIds: [], reason: 'locator-unsupported' }
+  const exactMatches = findReviewQuoteMatches(renderedText, quote)
+  if (locatorStatus === 'unsupported' || !locator) {
+    return { status: 'unsupported', matches: exactMatches, unitIds: [], reason: 'locator-unsupported' }
   }
 
   if (locator.source_revision && expectedRevision && locator.source_revision !== expectedRevision) {
@@ -230,25 +366,32 @@ export function resolveReviewEvidence(input: EvidenceResolutionInput): EvidenceR
     return { status: 'not_found', matches: [], unitIds: [], reason: 'source-units-missing' }
   }
 
-  const unitRanges = renderedUnitRanges.filter((range) => {
-    return range.sourceStart < resolvedSourceEnd && range.sourceEnd > resolvedSourceStart
-  })
-  let candidateMatches = exactMatches
-  if (unitRanges.length) {
-    candidateMatches = exactMatches.filter((match) => unitRanges.some((range) => {
-      return match.start < range.renderedEnd && match.end > range.renderedStart
-    }))
+  const containingUnits = sourceUnitsContainingRange(locator, resolvedSourceStart, resolvedSourceEnd)
+  for (const sourceSizeGroup of unitsBySourceSize(containingUnits)) {
+    const mappedMatches = uniqueMatches(sourceSizeGroup.flatMap((unit) => matchesThroughRenderedUnit(
+      unit,
+      resolvedSourceStart,
+      resolvedSourceEnd,
+      quote,
+      renderedText,
+      exactMatches,
+      renderedUnitRanges,
+      pages,
+      renderedPageRanges,
+    )))
+    if (mappedMatches.length) {
+      return finishResolution(mappedMatches, unitIds, pages, 'located', 'source-unit-mapped')
+    }
   }
-  const selectedPages = new Set(pages)
-  if (selectedPages.size && renderedPageRanges.length) {
-    candidateMatches = candidateMatches.filter((match) => {
-      const matchPages = renderedPageRanges
-        .filter((range) => match.start < range.renderedEnd && match.end > range.renderedStart)
-        .map((range) => range.page)
-      return matchPages.length > 0 && matchPages.every((page) => selectedPages.has(page))
-    })
+
+  const pageConstrained = pages.length > 0 && renderedPageRanges.length > 0
+  const candidateMatches = pageConstrained
+    ? matchesOnPages(exactMatches, pages, renderedPageRanges)
+    : exactMatches
+  if (candidateMatches.length || pageConstrained) {
+    return finishResolution(candidateMatches, unitIds, pages, 'located', pageConstrained ? 'page-filtered' : 'document-unique')
   }
-  return finishResolution(candidateMatches, unitIds, pages, 'located', unitRanges.length ? 'source-range-filtered' : undefined)
+  return finishResolution(exactMatches, unitIds, pages, 'located', 'document-unique')
 }
 
 export type ReviewCollectionState = 'not_loaded' | 'empty' | 'populated'

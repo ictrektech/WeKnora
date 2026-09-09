@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   findReviewQuoteMatch,
-  findReviewQuoteMatches,
   hasReviewQuoteMatch,
   normalizeReviewText,
   resolveReviewEvidence,
@@ -18,13 +17,11 @@ test('normalizes layout whitespace while preserving case and punctuation', () =>
 
 test('matches an exact quote despite PDF text-item whitespace', () => {
   assert.equal(hasReviewQuoteMatch('Payment shall be made within 30 days.', 'Payment shall be made\nwithin 30 days.'), true)
-  assert.deepEqual(findReviewQuoteMatches('Payment shall be made within 30 days.', 'Payment shall be made\nwithin 30 days.'), [{ start: 0, end: 31 }])
+  assert.deepEqual(findReviewQuoteMatch('Payment shall be made within 30 days.', 'Payment shall be made\nwithin 30 days.'), { start: 0, end: 31 })
 })
 
-test('returns every duplicate exact candidate and the compatibility helper refuses to choose', () => {
+test('does not choose between duplicate exact matches without a locator constraint', () => {
   const rendered = 'First. Payment is due. Second. Payment is due.'
-  const matches = findReviewQuoteMatches(rendered, 'Payment is due')
-  assert.equal(matches.length, 2)
   assert.equal(findReviewQuoteMatch(rendered, 'Payment is due'), null)
 })
 
@@ -73,14 +70,151 @@ test('uses rendered unit offsets to disambiguate repeated source text', () => {
   assert.equal(result.matches.length, 1)
 })
 
-test('reports duplicate, missing, and stale evidence instead of highlighting a guess', () => {
+test('uses the source-relative offset to locate the second duplicate in one unit', () => {
+  const source = '付款日为30日。付款日为30日。'
+  const quote = '付款日为30日。'
+  const sourceStart = Array.from(source).indexOf('付', 1)
+  const sourceEnd = sourceStart + Array.from(quote).length
+  const rendered = source
+  const normalizedPrefix = normalizeReviewText(Array.from(source).slice(0, sourceStart).join('')).length
+  const normalizedQuote = normalizeReviewText(quote).length
+  const result = resolveReviewEvidence({
+    renderedText: rendered,
+    quote,
+    sourceStart,
+    sourceEnd,
+    expectedRevision: 'rev-1',
+    evidenceRevision: 'rev-1',
+    locatorStatus: 'ready',
+    locator: {
+      source_revision: 'rev-1',
+      units: [{ unit_id: 'p1', source_start: 0, source_end: Array.from(source).length, text: source, page: 1 }],
+    },
+  })
+  assert.equal(result.status, 'located')
+  assert.deepEqual(result.matches, [{ start: normalizedPrefix, end: normalizedPrefix + normalizedQuote }])
+})
+
+test('uses a unique source unit to locate repeated wording in different units', () => {
+  const firstUnit = 'First payment is due.'
+  const secondUnit = 'Second payment is due.'
+  const source = `${firstUnit}\n\n${secondUnit}`
+  const quote = 'payment is due.'
+  const secondUnitStart = Array.from(firstUnit).length + 2
+  const sourceStart = secondUnitStart + Array.from('Second ').length
+  const sourceEnd = sourceStart + Array.from(quote).length
+  const rendered = `${firstUnit}${secondUnit}`
+  const normalizedStart = normalizeReviewText('First payment is due.Second ').length
+  const result = resolveReviewEvidence({
+    renderedText: rendered,
+    quote,
+    sourceStart,
+    sourceEnd,
+    expectedRevision: 'rev-1',
+    evidenceRevision: 'rev-1',
+    locatorStatus: 'ready',
+    locator: {
+      source_revision: 'rev-1',
+      units: [
+        { unit_id: 'p1', source_start: 0, source_end: Array.from(firstUnit).length, text: firstUnit, page: 1 },
+        { unit_id: 'p2', source_start: secondUnitStart, source_end: Array.from(source).length, text: secondUnit, page: 1 },
+      ],
+    },
+  })
+  assert.equal(result.status, 'located')
+  assert.deepEqual(result.matches, [{ start: normalizedStart, end: normalizedStart + normalizeReviewText(quote).length }])
+})
+
+test('keeps identical source units ambiguous when page does not disambiguate them', () => {
+  const unitText = 'Payment is due.'
+  const source = `${unitText}\n\n${unitText}`
+  const secondStart = Array.from(unitText).length + 2
+  const result = resolveReviewEvidence({
+    renderedText: `${unitText}${unitText}`,
+    quote: unitText,
+    sourceStart: secondStart,
+    sourceEnd: secondStart + Array.from(unitText).length,
+    expectedRevision: 'rev-1',
+    evidenceRevision: 'rev-1',
+    locatorStatus: 'ready',
+    locator: {
+      source_revision: 'rev-1',
+      units: [
+        { unit_id: 'p1', source_start: 0, source_end: Array.from(unitText).length, text: unitText, page: 1 },
+        { unit_id: 'p2', source_start: secondStart, source_end: Array.from(source).length, text: unitText, page: 1 },
+      ],
+    },
+  })
+  assert.equal(result.status, 'multiple_matches')
+  assert.equal(result.matches.length, 2)
+})
+
+test('uses the referenced page to disambiguate identical source units', () => {
+  const unitText = 'Payment is due.'
+  const source = `${unitText}\n\n${unitText}`
+  const secondStart = Array.from(unitText).length + 2
+  const normalizedUnitLength = normalizeReviewText(unitText).length
+  const result = resolveReviewEvidence({
+    renderedText: `${unitText}${unitText}`,
+    quote: unitText,
+    sourceStart: secondStart,
+    sourceEnd: secondStart + Array.from(unitText).length,
+    expectedRevision: 'rev-1',
+    evidenceRevision: 'rev-1',
+    locatorStatus: 'ready',
+    locator: {
+      source_revision: 'rev-1',
+      units: [
+        { unit_id: 'p1', source_start: 0, source_end: Array.from(unitText).length, text: unitText, page: 1 },
+        { unit_id: 'p2', source_start: secondStart, source_end: Array.from(source).length, text: unitText, page: 2 },
+      ],
+    },
+    renderedPageRanges: [
+      { page: 1, renderedStart: 0, renderedEnd: normalizedUnitLength },
+      { page: 2, renderedStart: normalizedUnitLength, renderedEnd: normalizedUnitLength * 2 },
+    ],
+  })
+  assert.equal(result.status, 'located')
+  assert.deepEqual(result.matches, [{ start: normalizedUnitLength, end: normalizedUnitLength * 2 }])
+})
+
+test('uses a unique page match when the full source unit cannot be aligned', () => {
+  const sourceUnit = 'Payment is due. The due date is fixed.'
+  const quote = 'Payment is due.'
+  const sourceStart = 0
+  const sourceEnd = Array.from(quote).length
+  const normalizedQuoteLength = normalizeReviewText(quote).length
+  const result = resolveReviewEvidence({
+    renderedText: 'Unrelated page text.Payment is due.',
+    quote,
+    sourceStart,
+    sourceEnd,
+    expectedRevision: 'rev-1',
+    evidenceRevision: 'rev-1',
+    locatorStatus: 'ready',
+    locator: {
+      source_revision: 'rev-1',
+      units: [{ unit_id: 'p2', source_start: 0, source_end: Array.from(sourceUnit).length, text: sourceUnit, page: 2 }],
+    },
+    renderedPageRanges: [
+      { page: 1, renderedStart: 0, renderedEnd: normalizeReviewText('Unrelated page text.').length },
+      { page: 2, renderedStart: normalizeReviewText('Unrelated page text.').length, renderedEnd: normalizeReviewText('Unrelated page text.Payment is due.').length },
+    ],
+  })
+  assert.equal(result.status, 'located')
+  assert.deepEqual(result.matches, [{ start: normalizeReviewText('Unrelated page text.').length, end: normalizeReviewText('Unrelated page text.').length + normalizedQuoteLength }])
+})
+
+test('resolves duplicate, missing, and stale evidence without guessing', () => {
   const base = {
     sourceStart: 0,
     sourceEnd: 5,
     locatorStatus: 'ready' as const,
     locator: { source_revision: 'rev-1', units: [{ unit_id: 'p1', source_start: 0, source_end: 5, page: 1 }] },
   }
-  assert.equal(resolveReviewEvidence({ ...base, renderedText: 'alpha alpha', quote: 'alpha', expectedRevision: 'rev-1', evidenceRevision: 'rev-1' }).status, 'multiple_matches')
+  const duplicate = resolveReviewEvidence({ ...base, renderedText: 'alpha alpha', quote: 'alpha', expectedRevision: 'rev-1', evidenceRevision: 'rev-1' })
+  assert.equal(duplicate.status, 'multiple_matches')
+  assert.deepEqual(duplicate.matches, [{ start: 0, end: 5 }, { start: 5, end: 10 }])
   assert.equal(resolveReviewEvidence({ ...base, renderedText: 'beta', quote: 'alpha', expectedRevision: 'rev-1', evidenceRevision: 'rev-1' }).status, 'not_found')
   assert.equal(resolveReviewEvidence({ ...base, renderedText: 'alpha', quote: 'alpha', expectedRevision: 'rev-2', evidenceRevision: 'rev-1' }).status, 'version_mismatch')
 })

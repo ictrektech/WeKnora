@@ -75,7 +75,7 @@ const props = withDefaults(defineProps<{
 })
 const emit = defineEmits<{
   markerClick: [issueId: string]
-  evidenceStatus: [payload: { issueId: string; status: EvidenceStatus; candidateCount?: number }]
+  evidenceStatus: [payload: { issueId: string; status: EvidenceStatus }]
   locateFailed: [status: EvidenceStatus]
   retryLocator: []
 }>()
@@ -118,7 +118,6 @@ type PdfHighlightRect = { left: number; top: number; width: number; height: numb
 let pdfTextRanges: PdfTextRange[] = []
 let docxTextRanges: DomTextRange[] = []
 const evidenceResolutions = new Map<string, EvidenceResolution>()
-const selectedCandidateIndices = new Map<string, number>()
 
 function appFontScale() {
   if (typeof window === 'undefined') return 1
@@ -136,15 +135,17 @@ function issueEvidence(issue: ReviewIssue) {
 }
 
 function issueSourceStart(issue: ReviewIssue) {
-  return issueEvidence(issue)?.source_start ?? issue.source_start
+  if (Number.isInteger(issue.source_start) && Number.isInteger(issue.source_end) && issue.source_start >= 0 && issue.source_end > issue.source_start) return issue.source_start
+  return issueEvidence(issue)?.source_start
 }
 
 function issueSourceEnd(issue: ReviewIssue) {
-  return issueEvidence(issue)?.source_end ?? issue.source_end
+  if (Number.isInteger(issue.source_start) && Number.isInteger(issue.source_end) && issue.source_start >= 0 && issue.source_end > issue.source_start) return issue.source_end
+  return issueEvidence(issue)?.source_end
 }
 
 function issueSourceRevision(issue: ReviewIssue) {
-  return issueEvidence(issue)?.source_revision ?? issue.source_revision ?? props.sourceRevision
+  return issue.source_revision ?? issueEvidence(issue)?.source_revision ?? props.sourceRevision
 }
 
 function renderedUnitRanges(): RenderedUnitRange[] {
@@ -190,7 +191,6 @@ function setEvidenceStatus(issue: ReviewIssue, resolution: EvidenceResolution) {
   emit('evidenceStatus', {
     issueId: issue.id,
     status: resolution.status,
-    candidateCount: resolution.status === 'multiple_matches' ? resolution.matches.length : undefined,
   })
 }
 
@@ -209,7 +209,6 @@ async function load() {
   pageCount.value = 0
   currentPage.value = 1
   evidenceResolutions.clear()
-  selectedCandidateIndices.clear()
   try {
     const data = await getContractReviewDocument(props.reviewId)
     if (generation !== loadGeneration) return
@@ -470,13 +469,7 @@ function markDocxIssue(issue: ReviewIssue, match: { start: number; end: number }
 }
 
 function markIssue(issue: ReviewIssue): HTMLElement | null {
-  const baseResolution = resolutionFor(issue)
-  const selectedIndex = selectedCandidateIndices.get(issue.id)
-  const resolution = baseResolution.status === 'multiple_matches'
-    && selectedIndex !== undefined
-    && baseResolution.matches[selectedIndex]
-    ? { ...baseResolution, status: 'located' as const, matches: [baseResolution.matches[selectedIndex]], reason: 'user-selected-candidate' }
-    : baseResolution
+  const resolution = resolutionFor(issue)
   setEvidenceStatus(issue, resolution)
   // Legacy text-only matches are intentionally never promoted to a visual
   // highlight. Only a current, validated locator may authorize marking text.
@@ -485,16 +478,6 @@ function markIssue(issue: ReviewIssue): HTMLElement | null {
   if (props.fileType === '.pdf') return markPdfIssue(issue, match, resolution.status)
   if (props.fileType === '.docx') return markDocxIssue(issue, match, resolution.status)
   return null
-}
-
-function chooseEvidenceCandidate(issueId: string, index: number) {
-  const issue = (props.issues || []).find((candidate) => candidate.id === issueId)
-  if (!issue) return false
-  const resolution = resolutionFor(issue)
-  if (resolution.status !== 'multiple_matches' || !resolution.matches[index]) return false
-  selectedCandidateIndices.set(issueId, index)
-  applyIssueMarks()
-  return locateIssue(issue)
 }
 
 function selectMark(issueId?: string) {
@@ -592,7 +575,7 @@ onBeforeUnmount(() => {
   pdf = null
   if (documentProxy) void documentProxy.destroy().catch(() => {})
 })
-defineExpose({ locateIssue, chooseEvidenceCandidate, goToPage, setZoom, load })
+defineExpose({ locateIssue, goToPage, setZoom, load })
 </script>
 
 <style scoped lang="less">

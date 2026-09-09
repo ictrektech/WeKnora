@@ -15,7 +15,7 @@
         <ContractDocumentViewer v-else ref="viewer" :review-id="review.id" :file-name="review.file_name" :file-type="review.file_type" :issues="review.issues" :selected-issue-id="selectedIssue?.id" :source-revision="review.source_revision || review.source_hash" :locator="locator" :locator-status="locatorStatus" @marker-click="selectIssueById" @evidence-status="setEvidenceStatus" @locate-failed="handleLocateFailed" @retry-locator="retryLocator" />
         <div v-if="uploading" class="upload-overlay"><t-loading size="small" /><span>{{ t('contractReview.uploadingFile', { progress: store.uploadProgress }) }}</span><i><b :style="{ width: `${store.uploadProgress}%` }" /></i></div>
       </div>
-        <ReviewPanel ref="reviewPanel" :review="review" :playbooks="store.playbooks" :models="store.models" :models-loading="store.modelsLoading" :selected-issue-id="selectedIssue?.id" :busy="busy" :reconfigure="reconfigure" :evidence-statuses="evidenceStatuses" :evidence-candidate-counts="evidenceCandidateCounts" :locator-status="locatorStatus" @config-change="saveConfig" @title-change="saveTitleValue" @start="startReview" @retry="retryReview" @cancel="cancelReview" @reconfigure="beginReconfigure" @cancel-reconfigure="cancelReconfigure" @configure="router.push('/platform/agents')" @issue-select="locateIssue" @evidence-select="chooseEvidenceCandidate" />
+        <ReviewPanel ref="reviewPanel" :review="review" :playbooks="store.playbooks" :models="store.models" :models-loading="store.modelsLoading" :selected-issue-id="selectedIssue?.id" :busy="busy" :reconfigure="reconfigure" :evidence-statuses="evidenceStatuses" :locator-status="locatorStatus" @config-change="saveConfig" @title-change="saveTitleValue" @start="startReview" @retry="retryReview" @cancel="cancelReview" @reconfigure="beginReconfigure" @cancel-reconfigure="cancelReconfigure" @configure="router.push('/platform/agents')" @issue-select="locateIssue" />
     </div>
   </section>
   <div v-else class="review-loading contract-review-theme"><t-loading /> {{ t('contractReview.loadingReview') }}</div>
@@ -43,7 +43,6 @@ const originalConfig = ref<ReviewConfig | null>(null)
 const viewer = ref<InstanceType<typeof ContractDocumentViewer> | null>(null); const selectedIssue = ref<ReviewIssue | null>(null)
 const reviewPanel = ref<{ focusIssue: (id: string) => void } | null>(null)
 const evidenceStatuses = ref<Record<string, EvidenceStatus>>({})
-const evidenceCandidateCounts = ref<Record<string, number>>({})
 const locator = computed(() => review.value ? store.locatorCache[review.value.id] || null : null)
 const locatorStatus = computed(() => {
   if (!review.value) return 'idle'
@@ -66,7 +65,7 @@ async function initialize() {
   try {
     await store.loadPlaybooks()
     try { await store.loadModels(true) } catch { MessagePlugin.warning(t('contractReview.modelsLoadFailed')) }
-    const value = await store.load(String(route.params.reviewId)); title.value = value?.title || ''; evidenceStatuses.value = {}; evidenceCandidateCounts.value = {}; if (value) { void store.loadLocator(value.id); if (['uploading','analyzing','reviewing_clauses'].includes(value.status)) store.connect(value.id) }
+    const value = await store.load(String(route.params.reviewId)); title.value = value?.title || ''; evidenceStatuses.value = {}; if (value) { void store.loadLocator(value.id); if (['uploading','analyzing','reviewing_clauses'].includes(value.status)) store.connect(value.id) }
   }
   catch (error: any) { MessagePlugin.error(error?.message || t('contractReview.loadFailed')); router.replace({ name: LEGAL_CONTRACT_REVIEW_ROUTE }) }
 }
@@ -97,7 +96,7 @@ async function saveConfig(data: { playbook_id?: string; represented_party?: Repr
   try { await pending } catch(e:any){ MessagePlugin.error(e?.message || t('contractReview.saveFailed')) }
 }
 function validFile(file: File) { const ext = file.name.toLowerCase().split('.').pop(); return ext === 'pdf' || ext === 'docx' }
-async function upload(file?: File) { if (!review.value || !file) return; if (!validFile(file)) { MessagePlugin.warning(t('contractReview.invalidFile')); return } uploading.value = true; evidenceStatuses.value = {}; evidenceCandidateCounts.value = {}; try { await titleSavePromise; await store.upload(review.value.id, file); title.value = store.current?.title || title.value } catch(e:any){ MessagePlugin.error(e?.message || t('contractReview.uploadFailed')) } finally { uploading.value = false } }
+async function upload(file?: File) { if (!review.value || !file) return; if (!validFile(file)) { MessagePlugin.warning(t('contractReview.invalidFile')); return } uploading.value = true; evidenceStatuses.value = {}; try { await titleSavePromise; await store.upload(review.value.id, file); title.value = store.current?.title || title.value } catch(e:any){ MessagePlugin.error(e?.message || t('contractReview.uploadFailed')) } finally { uploading.value = false } }
 function onFileInput(event: Event) { void upload((event.target as HTMLInputElement).files?.[0]); (event.target as HTMLInputElement).value = '' }
 function onDrop(event: DragEvent) { dragging.value = false; void upload(event.dataTransfer?.files?.[0]) }
 async function startReview(){
@@ -132,7 +131,7 @@ function cancelReconfigure(){
 }
 async function retryReview(){
   if(!review.value)return
-  selectedIssue.value=null; evidenceStatuses.value = {}; evidenceCandidateCounts.value = {}; busy.value=true
+  selectedIssue.value=null; evidenceStatuses.value = {}; busy.value=true
   try{await store.retry(review.value.id)}catch(e:any){MessagePlugin.error(e?.message||t('contractReview.retryFailed'))}finally{busy.value=false}
 }
 async function cancelReview(){
@@ -143,18 +142,8 @@ async function cancelReview(){
 }
 function locateIssue(issue:ReviewIssue){ selectedIssue.value=issue; viewer.value?.locateIssue(issue) }
 function selectIssueById(id:string){ const issue=review.value?.issues?.find(item=>item.id===id); if(!issue)return; selectedIssue.value=issue; reviewPanel.value?.focusIssue(id) }
-function setEvidenceStatus(payload: { issueId: string; status: EvidenceStatus; candidateCount?: number }) {
+function setEvidenceStatus(payload: { issueId: string; status: EvidenceStatus }) {
   evidenceStatuses.value = { ...evidenceStatuses.value, [payload.issueId]: payload.status }
-  const next = { ...evidenceCandidateCounts.value }
-  if (payload.candidateCount && payload.candidateCount > 1) next[payload.issueId] = payload.candidateCount
-  else delete next[payload.issueId]
-  evidenceCandidateCounts.value = next
-}
-function chooseEvidenceCandidate(payload: { issueId: string; index: number }) {
-  const issue = review.value?.issues?.find((item) => item.id === payload.issueId)
-  if (!issue) return
-  selectedIssue.value = issue
-  viewer.value?.chooseEvidenceCandidate(payload.issueId, payload.index)
 }
 function handleLocateFailed(status: EvidenceStatus) {
   MessagePlugin.warning(`${t('contractReview.locateFailed')}: ${t(`contractReview.evidence.${status}`)}`)
@@ -164,7 +153,6 @@ watch(() => review.value?.title, value => { if(value && document.activeElement?.
 watch(() => review.value?.source_revision || review.value?.source_hash, (revision, previous) => {
   if (!review.value || revision === previous) return
   evidenceStatuses.value = {}
-  evidenceCandidateCounts.value = {}
   const cached = store.locatorCache[review.value.id]
   const cachedRevision = cached?.source_revision || cached?.source_text_hash || cached?.source_hash
   // `load()` seeds the cache from the review payload. Only fetch again when

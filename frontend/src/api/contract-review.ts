@@ -64,8 +64,8 @@ export interface ContractReviewLocatorUnit {
   source_start: number
   source_end: number
   text?: string
-  // Optional rendered offsets let the viewer disambiguate repeated text
-  // without guessing. They are normalized document offsets, end-exclusive.
+  // Optional rendered offsets directly map this source unit to normalized
+  // preview-text offsets. They are end-exclusive.
   rendered_start?: number
   rendered_end?: number
 }

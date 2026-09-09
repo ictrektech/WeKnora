@@ -169,6 +169,7 @@ export default {
       pending: '위치 대기 중',
       located: '안정적으로 위치 확인됨',
       legacy_exact: '이전 결과: 위치를 신뢰할 수 없음',
+      multiple_matches: '여러 곳에서 일치하여 강조하지 않음',
       not_found: '원문을 찾지 못함',
       version_mismatch: '원문 버전 불일치',
       unsupported: '안정적인 위치 확인을 지원하지 않음',

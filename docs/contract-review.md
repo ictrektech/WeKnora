@@ -1,149 +1,146 @@
 # 合同审查
 
-合同审查工作台支持上传单个 PDF 或 DOCX，解析合同文本后按分析片段查看风险、原文证据和修改建议，并通过 SSE 接收异步审查进度。
+本文首先面向刚接手或正在维护合同审查功能的开发者，帮助其确认当前行为、代码入口、不可破坏的约束和验证方式。Coding agent 可将本文作为功能级开发约束。
 
-本文面向功能使用者、前端/后端集成者和部署维护者，说明当前工作台的概念、状态、接口和结果边界。对话式 Agent 的合同审查方法见 [`skills/preloaded/contract-review/`](../skills/preloaded/contract-review/SKILL.md)，它与工作台的异步审查流程不是同一个入口。
+代码、配置、测试和迁移是事实源；本文在接口、状态、数据结构、权限边界或验证方式变化时同步更新。文中的状态描述当前仓库，不代表目标环境已经发布或验证。
 
-## 快速结论
+## 快速视图
 
-- 工作台可以发现合同文本中的风险、缺失、矛盾、歧义和外部引用，并给出原文证据与修改建议。
-- “分析片段”是服务按文本切分出的审查窗口，不一定等同于合同中的正式条款号。
-- 结果是否适合定位到文档，应该结合证据状态和 `quality_status` 判断；`completed` 不代表所有结果都具备可靠的可视化定位。
-- 结果属于 AI 辅助分析，不替代律师意见、正式法律审查或业务审批。
-
-## 当前状态
-
-| 能力 | 状态 |
+| 项目 | 当前结论 |
 | --- | --- |
-| 合同审查记录、归档、批量操作 | 已实现 |
-| PDF/DOCX 上传与原文预览 | 已实现 |
-| 文档解析、分析片段切分、异步审查 | 已实现 |
-| 风险等级、原文引用、修改建议 | 已实现 |
-| 为单条审查指定知识问答模型 | 已实现 |
-| 结构化事实提取、质量状态和警告 | 已实现 |
-| 原文证据定位和多候选位置选择 | 已实现 |
+| 入口 | `/platform/contract-review`；API 前缀为 `/api/v1` |
+| 已支持 | 单个 PDF/DOCX 上传、异步审查、风险与建议、事实和警告、原文定位、归档和批量操作 |
+| 未支持 | 自定义 playbook、红线版直接编辑、版本对比、结果导出 |
+| 结果边界 | AI 辅助分析，不替代律师意见、业务审批或正式法律审查 |
+| 接手入口 | 先看下方代码导航和关键不变量，再按修改类型运行定向测试 |
 
-## 入口、范围与边界
+## 当前状态与范围
 
-入口为 `/platform/contract-review`。该路由复用 `/platform/creatChat` 的平台壳层（菜单、设置、命令面板和主题），只替换中间内容区域；平台默认首页和现有知识库路由保持不变。
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| 合同记录、上传、解析和原文预览 | `已实现` | 每条记录一次上传一个 PDF 或 DOCX |
+| 异步审查、风险、修改建议和结构化事实 | `已实现` | 使用专用结构化审查流程 |
+| 质量状态、警告和原文定位 | `已实现` | 定位可信度需结合 `quality_status` 判断 |
+| 指定知识问答模型 | `已实现` | 模型不可用时审查失败，不静默切换 |
+| 取消审查与卡住任务回收 | `已实现` | 用户可取消运行中的任务；超时、进程丢失或队列记录消失时由后台巡检收敛为 `failed` |
 
-当前工作台的范围如下：
+工作台与 `skills/preloaded/contract-review/` 是两个入口：前者执行异步结构化审查；后者是对话式 Agent 的方法和参考清单。工作台不会直接执行 Agent 的完整报告提示词、工具调用或联网搜索，因此不承诺每个问题都带知识库、网页或案例引用。
 
-- 一次上传一个 PDF 或 DOCX 文件，文件大小受 `MAX_FILE_SIZE_MB` 限制。
-- 当前内置规则集只有 `general-contract-review`，版本为 `1.0`，覆盖商业、法律、运营和文本起草风险。
-- 当前不提供自定义 playbook、红线版合同直接编辑、旧新版本对比或审查结果导出。
-- 工作台使用专用的异步结构化审查流程。它不会直接执行内置 Agent 的完整报告提示词、工具调用或联网搜索流程，因此不应承诺每条问题都带有知识库、网页或法律案例引用。
-- `skills/preloaded/contract-review/` 是对话式 Agent 的审查方法和参考清单；工作台专用的结构化审查提示词位于 `internal/application/service/contract_review.go`。
+工作台当前只有 `general-contract-review` `1.0` 规则集。文件大小受 `MAX_FILE_SIZE_MB` 限制；用户需要当前工作空间 Viewer 权限，且法律工作台处于启用状态。开关、数据保留和永久删除边界见 [法律工作台](../ictrek.app/docs/legal-workspace.md)。
 
-## 使用前提与模型选择
+## 主流程与代码导航
 
-1. WeKnora 已配置至少一个可用且已启用的知识问答聊天模型（`KnowledgeQA`）。
-2. 用户需要具备当前工作空间的 Viewer 权限。
-3. 合同文件必须是 PDF 或 DOCX，且文件不能为空、格式签名有效。
-4. 审查视角默认为 `neutral`。创建或重新审查前可以选择代表方。
+`创建记录 → 上传并解析 → ready → 启动异步任务 → 分片审查 → 全文事实与质量校验 → completed / failed / cancelled`
 
-内置 Agent ID 为 `builtin-contract-review`。模型选择规则如下：
+运行中的记录也可以进入 `cancelled`。取消先持久化记录状态，再尽力删除待执行、重试和活动队列任务；旧 worker 即使晚返回，也不能再写入已取消运行的结果。`cancelled` 与 `failed` 都允许重试。
 
-1. 如果审查记录指定了 `model_id`，使用该模型；模型必须仍然可用且类型为 `KnowledgeQA`。
-2. 未指定 `model_id` 时，先尝试使用内置 Agent 的模型配置。
-3. 内置 Agent 没有模型配置时，选择当前空间已启用的默认知识问答模型，或第一个可用模型。
-4. 已配置但不可用的模型会导致审查失败，不会静默替换成另一个模型。
+| 关注点 | 主要入口 | 维护时重点 |
+| --- | --- | --- |
+| 路由、权限和 HTTP 映射 | `internal/router/routes_contract_review.go`、`internal/handler/contract_review.go` | Viewer/Owner 权限、错误码、SSE 和访问开关 |
+| 上传、状态流转和任务编排 | `internal/application/service/contract_review.go` | 状态转换、模型选择、任务过期保护和资源清理 |
+| 事实、证据和质量校验 | `internal/application/service/contract_review_quality.go` | 原文精确匹配、定位、警告和降级行为 |
+| 持久化和领域结构 | `internal/application/repository/contract_review.go`、`internal/types/contract_review.go` | 租户/用户隔离、兼容字段和事务边界 |
+| 前端调用和结果展示 | `frontend/src/api/contract-review.ts`、`frontend/src/views/legal/contract-review/` | 状态刷新、SSE、原文定位和失败提示 |
+| Agent 审查方法 | `skills/preloaded/contract-review/SKILL.md` | 只影响对话式 Agent，不等同于工作台提示词 |
 
-代表方取值：
+## 关键概念与不变量
 
-| 值 | 含义 |
+| 概念 | 维护约束 |
 | --- | --- |
-| `customer` | 以客户/甲方利益为审查视角 |
-| `vendor` | 以供应商/乙方利益为审查视角 |
-| `neutral` | 不偏向任一方 |
+| 分析片段 | 服务按文本自动切出的审查窗口，约 2800 个 Unicode 字符并保留重叠上下文；不保证等同正式条款号 |
+| 问题（issue） | 必须包含风险、解释、原文引用和修改建议；可表示缺失、矛盾、歧义、占位符或外部引用等发现 |
+| 事实与警告 | 事实是全文可核验信息；警告表示结构、冲突或质量问题，不一定单独形成风险问题 |
+| `quality_status` | `pending`、`valid`、`degraded`、`invalid`、`stale`、`legacy`；与任务是否 `completed` 相互独立 |
+| `source_revision` | 当前解析文本的身份标识，不是合同业务版本号；结果和定位必须与其一致 |
+| locator | 将文本范围、证据单元和可选页码映射到预览位置；状态包括 `located`、`multiple_matches`、`not_found`、`version_mismatch`、`unsupported` 等，偏移量使用 `rune` 单位 |
 
-代表方是审查视角，不是系统从合同中自动识别出的实际合同主体。
+以下行为是跨后端、前端和数据层的不变量：
 
-## 核心概念
+- 所有记录按当前工作空间和用户隔离；租户级永久删除必须由 Owner 显式触发，关闭工作台不能隐式删除数据。
+- `analysis_run_id` 和 `config_hash` 用于阻止旧任务覆盖新运行或新配置的结果。
+- `original_quote` 必须能在当前源文本中精确找到；服务不能用模糊匹配或省略号匹配伪造证据。
+- `original_quote` 的精确范围以问题的 `source_start`/`source_end` 为准；`evidence_refs` 对应的单元范围可能是整段或整页，不能直接当作引用范围。
+- 原文定位先校验来源版本和 source unit，再用证据在 unit 内的相对偏移映射到预览文本；只有唯一且文本完全一致时才标记为 `located`。
+- 同一原文仍有多个候选时返回 `multiple_matches`，不自动取第一个、不创建可靠高亮；若 locator 无法对齐，则仅在目标页或全文存在唯一精确匹配时降级定位。
+- `completed` 只表示任务完成；结果能否可靠使用还要检查 `quality_status`、`warnings` 和证据状态。
 
-| 概念 | 说明 |
-| --- | --- |
-| `playbook` | 审查规则集。目前只有 `general-contract-review`，不支持在工作台中自定义规则集。 |
-| 分析片段 | 文档解析后由服务按文本切分出的审查窗口。当前使用自动切分策略，单个窗口约 2800 个 Unicode 字符并保留重叠上下文；标题可能是自动生成的“Analysis segment N”。它不一定等同于正式合同条款。 |
-| 问题（issue） | 针对某个分析片段提出的风险或文本问题，包含风险等级、类别、发现类型、解释、原文引用和修改建议。 |
-| `category` | 问题主题，例如 `payment`、`acceptance`、`liability`、`dispute_resolution`、`data_security`。 |
-| `finding_type` | 问题性质，例如 `missing`（缺失）、`contradiction`（矛盾）、`ambiguity`（歧义）、`placeholder`（占位符）、`external_reference`（外部引用）和 `inconsistency`（不一致）。 |
-| 事实（fact） | 从全文提取的可核验信息，例如主体、日期、期限、金额、付款、验收和争议信息。事实是结果数据，不等同于风险问题。 |
-| 警告（warning） | 对占位符、空白必填项、未勾选争议选项、外部引用、事实冲突、日期顺序冲突等问题的质量或结构检查结果。警告可能使整体质量降级，但不一定单独形成风险问题。 |
-| 证据（evidence） | 问题所依据的合同原文片段。`original_quote` 必须能够在当前源文本中精确找到。 |
-| `source_revision` | 当前解析文本的身份标识，例如 `text-v2:<sha256>`；它不是合同业务上的版本号，用于判断结果与当前文档是否匹配。 |
-| locator | 将源文本范围、证据单元和可选页码映射到原始 PDF/DOCX 预览的位置数据。文本偏移量使用 `rune` 单位。 |
-| `quality_status` | 结果质量状态：`pending`、`valid`、`degraded`、`invalid`、`stale`、`legacy`。它与任务状态 `completed` 独立。 |
-
+原文定位以正确性优先于覆盖率。PDF.js 和 `docx-preview` 的渲染文本可能与服务端解析文本存在顺序或格式差异；对齐失败时必须安全降级，不能用首个匹配位置冒充证据位置。
 ### 风险等级
 
-- `high`：可能造成重大法律、财务、效力或履约风险。
-- `medium`：具有实际影响，但通常可以通过谈判或补充措辞修复。
-- `low`：轻微起草或整理问题，通常不阻碍签署。
+风险等级为 `high`、`medium`、`low`。总体风险按已验证问题聚合：存在高风险即为高风险，否则依次检查中、低风险。详细判定参考 [`risk-levels.md`](../skills/preloaded/contract-review/references/risk-levels.md)。
 
-总体风险由服务端根据已验证的问题聚合：存在任一高风险时为高风险，否则存在任一中风险时为中风险，否则为低风险。建议主要来源于已验证问题和确定性结构检查，不是独立于证据之外生成的结论。详细方法见 [`risk-levels.md`](../skills/preloaded/contract-review/references/risk-levels.md)。
+## 状态、操作与失败行为
 
-## 生命周期与操作条件
+状态流转为：
 
-典型状态流转为：
+`draft → uploading → ready → analyzing → reviewing_clauses → completed / failed / cancelled`
 
-`draft → uploading → ready → analyzing → reviewing_clauses → completed / failed`
-
-| 操作 | 允许的状态或行为 |
+| 操作 | 允许条件与结果 |
 | --- | --- |
-| 上传合同 | `draft`、`ready`、`failed`；上传会重新解析并清理旧的条款、问题和定位数据。 |
-| 开始审查 | 仅 `ready`；接口返回 `202`，任务异步执行。 |
-| 重试/重新审查 | `completed` 或 `failed`；会生成新的审查运行并替换旧结果。 |
-| 修改审查配置 | `draft`、`ready`、`completed`；已完成记录修改配置后变为 `stale`，需要重新审查。 |
-| 归档 | 运行中的记录不能归档；归档不等于删除。 |
-| 删除 | 清理条款、问题和文件资源；当前没有用户级恢复已删除记录的接口。批量 `restore` 仅恢复已归档记录。 |
+| 上传合同 | `draft`、`ready`、`failed`；重新解析并清理旧条款、问题和定位数据 |
+| 开始审查 | 仅 `ready`；返回 `202` 后异步执行 |
+| 取消审查 | `uploading`、`analyzing` 或 `reviewing_clauses`；先将记录置为 `cancelled`，再尽力停止队列任务；已生成的中间结果保留 |
+| 重试/重新审查 | `completed`、`failed` 或 `cancelled`；创建新运行并替换旧结果 |
+| 修改审查配置 | `draft`、`ready`、`completed`；已完成记录变为 `stale` |
+| 归档 | 运行中不能归档；归档不等于删除 |
+| 删除 | 清理记录、子项和文件资源；没有用户级恢复接口 |
 
-上传阶段先解析文件，成功后进入 `ready`；审查阶段先分析各分析片段，再提取全文事实并生成概览。任何不可恢复的模型、解析或校验错误都会进入 `failed`，并在 `error_message` 中保留错误信息。
+模型、解析或结构化校验发生不可恢复错误时进入 `failed`，原因写入 `error_message`。
 
-SSE 只在审查记录快照发生变化时发送 `snapshot` 事件，并每 15 秒发送 `heartbeat`。客户端断线后应重新连接，并以记录查询接口返回的数据作为最终状态来源。
+分析任务的单次 worker 超时为 `30m`，最多自动重试一次。超时 handler 会使用独立的短事务上下文写入 `failed`，避免 Asynq 的取消上下文阻止失败状态落库。若 worker 在写入失败状态前进程消失，后台巡检每 5 分钟检查一次；超过两次任务时限加 `10m` 缓冲（当前为 `70m`）且没有对应的活动队列任务时，记录会被标记为 `failed`，用户可以重试。队列探测失败时会延后回收，避免 Redis 短暂故障误杀正常任务。
 
-## 结果如何判读
+### 卡住任务处理（已实现）
 
-1. 先查看任务状态，再查看 `quality_status` 和 `warnings`。
-2. 每个问题应优先核对 `original_quote`、`evidence_refs` 和证据状态。
-3. 证据状态为 `located` 且源版本一致、匹配唯一时，前端才会自动高亮原文。
-4. 同一原文出现多次时，状态会提示多个候选位置，用户需要选择具体位置；`not_found`、`version_mismatch`、`unsupported` 或 `error` 时仍可阅读问题文本，但不能把它当作已完成的可视化定位。
-5. 如果模型问题无法通过原文证据校验，服务可能舍弃该问题并增加警告；如果整体结构化输出或模型调用失败，本次审查会进入 `failed`。
-6. 单个分析片段的模型输出最多包含五个问题。这是单次模型输出上限，不是最终记录的问题总数上限；确定性结构检查还可能追加问题。
+调整背景：任务可能在模型调用超时、worker 进程退出或队列记录被归档后仍保留 `analyzing`/`reviewing_clauses`，导致前端持续显示“审查中”。目标是让用户能主动停止任务，并让异常任务最终进入可解释、可重试的终态。
 
-事实和警告用于补充结果可信度。`degraded` 表示结果存在警告，`invalid` 表示本次结果不能作为可靠结果使用，`stale` 表示审查配置或来源已变化，`legacy` 表示历史结果缺少当前定位所需的信息。
+采用“记录状态优先、队列操作尽力而为”的方案。取消接口先将当前 `analysis_run_id` 置为 `cancelled`，再按记录和运行 ID 清理队列；repository 的运行条件会拒绝旧 worker 的迟到写入。后台巡检只回收超过任务时限且没有对应活动任务的记录；队列探测失败时延后处理。这样兼容 Redis/Asynq 和 Lite 模式，也避免把短暂的队列故障误判为审查失败。
+
+SSE 仅在记录快照变化时发送 `snapshot`，并每 15 秒发送 `heartbeat`。断线后应重新连接；记录查询接口是最终状态来源。
+
+模型选择顺序为：记录指定的可用 `KnowledgeQA` 模型、内置 Agent `builtin-contract-review` 的模型配置、工作空间默认或首个可用模型。已明确指定但不可用的模型会使审查失败。`represented_party` 取值为 `customer`、`vendor`、`neutral`，表示审查视角而非自动识别出的合同主体。
 
 ## API
-
-API 前缀为 `/api/v1`，所有记录按当前用户和工作空间隔离。JSON 接口通常使用 `{ "success": true, "data": ... }` 包装；错误响应包含 `error.code`、`error.message` 和可选的 `error.details`。
 
 | 方法 | 路径 | 作用 |
 | --- | --- | --- |
 | `GET` | `/contract-review-playbooks` | 列出审查规则集 |
-| `GET` / `POST` | `/contract-reviews` | 列出或创建审查记录；列表可用 `archived=true` 查看归档记录 |
+| `GET` / `POST` | `/contract-reviews` | 列出或创建记录；`archived=true` 查询归档记录 |
 | `GET` / `PATCH` / `DELETE` | `/contract-reviews/:id` | 查看、更新或删除记录 |
-| `POST` | `/contract-reviews/:id/document` | 以 multipart 字段 `file` 上传合同 |
+| `POST` | `/contract-reviews/:id/document` | 通过 multipart 字段 `file` 上传合同 |
 | `GET` | `/contract-reviews/:id/document/preview` | 预览原始文件 |
-| `GET` | `/contract-reviews/:id/document/locator` | 获取源文本、证据单元和文档定位数据 |
+| `GET` | `/contract-reviews/:id/document/locator` | 获取源文本、证据单元和定位数据 |
 | `POST` | `/contract-reviews/:id/start` | 开始审查，返回 `202` |
 | `POST` | `/contract-reviews/:id/retry` | 重试或重新审查，返回 `202` |
-| `GET` | `/contract-reviews/:id/events` | 订阅 SSE `snapshot` 和 `heartbeat` 事件 |
-| `POST` | `/contract-reviews/bulk/:action` | 批量 `archive`、`restore` 或 `delete` |
+| `POST` | `/contract-reviews/:id/cancel` | 取消运行中的审查，返回 `202` |
+| `GET` | `/contract-reviews/:id/events` | 订阅 SSE `snapshot` 和 `heartbeat` |
+| `POST` | `/contract-reviews/bulk/archive` | 批量归档 |
+| `POST` | `/contract-reviews/bulk/restore` | 批量恢复归档 |
+| `POST` | `/contract-reviews/bulk/delete` | 批量删除 |
 
-`PATCH /contract-reviews/:id` 支持 `title`、`playbook_id`、`represented_party`、`model_id` 和 `archived`。将 `model_id` 设置为空字符串表示恢复自动选择。批量接口请求体为 `{ "ids": ["..."] }`，最多接收 500 个 ID，并返回逐项成功或失败结果。
+`PATCH` 支持 `title`、`playbook_id`、`represented_party`、`model_id` 和 `archived`；空 `model_id` 恢复自动选择。批量请求为 `{ "ids": ["..."] }`，最多 500 个 ID，并返回逐项成功或失败结果。法律工作台关闭后，上述路由返回 `403`；Owner 使用的 `/legal-workspace-data` 删除接口不受开关限制。
 
-> 当前合同审查接口尚未收录到生成的 `docs/swagger.yaml` 和 `docs/swagger.json`；本页接口表是补充说明。若要作为稳定的外部集成接口使用，还需要同步补充 OpenAPI schema。
+PostgreSQL 迁移为 `000101_contract_reviews`、`000102_contract_review_model`、`000103_contract_review_quality`、`000104_contract_review_quality_source_fields`；SQLite 迁移为 `000013_contract_reviews`、`000014_contract_review_model`、`000015_contract_review_quality`。法律工作台开关的迁移由关联文档单独维护。
 
-## 实现约束与数据迁移
+## 修改影响与验证
 
-- 审查模型必须返回结构化 JSON。对截断、无效 JSON 或证据校验失败的输出，服务最多自动重试一次。
-- 每个问题的 `original_quote` 必须来自合同原文；服务不会使用模糊匹配或任意首个匹配位置替代精确证据。
-- 条款问题由模型按分析片段生成，全文事实由服务单独提取；条款问题响应不直接承载事实列表。
-- 当前内置规则集只有 `general-contract-review`，版本为 `1.0`。
-- PostgreSQL 迁移为 `000101_contract_reviews`、`000102_contract_review_model`、`000103_contract_review_quality`、`000104_contract_review_quality_source_fields`；SQLite 迁移为 `000013_contract_reviews`、`000014_contract_review_model`、`000015_contract_review_quality`。
+| 修改类型 | 至少检查 |
+| --- | --- |
+| 状态、重试或异步任务 | service、types、前端状态处理；验证状态转换、旧任务隔离、SSE 与查询一致性 |
+| 证据、事实或原文定位 | quality service、handler、预览组件；验证重复原文、版本不匹配和定位失败 |
+| API 字段或数据结构 | types、handler、repository、迁移、前端 API；验证兼容性和序列化 |
+| 权限、开关或数据删除 | router、handler、service、资源绑定；验证权限、租户隔离、共享文件和重复删除 |
 
-## 取消与卡住任务（已实现）
+修改前先阅读根目录 `AGENTS.md`、`AGENTS.override.md`，并检查 `git status` 和相关 diff。只修改任务直接涉及的文件；不要在本页复制 Agent 方法或 VOS 部署说明。
 
-运行中的合同审查可通过 `POST /api/v1/contract-reviews/:id/cancel` 取消。接口先将当前运行置为 `cancelled`，再尽力停止对应的队列任务；`cancelled` 与 `failed` 都允许重试。
+按改动范围执行最小验证：
 
-模型任务单次超时为 `30m`，最多自动重试一次。超时 handler 会使用独立的短事务上下文写入 `failed`；若 worker 在写入前退出，后台巡检每 5 分钟运行一次，在两次任务时限加 `10m` 缓冲（当前为 `70m`）后，只有在没有对应活动队列任务时才将记录收敛为 `failed`。队列探测失败会延后回收，避免 Redis 短暂故障误杀正常任务。
+```bash
+go test ./internal/application/service ./internal/handler ./internal/router
+go test ./internal/database -run TestSQLiteMigrationsCreateVersionedSchema
+cd frontend
+npm test -- src/views/legal/contract-review/documentLinking.test.ts
+npm run type-check
+npm run check-i18n
+```
+
+无需机械执行全部命令：后端、迁移、前端和国际化检查只在对应范围受影响时运行。完成时执行 `git diff --check`，并说明改了什么、验证了什么、哪些内容仍待验证。

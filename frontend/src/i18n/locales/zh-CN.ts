@@ -169,6 +169,7 @@ export default {
       pending: '等待定位',
       located: '已稳定定位',
       legacy_exact: '历史结果：无法可靠定位',
+      multiple_matches: '多处匹配，未高亮',
       not_found: '未找到原文',
       version_mismatch: '原文版本不一致',
       unsupported: '不支持稳定定位',
