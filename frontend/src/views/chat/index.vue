@@ -3,8 +3,25 @@
         'is-embedded': embeddedMode,
         'is-sidebar-collapsed': uiStore.sidebarCollapsed,
         'has-references-panel': referencesDrawerVisible,
-    }">
+        'has-sandbox-panel': sandboxPanel.visible.value,
+    }" :style="{ '--sandbox-panel-width': `${sandboxPanel.width.value}px` }">
         <ChatHeader v-if="!embeddedMode" :session="currentSession" :has-references-panel="referencesDrawerVisible" />
+        <!-- 沙箱面板收起时：图标与左侧栏展开按钮同一套，位置镜像会话左上角三个点。 -->
+        <div v-if="!embeddedMode && !sandboxPanel.visible.value" class="sandbox-header-toggle">
+            <t-tooltip placement="bottom">
+                <template #content>{{ t('chatHeader.toggleSandboxPanel') }}</template>
+                <button type="button" class="sandbox-header-toggle__btn"
+                    :aria-label="t('chatHeader.toggleSandboxPanel')" @click="sandboxPanel.open()">
+                    <svg viewBox="0 0 20 20" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true">
+                        <rect x="1.5" y="1.5" width="17" height="17" rx="3" stroke="currentColor" stroke-width="1.2" />
+                        <line x1="12.5" y1="1.5" x2="12.5" y2="18.5" stroke="currentColor" stroke-width="1.2" />
+                        <line x1="16" y1="7.5" x2="16" y2="12.5" stroke="currentColor" stroke-width="1.2"
+                            stroke-linecap="round" />
+                    </svg>
+                </button>
+            </t-tooltip>
+        </div>
         <div class="chat_thread">
             <div ref="scrollContainer" class="chat_scroll_box" @scroll="handleScroll">
                 <div class="msg_list" :class="{ 'is-embedded': embeddedMode }">
@@ -103,7 +120,7 @@
                             :follow-up-loading="Boolean(session.suggestionLoading && !session.suggestionSet?.questions?.length)"
                             @render-complete-change="(ready) => handleAnswerRenderComplete(session, ready)">
                         </botmsg>
-                        <FollowUpSuggestions v-if="session.answerFullyRendered && !session.suggestionsDismissed"
+                        <FollowUpSuggestions v-if="session.answerFullyRendered && !session.steerForked && !session.suggestionsDismissed"
                             :suggestion-set="session.suggestionSet"
                             :loading="session.suggestionLoading"
                             :allow-regenerate="session.suggestionSet?.allow_regenerate"
@@ -134,8 +151,14 @@
         <div class="input-container" :class="{ 'is-embedded': embeddedMode }">
             <InputField ref="inputFieldRef"
                 @send-msg="(query, modelId, mentionedItems, imageFiles, attachmentFiles) => sendMsg(query, modelId, mentionedItems, imageFiles, attachmentFiles)"
-                @stop-generation="handleStopGeneration" :isReplying="isReplying" :sessionId="session_id"
-                :assistantMessageId="currentAssistantMessageId" :embeddedMode="embeddedMode"></InputField>
+                @steer-msg="(query, mentionedItems, delivery) => handleSteerMsg(query, mentionedItems, delivery)"
+                @promote-steer="handlePromoteSteer"
+                @remove-steer="handleRemoveSteer"
+                @stop-generation="handleStopGeneration"
+                @stop-confirmed="handleStopConfirmed"
+                @stop-failed="handleStopFailed" :isReplying="isReplying" :sessionId="session_id"
+                :assistantMessageId="currentAssistantMessageId" :embeddedMode="embeddedMode"
+                :queuedSteers="steerQueue" :canSteer="isAgentStreamSession()"></InputField>
         </div>
     </div>
     <KnowledgeBaseEditorModal :visible="uiStore.showKBEditorModal" :mode="uiStore.kbEditorMode"
@@ -143,6 +166,11 @@
         @update:visible="(val) => val ? null : uiStore.closeKBEditor()" @success="handleKBEditorSuccess" />
     <ChatReferencesDrawer />
     <ChatAttachmentPreviewDrawer />
+    <SandboxSidePanel v-if="!embeddedMode" :session-id="session_id"
+        :agent-id="useSettingsStoreInstance.selectedAgentId"
+        :agent-source-tenant-id="useSettingsStoreInstance.selectedAgentSourceTenantId"
+        :shifted="referencesDrawerVisible"
+        :artifacts="sessionArtifacts" :artifacts-collecting="sessionArtifactsCollecting" />
 </template>
 <script setup>
 import { storeToRefs } from 'pinia';
@@ -155,6 +183,8 @@ import { getMessageList, getSession } from "@/api/chat/index";
 import { getSuggestedQuestions } from "@/api/agent/index";
 import { deleteTemporaryAttachment, uploadTemporaryAttachment } from '@/api/chat/temporary-attachments';
 import { useStream } from '../../api/chat/streame'
+import { listSteerSession, promoteSteerSession, removeSteerSession, steerSession } from '@/api/chat/steer';
+import { persistedAssistantId } from '@/utils/steerStreamFork';
 import { useMenuStore } from '@/stores/menu';
 import { useSettingsStore } from '@/stores/settings';
 import { MessagePlugin } from 'tdesign-vue-next';
@@ -184,8 +214,13 @@ import ChatQuestionMinimap from '@/components/chat/ChatQuestionMinimap.vue';
 import MessageTimestamp from '@/components/chat/MessageTimestamp.vue';
 import { shouldShowConversationTimestamp } from '@/utils/messageTimestamp';
 import { useSessionActivityStore } from '@/stores/sessionActivity';
+import { provideChatSandboxPanel } from '@/composables/useChatSandboxPanel';
+import SandboxSidePanel from '@/components/chat/SandboxSidePanel.vue';
+import { collectSessionArtifacts } from '@/utils/sessionArtifacts';
+import { isCollectingSkillArtifacts } from '@/utils/skillArtifacts';
 const referencesDrawer = provideChatReferencesDrawer();
 provideChatAttachmentPreviewDrawer();
+const sandboxPanel = provideChatSandboxPanel();
 const { visible: referencesDrawerVisible } = referencesDrawer;
 
 const props = defineProps({
@@ -266,6 +301,11 @@ const created_at = ref('');
 const limit = ref(20);
 const messagesList = reactive([]);
 const inFlightTurnCache = new Map();
+const sessionArtifacts = computed(() => collectSessionArtifacts(messagesList));
+const sessionArtifactsCollecting = computed(() =>
+    messagesList.some((message) => isCollectingSkillArtifacts(message)),
+);
+const steerQueue = ref([]);
 const isReplying = ref(false);
 const currentAssistantMessageId = ref(''); // 当前正在生成的 assistant message ID
 // True while attaching to an in-flight reply via continue-stream. Attach failures
@@ -737,6 +777,7 @@ watch([() => route.params], async (newvalue) => {
         const targetSessionId = newvalue[0].chatid;
         cacheCurrentInFlightTurn(session_id.value);
         messagesList.splice(0);
+        steerQueue.value = [];
         session_id.value = targetSessionId;
         currentSession.value = null;
         clearCitationChunkCache();
@@ -876,7 +917,27 @@ const syncCompletedMessageReferences = (message, attempt = 0) => {
             console.warn('[References] failed to sync completed message references:', error);
             if (attempt < 10) syncCompletedMessageReferences(message, attempt + 1);
         }
-    }, attempt === 0 ? 300 : 700);
+	    }, attempt === 0 ? 300 : 700);
+};
+// The server is the source of truth for what is still queued. `onlyWhenLive`
+// guards the hand-off window: a follow-up run publishes itself a moment before
+// its carried-over queue is readable, and treating that gap as "queue is
+// empty" would wipe messages the user can still see.
+const hydrateSteerQueue = async ({ onlyWhenLive = false } = {}) => {
+    if (!session_id.value) return;
+    try {
+        const res = await listSteerSession(session_id.value);
+        if (onlyWhenLive && !res?.assistant_message_id) return;
+        const items = Array.isArray(res?.items) ? res.items : [];
+        steerQueue.value = items.map((item) => ({
+            steer_id: item.steer_id,
+            content: item.content || '',
+            delivery: item.delivery === 'inject' ? 'inject' : 'after',
+            mentioned_items: item.mentioned_items || [],
+        }));
+    } catch (e) {
+        console.warn('[Steer] Failed to restore queue:', e);
+    }
 };
 
 const {
@@ -908,22 +969,40 @@ const {
                 void loadFollowUpSuggestions(message, false);
             }
         }
-        const lastMessage = messagesList[messagesList.length - 1];
+        if (!steerQueue.value.length) {
+            await hydrateSteerQueue();
+        }
+        // Resume the trailing *assistant*, not simply the last row: a turn
+        // that absorbed a mid-run message ends with the injected user bubble
+        // in some orderings, and keying off that row would skip the resume
+        // entirely, leaving a running agent with no visible output.
+        const lastMessage = findLastMessage(
+            (message) => message.role === 'assistant' && !message.is_completed
+        );
         const locallyRunning = isReplying.value || isStreaming.value || isImRecovering.value;
         // History reload can finish after sendMsg already marked this session
         // running. Do not clear that marker just because the snapshot's last
-        // message still looks completed.
-        if (!props.embeddedMode && !locallyRunning && (!lastMessage || lastMessage.is_completed)) {
+        // message still looks completed. A scanned incomplete assistant counts: a
+        // turn that absorbed a mid-run message leaves such a row in history even
+        // when the tail row is a user bubble.
+        if (!props.embeddedMode && !locallyRunning && !lastMessage) {
             sessionActivity.update(activitySessionId.value, false);
         }
-        if (lastMessage && !lastMessage.is_completed) {
+        if (lastMessage) {
             const targetSessionId = session_id.value;
             const targetMessageId = lastMessage.id;
             isReplying.value = true;
-            if (lastMessage.role === 'assistant') {
-                currentAssistantMessageId.value = targetMessageId;
-                console.log('[Continue Stream] Set assistant message ID:', targetMessageId);
-            }
+            // Such a turn renders as several assistant segments; only the
+            // persisted id addresses the row continue-stream and stop
+            // actually operate on.
+            const resumeId = persistedAssistantId(lastMessage);
+            currentAssistantMessageId.value = resumeId;
+            console.log('[Continue Stream] Set assistant message ID:', resumeId);
+            // Only IM-originated replies (channel === 'im') get the quiet poll-to-recover
+            // path: their answer is generated on the IM side and never streams through
+            // this server, so continue-stream always 404s even though the reply *is*
+            // coming. Web/api replies keep the original behaviour (a real failure to
+            // resume the stream still surfaces as an error) — we don't touch them.
             isAttachingImStream.value = lastMessage.channel === 'im';
             if (hasActiveStream(targetSessionId)) {
                 replayBackgroundChunks(targetSessionId);
@@ -932,14 +1011,16 @@ const {
             isAttachingContinueStream.value = true;
             await startStream({
                 session_id: targetSessionId,
-                query: targetMessageId,
+                query: resumeId,
                 method: 'GET',
                 url: '/api/v1/sessions/continue-stream',
             });
             if (session_id.value !== targetSessionId) return;
             isAttachingContinueStream.value = false;
             if (!error.value) isAttachingImStream.value = false;
-            const target = messagesList.find((item) => item.id === targetMessageId);
+            const target = messagesList.find(
+                (item) => item.id === targetMessageId || item.id === resumeId,
+            );
             if (target && !target.is_completed && target.channel !== 'im') {
                 if (continueStreamRetryTimer) clearTimeout(continueStreamRetryTimer);
                 continueStreamRetryTimer = setTimeout(() => {
@@ -976,6 +1057,12 @@ const {
         attachStreamDebugToMessage(message);
         pendingStreamDebug.value = null;
     },
+    onUserMessageInjected: (steerId) => {
+        dropSteerQueueItem(steerId);
+    },
+    onGenerationStopped: () => {
+        steerQueue.value = [];
+    },
     onTurnComplete: (message) => {
         const completedSessionId = getMessageStreamSessionId(message) || session_id.value;
         inFlightTurnCache.delete(completedSessionId);
@@ -983,6 +1070,7 @@ const {
         if (completedSessionId === session_id.value) {
             void loadFollowUpSuggestions(message, true);
         }
+        void flushSteerAfterTurn(persistedAssistantId(message));
     },
 });
 
@@ -1228,9 +1316,252 @@ const handleStopGeneration = () => {
     isReplying.value = false;
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
     isImRecovering.value = false;
-    // 标记当前 assistant 为已结束，避免下一条 query 复用该消息行
     markInFlightAssistantStopped(currentAssistantMessageId.value);
-    // 保留 currentAssistantMessageId，Input-field 仍需用它调用 stop API
+};
+
+const handleStopConfirmed = () => {
+    steerQueue.value = [];
+};
+
+const handleStopFailed = () => {
+    isReplying.value = true;
+    loading.value = true;
+};
+
+const dropSteerQueueItem = (steerId) => {
+    if (!steerId) return;
+    const idx = steerQueue.value.findIndex((item) => item.steer_id === steerId);
+    if (idx >= 0) steerQueue.value.splice(idx, 1);
+};
+
+const findSteerQueueItem = (steerId) =>
+    steerQueue.value.find((item) => item.steer_id === steerId);
+
+const makeSteerClientId = () =>
+    `steer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+// 追加消息到正在运行的 agent turn。默认 delivery=after，排队显示在输入框上方；
+// 点「立即发送」再 promote 为 inject。注入后的时间线分叉复用 forkAfterInjectedUser。
+const handleSteerMsg = async (value, mentionedItems = [], delivery = 'after') => {
+    if (!session_id.value || !value?.trim()) return;
+    if (!isReplying.value) {
+        // 空闲时没有运行中的 turn 可排队：直接走正常发送，而不是把
+        // steering（服务端为 handleSteer/指定事务）当隐形 sendMsg 用。
+        await sendMsg(value, '', mentionedItems);
+        return;
+    }
+    const clientId = makeSteerClientId();
+    steerQueue.value.push({
+        steer_id: clientId,
+        client_id: clientId,
+        content: value,
+        delivery,
+        mentioned_items: mentionedItems,
+        pending: true,
+    });
+    try {
+        const res = await steerSession(session_id.value, value, mentionedItems, delivery);
+        if (res?.status === 'new_run') {
+            const item = findSteerQueueItem(clientId);
+            // Still attached to a stream: aborting it to POST AgentQA races the
+            // finishing turn and can start a second engine. Keep the chip and
+            // send once the current SSE completes.
+            if (isReplying.value || isStreaming.value) {
+                if (item) {
+                    item.pending = false;
+                    item.awaitingIdleSend = true;
+                    item.delivery = 'after';
+                }
+                return;
+            }
+            dropSteerQueueItem(clientId);
+            await sendMsg(value, '', mentionedItems);
+            return;
+        }
+        const item = findSteerQueueItem(clientId);
+        if (item) {
+            // The server id is the durable one — promote/remove and the
+            // injected-event correlation all go through it. client_id stays
+            // so handlePromoteSteer can still find the row while the swap
+            // is rendering.
+            if (res?.steer_id) item.steer_id = res.steer_id;
+            item.pending = false;
+        }
+    } catch (e) {
+        console.error('[Steer] Failed to queue message:', e);
+        dropSteerQueueItem(clientId);
+        MessagePlugin.error(e?.message || t('input.messages.steerFailed'));
+    }
+};
+
+const handlePromoteSteer = async (steerId) => {
+    if (!session_id.value || !steerId) return;
+    const item = findSteerQueueItem(steerId) || steerQueue.value.find((entry) => entry.client_id === steerId);
+    if (!item || item.delivery === 'inject') return;
+    item.promoting = true;
+    try {
+        // Promote needs the durable server id; a pending item only has the
+        // client-side one. isPending doesn't disable the button yet, so guard
+        // here to keep the queue handlers total.
+        if (item.pending) {
+            MessagePlugin.info(t('input.messages.steerPromoteFailed'));
+            return;
+        }
+        const res = await promoteSteerSession(session_id.value, item.steer_id);
+        if (res?.status === 'already_injected') {
+            dropSteerQueueItem(item.steer_id);
+            MessagePlugin.info(t('input.messages.steerAlreadyInjected'));
+            return;
+        }
+        if (res?.status === 'new_run') {
+            if (isReplying.value || isStreaming.value) {
+                item.awaitingIdleSend = true;
+                item.delivery = 'after';
+                return;
+            }
+            const content = item.content;
+            const mentions = item.mentioned_items || [];
+            dropSteerQueueItem(steerId);
+            await sendMsg(content, '', mentions);
+            return;
+        }
+        item.delivery = 'inject';
+    } catch (e) {
+        console.error('[Steer] Failed to promote queued message:', e);
+        MessagePlugin.error(e?.message || t('input.messages.steerPromoteFailed'));
+    } finally {
+        item.promoting = false;
+    }
+};
+
+const handleRemoveSteer = async (steerId) => {
+    if (!steerId) return;
+    const item = findSteerQueueItem(steerId);
+    if (!item) return;
+    if (item.pending) return;
+    item.promoting = true;
+    try {
+        if (session_id.value) {
+            const res = await removeSteerSession(session_id.value, item.steer_id);
+            if (res?.status === 'already_injected') {
+                MessagePlugin.info(t('input.messages.steerAlreadyInjected'));
+                dropSteerQueueItem(steerId);
+                return;
+            }
+            if (res?.status === 'gone') {
+                dropSteerQueueItem(steerId);
+                return;
+            }
+            if (res && res.removed === false) {
+                MessagePlugin.error(t('input.messages.steerRemoveFailed'));
+                return;
+            }
+        }
+        dropSteerQueueItem(steerId);
+    } catch (e) {
+        console.error('[Steer] Failed to remove queued message:', e);
+        MessagePlugin.error(e?.message || t('input.messages.steerRemoveFailed'));
+    } finally {
+        if (findSteerQueueItem(steerId)) item.promoting = false;
+    }
+};
+
+let attachingSteerFollowUp = false;
+
+const flushSteerAfterTurn = async (completedAssistantId) => {
+    const awaiting = steerQueue.value.filter((item) => item.awaitingIdleSend);
+    if (awaiting.length) {
+        const batch = awaiting.slice();
+        steerQueue.value = steerQueue.value.filter((item) => !item.awaitingIdleSend);
+        const first = batch[0];
+        await sendMsg(first.content, '', first.mentioned_items || []);
+        for (const rest of batch.slice(1)) {
+            await handleSteerMsg(rest.content, rest.mentioned_items || [], rest.delivery || 'after');
+        }
+        return;
+    }
+    void attachSteerFollowUp(completedAssistantId);
+};
+
+const attachSteerFollowUp = async (completedAssistantId) => {
+    const queued = steerQueue.value.slice();
+    if (!queued.length || attachingSteerFollowUp || !session_id.value) return;
+    const sessionId = session_id.value;
+    attachingSteerFollowUp = true;
+    isReplying.value = true;
+    loading.value = true;
+    let attached = false;
+    let attachedAssistantId = '';
+    const sessionChanged = () => session_id.value !== sessionId;
+    try {
+        for (let attempt = 0; attempt < 40; attempt++) {
+            if (sessionChanged()) return;
+            const res = await getMessageList({ session_id: sessionId, limit: 30, created_at: '' });
+            if (sessionChanged()) return;
+            const batch = res?.data || [];
+            const newAssistant = [...batch].reverse().find((m) =>
+                m.role === 'assistant' && !m.is_completed && m.id && m.id !== completedAssistantId
+            );
+            if (newAssistant) {
+                // The follow-up run persists its query under its own
+                // request_id, so the new user rows are identified exactly.
+                // Matching on message text instead would attach the wrong
+                // bubble whenever the user sends the same thing twice.
+                const claimed = new Set();
+                for (const persisted of batch) {
+                    if (persisted.role !== 'user' || !persisted.id) continue;
+                    if (persisted.request_id !== newAssistant.request_id) continue;
+                    if (messagesList.some((existing) => existing.id === persisted.id)) continue;
+                    const queuedMatch = queued.find(
+                        (q) => q.content === persisted.content && !claimed.has(q.steer_id)
+                    );
+                    if (queuedMatch) claimed.add(queuedMatch.steer_id);
+                    messagesList.push({
+                        ...persisted,
+                        mentioned_items: queuedMatch?.mentioned_items?.length
+                            ? queuedMatch.mentioned_items
+                            : persisted.mentioned_items,
+                    });
+                }
+                // Rows that made it into the transcript are no longer queued.
+                for (const steerId of claimed) dropSteerQueueItem(steerId);
+                if (sessionChanged()) return;
+                // Then reconcile with the server, which owns the backlog that
+                // moved to the new run — but only once that run is visible.
+                await hydrateSteerQueue({ onlyWhenLive: true });
+                if (sessionChanged()) return;
+
+                currentAssistantMessageId.value = newAssistant.id;
+                attachedAssistantId = newAssistant.id;
+                await startStream({
+                    session_id: sessionId,
+                    query: newAssistant.id,
+                    method: 'GET',
+                    url: '/api/v1/sessions/continue-stream',
+                });
+                attached = true;
+                return;
+            }
+            await new Promise((r) => setTimeout(r, 200));
+        }
+    } catch (e) {
+        console.error('[Steer] Failed to attach follow-up run:', e);
+    } finally {
+        attachingSteerFollowUp = false;
+        if (sessionChanged()) {
+            // The session we started on is gone; do not touch the new chat's
+            // loading / isReplying, and do not chain another attach there.
+        } else if (!attached) {
+            loading.value = false;
+            isReplying.value = false;
+            MessagePlugin.error(t('input.messages.steerFollowUpTimeout'));
+        } else if (steerQueue.value.length) {
+            // startStream awaits the whole SSE. The follow-up's onTurnComplete
+            // therefore runs while attachingSteerFollowUp is still true and
+            // no-ops. Chain remaining after-items once that guard drops.
+            void attachSteerFollowUp(attachedAssistantId);
+        }
+    }
 };
 
 const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = [], attachmentFiles = []) => {
@@ -1520,6 +1851,7 @@ const handleSessionMutation = (event) => {
     }
     if (detail.messagesCleared) {
         messagesList.splice(0);
+        steerQueue.value = [];
         created_at.value = '';
         hasMoreHistory.value = true;
         historyLoadingMore.value = false;
@@ -1548,6 +1880,7 @@ onBeforeMount(async () => {
 onMounted(async () => {
     window.addEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);
     messagesList.splice(0);
+    steerQueue.value = [];
 
     // 初始化状态：加载历史消息时不应显示loading
     loading.value = false;
@@ -1623,6 +1956,8 @@ onBeforeRouteUpdate((to, from, next) => {
     font-size: 20px;
     // 右侧不留 padding，滚动条贴到内容区最右缘
     padding: 0 0 20px 20px;
+    // 右侧抽屉让出的宽度。回到底部按钮按「剩余聊天列」居中，而不是整页 50%。
+    --chat-right-inset: 0px;
     box-sizing: border-box;
     flex: 1;
     // The parent .platform-route-outlet is a flex column with min-height:0
@@ -1658,12 +1993,39 @@ onBeforeRouteUpdate((to, from, next) => {
 
     &.has-references-panel:not(.is-embedded) {
         @media (min-width: 960px) {
+            --chat-right-inset: 420px;
             padding-right: 420px;
             box-sizing: border-box;
 
             .chat_scroll_box {
                 padding-top: 0;
             }
+
+            .sandbox-header-toggle {
+                right: 432px;
+            }
+        }
+    }
+
+    // 沙箱可视化右侧面板：宽度可拖拽调整（--sandbox-panel-width 由
+    // composable 持久化），聊天区 padding 跟随面板宽度让位。
+    &.has-sandbox-panel:not(.is-embedded) {
+        @media (min-width: 960px) {
+            --chat-right-inset: var(--sandbox-panel-width, 420px);
+            padding-right: var(--sandbox-panel-width, 420px);
+            box-sizing: border-box;
+        }
+    }
+
+    &.has-sandbox-panel.has-references-panel:not(.is-embedded) {
+        @media (min-width: 1400px) {
+            --chat-right-inset: calc(420px + var(--sandbox-panel-width, 420px));
+            padding-right: calc(420px + var(--sandbox-panel-width, 420px));
+        }
+
+        @media (max-width: 1399.98px) and (min-width: 960px) {
+            --chat-right-inset: var(--sandbox-panel-width, 420px);
+            padding-right: var(--sandbox-panel-width, 420px);
         }
     }
 
@@ -1707,6 +2069,48 @@ onBeforeRouteUpdate((to, from, next) => {
     overflow: hidden;
 }
 
+// 沙箱面板入口：chrome 对齐会话左上角三个点（毛玻璃底 + 24px 图标按钮），
+// 图标是左侧栏 sidebar-toggle 的水平镜像（栏在右侧）。
+.sandbox-header-toggle {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    border-radius: 8px;
+    box-sizing: border-box;
+    background: color-mix(in srgb, var(--td-bg-color-container) 88%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto;
+}
+
+.sandbox-header-toggle__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    color: var(--td-text-color-placeholder);
+    background: transparent;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+        color: var(--td-text-color-primary);
+        background: var(--td-bg-color-container-hover);
+    }
+
+    &:active {
+        background: var(--td-bg-color-container-active);
+    }
+}
+
 .chat_scroll_box {
     flex: 1;
     min-height: 0;
@@ -1736,7 +2140,7 @@ onBeforeRouteUpdate((to, from, next) => {
 
 .scroll-to-bottom-btn {
     position: absolute;
-    left: 50%;
+    left: calc((100% - var(--chat-right-inset, 0px)) / 2);
     transform: translateX(-50%);
     bottom: 140px;
     z-index: 10;
@@ -1751,7 +2155,7 @@ onBeforeRouteUpdate((to, from, next) => {
     justify-content: center;
     cursor: pointer;
     color: var(--td-text-color-secondary);
-    transition: all 0.2s ease;
+    transition: left 0.3s cubic-bezier(0.22, 0.61, 0.36, 1), background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 
     &:hover {
         background: var(--td-bg-color-container-hover);

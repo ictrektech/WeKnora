@@ -5,7 +5,7 @@ export default {
     backToPlatform: 'Back to platform navigation',
     settings: 'Settings',
     collapse: 'Collapse sidebar',
-    expand: 'Expand sidebar',
+    expand: 'Expand sidebar'
   },
   legalWorkspaceSettings: {
     description: 'Control whether the legal workspace is visible and available in this workspace. Turning it off does not delete existing data.',
@@ -24,7 +24,7 @@ export default {
     deleteFailed: 'Failed to delete legal workspace data: {message}',
     cancel: 'Cancel',
     adminOnly: 'Workspace admins can change this setting. Only the workspace owner can delete legal workspace data.',
-    disabledMessage: 'The legal workspace is currently disabled.',
+    disabledMessage: 'The legal workspace is currently disabled.'
   },
   contractReview: {
     workspaceEyebrow: 'Legal workspace',
@@ -163,7 +163,7 @@ export default {
       degraded: 'Partially verified',
       invalid: 'Validation failed',
       stale: 'Result is out of date',
-      legacy: 'Legacy result: limited location',
+      legacy: 'Legacy result: limited location'
     },
     evidence: {
       pending: 'Waiting for location',
@@ -173,9 +173,14 @@ export default {
       not_found: 'Original text not found',
       version_mismatch: 'Source revision mismatch',
       unsupported: 'Stable location unsupported',
-      error: 'Location failed',
+      error: 'Location failed'
     },
-    confidenceLevels: { high: 'High', medium: 'Medium', low: 'Low', unknown: 'Unknown' },
+    confidenceLevels: {
+      high: 'High',
+      medium: 'Medium',
+      low: 'Low',
+      unknown: 'Unknown'
+    },
     categories: {
       scope: 'Scope',
       party_obligations: 'Party obligations',
@@ -196,7 +201,7 @@ export default {
       compliance: 'Compliance',
       dispute_resolution: 'Dispute resolution',
       drafting_other: 'Other drafting issue',
-      other: 'Other drafting issue',
+      other: 'Other drafting issue'
     },
     findingTypes: {
       missing_protection: 'Missing protection',
@@ -212,7 +217,7 @@ export default {
       other: 'Other',
       placeholder: 'Placeholder or blank',
       external_reference: 'External reference',
-      inconsistency: 'Inconsistent fact',
+      inconsistency: 'Inconsistent fact'
     },
     loadingReview: 'Loading review…',
     loadFailed: 'Load failed',
@@ -227,17 +232,17 @@ export default {
       issues: 'Issues',
       clauses: 'Clauses',
       suggestions: 'Suggestions',
-      configuration: 'Configuration',
+      configuration: 'Configuration'
     },
     risk: {
       high: 'High risk',
       medium: 'Medium risk',
-      low: 'Low risk',
+      low: 'Low risk'
     },
     parties: {
       customer: 'Customer',
       vendor: 'Vendor',
-      neutral: 'Neutral review',
+      neutral: 'Neutral review'
     },
     status: {
       draft: 'Draft',
@@ -247,8 +252,8 @@ export default {
       reviewing_clauses: 'Reviewing clauses',
       completed: 'Completed',
       failed: 'Failed',
-      cancelled: 'Cancelled',
-    },
+      cancelled: 'Cancelled'
+    }
   },
   menu: {
     sessionInProgress: 'Conversation in progress',
@@ -304,7 +309,8 @@ export default {
       assistant: 'Assistant',
       attachments: 'Attachments',
       references: 'References'
-    }
+    },
+    toggleSandboxPanel: 'Sandbox terminal'
   },
   newUserGuide: {
     stepOf: '{current} / {total}',
@@ -315,12 +321,12 @@ export default {
     reopen: 'Product tour',
     steps: {
       welcome: {
-        title: 'Welcome to HybRAG',
+        title: 'Welcome to WeKnora',
         desc: 'A few quick steps to get you familiar with knowledge bases, chat and agents. Click "Next" to begin.'
       },
       knowledge: {
         title: 'Create your knowledge base',
-        desc: 'Everything starts here: upload documents, web pages or FAQs and HybRAG parses and indexes them automatically. Click here to open knowledge bases.'
+        desc: 'Everything starts here: upload documents, web pages or FAQs and WeKnora parses and indexes them automatically. Click here to open knowledge bases.'
       },
       chat: {
         title: 'Start an AI chat',
@@ -636,7 +642,8 @@ export default {
       renamePlaceholder: 'Folder name',
       renameSuccess: 'Folder renamed',
       renameFailed: 'Could not rename the folder',
-      renameInvalid: 'A folder cannot be moved inside itself'
+      renameInvalid: 'A folder cannot be moved inside itself',
+      collapseFolder: 'Collapse this folder'
     },
     moveToFolder: {
       action: 'Move to folder',
@@ -645,7 +652,12 @@ export default {
       newFolderAddUnder: 'New sub-folder under “{folder}”',
       success: 'Moved {count} documents',
       failed: 'Could not move the documents',
-      duplicate: 'That folder already exists'
+      duplicate: 'That folder already exists',
+      newFolder: 'New sub-folder',
+      newFolderCreate: 'Create',
+      newFolderHint: 'Press Enter to create and move',
+      newFolderHintRoot: 'Will be created under root',
+      newFolderHintUnder: 'Will be created under “{folder}”'
     },
     tagFilterTitle: 'Filter by tag',
     tagFilterPlaceholder: 'Tags',
@@ -912,7 +924,8 @@ export default {
     partialUploadSuccess: 'Partial upload success (success: {success}, failed: {fail})',
     allUploadFailed: 'All files failed to upload ({count} files)',
     deleteSuccess: 'Knowledge deleted successfully!',
-    chunkLoadFailed: 'Failed to load chunks'
+    chunkLoadFailed: 'Failed to load chunks',
+    deleteFailed: 'Delete failed. Please try again later!'
   },
   uploadConfirm: {
     title: 'Confirm Upload',
@@ -964,7 +977,10 @@ export default {
     confirmReparse: 'Confirm and reparse',
     reparseSource: 'Document to reparse',
     reparseHint: 'Reuses the last parse settings; adjust them here',
-    manualCharCount: '{count} characters'
+    manualCharCount: '{count} characters',
+    destinationToRoot: 'Use root',
+    folderUploadTitle: 'Folder “{name}”',
+    folderUploadHint: '{count} files; the local folder structure will be kept'
   },
   knowledgeStages: {
     title: 'Processing pipeline',
@@ -1303,7 +1319,10 @@ export default {
       sandboxBackendDefault: 'Disabled',
       sandboxBackendHint: 'Skill scripts do not run until a sandbox is selected.',
       sandboxBackendMissing: 'Config deleted',
-      sandboxNoConfigs: 'This workspace has no sandbox yet, so skill scripts will not run.'
+      sandboxNoConfigs: 'This workspace has no sandbox yet, so skill scripts will not run.',
+      selectSkills: 'Select skills',
+      skillsInfoTitle: 'How Skills and the sandbox work together',
+      skillsInfoContent: 'Skills are knowledge modules whose scripts run in the selected sandbox. The list comes from skills installed there. Once a session sandbox exists, its attachments, artifacts, and teardown stay pinned to the config it was created on — changing the sandbox only affects later sessions.'
     },
     selector: {
       title: 'Select Agent',
@@ -1717,7 +1736,9 @@ export default {
         clearConfirm: 'Clear the workspace value for {name}? The declaration stays. Members without their own value will then be missing it.',
         clearSuccess: 'Workspace value cleared.',
         valueTooLong: 'A value cannot exceed {max} bytes.'
-      }
+      },
+      terminalIdleDisconnect: 'Terminal idle disconnect (s)',
+      terminalIdleDisconnectHelp: 'After the terminal is open, close it if there is no keyboard input or PTY output for this long so the sandbox can pause on its TTL. Empty means 900 seconds; minimum 60 seconds, maximum 24 hours.'
     },
     skills: {
       title: 'Skill Management',
@@ -1760,7 +1781,12 @@ export default {
       installAccepted: 'Install started',
       installPartial: 'Started on some sandboxes. {failed} could not start.',
       installOutdated: 'Differs from catalog',
-      loadFailed: 'Failed to load'
+      loadFailed: 'Failed to load',
+      noConfigsDesc: 'No sandbox yet. Skills need an image to install into.',
+      addDrawerDesc: 'Paste a source or upload a zip to add it to the catalog. You can install it onto sandboxes now or later.',
+      addRegisteredAs: 'Registered as “{name}”',
+      installedOn: 'Installed on',
+      manageOnSandbox: 'Manage this skill on “{name}”'
     },
     mcpService: 'MCP Service',
     versionInfo: 'Version Info',
@@ -2211,7 +2237,8 @@ export default {
       deleted: 'Deleted',
       cleared: 'Deleted {count} memories',
       saveFailed: 'Operation failed: {message}'
-    }
+    },
+    consolidateNothing: 'Nothing needed tidying'
   },
   envVarSettings: {
     title: 'Sandbox secrets',
@@ -2437,11 +2464,11 @@ export default {
     haveAccount: 'Already have an account?',
     backToLogin: 'Back to Login',
     loginHint: 'Sign in to continue, or create an account below if this is your first time.',
-    firstTime: 'New to HybRAG?',
+    firstTime: 'New to WeKnora?',
     registerSuccess: 'Registration successful. Please sign in',
     registerFailed: 'Registration failed',
     subtitle: 'RAG Q&A, ReAct Agent and Wiki — an LLM-powered enterprise knowledge framework',
-    registerSubtitle: 'Create your account and start using HybRAG',
+    registerSubtitle: 'Create your account and start using WeKnora',
     emailPlaceholder: 'Enter email address',
     passwordPlaceholder: 'Enter password',
     confirmPasswordPlaceholder: 'Enter password again',
@@ -2541,7 +2568,10 @@ export default {
     copyFailed: 'Copy failed',
     retry: 'Retry',
     expand: 'Expand',
-    collapse: 'Collapse'
+    collapse: 'Collapse',
+    github: 'GitHub',
+    githubStarTip: 'Open the repo on GitHub — star it if you find it useful',
+    defaultUser: 'User'
   },
   mentionDetail: {
     readOnlyFromAgent: 'Read-only in this conversation; not shown in Knowledge Base list',
@@ -2549,7 +2579,10 @@ export default {
     kbCount: '{count} documents',
     belongsToKb: 'Knowledge base: ',
     belongsToOrg: 'Space: ',
-    noCompatibleKbForAgent: 'This agent\'s tools don\'t match any knowledge base\'s capabilities in scope, so nothing can be referenced.'
+    noCompatibleKbForAgent: 'This agent\'s tools don\'t match any knowledge base\'s capabilities in scope, so nothing can be referenced.',
+    mcpToolCount: '{count} tools',
+    mcpNotSynced: 'Tools not synced yet',
+    mcpStale: 'Needs resync'
   },
   file: {
     upload: 'Upload File'
@@ -2691,17 +2724,28 @@ export default {
       sessionMissing: 'Session ID does not exist',
       messageMissing: 'Unable to get message ID. Please refresh the page and try again.',
       stopSuccess: 'Generation stopped',
-      stopFailed: 'Failed to stop. Please try again.'
+      stopFailed: 'Failed to stop. Please try again.',
+      steerAttachmentPending: 'Attachment is still uploading. Please try again shortly.',
+      steerHasAttachments: 'Attachments cannot be added to a running answer. Remove them first, or send after it finishes.',
+      steerFailed: 'Failed to append the message. Please try again.',
+      steerPromoteFailed: 'Failed to send now. Please try again.',
+      steerRemoveFailed: 'Failed to remove the queued message. Please try again.',
+      steerAlreadyInjected: 'This message has already been taken by the running answer.',
+      steerFollowUpTimeout: 'The next answer did not start in time. Please send again.',
+      steerNoActiveRun: 'No answer is currently running. Please send the message directly.'
     },
     webSearchDisabledByAgent: 'Web search is disabled by the current agent',
     kbLockedByAgent: 'Knowledge base configuration is locked by the current agent',
     kbDisabledByAgent: 'Knowledge base is disabled by the current agent',
     modelLockedByAgent: 'Model selection is locked by the current agent',
     imageUploadDisabledByAgent: 'Image upload is not enabled for this agent',
-    goToAgentSettings: 'Go to agent settings'
+    goToAgentSettings: 'Go to agent settings',
+    steerQueueSendNow: 'Send now',
+    steerQueueWaiting: 'Will send after the current answer finishes',
+    steerQueueInjecting: 'Waiting for the next thinking round'
   },
   createChat: {
-    title: 'Hi, I am HybRAG — your knowledge, within reach',
+    title: 'Hi, I am WeKnora — your knowledge, within reach',
     newSessionTitle: 'New Session',
     messages: {
       createFailed: 'Failed to create session',
@@ -3282,11 +3326,19 @@ export default {
       issueFixSingle: 'Fix',
       fixStartError: 'Failed to start fix assistant',
       issueFixPromptSingle: 'Please fix the issue (ID: {id}) on page [[{slug}]].',
-      issueFixPromptAutoStart: 'Please fix the following issues on page [[{slug}]]:'
+      issueFixPromptAutoStart: 'Please fix the following issues on page [[{slug}]]:',
+      revisionCurrentHint: 'This is the current version. Pick a historical version on the left to diff or revert.',
+      revisionDiff: 'Diff vs current',
+      revisionDiffCaption: 'v{from} → v{to} (red = that version, green = current)',
+      revisionDiffBasisLabel: 'Compare mode',
+      revisionDiffIncrementalCaption: 'v{from} → v{to} (adjacent versions; red = old, green = new)',
+      revisionDiffCumulativeCaption: 'v{from} → v{to} (cumulative changes to current)',
+      revisionFirstVersionHint: 'This is the first version — there is no previous version to compare.'
     },
     buttons: {
       create: 'Create Knowledge Base',
-      saveAndClose: 'Save and Close'
+      saveAndClose: 'Save and Close',
+      save: 'Save Configuration'
     },
     postCreateHint: {
       title: 'Created successfully',
@@ -3734,7 +3786,28 @@ export default {
     attachmentReady: 'Ready',
     attachmentUploadFailed: 'Attachment upload failed',
     attachmentParseFailed: 'Attachment parsing failed',
-    attachmentStillProcessing: 'Attachment {name} is still being parsed'
+    attachmentStillProcessing: 'Attachment {name} is still being parsed',
+    sandbox: {
+      panelTitle: 'Sandbox',
+      tabArtifacts: 'Files',
+      tabTerminal: 'Terminal',
+      tabDesktop: 'Desktop',
+      artifactsEmpty: 'No generated files in this conversation yet.',
+      desktopPlaceholder: 'Desktop visualization coming soon',
+      notStarted: 'The terminal is not running yet. Starting it connects to this conversation\'s sandbox, creating or resuming one if none is available.',
+      start: 'Start terminal',
+      connecting: 'Connecting to sandbox…',
+      needsProvision: 'This conversation has no running sandbox. Creating one starts a new sandbox, billed according to your workspace configuration.',
+      createAndStart: 'Create and start',
+      noSandbox: 'No sandbox yet, and the current agent has no sandbox backend configured, so there is nowhere to create one. Switch to an agent with a sandbox configured, or send a message that runs code.',
+      unsupported: 'The current sandbox backend does not support interactive terminals',
+      disconnected: 'Connection lost',
+      retry: 'Reconnect',
+      sessionEnded: 'Terminal session ended',
+      idleDisconnected: 'The terminal disconnected after being idle. The sandbox will pause on its own TTL. You can reconnect.',
+      authRevoked: 'Your session is no longer valid, so the terminal was disconnected. Sign in again, then reconnect.'
+    },
+    promptLabel: 'Prompt'
   },
   tenant: {
     title: 'Workspace Information',
@@ -4343,7 +4416,11 @@ export default {
           emailRequired: 'Enter an email address',
           emailInvalid: 'Enter a valid email address',
           confirmRequired: 'Enter the new password again',
-          passwordMismatch: 'The passwords do not match'
+          passwordMismatch: 'The passwords do not match',
+          passwordRequired: 'Enter a new password',
+          passwordLength: 'Password must be 8-32 characters',
+          passwordLetter: 'Password must contain a letter',
+          passwordNumber: 'Password must contain a number'
         },
         generated: {
           successTitle: 'User created',
@@ -4738,7 +4815,8 @@ export default {
           label: 'Novita AI',
           description: 'moonshotai/kimi-k2.5, zai-org/glm-5, minimax/minimax-m2.7, qwen/qwen3-embedding-0.6b, etc.'
         }
-      }
+      },
+      ollamaNotSupportRerank: 'Ollama does not support ReRank models, please use a remote API instead'
     },
     builtinTag: 'Built-in'
   },
@@ -4759,7 +4837,8 @@ export default {
     personalSettings: 'Personal Settings',
     description: 'Configure language, appearance and other basic options',
     settings: 'Settings',
-    close: 'Close Settings'
+    close: 'Close Settings',
+    helpAndDocs: 'Help & Documentation'
   },
   theme: {
     theme: 'Theme',
@@ -4951,7 +5030,12 @@ export default {
     },
     deleteConfirmBody: 'Delete MCP service "{name}"? This action cannot be undone.',
     unnamed: 'Unnamed',
-    builtin: 'Built-in'
+    builtin: 'Built-in',
+    addUsageInstructions: 'Add usage instructions',
+    noUsageInstructions: 'No usage instructions yet',
+    toolCount: '{count} tools',
+    toolsNotSynced: 'Tools not synced',
+    toolsStale: 'Needs resync'
   },
   modelSettings: {
     personalDesensitization: 'Personal redaction',
@@ -5014,7 +5098,8 @@ export default {
       builtinCannotDelete: 'Built-in models cannot be deleted',
       builtinCannotCopy: 'Built-in models cannot be copied',
       copied: 'Model copied',
-      copyFailed: 'Failed to copy model'
+      copyFailed: 'Failed to copy model',
+      builtinCannotEdit: 'Built-in models cannot be edited'
     },
     copySuffix: ' Copy',
     builtinModels: {
@@ -5032,7 +5117,21 @@ export default {
       agents: 'Agents ({count})',
       longTermMemory: 'Long-term memory',
       openConfiguration: 'Open settings',
-      truncated: 'Showing the first {shown} of {total}'
+      truncated: 'Showing the first {shown} of {total}',
+      bindings: {
+        embedding_model: 'Embedding model',
+        summary_model: 'Summary model',
+        image_processing_model: 'Image processing model',
+        vlm_model: 'Vision model',
+        asr_model: 'Speech recognition model',
+        wiki_synthesis_model: 'Wiki synthesis model',
+        chat_model: 'Chat model',
+        rerank_model: 'Re-ranking model',
+        query_understand_model: 'Query understanding model',
+        follow_up_model: 'Follow-up model',
+        extract_model: 'Memory extraction model',
+        unknown: 'Other model setting'
+      }
     },
     debug: {
       title: 'Model Test',
@@ -5752,7 +5851,8 @@ export default {
       truncated: 'List truncated',
       wrote: 'Wrote',
       replacements: 'Replaced {count}',
-      moreLines: '{count} more lines'
+      moreLines: '{count} more lines',
+      edited: 'Edited'
     },
     shellExec: {
       workDir: 'Directory',
@@ -5851,6 +5951,33 @@ export default {
     saveToKb: {
       emptyContent: 'Current response is empty, cannot save to knowledge base',
       editorOpened: 'Editor opened, please select a knowledge base and save'
+    },
+    mcp: {
+      discoverTools: 'Discover MCP tools',
+      listServers: 'List MCP services',
+      listTools: 'List MCP tools',
+      searchTools: 'Search MCP tools',
+      describeTool: 'Read tool definition',
+      callTool: 'Call MCP tool',
+      showing: 'Showing {count} of {total}',
+      moreAvailable: 'More results available',
+      empty: 'Nothing to show',
+      parameters: 'Parameters',
+      expand: 'Show more',
+      collapse: 'Show less',
+      required: 'Required',
+      fullSchema: 'Full parameter definition',
+      failed: 'MCP operation failed',
+      result: 'Result',
+      status: {
+        not_loaded: 'Not loaded',
+        loading: 'Loading',
+        ready: 'Ready',
+        needs_auth: 'Authorization required',
+        error: 'Connection failed',
+        disabled: 'Disabled',
+        unavailable: 'Unavailable'
+      }
     }
   },
   agentEditor: {
@@ -6871,7 +6998,8 @@ export default {
       failed: 'Failed to change password. Check that your current password is correct.',
       policyFailed: 'New password must be 8-32 characters and include letters and numbers',
       sameAsCurrent: 'New password must differ from your current password',
-      oidcOnlyDescription: 'Your account was created via OIDC sign-in and has no known local password yet.'
+      oidcOnlyDescription: 'Your account was created via OIDC sign-in and has no known local password yet.',
+      oidcOnlyNotice: 'Ask a system administrator to reset your password, or keep signing in with OIDC. Self-service change requires your current password.'
     }
   },
   tenantMember: {
@@ -7098,5 +7226,54 @@ export default {
     capabilityRequired: 'Select at least one capability',
     loadFailed: 'Failed to load platform API keys',
     createFailed: 'Failed to create platform API key'
+  },
+  mcpMetadata: {
+    searchTools: 'Search tool names or descriptions',
+    retry: 'Retry',
+    details: 'Details',
+    description: 'Description',
+    parameters: 'Parameters',
+    required: 'Required',
+    fullSchema: 'Full definition',
+    noDescription: 'No description',
+    noParameters: 'No parameter definition',
+    enabled: 'Enabled',
+    approval: 'Require approval',
+    noTools: 'No matching tools',
+    next: 'Next',
+    policyLoadFailed: 'Could not load tool policies. Retry before editing.',
+    policySaveFailed: 'Could not save tool settings',
+    tools: 'Tools',
+    cacheHint: 'This step connects automatically if no directory is saved yet. Later visits only connect when you refresh.',
+    refresh: 'Refresh tools',
+    fetch: 'Fetch again',
+    fetching: 'Connecting and fetching tools…',
+    toolCount: '{count} tools',
+    stale: 'Connection or authentication settings changed. Refresh this old directory before models can use it.',
+    notSynced: 'No tools synchronized yet. Fetch to save full descriptions and parameter definitions.',
+    syncRequired: 'Connect and fetch tools first. Models can only use a synchronized directory.',
+    needsRefresh: 'Refresh required',
+    saved: 'Saved directory',
+    syncedAt: 'Last synchronized:',
+    serverDocumentation: 'Original server documentation',
+    noServerDocumentation: 'This MCP server\'s initialize result did not include instructions or serverInfo.description (both are optional). Tool text lives in each tool\'s description below.',
+    policyHint: 'Tool and approval switches save immediately and survive directory refreshes.',
+    failed: 'Could not load the tool directory',
+    setupProgress: 'MCP setup steps',
+    connection: 'Connection',
+    toolsAndUsage: 'Tools and usage',
+    previous: 'Previous',
+    usage: 'Service usage',
+    usageHint: 'Models read this overview before loading specific tools. Your text is preserved when refreshing.',
+    summary: 'Usage summary',
+    summaryPlaceholder: 'For example: Look up order status, shipping progress, and refunds.',
+    usageInstructions: 'Usage instructions',
+    instructionsPlaceholder: 'Briefly describe the purpose, use cases, and key constraints.',
+    generateUsage: 'Generate with AI',
+    generateHint: 'Generate concise instructions from synced, enabled tools. Edit the result and save to apply it.',
+    instructionsRequired: 'Usage instructions are required',
+    generated: 'Generated. Review and save to apply.',
+    generateFailed: 'Generation failed. Check that tools are synced and an active chat model is configured, then retry.',
+    saveNext: 'Save and continue'
   }
 }

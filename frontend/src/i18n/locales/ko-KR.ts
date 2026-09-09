@@ -5,7 +5,7 @@ export default {
     backToPlatform: '플랫폼 탐색으로 돌아가기',
     settings: '설정',
     collapse: '사이드바 접기',
-    expand: '사이드바 펼치기',
+    expand: '사이드바 펼치기'
   },
   legalWorkspaceSettings: {
     description: '이 워크스페이스에서 법률 워크스페이스를 표시하고 사용할 수 있는지 제어합니다. 끄더라도 기존 데이터는 삭제되지 않습니다.',
@@ -24,7 +24,7 @@ export default {
     deleteFailed: '법률 워크스페이스 데이터를 삭제하지 못했습니다: {message}',
     cancel: '취소',
     adminOnly: '워크스페이스 관리자만 이 설정을 변경할 수 있으며, 데이터 삭제는 소유자만 수행할 수 있습니다.',
-    disabledMessage: '법률 워크스페이스가 현재 비활성화되어 있습니다.',
+    disabledMessage: '법률 워크스페이스가 현재 비활성화되어 있습니다.'
   },
   contractReview: {
     workspaceEyebrow: '법률 워크스페이스',
@@ -163,7 +163,7 @@ export default {
       degraded: '부분 검증됨',
       invalid: '검증 실패',
       stale: '결과가 오래됨',
-      legacy: '이전 결과: 위치 제한',
+      legacy: '이전 결과: 위치 제한'
     },
     evidence: {
       pending: '위치 대기 중',
@@ -173,9 +173,14 @@ export default {
       not_found: '원문을 찾지 못함',
       version_mismatch: '원문 버전 불일치',
       unsupported: '안정적인 위치 확인을 지원하지 않음',
-      error: '위치 확인 실패',
+      error: '위치 확인 실패'
     },
-    confidenceLevels: { high: '높음', medium: '중간', low: '낮음', unknown: '알 수 없음' },
+    confidenceLevels: {
+      high: '높음',
+      medium: '중간',
+      low: '낮음',
+      unknown: '알 수 없음'
+    },
     categories: {
       scope: '범위',
       party_obligations: '당사자 의무',
@@ -196,7 +201,7 @@ export default {
       compliance: '규정 준수',
       dispute_resolution: '분쟁 해결',
       drafting_other: '기타 작성 문제',
-      other: '기타 작성 문제',
+      other: '기타 작성 문제'
     },
     findingTypes: {
       missing_protection: '보호 조항 누락',
@@ -212,7 +217,7 @@ export default {
       other: '기타',
       placeholder: '자리표시자 또는 공란',
       external_reference: '외부 참조',
-      inconsistency: '사실 불일치',
+      inconsistency: '사실 불일치'
     },
     loadingReview: '검토 불러오는 중…',
     loadFailed: '불러오기 실패',
@@ -227,17 +232,17 @@ export default {
       issues: '문제',
       clauses: '조항',
       suggestions: '제안',
-      configuration: '검토 설정',
+      configuration: '검토 설정'
     },
     risk: {
       high: '높은 위험',
       medium: '중간 위험',
-      low: '낮은 위험',
+      low: '낮은 위험'
     },
     parties: {
       customer: '고객',
       vendor: '공급업체',
-      neutral: '중립 검토',
+      neutral: '중립 검토'
     },
     status: {
       draft: '초안',
@@ -247,8 +252,8 @@ export default {
       reviewing_clauses: '조항 검토 중',
       completed: '완료됨',
       failed: '실패',
-      cancelled: '취소됨',
-    },
+      cancelled: '취소됨'
+    }
   },
   platformApiKeys: {
     title: '플랫폼 API 키',
@@ -493,7 +498,8 @@ export default {
       failed: '비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인해 주세요.',
       policyFailed: '새 비밀번호는 8-32자이며 문자와 숫자를 포함해야 합니다',
       sameAsCurrent: '새 비밀번호는 현재 비밀번호와 같을 수 없습니다',
-      oidcOnlyDescription: 'OIDC로 개설된 계정입니다. 로컬 로그인 비밀번호가 아직 설정되지 않았습니다.'
+      oidcOnlyDescription: 'OIDC로 개설된 계정입니다. 로컬 로그인 비밀번호가 아직 설정되지 않았습니다.',
+      oidcOnlyNotice: '시스템 관리자에게 비밀번호 재설정을 요청하거나 OIDC로 계속 로그인하세요. 자가 변경에는 현재 비밀번호가 필요합니다.'
     }
   },
   credential: {
@@ -574,7 +580,7 @@ export default {
     },
     chrome: {
       title: '지식 관리 어시스턴트',
-      subtitle: '자체 호스팅 HybRAG와 함께: 사이드바에서 질문하고, 웹 페이지를 클리핑하며, Markdown 메모를 지식베이스에 저장하세요.',
+      subtitle: '자체 호스팅 WeKnora와 함께: 사이드바에서 질문하고, 웹 페이지를 클리핑하며, Markdown 메모를 지식베이스에 저장하세요.',
       capabilitiesTitle: '핵심 기능',
       stepsTitle: '구성 단계',
       openApiSettings: 'API 정보 열기',
@@ -1601,7 +1607,8 @@ export default {
       truncated: '목록이 잘림',
       wrote: '씀',
       replacements: '{count}곳 치환',
-      moreLines: '{count}줄 더'
+      moreLines: '{count}줄 더',
+      edited: '편집함'
     },
     skillFiles: {
       heading: '스킬 파일',
@@ -1671,6 +1678,33 @@ export default {
       submitted: '제출됨',
       submitFailed: '제출 실패',
       userRejected: '사용자 거부'
+    },
+    mcp: {
+      discoverTools: 'MCP 도구 탐색',
+      listServers: 'MCP 서비스 목록',
+      listTools: 'MCP 도구 목록',
+      searchTools: 'MCP 도구 검색',
+      describeTool: '도구 정의 읽기',
+      callTool: 'MCP 도구 호출',
+      showing: '{total}개 중 {count}개 표시',
+      moreAvailable: '결과가 더 있습니다',
+      empty: '표시할 항목이 없습니다',
+      parameters: '매개변수',
+      expand: '설명 펼치기',
+      collapse: '접기',
+      required: '필수',
+      fullSchema: '전체 매개변수 정의',
+      failed: 'MCP 작업 실패',
+      result: '실행 결과',
+      status: {
+        not_loaded: '로드되지 않음',
+        loading: '로드 중',
+        ready: '사용 가능',
+        needs_auth: '인증 필요',
+        error: '연결 실패',
+        disabled: '비활성화됨',
+        unavailable: '사용 불가'
+      }
     }
   },
   kbSettings: {
@@ -2329,7 +2363,21 @@ export default {
       agents: '에이전트 ({count})',
       longTermMemory: '장기 메모리',
       openConfiguration: '설정 열기',
-      truncated: '전체 {total}개 중 앞 {shown}개만 표시합니다'
+      truncated: '전체 {total}개 중 앞 {shown}개만 표시합니다',
+      bindings: {
+        embedding_model: 'Embedding 모델',
+        summary_model: '요약 모델',
+        image_processing_model: '이미지 처리 모델',
+        vlm_model: '비전 모델',
+        asr_model: '음성 인식 모델',
+        wiki_synthesis_model: 'Wiki 종합 모델',
+        chat_model: '대화 모델',
+        rerank_model: '재정렬 모델',
+        query_understand_model: '질의 이해 모델',
+        follow_up_model: '후속 질문 모델',
+        extract_model: '메모리 추출 모델',
+        unknown: '기타 모델 설정'
+      }
     },
     builtinModels: {
       title: '기본 제공 모델',
@@ -2352,7 +2400,8 @@ export default {
       builtinCannotDelete: '기본 제공 모델은 삭제할 수 없습니다',
       builtinCannotCopy: '기본 제공 모델은 복사할 수 없습니다',
       copied: '모델이 복사되었습니다',
-      copyFailed: '모델 복사에 실패했습니다'
+      copyFailed: '모델 복사에 실패했습니다',
+      builtinCannotEdit: '기본 제공 모델은 편집할 수 없습니다'
     },
     asr: {
       title: 'ASR 음성 모델',
@@ -2421,7 +2470,12 @@ export default {
     },
     actions: {
       test: '연결 테스트'
-    }
+    },
+    addUsageInstructions: '사용 안내 추가',
+    noUsageInstructions: '아직 사용 안내가 없습니다',
+    toolCount: '{count}개 도구',
+    toolsNotSynced: '도구가 아직 동기화되지 않음',
+    toolsStale: '다시 동기화 필요'
   },
   conversationSettings: {
     maxTokens: {
@@ -2594,7 +2648,8 @@ export default {
     personalSettings: '개인 설정',
     description: '언어, 외관 등 기본 옵션 설정',
     settings: '설정',
-    close: '설정 닫기'
+    close: '설정 닫기',
+    helpAndDocs: '도움말 및 문서'
   },
   language: {
     zhCN: '简体中文',
@@ -2855,7 +2910,8 @@ export default {
         vllm: '시각 이해 및 멀티모달용 비전 언어 모델 설정',
         asr: '음성 인식 및 오디오 전사를 위한 음성 인식 모델 설정',
         default: '모델 정보 설정'
-      }
+      },
+      ollamaNotSupportRerank: 'Ollama는 ReRank 모델을 지원하지 않습니다. 원격 인터페이스를 사용하여 설정해주세요'
     }
   },
   error: {
@@ -3088,7 +3144,11 @@ export default {
           emailRequired: '이메일을 입력하세요',
           emailInvalid: '올바른 이메일 주소를 입력하세요',
           confirmRequired: '새 비밀번호를 다시 입력하세요',
-          passwordMismatch: '비밀번호가 일치하지 않습니다'
+          passwordMismatch: '비밀번호가 일치하지 않습니다',
+          passwordRequired: '새 비밀번호를 입력하세요',
+          passwordLength: '비밀번호는 8~32자여야 합니다',
+          passwordLetter: '비밀번호에 문자가 포함되어야 합니다',
+          passwordNumber: '비밀번호에 숫자가 포함되어야 합니다'
         }
       },
       passwordReset: {
@@ -3764,7 +3824,28 @@ export default {
       yesterday: '어제 {time}',
       thisYear: '{month}월 {day}일 {time}',
       otherYear: '{year}년 {month}월 {day}일 {time}'
-    }
+    },
+    sandbox: {
+      panelTitle: '샌드박스',
+      tabArtifacts: '파일',
+      tabTerminal: '터미널',
+      tabDesktop: '데스크톱',
+      artifactsEmpty: '이 대화에서 생성된 파일이 없습니다',
+      desktopPlaceholder: '데스크톱 시각화는 곧 지원될 예정입니다',
+      notStarted: '터미널이 아직 실행되지 않았습니다. 시작하면 이 대화의 샌드박스에 연결하며, 샌드박스가 없거나 일시 중지된 경우 생성하거나 다시 시작합니다.',
+      start: '터미널 시작',
+      connecting: '샌드박스에 연결하는 중…',
+      needsProvision: '이 대화에는 실행 중인 샌드박스가 없습니다. 생성하고 시작하면 새 샌드박스가 만들어지며 워크스페이스 설정에 따라 요금이 부과됩니다.',
+      createAndStart: '생성 후 시작',
+      noSandbox: '아직 샌드박스가 없고 현재 에이전트에 샌드박스 백엔드가 구성되지 않아 만들 위치를 정할 수 없습니다. 샌드박스가 구성된 에이전트로 전환하거나 코드 실행이 필요한 메시지를 보내세요.',
+      unsupported: '현재 샌드박스 백엔드는 대화형 터미널을 지원하지 않습니다',
+      disconnected: '연결이 끊어졌습니다',
+      retry: '다시 연결',
+      sessionEnded: '터미널 세션이 종료되었습니다',
+      idleDisconnected: '터미널이 유휴 상태로 연결이 끊어졌습니다. 샌드박스는 TTL에 따라 일시 중지됩니다. 다시 연결할 수 있습니다.',
+      authRevoked: '로그인 상태가 더 이상 유효하지 않아 터미널 연결이 끊어졌습니다. 다시 로그인한 뒤 재연결하세요.'
+    },
+    promptLabel: '프롬프트'
   },
   knowledgeEditor: {
     titleCreate: '지식베이스 생성',
@@ -4065,7 +4146,8 @@ export default {
     },
     buttons: {
       create: '지식베이스 생성',
-      saveAndClose: '저장 후 닫기'
+      saveAndClose: '저장 후 닫기',
+      save: '설정 저장'
     },
     wikiBrowser: {
       editBtn: '편집',
@@ -4229,7 +4311,14 @@ export default {
       issueFixSingle: '수정',
       fixStartError: '수정 도우미 시작 실패',
       issueFixPromptSingle: '페이지 [[{slug}]] 의 문제(ID: {id})를 수정해 주세요.',
-      issueFixPromptAutoStart: '페이지 [[{slug}]] 의 다음 문제들을 수정해 주세요:'
+      issueFixPromptAutoStart: '페이지 [[{slug}]] 의 다음 문제들을 수정해 주세요:',
+      revisionCurrentHint: '현재 버전입니다. 왼쪽에서 이전 버전을 선택하면 비교하거나 롤백할 수 있습니다.',
+      revisionDiff: '현재와 비교',
+      revisionDiffCaption: 'v{from} → v{to} (빨강 = 해당 버전, 초록 = 현재)',
+      revisionDiffBasisLabel: '비교 방식',
+      revisionDiffIncrementalCaption: 'v{from} → v{to} (인접 버전, 빨강=이전·초록=이후)',
+      revisionDiffCumulativeCaption: 'v{from} → v{to} (현재까지 누적 변경)',
+      revisionFirstVersionHint: '첫 번째 버전이라 이전 버전과 비교할 수 없습니다.'
     },
     indexing: {
       title: '인덱싱 전략',
@@ -4642,7 +4731,7 @@ export default {
     }
   },
   createChat: {
-    title: '안녕하세요, HybRAG입니다 — 당신의 지식을 손끝에',
+    title: '안녕하세요, WeKnora입니다 — 당신의 지식을 손끝에',
     newSessionTitle: '새 세션',
     messages: {
       createFailed: '세션 생성 실패',
@@ -4693,13 +4782,24 @@ export default {
       sessionMissing: '세션 ID가 존재하지 않습니다',
       messageMissing: '메시지 ID를 가져올 수 없습니다. 페이지를 새로고침한 후 다시 시도해주세요',
       stopSuccess: '생성이 중지되었습니다',
-      stopFailed: '중지 실패, 다시 시도해주세요'
+      stopFailed: '중지 실패, 다시 시도해주세요',
+      steerAttachmentPending: '첨부 파일 업로드가 완료되지 않았습니다. 잠시 후 다시 시도해주세요.',
+      steerHasAttachments: '진행 중인 응답에는 첨부 파일을 추가할 수 없습니다. 먼저 제거하거나 응답이 끝난 뒤 보내주세요.',
+      steerFailed: '메시지 추가에 실패했습니다. 다시 시도해주세요.',
+      steerPromoteFailed: '지금 보내기에 실패했습니다. 다시 시도해주세요.',
+      steerRemoveFailed: '대기 중인 메시지를 삭제하지 못했습니다. 다시 시도해주세요.',
+      steerAlreadyInjected: '이 메시지는 이미 현재 응답에 반영되었습니다.',
+      steerFollowUpTimeout: '다음 응답이 제때 시작되지 않았습니다. 다시 보내주세요.',
+      steerNoActiveRun: '현재 진행 중인 응답이 없습니다. 메시지를 직접 보내주세요.'
     },
     webSearch: {
       toggleOn: '웹 검색 켜기',
       toggleOff: '웹 검색 끄기',
       notConfigured: '웹 검색 엔진이 구성되지 않았습니다'
-    }
+    },
+    steerQueueSendNow: '지금 보내기',
+    steerQueueWaiting: '현재 답변이 끝난 뒤에 전송됩니다',
+    steerQueueInjecting: '다음 사고 라운드를 기다리는 중'
   },
   manualEditor: {
     description: 'Markdown으로 지식을 작성하고 실시간 미리보기 지원',
@@ -4804,7 +4904,10 @@ export default {
     kbCount: '문서 {count}개',
     belongsToKb: '지식베이스: ',
     belongsToOrg: '스페이스: ',
-    noCompatibleKbForAgent: '현재 에이전트의 도구와 범위 내 지식베이스의 기능이 일치하지 않아 참조할 수 있는 지식베이스가 없습니다.'
+    noCompatibleKbForAgent: '현재 에이전트의 도구와 범위 내 지식베이스의 기능이 일치하지 않아 참조할 수 있는 지식베이스가 없습니다.',
+    mcpToolCount: '도구 {count}개',
+    mcpNotSynced: '도구가 아직 동기화되지 않음',
+    mcpStale: '다시 동기화 필요'
   },
   common: {
     add: '추가',
@@ -4859,7 +4962,10 @@ export default {
     copyFailed: '복사 실패',
     retry: '재시도',
     expand: '펼치기',
-    collapse: '접기'
+    collapse: '접기',
+    github: 'GitHub',
+    githubStarTip: 'GitHub에서 저장소로 이동합니다. 유용하다면 Star를 부탁드립니다',
+    defaultUser: '사용자'
   },
   authStore: {
     errors: {
@@ -4890,11 +4996,11 @@ export default {
     haveAccount: '이미 계정이 있으신가요?',
     backToLogin: '로그인으로 돌아가기',
     loginHint: '로그인하여 계속하세요. 처음이시라면 아래에서 계정을 만드세요.',
-    firstTime: 'HybRAG가 처음이신가요?',
+    firstTime: 'WeKnora가 처음이신가요?',
     registerSuccess: '가입이 완료되었습니다. 로그인해주세요',
     registerFailed: '가입 실패',
     subtitle: 'RAG Q&A, ReAct 에이전트, Wiki 지식베이스 — 대규모 언어 모델 기반 엔터프라이즈 지식 프레임워크',
-    registerSubtitle: '계정을 만들고 HybRAG를 시작하세요',
+    registerSubtitle: '계정을 만들고 WeKnora를 시작하세요',
     emailPlaceholder: '이메일 주소 입력',
     passwordPlaceholder: '비밀번호 입력',
     confirmPasswordPlaceholder: '비밀번호 다시 입력',
@@ -5272,7 +5378,8 @@ export default {
           text: '내 정보, 선호, 「기억해 줘」라고 말한 내용'
         }
       }
-    }
+    },
+    consolidateNothing: '정리할 내용이 없습니다'
   },
   vectorStoreSettings: {
     title: '벡터 데이터베이스 엔진',
@@ -5635,7 +5742,12 @@ export default {
       installAccepted: '설치를 시작했습니다',
       installPartial: '일부 샌드박스에서 설치를 시작했습니다. {failed}곳은 시작하지 못했습니다.',
       installOutdated: '카탈로그와 버전이 다름',
-      loadFailed: '불러오지 못했습니다'
+      loadFailed: '불러오지 못했습니다',
+      noConfigsDesc: '샌드박스가 없습니다. 스킬을 설치하려면 먼저 이미지가 필요합니다.',
+      addDrawerDesc: '소스를 붙여넣거나 zip을 업로드해 카탈로그에 등록합니다. 지금 샌드박스에 설치할 수도 있습니다.',
+      addRegisteredAs: '「{name}」으로 등록됨',
+      installedOn: '설치됨',
+      manageOnSandbox: '「{name}」 샌드박스에서 관리'
     },
     sandbox: {
       title: '샌드박스 설정',
@@ -6022,7 +6134,9 @@ export default {
         template: 'Choose a ready template returned by the connected cluster.',
         runtime: 'Configure execution settings, environment variables, and when skill image updates apply, then save.',
         skills: 'Install skills into this config\'s sandbox image. Once the config is saved you can come back any time.'
-      }
+      },
+      terminalIdleDisconnect: '터미널 유휴 해제 (초)',
+      terminalIdleDisconnectHelp: '터미널을 연 뒤 키보드 입력이나 PTY 출력이 이 시간 동안 없으면 연결을 끊어 샌드박스가 TTL에 따라 일시 중지되도록 합니다. 비워 두면 900초이며, 최소 60초, 최대 24시간입니다.'
     }
   },
   agent: {
@@ -6197,7 +6311,10 @@ export default {
       buttons: {
         create: '에이전트 만들기',
         saveAndClose: '저장 후 닫기'
-      }
+      },
+      selectSkills: '스킬 선택',
+      skillsInfoTitle: '스킬과 샌드박스는 어떻게 연동되나요?',
+      skillsInfoContent: '스킬은 사전 설치된 전문 지식 모듈이며, 스크립트는 선택한 샌드박스에서 격리 실행됩니다. 목록은 해당 샌드박스에 설치된 스킬에서 가져옵니다. 세션 샌드박스가 한 번 만들어지면 첨부 파일, 산출물, 회수는 그 설정에 고정되며, 여기서 바꾸면 이후에 새로 만들어지는 세션에만 영향을 줍니다.'
     },
     messages: {
       created: '에이전트가 성공적으로 생성되었습니다.',
@@ -6433,7 +6550,10 @@ export default {
     pdfForceScanned: {
       label: '스캔 PDF로 파싱',
       description: '웹 인쇄, 스캔본, 이미지 위주 PDF에 적합합니다. 모든 페이지를 이미지로 렌더링한 뒤 OCR/VLM으로 처리합니다. 처리 시간과 모델 호출 비용이 늘어날 수 있습니다.'
-    }
+    },
+    destinationToRoot: '루트로 변경',
+    folderUploadTitle: '폴더 「{name}」',
+    folderUploadHint: '파일 {count}개, 로컬 폴더 구조를 유지합니다'
   },
   knowledgeBase: {
     title: '지식베이스',
@@ -6720,7 +6840,12 @@ export default {
       newFolderAddUnder: '「{folder}」 아래에 하위 디렉터리 만들기',
       success: '문서 {count}개를 이동했습니다',
       failed: '문서를 이동할 수 없습니다',
-      duplicate: '이미 존재하는 폴더입니다'
+      duplicate: '이미 존재하는 폴더입니다',
+      newFolder: '새 하위 폴더',
+      newFolderHint: 'Enter로 만들고 이동',
+      newFolderCreate: '생성',
+      newFolderHintRoot: '루트 아래에 생성됩니다',
+      newFolderHintUnder: '「{folder}」 아래에 생성됩니다'
     },
     folderTree: {
       title: '폴더',
@@ -6737,7 +6862,8 @@ export default {
       renamePlaceholder: '폴더 이름',
       renameSuccess: '폴더 이름을 변경했습니다',
       renameFailed: '폴더 이름을 변경할 수 없습니다',
-      renameInvalid: '폴더를 자기 하위로 이동할 수 없습니다'
+      renameInvalid: '폴더를 자기 하위로 이동할 수 없습니다',
+      collapseFolder: '이 폴더 접기'
     },
     infoCard: {
       tooltip: '지식베이스 정보 보기',
@@ -6771,7 +6897,8 @@ export default {
       fromOrg: '공유 공간에서',
       sharedAt: '공유일시',
       lastUpdated: '마지막 업데이트'
-    }
+    },
+    deleteFailed: '삭제 실패, 나중에 다시 시도하세요!'
   },
   resourceOrigin: {
     mine: '내 생성',
@@ -7035,10 +7162,10 @@ export default {
       },
       knowledge: {
         title: '지식 베이스 만들기',
-        desc: '모든 것의 시작점입니다. 문서, 웹페이지, FAQ를 업로드하면 HybRAG가 자동으로 분석하고 색인합니다. 여기를 클릭해 지식 베이스로 이동하세요.'
+        desc: '모든 것의 시작점입니다. 문서, 웹페이지, FAQ를 업로드하면 WeKnora가 자동으로 분석하고 색인합니다. 여기를 클릭해 지식 베이스로 이동하세요.'
       },
       welcome: {
-        title: 'HybRAG에 오신 것을 환영합니다',
+        title: 'WeKnora에 오신 것을 환영합니다',
         desc: '몇 단계만으로 지식 베이스, 대화, 에이전트의 핵심 사용법을 안내합니다. \'다음\'을 눌러 시작하세요.'
       }
     }
@@ -7069,7 +7196,8 @@ export default {
       assistant: '어시스턴트',
       attachments: '첨부 파일',
       references: '참조'
-    }
+    },
+    toggleSandboxPanel: '샌드박스 터미널'
   },
   menu: {
     sessionInProgress: '대화 진행 중',
@@ -7098,5 +7226,54 @@ export default {
     myChats: '내 대화',
     apiChats: 'API 세션',
     noSessions: '대화가 없습니다'
+  },
+  mcpMetadata: {
+    searchTools: '도구 이름 또는 설명 검색',
+    retry: '다시 시도',
+    details: '상세',
+    description: '설명',
+    parameters: '매개변수',
+    required: '필수',
+    fullSchema: '전체 정의',
+    noDescription: '설명이 없습니다',
+    noParameters: '매개변수 정의가 없습니다',
+    enabled: '활성화',
+    approval: '승인 필요',
+    noTools: '일치하는 도구가 없습니다',
+    next: '다음',
+    policyLoadFailed: '도구 정책을 불러오지 못했습니다. 수정하기 전에 다시 시도하세요.',
+    policySaveFailed: '도구 설정을 저장하지 못했습니다',
+    tools: 'Tools 목록',
+    cacheHint: '아직 동기화되지 않았다면 이 단계에서 자동으로 연결해 저장합니다. 이후에는 새로 고침할 때만 MCP 서버에 연결합니다.',
+    refresh: 'Tools 새로 고침',
+    fetch: '다시 가져오기',
+    fetching: '연결해서 Tools를 가져오는 중…',
+    toolCount: '도구 {count}개',
+    stale: '연결 또는 인증 설정이 변경되었습니다. 모델이 사용하기 전에 목록을 새로 고치세요.',
+    notSynced: '아직 동기화되지 않았습니다. 가져오면 전체 설명과 매개변수 정의가 저장됩니다.',
+    syncRequired: '먼저 연결해서 Tools를 가져온 뒤 저장하세요. 모델은 동기화된 목록만 사용할 수 있습니다.',
+    needsRefresh: '새로 고침 필요',
+    saved: '저장된 목록',
+    syncedAt: '동기화 시간:',
+    serverDocumentation: '서버 원본 설명',
+    noServerDocumentation: '이 MCP 서버의 initialize 응답에 instructions / serverInfo.description이 없습니다(둘 다 선택 필드). 도구 설명은 아래 각 도구의 description에 있습니다.',
+    policyHint: '도구 활성화 및 승인 설정은 즉시 저장되며 목록을 새로 고쳐도 유지됩니다.',
+    failed: '도구 목록을 불러오지 못했습니다',
+    setupProgress: 'MCP 설정 단계',
+    connection: '연결 설정',
+    toolsAndUsage: '도구 및 용도',
+    previous: '이전',
+    usage: '서비스 용도',
+    usageHint: '모델은 이 개요를 읽은 후 필요한 도구를 불러옵니다. 새로 고침해도 입력한 내용은 유지됩니다.',
+    summary: '용도 요약',
+    summaryPlaceholder: '예: 주문 상태, 배송 진행 상황 및 환불 내역 조회.',
+    usageInstructions: '사용 안내',
+    instructionsPlaceholder: '서비스의 용도, 사용 상황, 주요 제약을 간결하게 설명하세요.',
+    generateUsage: 'AI로 생성',
+    generateHint: '동기화된 활성 도구를 바탕으로 간결한 안내를 생성합니다. 수정 후 저장하면 적용됩니다.',
+    instructionsRequired: '사용 안내를 입력해 주세요',
+    generated: '생성되었습니다. 검토 후 저장해 주세요.',
+    generateFailed: '생성에 실패했습니다. 도구 동기화와 사용 가능한 대화 모델 설정을 확인한 후 다시 시도하세요.',
+    saveNext: '저장하고 다음'
   }
 }

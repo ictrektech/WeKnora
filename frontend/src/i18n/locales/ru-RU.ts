@@ -5,7 +5,7 @@ export default {
     backToPlatform: 'Вернуться к навигации платформы',
     settings: 'Настройки',
     collapse: 'Свернуть боковую панель',
-    expand: 'Развернуть боковую панель',
+    expand: 'Развернуть боковую панель'
   },
   legalWorkspaceSettings: {
     description: 'Управляйте видимостью и доступом к юридическому рабочему пространству в этом пространстве. Отключение не удаляет существующие данные.',
@@ -24,7 +24,7 @@ export default {
     deleteFailed: 'Не удалось удалить данные юридического рабочего пространства: {message}',
     cancel: 'Отмена',
     adminOnly: 'Изменять этот параметр могут администраторы пространства. Удалять данные может только владелец пространства.',
-    disabledMessage: 'Юридическое рабочее пространство сейчас отключено.',
+    disabledMessage: 'Юридическое рабочее пространство сейчас отключено.'
   },
   contractReview: {
     workspaceEyebrow: 'Юридическое рабочее пространство',
@@ -163,7 +163,7 @@ export default {
       degraded: 'Проверено частично',
       invalid: 'Проверка не пройдена',
       stale: 'Результат устарел',
-      legacy: 'Старый результат: ограниченное расположение',
+      legacy: 'Старый результат: ограниченное расположение'
     },
     evidence: {
       pending: 'Ожидание местоположения',
@@ -173,9 +173,14 @@ export default {
       not_found: 'Исходный текст не найден',
       version_mismatch: 'Версия источника не совпадает',
       unsupported: 'Стабильное местоположение не поддерживается',
-      error: 'Ошибка поиска местоположения',
+      error: 'Ошибка поиска местоположения'
     },
-    confidenceLevels: { high: 'Высокая', medium: 'Средняя', low: 'Низкая', unknown: 'Неизвестна' },
+    confidenceLevels: {
+      high: 'Высокая',
+      medium: 'Средняя',
+      low: 'Низкая',
+      unknown: 'Неизвестна'
+    },
     categories: {
       scope: 'Область действия',
       party_obligations: 'Обязательства сторон',
@@ -196,7 +201,7 @@ export default {
       compliance: 'Соответствие требованиям',
       dispute_resolution: 'Разрешение споров',
       drafting_other: 'Другая проблема формулировки',
-      other: 'Другая проблема формулировки',
+      other: 'Другая проблема формулировки'
     },
     findingTypes: {
       missing_protection: 'Недостающая защита',
@@ -212,7 +217,7 @@ export default {
       other: 'Другое',
       placeholder: 'Заполнитель или пустое поле',
       external_reference: 'Внешняя ссылка',
-      inconsistency: 'Несогласованный факт',
+      inconsistency: 'Несогласованный факт'
     },
     loadingReview: 'Загрузка проверки…',
     loadFailed: 'Ошибка загрузки',
@@ -227,17 +232,17 @@ export default {
       issues: 'Проблемы',
       clauses: 'Пункты',
       suggestions: 'Рекомендации',
-      configuration: 'Настройки',
+      configuration: 'Настройки'
     },
     risk: {
       high: 'Высокий риск',
       medium: 'Средний риск',
-      low: 'Низкий риск',
+      low: 'Низкий риск'
     },
     parties: {
       customer: 'Заказчик',
       vendor: 'Поставщик',
-      neutral: 'Нейтральная проверка',
+      neutral: 'Нейтральная проверка'
     },
     status: {
       draft: 'Черновик',
@@ -247,8 +252,8 @@ export default {
       reviewing_clauses: 'Проверка пунктов',
       completed: 'Завершено',
       failed: 'Ошибка',
-      cancelled: 'Отменено',
-    },
+      cancelled: 'Отменено'
+    }
   },
   platformApiKeys: {
     title: 'Платформенные API-ключи',
@@ -493,7 +498,8 @@ export default {
       failed: 'Не удалось сменить пароль. Проверьте текущий пароль.',
       policyFailed: 'Новый пароль: 8–32 символа, буквы и цифры',
       sameAsCurrent: 'Новый пароль не должен совпадать с текущим',
-      oidcOnlyDescription: 'Аккаунт создан через OIDC; локальный пароль ещё не задан.'
+      oidcOnlyDescription: 'Аккаунт создан через OIDC; локальный пароль ещё не задан.',
+      oidcOnlyNotice: 'Обратитесь к администратору для сброса пароля или продолжайте вход через OIDC. Для самостоятельной смены нужен текущий пароль.'
     }
   },
   credential: {
@@ -1601,7 +1607,8 @@ export default {
       truncated: 'Список обрезан',
       wrote: 'Записано',
       replacements: 'Замен: {count}',
-      moreLines: 'ещё {count} строк'
+      moreLines: 'ещё {count} строк',
+      edited: 'Изменено'
     },
     skillFiles: {
       heading: 'Файлы навыка',
@@ -1671,6 +1678,33 @@ export default {
       submitted: 'Отправлено',
       submitFailed: 'Ошибка отправки',
       userRejected: 'Отклонено пользователем'
+    },
+    mcp: {
+      discoverTools: 'Поиск инструментов MCP',
+      listServers: 'Сервисы MCP',
+      listTools: 'Инструменты MCP',
+      searchTools: 'Поиск инструментов MCP',
+      describeTool: 'Чтение определения инструмента',
+      callTool: 'Вызов инструмента MCP',
+      showing: 'Показано {count} из {total}',
+      moreAvailable: 'Есть другие результаты',
+      empty: 'Нечего показать',
+      parameters: 'Параметры',
+      expand: 'Показать описание',
+      collapse: 'Свернуть',
+      required: 'Обязательно',
+      fullSchema: 'Полное описание параметров',
+      failed: 'Ошибка операции MCP',
+      result: 'Результат',
+      status: {
+        not_loaded: 'Не загружено',
+        loading: 'Загрузка',
+        ready: 'Доступно',
+        needs_auth: 'Требуется авторизация',
+        error: 'Ошибка подключения',
+        disabled: 'Отключено',
+        unavailable: 'Недоступно'
+      }
     }
   },
   kbSettings: {
@@ -2329,7 +2363,21 @@ export default {
       agents: 'Агенты ({count})',
       longTermMemory: 'Долговременная память',
       openConfiguration: 'Открыть настройки',
-      truncated: 'Показаны первые {shown} из {total}'
+      truncated: 'Показаны первые {shown} из {total}',
+      bindings: {
+        embedding_model: 'Модель эмбеддингов',
+        summary_model: 'Модель суммаризации',
+        image_processing_model: 'Модель обработки изображений',
+        vlm_model: 'Модель компьютерного зрения',
+        asr_model: 'Модель распознавания речи',
+        wiki_synthesis_model: 'Модель синтеза Wiki',
+        chat_model: 'Диалоговая модель',
+        rerank_model: 'Модель реранжирования',
+        query_understand_model: 'Модель понимания запроса',
+        follow_up_model: 'Модель уточняющих вопросов',
+        extract_model: 'Модель извлечения памяти',
+        unknown: 'Другая настройка модели'
+      }
     },
     builtinModels: {
       title: 'Встроенные модели',
@@ -2352,7 +2400,8 @@ export default {
       builtinCannotDelete: 'Встроенные модели нельзя удалить',
       builtinCannotCopy: 'Встроенные модели нельзя копировать',
       copied: 'Модель скопирована',
-      copyFailed: 'Не удалось скопировать модель'
+      copyFailed: 'Не удалось скопировать модель',
+      builtinCannotEdit: 'Встроенные модели нельзя редактировать'
     },
     asr: {
       title: 'ASR модели речи',
@@ -2421,7 +2470,12 @@ export default {
     },
     actions: {
       test: 'Тест соединения'
-    }
+    },
+    addUsageInstructions: 'Добавить инструкции',
+    noUsageInstructions: 'Инструкции пока не добавлены',
+    toolCount: '{count} инструментов',
+    toolsNotSynced: 'Инструменты не синхронизированы',
+    toolsStale: 'Нужна повторная синхронизация'
   },
   conversationSettings: {
     maxTokens: {
@@ -2594,7 +2648,8 @@ export default {
     personalSettings: 'Личные настройки',
     description: 'Настройка языка, внешнего вида и других базовых параметров',
     settings: 'Настройки',
-    close: 'Закрыть настройки'
+    close: 'Закрыть настройки',
+    helpAndDocs: 'Справка и документация'
   },
   language: {
     zhCN: '简体中文',
@@ -2855,7 +2910,8 @@ export default {
         vllm: 'Настройте визуально-языковую модель для мультимодального понимания',
         asr: 'Настройте модель распознавания речи для транскрибации аудио',
         default: 'Настройте информацию о модели'
-      }
+      },
+      ollamaNotSupportRerank: 'Ollama не поддерживает модели ReRank, используйте удалённый API'
     }
   },
   error: {
@@ -3088,7 +3144,11 @@ export default {
           emailRequired: 'Введите email',
           emailInvalid: 'Введите корректный email',
           confirmRequired: 'Введите новый пароль ещё раз',
-          passwordMismatch: 'Пароли не совпадают'
+          passwordMismatch: 'Пароли не совпадают',
+          passwordRequired: 'Введите новый пароль',
+          passwordLength: 'Пароль должен содержать от 8 до 32 символов',
+          passwordLetter: 'Пароль должен содержать букву',
+          passwordNumber: 'Пароль должен содержать цифру'
         }
       },
       passwordReset: {
@@ -3764,7 +3824,28 @@ export default {
       yesterday: 'Вчера {time}',
       thisYear: '{day}.{month} {time}',
       otherYear: '{day}.{month}.{year} {time}'
-    }
+    },
+    sandbox: {
+      panelTitle: 'Песочница',
+      tabArtifacts: 'Файлы',
+      tabTerminal: 'Терминал',
+      tabDesktop: 'Рабочий стол',
+      artifactsEmpty: 'В этом диалоге пока нет созданных файлов',
+      desktopPlaceholder: 'Визуализация рабочего стола скоро появится',
+      notStarted: 'Терминал ещё не запущен. Запуск подключит его к песочнице этого диалога, создав или возобновив её при необходимости.',
+      start: 'Запустить терминал',
+      connecting: 'Подключение к песочнице…',
+      needsProvision: 'В этом диалоге нет работающей песочницы. Создание запустит новую песочницу — она тарифицируется согласно настройкам рабочего пространства.',
+      createAndStart: 'Создать и запустить',
+      noSandbox: 'Песочницы ещё нет, а у текущего агента не настроен бэкенд песочницы — непонятно, где её создавать. Переключитесь на агента с настроенной песочницей или отправьте сообщение с выполнением кода.',
+      unsupported: 'Текущий бэкенд песочницы не поддерживает интерактивный терминал',
+      disconnected: 'Соединение потеряно',
+      retry: 'Переподключиться',
+      sessionEnded: 'Сеанс терминала завершён',
+      idleDisconnected: 'Терминал отключён из‑за простоя. Песочница приостановится по своему TTL. Можно подключиться снова.',
+      authRevoked: 'Сессия больше не действительна, терминал отключён. Войдите снова и переподключитесь.'
+    },
+    promptLabel: 'Промпт'
   },
   knowledgeEditor: {
     titleCreate: 'Создать базу знаний',
@@ -4065,7 +4146,8 @@ export default {
     },
     buttons: {
       create: 'Создать базу знаний',
-      saveAndClose: 'Сохранить и закрыть'
+      saveAndClose: 'Сохранить и закрыть',
+      save: 'Сохранить настройки'
     },
     wikiBrowser: {
       editBtn: 'Редактировать',
@@ -4229,7 +4311,14 @@ export default {
       issueFixSingle: 'Исправить',
       fixStartError: 'Не удалось запустить помощник исправления',
       issueFixPromptSingle: 'Пожалуйста, исправьте проблему (ID: {id}) на странице [[{slug}]].',
-      issueFixPromptAutoStart: 'Пожалуйста, исправьте следующие проблемы на странице [[{slug}]]:'
+      issueFixPromptAutoStart: 'Пожалуйста, исправьте следующие проблемы на странице [[{slug}]]:',
+      revisionCurrentHint: 'Это текущая версия. Выберите историческую версию слева для сравнения или отката.',
+      revisionDiff: 'Сравнить с текущей',
+      revisionDiffCaption: 'v{from} → v{to} (красный — та версия, зелёный — текущая)',
+      revisionDiffBasisLabel: 'Режим сравнения',
+      revisionDiffIncrementalCaption: 'v{from} → v{to} (соседние версии; красный — старая, зелёный — новая)',
+      revisionDiffCumulativeCaption: 'v{from} → v{to} (накопленные изменения до текущей)',
+      revisionFirstVersionHint: 'Это первая версия — сравнивать не с чем.'
     },
     indexing: {
       title: 'Стратегия индексации',
@@ -4642,7 +4731,7 @@ export default {
     }
   },
   createChat: {
-    title: 'Привет, я HybRAG — ваши знания всегда под рукой',
+    title: 'Привет, я WeKnora — ваши знания всегда под рукой',
     newSessionTitle: 'Новая сессия',
     messages: {
       createFailed: 'Не удалось создать сессию',
@@ -4693,13 +4782,24 @@ export default {
       sessionMissing: 'ID сессии не существует',
       messageMissing: 'Не удалось получить ID сообщения. Обновите страницу и попробуйте снова.',
       stopSuccess: 'Генерация остановлена',
-      stopFailed: 'Не удалось остановить. Попробуйте ещё раз.'
+      stopFailed: 'Не удалось остановить. Попробуйте ещё раз.',
+      steerAttachmentPending: 'Вложение ещё загружается. Повторите попытку чуть позже.',
+      steerHasAttachments: 'К текущему ответу нельзя добавить вложения. Удалите их или отправьте после завершения.',
+      steerFailed: 'Не удалось добавить сообщение. Попробуйте ещё раз.',
+      steerPromoteFailed: 'Не удалось отправить сейчас. Попробуйте ещё раз.',
+      steerRemoveFailed: 'Не удалось удалить сообщение из очереди. Попробуйте ещё раз.',
+      steerAlreadyInjected: 'Это сообщение уже принято текущим ответом.',
+      steerFollowUpTimeout: 'Следующий ответ не начался вовремя. Отправьте сообщение ещё раз.',
+      steerNoActiveRun: 'Сейчас нет активного ответа. Отправьте сообщение напрямую.'
     },
     webSearch: {
       toggleOn: 'Включить веб-поиск',
       toggleOff: 'Выключить веб-поиск',
       notConfigured: 'Веб-поиск не настроен'
-    }
+    },
+    steerQueueSendNow: 'Отправить сейчас',
+    steerQueueWaiting: 'Отправится после завершения текущего ответа',
+    steerQueueInjecting: 'Ожидание следующего раунда рассуждения'
   },
   manualEditor: {
     description: 'Пишите знания в Markdown с предпросмотром в реальном времени',
@@ -4804,7 +4904,10 @@ export default {
     kbCount: '{count} документов',
     belongsToKb: 'База знаний: ',
     belongsToOrg: 'Пространство: ',
-    noCompatibleKbForAgent: 'Инструменты текущего агента не соответствуют возможностям ни одной базы знаний в области видимости — нечего упомянуть.'
+    noCompatibleKbForAgent: 'Инструменты текущего агента не соответствуют возможностям ни одной базы знаний в области видимости — нечего упомянуть.',
+    mcpToolCount: '{count} инструментов',
+    mcpNotSynced: 'Инструменты ещё не синхронизированы',
+    mcpStale: 'Нужна повторная синхронизация'
   },
   common: {
     add: 'Добавить',
@@ -4859,7 +4962,10 @@ export default {
     copyFailed: 'Ошибка копирования',
     retry: 'Повторить',
     expand: 'Развернуть',
-    collapse: 'Свернуть'
+    collapse: 'Свернуть',
+    github: 'GitHub',
+    githubStarTip: 'Открыть репозиторий на GitHub — поставьте Star, если проект полезен',
+    defaultUser: 'Пользователь'
   },
   authStore: {
     errors: {
@@ -4890,11 +4996,11 @@ export default {
     haveAccount: 'Уже есть аккаунт?',
     backToLogin: 'Вернуться ко входу',
     loginHint: 'Войдите, чтобы продолжить, или создайте аккаунт ниже, если вы впервые здесь.',
-    firstTime: 'Впервые в HybRAG?',
+    firstTime: 'Впервые в WeKnora?',
     registerSuccess: 'Регистрация завершена. Войдите в систему',
     registerFailed: 'Ошибка регистрации',
     subtitle: 'RAG, ReAct-агент и Wiki — корпоративный фреймворк знаний на основе больших моделей',
-    registerSubtitle: 'Создайте аккаунт и начните работу с HybRAG',
+    registerSubtitle: 'Создайте аккаунт и начните работу с WeKnora',
     emailPlaceholder: 'Введите адрес электронной почты',
     passwordPlaceholder: 'Введите пароль',
     confirmPasswordPlaceholder: 'Введите пароль ещё раз',
@@ -5272,7 +5378,8 @@ export default {
           text: 'Сведения о вас, предпочтения и то, что вы попросили запомнить'
         }
       }
-    }
+    },
+    consolidateNothing: 'Наводить порядок нечего'
   },
   vectorStoreSettings: {
     title: 'Движок векторной базы данных',
@@ -5635,7 +5742,12 @@ export default {
       installAccepted: 'Установка начата',
       installPartial: 'Установка начата на части песочниц. {failed} не удалось запустить.',
       installOutdated: 'Отличается от каталога',
-      loadFailed: 'Не удалось загрузить'
+      loadFailed: 'Не удалось загрузить',
+      noConfigsDesc: 'Песочницы ещё нет. Для установки навыков нужен образ.',
+      addDrawerDesc: 'Вставьте источник или загрузите zip, чтобы добавить навык в каталог. Можно установить в песочницы сразу.',
+      addRegisteredAs: 'Зарегистрирован как «{name}»',
+      installedOn: 'Установлен в',
+      manageOnSandbox: 'Управление в песочнице «{name}»'
     },
     sandbox: {
       title: 'Настройка песочницы',
@@ -6022,7 +6134,9 @@ export default {
         template: 'Choose a ready template returned by the connected cluster.',
         runtime: 'Configure execution settings, environment variables, and when skill image updates apply, then save.',
         skills: 'Install skills into this config\'s sandbox image. Once the config is saved you can come back any time.'
-      }
+      },
+      terminalIdleDisconnect: 'Отключение простоя терминала (с)',
+      terminalIdleDisconnectHelp: 'После открытия терминала соединение закрывается, если столько времени нет ввода с клавиатуры и вывода PTY, чтобы песочница могла приостановиться по TTL. Пусто — 900 секунд; минимум 60 секунд, максимум 24 часа.'
     }
   },
   agent: {
@@ -6197,7 +6311,10 @@ export default {
       buttons: {
         create: 'Создать агента',
         saveAndClose: 'Сохранить и закрыть'
-      }
+      },
+      selectSkills: 'Выбрать навыки',
+      skillsInfoTitle: 'Как связаны Skills и песочница?',
+      skillsInfoContent: 'Skills — это предустановленные модули знаний, скрипты которых выполняются в выбранной песочнице. Список берётся из установленных там навыков. После создания песочницы сессии вложения, артефакты и удаление остаются привязаны к той конфигурации — изменение песочницы влияет только на последующие сессии.'
     },
     messages: {
       created: 'Agent created successfully',
@@ -6433,7 +6550,10 @@ export default {
     pdfForceScanned: {
       label: 'Разбор PDF как сканированного документа',
       description: 'Подходит для PDF с веб-печати, сканов и документов с большим числом изображений. Каждая страница будет отрендерена в изображение и обработана через OCR/VLM. Может увеличить время обработки и расходы на модели.'
-    }
+    },
+    destinationToRoot: 'В корень',
+    folderUploadTitle: 'Папка «{name}»',
+    folderUploadHint: '{count} файлов; структура локальной папки сохранится'
   },
   knowledgeBase: {
     title: 'База знаний',
@@ -6720,7 +6840,12 @@ export default {
       newFolderAddUnder: 'Создать подкаталог в «{folder}»',
       success: 'Перемещено документов: {count}',
       failed: 'Не удалось переместить документы',
-      duplicate: 'Такая папка уже существует'
+      duplicate: 'Такая папка уже существует',
+      newFolder: 'Новая вложенная папка',
+      newFolderHint: 'Enter — создать и переместить',
+      newFolderCreate: 'Создать',
+      newFolderHintRoot: 'Будет создана в корне',
+      newFolderHintUnder: 'Будет создана внутри «{folder}»'
     },
     folderTree: {
       title: 'Папки',
@@ -6737,7 +6862,8 @@ export default {
       renamePlaceholder: 'Название папки',
       renameSuccess: 'Папка переименована',
       renameFailed: 'Не удалось переименовать папку',
-      renameInvalid: 'Папку нельзя переместить внутрь себя'
+      renameInvalid: 'Папку нельзя переместить внутрь себя',
+      collapseFolder: 'Свернуть эту папку'
     },
     infoCard: {
       tooltip: 'Просмотр информации о базе знаний',
@@ -6771,7 +6897,8 @@ export default {
       fromOrg: 'Из пространства',
       sharedAt: 'Дата общего доступа',
       lastUpdated: 'Последнее обновление'
-    }
+    },
+    deleteFailed: 'Не удалось удалить. Пожалуйста, попробуйте позже!'
   },
   resourceOrigin: {
     mine: 'Мои',
@@ -7035,10 +7162,10 @@ export default {
       },
       knowledge: {
         title: 'Создайте базу знаний',
-        desc: 'С этого всё начинается: загружайте документы, веб-страницы или FAQ, и HybRAG автоматически разберёт и проиндексирует их. Нажмите здесь, чтобы открыть базы знаний.'
+        desc: 'С этого всё начинается: загружайте документы, веб-страницы или FAQ, и WeKnora автоматически разберёт и проиндексирует их. Нажмите здесь, чтобы открыть базы знаний.'
       },
       welcome: {
-        title: 'Добро пожаловать в HybRAG',
+        title: 'Добро пожаловать в WeKnora',
         desc: 'Несколько простых шагов познакомят вас с базами знаний, чатом и агентами. Нажмите «Далее», чтобы начать.'
       }
     }
@@ -7069,7 +7196,8 @@ export default {
       assistant: 'Ассистент',
       attachments: 'Вложения',
       references: 'Источники'
-    }
+    },
+    toggleSandboxPanel: 'Терминал песочницы'
   },
   menu: {
     sessionInProgress: 'Диалог выполняется',
@@ -7098,5 +7226,54 @@ export default {
     myChats: 'Мои чаты',
     apiChats: 'Сессии API',
     noSessions: 'Пока нет диалогов'
+  },
+  mcpMetadata: {
+    searchTools: 'Поиск по имени или описанию инструмента',
+    retry: 'Повторить',
+    details: 'Подробнее',
+    description: 'Описание',
+    parameters: 'Параметры',
+    required: 'Обязательный',
+    fullSchema: 'Полное определение',
+    noDescription: 'Описание отсутствует',
+    noParameters: 'Определение параметров отсутствует',
+    enabled: 'Включён',
+    approval: 'Требует подтверждения',
+    noTools: 'Инструменты не найдены',
+    next: 'Далее',
+    policyLoadFailed: 'Не удалось загрузить политики. Повторите загрузку перед изменением.',
+    policySaveFailed: 'Не удалось сохранить настройки инструмента',
+    tools: 'Список Tools',
+    cacheHint: 'Если каталог ещё не сохранён, этот шаг подключается автоматически. Позже MCP вызывается только при обновлении.',
+    refresh: 'Обновить Tools',
+    fetch: 'Загрузить снова',
+    fetching: 'Подключение и загрузка Tools…',
+    toolCount: 'Инструментов: {count}',
+    stale: 'Настройки подключения или авторизации изменились. Обновите каталог перед использованием моделью.',
+    notSynced: 'Каталог ещё не синхронизирован. Загрузите полные описания и определения параметров.',
+    syncRequired: 'Сначала подключитесь и загрузите Tools. Модель может использовать только синхронизированный каталог.',
+    needsRefresh: 'Требуется обновление',
+    saved: 'Сохранённый каталог',
+    syncedAt: 'Синхронизировано:',
+    serverDocumentation: 'Исходная документация сервера',
+    noServerDocumentation: 'Ответ initialize этого MCP-сервера не содержит instructions / serverInfo.description (оба поля необязательны). Текст инструментов — в description ниже.',
+    policyHint: 'Настройки включения и подтверждения сохраняются сразу и не сбрасываются при обновлении каталога.',
+    failed: 'Не удалось загрузить каталог инструментов',
+    setupProgress: 'Шаги настройки MCP',
+    connection: 'Подключение',
+    toolsAndUsage: 'Инструменты и назначение',
+    previous: 'Назад',
+    usage: 'Назначение сервиса',
+    usageHint: 'Модель читает обзор, затем загружает нужные инструменты. Ваш текст сохраняется при обновлении.',
+    summary: 'Краткое назначение',
+    summaryPlaceholder: 'Например: проверка заказов, доставки и возвратов.',
+    usageInstructions: 'Инструкции по использованию',
+    instructionsPlaceholder: 'Кратко опишите назначение, сценарии использования и основные ограничения.',
+    generateUsage: 'Создать с ИИ',
+    generateHint: 'Создайте краткие инструкции по синхронизированным включённым инструментам. Отредактируйте и сохраните результат.',
+    instructionsRequired: 'Инструкции по использованию обязательны',
+    generated: 'Создано. Проверьте и сохраните результат.',
+    generateFailed: 'Не удалось создать инструкции. Проверьте синхронизацию инструментов и наличие активной модели чата, затем повторите попытку.',
+    saveNext: 'Сохранить и продолжить'
   }
 }

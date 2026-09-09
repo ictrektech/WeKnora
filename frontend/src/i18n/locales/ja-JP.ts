@@ -242,7 +242,8 @@ export default {
       failed: 'パスワードの変更に失敗しました。現在のパスワードが正しいか確認してください。',
       policyFailed: '新しいパスワードは8〜32文字で、英字と数字を含める必要があります',
       sameAsCurrent: '新しいパスワードは現在のパスワードと異なる必要があります',
-      oidcOnlyDescription: 'このアカウントはOIDCログインで作成されたため、ローカルパスワードが設定されていません。'
+      oidcOnlyDescription: 'このアカウントはOIDCログインで作成されたため、ローカルパスワードが設定されていません。',
+      oidcOnlyNotice: 'システム管理者にパスワードのリセットを依頼するか、引き続きOIDCでログインしてください。セルフサービスでの変更には現在のパスワードが必要です。'
     }
   },
   credential: {
@@ -1350,7 +1351,8 @@ export default {
       truncated: '一覧は省略されています',
       wrote: '書き込み済み',
       replacements: '{count}箇所を置換',
-      moreLines: '他{count}行'
+      moreLines: '他{count}行',
+      edited: '編集済み'
     },
     skillFiles: {
       heading: 'スキルファイル',
@@ -1420,6 +1422,33 @@ export default {
       submitted: '送信しました',
       submitFailed: '送信に失敗しました',
       userRejected: 'ユーザが拒否しました'
+    },
+    mcp: {
+      discoverTools: 'MCP ツールを検出',
+      listServers: 'MCP サービス一覧',
+      listTools: 'MCP ツール一覧',
+      searchTools: 'MCP ツールを検索',
+      describeTool: 'ツール定義を確認',
+      callTool: 'MCP ツールを実行',
+      showing: '{total} 件中 {count} 件を表示',
+      moreAvailable: '他にも結果があります',
+      empty: '表示する項目はありません',
+      parameters: 'パラメーター',
+      expand: '説明を表示',
+      collapse: '閉じる',
+      required: '必須',
+      fullSchema: '完全なパラメータ定義',
+      failed: 'MCP 操作に失敗しました',
+      result: '実行結果',
+      status: {
+        not_loaded: '未読み込み',
+        loading: '読み込み中',
+        ready: '利用可能',
+        needs_auth: '認証が必要',
+        error: '接続失敗',
+        disabled: '無効',
+        unavailable: '利用不可'
+      }
     }
   },
   kbSettings: {
@@ -2078,7 +2107,21 @@ export default {
       agents: 'エージェント（{count}）',
       longTermMemory: '長期メモリ',
       openConfiguration: '設定を開く',
-      truncated: '{total}件中の最初の{shown}件を表示'
+      truncated: '{total}件中の最初の{shown}件を表示',
+      bindings: {
+        embedding_model: '埋め込みモデル',
+        summary_model: '要約モデル',
+        image_processing_model: '画像処理モデル',
+        vlm_model: '視覚モデル',
+        asr_model: '音声認識モデル',
+        wiki_synthesis_model: 'Wiki生成モデル',
+        chat_model: 'チャットモデル',
+        rerank_model: 'リランクモデル',
+        query_understand_model: 'クエリ理解モデル',
+        follow_up_model: 'フォローアップモデル',
+        extract_model: 'メモリ抽出モデル',
+        unknown: 'その他のモデル設定'
+      }
     },
     builtinModels: {
       title: '組み込みモデル',
@@ -2101,7 +2144,8 @@ export default {
       builtinCannotDelete: '組み込みモデルは削除できません',
       builtinCannotCopy: '組み込みモデルはコピーできません',
       copied: 'モデルをコピーしました',
-      copyFailed: 'モデルのコピーに失敗しました'
+      copyFailed: 'モデルのコピーに失敗しました',
+      builtinCannotEdit: '組み込みモデルは編集できません'
     },
     asr: {
       title: 'ASR音声モデル',
@@ -2170,7 +2214,12 @@ export default {
     },
     actions: {
       test: '接続テスト'
-    }
+    },
+    addUsageInstructions: '使用方法を追加',
+    noUsageInstructions: '使用方法は未入力です',
+    toolCount: '{count} 個のツール',
+    toolsNotSynced: 'ツール未同期',
+    toolsStale: '再同期が必要'
   },
   conversationSettings: {
     maxTokens: {
@@ -2343,7 +2392,8 @@ export default {
     personalSettings: '個人設定',
     description: '言語や外観などの基本オプションを設定します',
     settings: '設定',
-    close: '設定を閉じる'
+    close: '設定を閉じる',
+    helpAndDocs: 'ヘルプとドキュメント'
   },
   language: {
     zhCN: '简体中文',
@@ -2604,7 +2654,8 @@ export default {
         vllm: 'マルチモーダル理解に使う視覚言語モデルを設定します',
         asr: '音声の文字起こしに使う音声認識モデルを設定します',
         default: 'モデル情報を設定します'
-      }
+      },
+      ollamaNotSupportRerank: 'Ollamaはリランクモデルに対応していません。リモートAPIを使用してください'
     }
   },
   error: {
@@ -2837,7 +2888,11 @@ export default {
           emailRequired: 'メールアドレスを入力してください',
           emailInvalid: '有効なメールアドレスを入力してください',
           confirmRequired: '新しいパスワードをもう一度入力してください',
-          passwordMismatch: 'パスワードが一致しません'
+          passwordMismatch: 'パスワードが一致しません',
+          passwordRequired: '新しいパスワードを入力してください',
+          passwordLength: 'パスワードは8〜32文字で入力してください',
+          passwordLetter: 'パスワードには英字を含めてください',
+          passwordNumber: 'パスワードには数字を含めてください'
         }
       },
       passwordReset: {
@@ -3513,7 +3568,28 @@ export default {
       yesterday: '昨日{time}',
       thisYear: '{month}/{day} {time}',
       otherYear: '{year}/{month}/{day} {time}'
-    }
+    },
+    sandbox: {
+      panelTitle: 'サンドボックス',
+      tabArtifacts: 'ファイル',
+      tabTerminal: 'ターミナル',
+      tabDesktop: 'デスクトップ',
+      artifactsEmpty: 'この会話で生成されたファイルはまだありません',
+      desktopPlaceholder: 'デスクトップの可視化は近日対応予定です',
+      notStarted: 'ターミナルはまだ起動していません。起動するとこの会話のサンドボックスに接続し、存在しないか一時停止中の場合は作成または再開します。',
+      start: 'ターミナルを起動',
+      connecting: 'サンドボックスに接続中…',
+      needsProvision: 'この会話には実行中のサンドボックスがありません。作成すると新しいサンドボックスが起動し、ワークスペースの設定に従って課金されます。',
+      createAndStart: '作成して起動',
+      noSandbox: 'サンドボックスがまだなく、現在のエージェントにサンドボックスバックエンドが設定されていないため、作成先を決められません。サンドボックスが設定されたエージェントに切り替えるか、コードを実行するメッセージを送信してください。',
+      unsupported: '現在のサンドボックスバックエンドは対話型ターミナルに対応していません',
+      disconnected: '接続が切断されました',
+      retry: '再接続',
+      sessionEnded: 'ターミナルセッションが終了しました',
+      idleDisconnected: 'アイドル状態のためターミナルが切断されました。サンドボックスは自身のTTLで一時停止します。再接続できます。',
+      authRevoked: 'ログイン状態が無効になったため、ターミナルが切断されました。再度サインインしてから接続してください。'
+    },
+    promptLabel: 'プロンプト'
   },
   knowledgeEditor: {
     titleCreate: 'ナレッジベースを作成',
@@ -3814,7 +3890,8 @@ export default {
     },
     buttons: {
       create: 'ナレッジベースを作成',
-      saveAndClose: '保存して閉じる'
+      saveAndClose: '保存して閉じる',
+      save: '設定を保存'
     },
     wikiBrowser: {
       editBtn: '編集',
@@ -3978,7 +4055,14 @@ export default {
       issueFixSingle: '修正',
       fixStartError: '修正アシスタントの起動に失敗しました',
       issueFixPromptSingle: 'ページ [[{slug}]] の問題（ID: {id}）を修正してください。',
-      issueFixPromptAutoStart: 'ページ [[{slug}]] の次の問題を修正してください:'
+      issueFixPromptAutoStart: 'ページ [[{slug}]] の次の問題を修正してください:',
+      revisionCurrentHint: 'これが現在の版です。左側で過去の版を選ぶと、差分の確認や復元ができます。',
+      revisionDiff: '現在との差分',
+      revisionDiffCaption: 'v{from} → v{to}（赤はその版、緑は現在）',
+      revisionDiffBasisLabel: '比較モード',
+      revisionDiffIncrementalCaption: 'v{from} → v{to}（隣接する版。赤は旧、緑は新）',
+      revisionDiffCumulativeCaption: 'v{from} → v{to}（現在までの累積変更）',
+      revisionFirstVersionHint: 'これは最初の版のため、比較できる前の版がありません。'
     },
     indexing: {
       title: 'インデックス戦略',
@@ -4442,13 +4526,24 @@ export default {
       sessionMissing: 'セッションIDが存在しません',
       messageMissing: 'メッセージIDを取得できません。ページを更新して再試行してください。',
       stopSuccess: '生成を停止しました',
-      stopFailed: '停止に失敗しました。再試行してください。'
+      stopFailed: '停止に失敗しました。再試行してください。',
+      steerAttachmentPending: '添付ファイルのアップロードが完了していません。しばらくしてから追加してください。',
+      steerHasAttachments: '実行中の回答には添付ファイルを追加できません。先に削除するか、終了後に送信してください。',
+      steerFailed: 'メッセージの追加に失敗しました。再試行してください。',
+      steerPromoteFailed: '今すぐ送信に失敗しました。再試行してください。',
+      steerRemoveFailed: '待機中のメッセージを削除できませんでした。再試行してください。',
+      steerAlreadyInjected: 'このメッセージは既に現在の回答に取り込まれています。',
+      steerFollowUpTimeout: '次の回答が時間内に始まりませんでした。もう一度送信してください。',
+      steerNoActiveRun: '現在実行中の回答はありません。メッセージを直接送信してください。'
     },
     webSearch: {
       toggleOn: 'Web検索を有効化',
       toggleOff: 'Web検索を無効化',
       notConfigured: 'Web検索エンジンが未設定です'
-    }
+    },
+    steerQueueSendNow: '今すぐ送信',
+    steerQueueWaiting: '現在の回答が終わってから送信されます',
+    steerQueueInjecting: '次の思考ラウンドを待っています'
   },
   manualEditor: {
     description: 'Markdownでナレッジを記述し、リアルタイムでプレビューできます',
@@ -4553,7 +4648,10 @@ export default {
     kbCount: 'ドキュメント{count}件',
     belongsToKb: 'ナレッジベース: ',
     belongsToOrg: '共有スペース: ',
-    noCompatibleKbForAgent: 'このエージェントのツールはスコープ内のナレッジベースの機能と一致しないため、参照できるナレッジベースがありません。'
+    noCompatibleKbForAgent: 'このエージェントのツールはスコープ内のナレッジベースの機能と一致しないため、参照できるナレッジベースがありません。',
+    mcpToolCount: 'ツール{count}件',
+    mcpNotSynced: 'ツール未同期',
+    mcpStale: '再同期が必要'
   },
   common: {
     add: '追加',
@@ -4608,7 +4706,10 @@ export default {
     copyFailed: 'コピーに失敗しました',
     retry: '再試行',
     expand: '展開',
-    collapse: '折りたたむ'
+    collapse: '折りたたむ',
+    github: 'GitHub',
+    githubStarTip: 'GitHubでリポジトリを開きます。役に立ったらStarをお願いします',
+    defaultUser: 'ユーザ'
   },
   authStore: {
     errors: {
@@ -5021,7 +5122,8 @@ export default {
           text: 'プロフィール、好み、覚えておくよう依頼した内容'
         }
       }
-    }
+    },
+    consolidateNothing: '整理が必要な項目はありませんでした'
   },
   vectorStoreSettings: {
     title: 'ベクトルデータベースエンジン',
@@ -5384,7 +5486,12 @@ export default {
       installAccepted: 'インストールを開始しました',
       installPartial: '一部のサンドボックスで開始しました。{failed}件では開始できませんでした。',
       installOutdated: 'カタログと差異あり',
-      loadFailed: '読み込みに失敗しました'
+      loadFailed: '読み込みに失敗しました',
+      noConfigsDesc: 'サンドボックスがまだありません。スキルをインストールするにはイメージが必要です。',
+      addDrawerDesc: 'ソースを貼り付けるかzipをアップロードしてカタログに追加します。サンドボックスへのインストールは今すぐでも後からでも行えます。',
+      addRegisteredAs: '「{name}」として登録しました',
+      installedOn: 'インストール先',
+      manageOnSandbox: 'サンドボックス「{name}」でこのスキルを管理'
     },
     sandbox: {
       title: 'サンドボックス設定',
@@ -5771,7 +5878,9 @@ export default {
         template: '接続したクラスタから返された既製のテンプレートを選択します。',
         runtime: '実行設定、環境変数、スキルイメージの更新を適用するタイミングを設定して保存します。',
         skills: 'この設定のサンドボックスイメージにスキルをインストールします。設定を保存すれば、いつでも戻って作業できます。'
-      }
+      },
+      terminalIdleDisconnect: 'ターミナルのアイドル切断（秒）',
+      terminalIdleDisconnectHelp: 'ターミナルを開いた後、この時間だけキーボード入力もPTY出力もなければ接続を切断し、サンドボックスはTTLに従って一時停止します。空欄の場合は900秒、最短60秒、最長24時間です。'
     }
   },
   agent: {
@@ -5946,7 +6055,10 @@ export default {
       buttons: {
         create: 'エージェントを作成',
         saveAndClose: '保存して閉じる'
-      }
+      },
+      selectSkills: 'スキルを選択',
+      skillsInfoTitle: 'スキルとサンドボックスの連携について',
+      skillsInfoContent: 'スキルは知識モジュールで、そのスクリプトは選択したサンドボックスで実行されます。一覧にはそこにインストール済みのスキルが表示されます。セッションのサンドボックスが一度作成されると、以降の添付ファイル、生成物、破棄はすべて作成時の設定に固定されます。そのため、サンドボックスを変更しても影響するのは以降に新規作成されるセッションだけです。'
     },
     messages: {
       created: 'エージェントを作成しました',
@@ -6182,7 +6294,10 @@ export default {
     pdfForceScanned: {
       label: 'スキャンPDFとして強制解析',
       description: 'Web印刷、スキャン、画像が多いPDFに有効です。全ページを画像としてレンダリングし、OCR／VLMで処理します。処理時間とモデル費用が増える場合があります。'
-    }
+    },
+    destinationToRoot: 'ルートを使用',
+    folderUploadTitle: 'フォルダ「{name}」',
+    folderUploadHint: '全{count}件のファイル。ローカルのフォルダ構成が保持されます'
   },
   knowledgeBase: {
     title: 'ナレッジベース',
@@ -6469,7 +6584,12 @@ export default {
       newFolderAddUnder: '「{folder}」の下に新しいサブフォルダ',
       success: '{count}件のドキュメントを移動しました',
       failed: 'ドキュメントを移動できませんでした',
-      duplicate: 'そのフォルダは既に存在します'
+      duplicate: 'そのフォルダは既に存在します',
+      newFolder: '新しいサブフォルダ',
+      newFolderCreate: '作成',
+      newFolderHint: 'Enterキーで作成して移動します',
+      newFolderHintRoot: 'ルート直下に作成されます',
+      newFolderHintUnder: '「{folder}」の下に作成されます'
     },
     folderTree: {
       title: 'フォルダ',
@@ -6486,7 +6606,8 @@ export default {
       renamePlaceholder: 'フォルダ名',
       renameSuccess: 'フォルダ名を変更しました',
       renameFailed: 'フォルダ名を変更できませんでした',
-      renameInvalid: 'フォルダを自身の配下に移動することはできません'
+      renameInvalid: 'フォルダを自身の配下に移動することはできません',
+      collapseFolder: 'このフォルダを折りたたむ'
     },
     infoCard: {
       tooltip: 'ナレッジベース情報を表示',
@@ -6520,7 +6641,8 @@ export default {
       fromOrg: '提供元スペース',
       sharedAt: '共有日時',
       lastUpdated: '最終更新'
-    }
+    },
+    deleteFailed: '削除に失敗しました。しばらくしてから再試行してください。'
   },
   resourceOrigin: {
     mine: '自分',
@@ -6818,7 +6940,8 @@ export default {
       assistant: 'アシスタント',
       attachments: '添付ファイル',
       references: '出典'
-    }
+    },
+    toggleSandboxPanel: 'サンドボックスターミナル'
   },
   menu: {
     sessionInProgress: '会話中',
@@ -7103,5 +7226,54 @@ export default {
     settings: 'Settings',
     collapse: 'Collapse sidebar',
     expand: 'Expand sidebar'
+  },
+  mcpMetadata: {
+    searchTools: 'ツール名や説明を検索',
+    retry: '再試行',
+    details: '詳細',
+    description: '説明',
+    parameters: 'パラメーター',
+    required: '必須',
+    fullSchema: '完全な定義',
+    noDescription: '説明はありません',
+    noParameters: 'パラメータ定義はありません',
+    enabled: '有効',
+    approval: '承認が必要',
+    noTools: '該当するツールはありません',
+    next: '次へ',
+    policyLoadFailed: 'ツール設定を読み込めません。編集前に再試行してください。',
+    policySaveFailed: 'ツール設定を保存できませんでした',
+    tools: 'Tools 一覧',
+    cacheHint: '未同期の場合はこの手順で自動接続して保存します。以降は更新時のみ MCP サーバーに接続します。',
+    refresh: 'Tools を更新',
+    fetch: '再取得',
+    fetching: '接続して Tools を取得しています…',
+    toolCount: '{count} 件のツール',
+    stale: '接続または認証設定が変更されました。モデルで使用する前に一覧を更新してください。',
+    notSynced: '未同期です。取得すると説明とパラメーター定義が保存されます。',
+    syncRequired: '先に接続して Tools を取得してください。モデルは同期済みの一覧のみ使用できます。',
+    needsRefresh: '更新が必要',
+    saved: '保存済み',
+    syncedAt: '同期日時：',
+    serverDocumentation: 'サーバーの元の説明',
+    noServerDocumentation: 'この MCP サーバーの initialize に instructions / serverInfo.description はありません（どちらも任意）。ツールの説明は下の各 description にあります。',
+    policyHint: 'ツールの有効化と承認設定は即時保存され、一覧の更新後も維持されます。',
+    failed: 'ツール一覧を読み込めませんでした',
+    setupProgress: 'MCP 設定の手順',
+    connection: '接続設定',
+    toolsAndUsage: 'ツールと用途',
+    previous: '戻る',
+    usage: 'サービスの用途',
+    usageHint: 'モデルはこの概要を読んでから必要なツールを読み込みます。更新しても入力内容は保持されます。',
+    summary: '用途の概要',
+    summaryPlaceholder: '例：注文状況、配送状況、返金履歴を確認する。',
+    usageInstructions: '使用方法',
+    instructionsPlaceholder: 'サービスの用途、利用場面、重要な制約を簡潔に記載してください。',
+    generateUsage: 'AI で生成',
+    generateHint: '同期済みの有効なツールから簡潔な説明を生成します。編集して保存すると反映されます。',
+    instructionsRequired: '使用方法を入力してください',
+    generated: '生成しました。内容を確認して保存してください。',
+    generateFailed: '生成に失敗しました。ツールの同期と利用可能なチャットモデルの設定を確認して再試行してください。',
+    saveNext: '保存して次へ'
   }
 }

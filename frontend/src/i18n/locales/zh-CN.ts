@@ -5,7 +5,7 @@ export default {
     backToPlatform: '返回平台导航',
     settings: '设置',
     collapse: '收起侧边栏',
-    expand: '展开侧边栏',
+    expand: '展开侧边栏'
   },
   legalWorkspaceSettings: {
     description: '控制当前工作区是否显示并允许访问法律工作台。关闭只隐藏入口，不会删除已有数据。',
@@ -24,7 +24,7 @@ export default {
     deleteFailed: '删除法律工作台数据失败：{message}',
     cancel: '取消',
     adminOnly: '只有工作区管理员可以修改此设置；只有所有者可以删除法律工作台数据。',
-    disabledMessage: '法律工作台当前已关闭。',
+    disabledMessage: '法律工作台当前已关闭。'
   },
   contractReview: {
     workspaceEyebrow: '法律工作台',
@@ -163,7 +163,7 @@ export default {
       degraded: '部分核验',
       invalid: '校验失败',
       stale: '结果已过期',
-      legacy: '历史结果：定位有限',
+      legacy: '历史结果：定位有限'
     },
     evidence: {
       pending: '等待定位',
@@ -173,9 +173,14 @@ export default {
       not_found: '未找到原文',
       version_mismatch: '原文版本不一致',
       unsupported: '不支持稳定定位',
-      error: '定位失败',
+      error: '定位失败'
     },
-    confidenceLevels: { high: '高', medium: '中', low: '低', unknown: '未知' },
+    confidenceLevels: {
+      high: '高',
+      medium: '中',
+      low: '低',
+      unknown: '未知'
+    },
     categories: {
       scope: '范围',
       party_obligations: '当事方义务',
@@ -196,7 +201,7 @@ export default {
       compliance: '合规',
       dispute_resolution: '争议解决',
       drafting_other: '其他起草问题',
-      other: '其他起草问题',
+      other: '其他起草问题'
     },
     findingTypes: {
       missing: '缺失',
@@ -212,7 +217,7 @@ export default {
       excessive_exposure: '风险暴露过高',
       missing_definition: '定义缺失',
       operational_risk: '运营风险',
-      other: '其他',
+      other: '其他'
     },
     loadingReview: '正在加载审查…',
     loadFailed: '加载失败',
@@ -227,17 +232,17 @@ export default {
       issues: '问题',
       clauses: '条款',
       suggestions: '建议',
-      configuration: '审查配置',
+      configuration: '审查配置'
     },
     risk: {
       high: '高风险',
       medium: '中风险',
-      low: '低风险',
+      low: '低风险'
     },
     parties: {
       customer: '甲方 / 客户',
       vendor: '乙方 / 供应商',
-      neutral: '中立审查',
+      neutral: '中立审查'
     },
     status: {
       draft: '草稿',
@@ -247,8 +252,8 @@ export default {
       reviewing_clauses: '审查条款中',
       completed: '已完成',
       failed: '失败',
-      cancelled: '已取消',
-    },
+      cancelled: '已取消'
+    }
   },
   platformApiKeys: {
     title: '平台 API Key',
@@ -493,7 +498,8 @@ export default {
       failed: '修改密码失败，请检查当前密码是否正确',
       policyFailed: '新密码须为 8-32 个字符，且同时包含字母和数字',
       sameAsCurrent: '新密码不能与当前密码相同',
-      oidcOnlyDescription: '您的账号通过 OIDC 登录开通，尚未设置本地登录密码。'
+      oidcOnlyDescription: '您的账号通过 OIDC 登录开通，尚未设置本地登录密码。',
+      oidcOnlyNotice: '请联系系统管理员重置密码，或继续使用 OIDC 登录。自助修改密码需要先知道当前密码。'
     }
   },
   credential: {
@@ -747,7 +753,7 @@ export default {
       directWarning: '直接传用户 ID 会信任调用方请求头，仅适用于可信服务端到服务端调用。',
       directWarningDetail: '任何持有 API Key 的调用方都可以通过修改用户 ID 请求头冒充其他外部用户，从而共用或劫持其 MCP OAuth 授权。请勿用于浏览器或不可信客户端；面向终端用户请使用「签名 Token」。',
       signedRecommended: '推荐给面向用户的应用：由你的业务后端为外部用户签发短期 HS256 JWT。',
-      signedFlowDetail: 'HMAC 密钥仅保存在 HybRAG 与你的可信后端，切勿放入请求或下发给浏览器。请求头里传的是用该密钥签出的 JWT 字符串（每次签发或过期后会变），不是密钥本身。JWT 须包含 sub（外部用户 ID）、tenant_id、aud=weknora、exp（有效期不超过 24 小时）。',
+      signedFlowDetail: 'HMAC 密钥仅保存在 WeKnora 与你的可信后端，切勿放入请求或下发给浏览器。请求头里传的是用该密钥签出的 JWT 字符串（每次签发或过期后会变），不是密钥本身。JWT 须包含 sub（外部用户 ID）、tenant_id、aud=weknora、exp（有效期不超过 24 小时）。',
       directHeader: '用户 ID 请求头',
       requireDirectHeader: '必须携带用户 ID',
       requireDirectHeaderDesc: '开启后，缺少用户 ID 请求头的 API Key 请求将被拒绝；关闭则按整个空间统一处理，不区分具体终端用户。',
@@ -1601,7 +1607,8 @@ export default {
       truncated: '列表已截断',
       wrote: '已写入',
       replacements: '替换 {count} 处',
-      moreLines: '另有 {count} 行'
+      moreLines: '另有 {count} 行',
+      edited: '已编辑'
     },
     skillFiles: {
       heading: '技能文件',
@@ -1671,6 +1678,33 @@ export default {
       submitted: '已提交',
       submitFailed: '提交失败',
       userRejected: '用户拒绝'
+    },
+    mcp: {
+      discoverTools: '发现 MCP 工具',
+      listServers: '查看 MCP 服务',
+      listTools: '查看 MCP 工具',
+      searchTools: '搜索 MCP 工具',
+      describeTool: '读取工具定义',
+      callTool: '调用 MCP 工具',
+      showing: '已显示 {count} / {total} 项',
+      moreAvailable: '还有更多结果',
+      empty: '没有可显示的项',
+      parameters: '参数',
+      expand: '展开说明',
+      collapse: '收起',
+      required: '必填',
+      fullSchema: '完整参数定义',
+      failed: 'MCP 操作失败',
+      result: '执行结果',
+      status: {
+        not_loaded: '未加载',
+        loading: '加载中',
+        ready: '可用',
+        needs_auth: '需要授权',
+        error: '连接失败',
+        disabled: '已禁用',
+        unavailable: '不可用'
+      }
     }
   },
   kbSettings: {
@@ -2329,7 +2363,21 @@ export default {
       agents: '智能体（{count}）',
       longTermMemory: '长期记忆',
       openConfiguration: '打开配置',
-      truncated: '仅显示前 {shown} 个，共 {total} 个'
+      truncated: '仅显示前 {shown} 个，共 {total} 个',
+      bindings: {
+        embedding_model: 'Embedding 模型',
+        summary_model: '摘要模型',
+        image_processing_model: '图片处理模型',
+        vlm_model: '视觉理解模型',
+        asr_model: '语音识别模型',
+        wiki_synthesis_model: 'Wiki 综合模型',
+        chat_model: '对话模型',
+        rerank_model: '重排序模型',
+        query_understand_model: '问题理解模型',
+        follow_up_model: '追问模型',
+        extract_model: '记忆提取模型',
+        unknown: '其他模型配置'
+      }
     },
     builtinModels: {
       title: '内置模型',
@@ -2352,7 +2400,8 @@ export default {
       builtinCannotDelete: '内置模型不能删除',
       builtinCannotCopy: '内置模型不能复制',
       copied: '模型已复制',
-      copyFailed: '复制模型失败'
+      copyFailed: '复制模型失败',
+      builtinCannotEdit: '内置模型不能编辑'
     },
     asr: {
       title: 'ASR 语音模型',
@@ -2421,7 +2470,12 @@ export default {
     },
     actions: {
       test: '测试连接'
-    }
+    },
+    addUsageInstructions: '添加使用说明',
+    noUsageInstructions: '尚未填写使用说明',
+    toolCount: '{count} 个工具',
+    toolsNotSynced: '尚未同步工具',
+    toolsStale: '需重新同步'
   },
   conversationSettings: {
     maxTokens: {
@@ -2594,7 +2648,8 @@ export default {
     personalSettings: '个人设置',
     description: '配置语言、外观等基础选项',
     settings: '设置',
-    close: '关闭设置'
+    close: '关闭设置',
+    helpAndDocs: '帮助与文档'
   },
   language: {
     zhCN: '简体中文',
@@ -2855,7 +2910,8 @@ export default {
         vllm: '配置用于视觉理解和多模态的视觉语言模型',
         asr: '配置用于语音识别和音频转录的语音转文本模型',
         default: '配置模型信息'
-      }
+      },
+      ollamaNotSupportRerank: 'Ollama 不支持 ReRank 模型，请使用远程接口配置'
     }
   },
   error: {
@@ -3088,7 +3144,11 @@ export default {
           emailRequired: '请输入邮箱',
           emailInvalid: '请输入有效的邮箱地址',
           confirmRequired: '请再次输入新密码',
-          passwordMismatch: '两次输入的密码不一致'
+          passwordMismatch: '两次输入的密码不一致',
+          passwordRequired: '请输入新密码',
+          passwordLength: '密码长度必须为 8-32 个字符',
+          passwordLetter: '密码必须包含字母',
+          passwordNumber: '密码必须包含数字'
         }
       },
       passwordReset: {
@@ -3764,7 +3824,28 @@ export default {
       yesterday: '昨天 {time}',
       thisYear: '{month}月{day}日 {time}',
       otherYear: '{year}年{month}月{day}日 {time}'
-    }
+    },
+    sandbox: {
+      panelTitle: '沙箱可视化',
+      tabArtifacts: '产物',
+      tabTerminal: '终端',
+      tabDesktop: '桌面',
+      artifactsEmpty: '本会话尚未生成可下载的文件',
+      desktopPlaceholder: '桌面可视化即将支持',
+      notStarted: '终端尚未启动。启动后会连接本会话的沙箱环境；若沙箱不存在或已暂停，将为你创建或唤醒它。',
+      start: '启动终端',
+      connecting: '正在连接沙箱…',
+      needsProvision: '本会话当前没有运行中的沙箱环境。创建并启动会新建一个沙箱，并按工作区配置计费。',
+      createAndStart: '创建并启动',
+      noSandbox: '会话尚未创建沙箱，且当前智能体未配置沙箱后端，无法确定在哪个后端创建。请切换到配置了沙箱的智能体，或发送一条需要执行代码的消息。',
+      unsupported: '当前沙箱后端不支持交互终端',
+      disconnected: '连接已断开',
+      retry: '重新连接',
+      sessionEnded: '终端会话已结束',
+      idleDisconnected: '终端空闲已断开，沙箱将按工作区 TTL 自行暂停。可重新连接。',
+      authRevoked: '登录状态已失效，终端已断开。请重新登录后再连接。'
+    },
+    promptLabel: '提示词'
   },
   knowledgeEditor: {
     titleCreate: '新建知识库',
@@ -4065,7 +4146,8 @@ export default {
     },
     buttons: {
       create: '创建知识库',
-      saveAndClose: '保存并关闭'
+      saveAndClose: '保存并关闭',
+      save: '保存配置'
     },
     wikiBrowser: {
       editBtn: '编辑',
@@ -4229,7 +4311,14 @@ export default {
       issueFixSingle: '修复',
       fixStartError: '启动修复助手失败',
       issueFixPromptSingle: '请修复页面 [[{slug}]] 上的问题 (ID: {id})。',
-      issueFixPromptAutoStart: '请修复页面 [[{slug}]] 上的以下问题：'
+      issueFixPromptAutoStart: '请修复页面 [[{slug}]] 上的以下问题：',
+      revisionCurrentHint: '这是页面的当前版本，选择左侧的历史版本可查看差异或回滚。',
+      revisionDiff: '对比当前',
+      revisionDiffCaption: 'v{from} → v{to}（红色为该版本，绿色为当前）',
+      revisionDiffBasisLabel: '对比方式',
+      revisionDiffIncrementalCaption: 'v{from} → v{to}（相邻版本，红色为旧、绿色为新）',
+      revisionDiffCumulativeCaption: 'v{from} → v{to}（距当前的累计变更）',
+      revisionFirstVersionHint: '这是首个版本，没有上一版可对比。'
     },
     indexing: {
       title: '索引策略',
@@ -4529,7 +4618,7 @@ export default {
     allowFileUploadDesc: '开启后，访客可上传图片与文档附件。仅当绑定的智能体已启用图片上传时才会生效。',
     webhookUrl: 'Webhook 地址',
     webhookUrlPlaceholder: 'https://your-server.example.com/weknora/embed-events',
-    webhookUrlDesc: '可选。访客发消息与助手回复完成时，HybRAG 会向该 HTTPS 地址 POST 事件（message_sent / message_received）。',
+    webhookUrlDesc: '可选。访客发消息与助手回复完成时，WeKnora 会向该 HTTPS 地址 POST 事件（message_sent / message_received）。',
     webhookSecret: 'Webhook 签名密钥',
     webhookSecretPlaceholder: '用于 HMAC-SHA256 签名（X-WeKnora-Signature）',
     webhookSecretKeep: '留空表示不修改已保存的密钥',
@@ -4642,7 +4731,7 @@ export default {
     }
   },
   createChat: {
-    title: 'Hi，我是 Vivibit AI小助手，让你的知识触手可及',
+    title: 'Hi，我是 WeKnora，让你的知识触手可及',
     newSessionTitle: '新会话',
     messages: {
       createFailed: '创建会话失败',
@@ -4693,13 +4782,24 @@ export default {
       sessionMissing: '会话 ID 不存在',
       messageMissing: '无法获取消息 ID，请刷新页面后重试',
       stopSuccess: '已停止生成',
-      stopFailed: '停止失败，请重试'
+      stopFailed: '停止失败，请重试',
+      steerAttachmentPending: '附件尚未上传完成，请稍后再追加',
+      steerHasAttachments: '进行中的回答无法附带附件，请先移除附件或等当前回答结束后再发送',
+      steerFailed: '追加失败，请重试',
+      steerPromoteFailed: '立即发送失败，请重试',
+      steerRemoveFailed: '删除排队消息失败，请重试',
+      steerAlreadyInjected: '该消息已被当前回答接收',
+      steerFollowUpTimeout: '下一轮回答未能及时开始，请重新发送',
+      steerNoActiveRun: '当前没有正在进行的回答，请直接发送消息'
     },
     webSearch: {
       toggleOn: '开启网络搜索',
       toggleOff: '关闭网络搜索',
       notConfigured: '未配置网络搜索引擎'
-    }
+    },
+    steerQueueSendNow: '立即发送',
+    steerQueueWaiting: '当前回答结束后发送',
+    steerQueueInjecting: '等待下一轮思考'
   },
   manualEditor: {
     description: '使用 Markdown 编写知识内容，支持实时预览',
@@ -4804,7 +4904,10 @@ export default {
     kbCount: '共 {count} 个文档',
     belongsToKb: '所属知识库：',
     belongsToOrg: '所属空间：',
-    noCompatibleKbForAgent: '当前智能体的工具与作用域内知识库的能力不匹配，暂无可引用的知识库。'
+    noCompatibleKbForAgent: '当前智能体的工具与作用域内知识库的能力不匹配，暂无可引用的知识库。',
+    mcpToolCount: '共 {count} 个工具',
+    mcpNotSynced: '尚未同步工具',
+    mcpStale: '需重新同步'
   },
   common: {
     add: '添加',
@@ -4859,7 +4962,10 @@ export default {
     copyFailed: '复制失败',
     retry: '重试',
     expand: '展开',
-    collapse: '收起'
+    collapse: '收起',
+    github: 'GitHub',
+    githubStarTip: '在 GitHub 打开仓库，若觉得有用欢迎点个 Star',
+    defaultUser: '用户'
   },
   authStore: {
     errors: {
@@ -4890,11 +4996,11 @@ export default {
     haveAccount: '已有账户？',
     backToLogin: '返回登录',
     loginHint: '登录以继续使用；首次使用请在下方创建账户。',
-    firstTime: '首次使用 HybRAG？',
+    firstTime: '首次使用 WeKnora？',
     registerSuccess: '注册成功，请登录',
     registerFailed: '注册失败',
     subtitle: 'RAG 问答、ReAct 智能体与 Wiki 知识库，大模型驱动的企业级知识框架',
-    registerSubtitle: '创建账户并开始使用 HybRAG',
+    registerSubtitle: '创建账户并开始使用 WeKnora',
     emailPlaceholder: '输入邮箱地址',
     passwordPlaceholder: '输入密码',
     confirmPasswordPlaceholder: '再次输入密码',
@@ -5272,7 +5378,8 @@ export default {
           text: '个人信息、偏好，以及明确说「记住」的内容'
         }
       }
-    }
+    },
+    consolidateNothing: '没有发现需要整理的内容'
   },
   vectorStoreSettings: {
     title: '向量数据库引擎',
@@ -5635,7 +5742,12 @@ export default {
       installAccepted: '已开始安装',
       installPartial: '部分沙箱已开始安装，{failed} 个未能开始。',
       installOutdated: '与目录版本不同',
-      loadFailed: '加载失败'
+      loadFailed: '加载失败',
+      noConfigsDesc: '还没有沙箱，技能需要先有一份可写入的镜像。',
+      addDrawerDesc: '粘贴来源或上传 zip，登记到目录。可以选择现在装进哪些沙箱。',
+      addRegisteredAs: '已登记为「{name}」',
+      installedOn: '已安装到',
+      manageOnSandbox: '管理沙箱「{name}」上的安装'
     },
     sandbox: {
       title: '沙箱配置',
@@ -6022,7 +6134,9 @@ export default {
         template: '选择当前集群返回且已经就绪的运行模板。',
         runtime: '配置执行参数、环境变量，以及技能镜像如何生效，然后保存。',
         skills: '把技能装进这份配置的沙箱镜像；配置已保存后可随时回来增删。'
-      }
+      },
+      terminalIdleDisconnect: '交互式终端空闲断开（秒）',
+      terminalIdleDisconnectHelp: '打开终端后，这段时间内没有键盘输入或终端输出就断开连接，沙箱随后按 TTL 自行暂停。留空按 900 秒；最短 60 秒，最长 24 小时。'
     }
   },
   agent: {
@@ -6197,7 +6311,10 @@ export default {
       buttons: {
         create: '创建智能体',
         saveAndClose: '保存并关闭'
-      }
+      },
+      selectSkills: '选择技能',
+      skillsInfoTitle: '技能与沙箱如何联动？',
+      skillsInfoContent: '技能是预装的专业知识模块，脚本在所选沙箱中隔离执行。可用列表来自该沙箱已安装的技能；同一会话的沙箱一旦创建，后续附件、产物与销毁都会锁定在创建时那份配置上，改沙箱只影响之后新建的会话。'
     },
     messages: {
       created: '智能体创建成功',
@@ -6433,7 +6550,10 @@ export default {
     pdfForceScanned: {
       label: '按扫描件解析 PDF',
       description: '适用于网页打印、扫描件、图片型 PDF。开启后会逐页 OCR，解析更完整但耗时和模型调用更多。'
-    }
+    },
+    destinationToRoot: '改到根目录',
+    folderUploadTitle: '文件夹「{name}」',
+    folderUploadHint: '共 {count} 个文件，将保留本地目录结构'
   },
   knowledgeBase: {
     title: '知识库',
@@ -6720,7 +6840,12 @@ export default {
       newFolderAddUnder: '在「{folder}」下新建子目录',
       success: '已移动 {count} 个文档',
       failed: '移动失败',
-      duplicate: '该目录已存在'
+      duplicate: '该目录已存在',
+      newFolder: '新建子目录',
+      newFolderCreate: '创建',
+      newFolderHint: '回车创建并移动',
+      newFolderHintRoot: '将在根目录下创建',
+      newFolderHintUnder: '将在「{folder}」下创建'
     },
     folderTree: {
       title: '目录',
@@ -6737,7 +6862,8 @@ export default {
       renamePlaceholder: '输入文件夹名称',
       renameSuccess: '文件夹已重命名',
       renameFailed: '文件夹重命名失败',
-      renameInvalid: '不能把文件夹移动到它自己的子目录下'
+      renameInvalid: '不能把文件夹移动到它自己的子目录下',
+      collapseFolder: '收起该文件夹'
     },
     infoCard: {
       tooltip: '查看知识库信息',
@@ -6771,7 +6897,8 @@ export default {
       fromOrg: '来自空间',
       sharedAt: '共享于',
       lastUpdated: '最后更新'
-    }
+    },
+    deleteFailed: '删除失败，请稍后再试！'
   },
   resourceOrigin: {
     mine: '我创建',
@@ -7035,10 +7162,10 @@ export default {
       },
       knowledge: {
         title: '创建你的知识库',
-        desc: '知识库是一切的起点：上传文档、网页或 FAQ，HybRAG 会自动解析并建立索引。点击这里进入知识库。'
+        desc: '知识库是一切的起点：上传文档、网页或 FAQ，WeKnora 会自动解析并建立索引。点击这里进入知识库。'
       },
       welcome: {
-        title: '欢迎使用 HybRAG',
+        title: '欢迎使用 WeKnora',
         desc: '只需几步，带你快速了解知识库、对话与智能体的核心用法。点击「下一步」开始。'
       }
     }
@@ -7069,7 +7196,8 @@ export default {
       assistant: '助手',
       attachments: '附件',
       references: '引用'
-    }
+    },
+    toggleSandboxPanel: '沙箱终端'
   },
   menu: {
     sessionInProgress: '会话进行中',
@@ -7098,5 +7226,54 @@ export default {
     myChats: '我的对话',
     apiChats: 'API 会话',
     noSessions: '暂无对话'
+  },
+  mcpMetadata: {
+    searchTools: '搜索工具名称或描述',
+    retry: '重试',
+    details: '详情',
+    description: '描述',
+    parameters: '参数',
+    required: '必填',
+    fullSchema: '完整定义',
+    noDescription: '没有描述',
+    noParameters: '没有参数定义',
+    enabled: '启用工具',
+    approval: '调用需审批',
+    noTools: '没有匹配的工具',
+    next: '下一页',
+    policyLoadFailed: '工具策略读取失败，请重试后再修改。',
+    policySaveFailed: '工具设置保存失败',
+    tools: 'Tools 清单',
+    cacheHint: '尚未同步时会自动连接并保存完整描述；之后只在刷新时访问 MCP 服务。',
+    refresh: '刷新 Tools',
+    fetch: '重新拉取',
+    fetching: '正在连接并拉取 Tools…',
+    toolCount: '{count} 个工具',
+    stale: '连接或认证配置已改变。以下是旧目录，重新同步后才能供模型使用。',
+    notSynced: '尚未同步工具。连接并拉取后，会保存完整描述和参数定义。',
+    syncRequired: '请先连接并拉取 Tools，同步后的目录才能给模型使用。',
+    needsRefresh: '需要重新同步',
+    saved: '已保存目录',
+    syncedAt: '同步时间：',
+    serverDocumentation: '服务端原始说明',
+    noServerDocumentation: '该 MCP Server 的 initialize 未返回 instructions / serverInfo.description（均为可选字段）。工具说明在下方各工具的 description 里。',
+    policyHint: '工具开关与审批设置即时保存；刷新目录不会覆盖这些设置。',
+    failed: '工具目录读取失败',
+    setupProgress: 'MCP 配置步骤',
+    connection: '连接配置',
+    toolsAndUsage: '工具与用途说明',
+    previous: '上一步',
+    usage: '服务用途',
+    usageHint: '模型先读取服务用途，再按需加载具体工具。以下内容由你维护，刷新不会覆盖。',
+    summary: '用途摘要',
+    summaryPlaceholder: '例如：查询订单状态、物流进度和退款记录。',
+    usageInstructions: '使用说明',
+    instructionsPlaceholder: '简要说明服务用途、适用场景和关键使用约束。',
+    generateUsage: 'AI 生成',
+    generateHint: '根据已同步且启用的 Tools 生成精简说明，填入后可编辑，保存后生效。',
+    instructionsRequired: '使用说明不能为空',
+    generated: '已生成，请检查后保存',
+    generateFailed: '生成失败，请确认 Tools 已同步且已配置可用的对话模型后重试。',
+    saveNext: '保存并下一步'
   }
 }

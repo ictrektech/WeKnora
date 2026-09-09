@@ -3,6 +3,7 @@ import { markRaw, nextTick, type Ref } from 'vue'
 import { applyMessageCreatedAt, bindServerTurnTimestamps, ensureMessageCreatedAt } from '@/utils/messageTimestamp'
 import { useI18n } from 'vue-i18n'
 import { ensureRagPipelineHistoryStream } from '@/utils/rag-pipeline-history'
+import { expandSteerForksInHistory, forkAfterInjectedUser } from '@/utils/steerStreamFork'
 
 export type ChatMessage = Record<string, unknown>
 
@@ -32,6 +33,9 @@ export interface UseChatStreamHandlerOptions {
   onMessageUpdated?: (message: ChatMessage, payload?: ChatMessage) => void
   onAgentAnswerDone?: (message: ChatMessage) => void
   onAgentChunkBound?: (message: ChatMessage, created: boolean) => void
+  onUserMessageInjected?: (steerId: string) => void
+  /** Remote or local stop: the composer overlay must drop server-discarded items. */
+  onGenerationStopped?: () => void
   debug?: boolean
 }
 
@@ -70,6 +74,8 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     onMessageUpdated,
     onAgentAnswerDone,
     onAgentChunkBound,
+    onUserMessageInjected,
+    onGenerationStopped,
     debug = false,
   } = options
 
@@ -244,10 +250,12 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
   }
 
-  /** Incomplete assistant row for the current turn (must be the list tail). */
+  /** Incomplete assistant for the current turn, even if a later user row is the tail. */
   const getTrailingIncompleteAssistant = () => {
-    const last = messagesList[messagesList.length - 1]
-    if (last?.role === 'assistant' && !last.is_completed) return last
+    for (let i = messagesList.length - 1; i >= 0; i--) {
+      const item = messagesList[i]
+      if (item?.role === 'assistant' && !item.is_completed) return item
+    }
     return undefined
   }
 
@@ -286,7 +294,12 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     let target: ChatMessage | undefined
     if (messageId) {
       target = messagesList.find(
-        (m) => m.id === messageId || m.request_id === messageId,
+        (m) =>
+          m.role === 'assistant' &&
+          !m.is_completed &&
+          (m.id === messageId ||
+            m.assistant_message_id === messageId ||
+            m.request_id === messageId),
       )
     }
     if (!target) target = getTrailingIncompleteAssistant()
@@ -371,6 +384,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     requestId?: string,
     streamSessionId?: string,
   ) => {
+    if (message.role === 'user') return
     message.isAgentMode = true
     message.__stream_active = true
     if (!isAgentStreamSession()) {
@@ -394,6 +408,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (Array.isArray(session.knowledge_references) && session.knowledge_references.length > 0) {
       return true
     }
+    // A turn can carry its answer as plain content with no timeline events —
+    // most visibly after a steer fork, where the events are split across
+    // segments and one segment can end up holding only the answer text.
+    // Hiding that row loses the reply entirely on reload.
+    if (typeof session.content === 'string' && session.content.trim()) return true
     return false
   }
 
@@ -403,8 +422,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     isRecovering = false,
   ) => {
     if (!isLoading && !isRecovering) return false
-    const last = messages[messages.length - 1]
-    if (last?.role === 'assistant' && last?.isAgentMode && !last?.is_completed) {
+    if (messages.some((m) => m.role === 'assistant' && m.isAgentMode && !m.is_completed)) {
       return false
     }
     return true
@@ -518,11 +536,12 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             if (toolCall.name === 'final_answer') return
             const result = toolCall.result as ChatMessage | undefined
             const resultData = result?.data as ChatMessage | undefined
+            const target = toolCall.target as ChatMessage | undefined
             events.push({
               type: 'tool_call',
               tool_call_id: toolCall.id,
-              tool_name: toolCall.name,
-              arguments: toolCall.args,
+              tool_name: target?.name || toolCall.name,
+              arguments: target?.args || toolCall.args,
               pending: false,
               success: result?.success !== false,
               output: result?.output || '',
@@ -640,8 +659,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         for (let i = processed.length - 1; i >= 0; i--) {
           messagesList.unshift(processed[i])
         }
+        const expanded = expandSteerForksInHistory([...messagesList])
+        messagesList.splice(0, messagesList.length, ...expanded)
       } else {
-        messagesList.push(...processed)
+        messagesList.push(...expandSteerForksInHistory(processed))
         dedupeCurrentTurnCompletedAssistants()
       }
     }
@@ -742,6 +763,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     const streamSessionId = getChunkSessionId(data)
     let message = resolveActiveAssistantMessage(data)
     let created = false
+
+    if (message?.role === 'user') {
+      message = undefined
+    }
 
     if (!message) {
       const newMsg: ChatMessage = {
@@ -966,9 +991,17 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             )
           }
           if (toolCallEvent) {
+            const resolvedMcpTarget =
+              toolCallEvent.tool_name === 'call_mcp_tool' && incomingToolName?.startsWith('mcp_')
             if (incomingToolName) toolCallEvent.tool_name = incomingToolName
             if (incomingArguments) {
-              toolCallEvent.arguments = mergeToolCallArguments(toolCallEvent.arguments, incomingArguments)
+              if (resolvedMcpTarget) {
+                // The executor now supplies the target's arguments; discard
+                // the streamed proxy envelope instead of mixing the two.
+                toolCallEvent.arguments = incomingArguments
+              } else {
+                toolCallEvent.arguments = mergeToolCallArguments(toolCallEvent.arguments, incomingArguments)
+              }
             }
             toolCallEvent.pending = true
             if (!toolCallEvent.timestamp) toolCallEvent.timestamp = Date.now()
@@ -1091,10 +1124,15 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           answerEvent.done = true
           message.__stream_active = false
           onAgentAnswerDone?.(message)
-          loading.value = false
-          isReplying.value = false
-          fullContent.value = ''
-          currentAssistantMessageId.value = ''
+          // Agent turns may continue after a finishing-round inject. Closing
+          // isReplying here lets the composer start a second AgentQA. Wait
+          // for `complete` (or a non-agent answer) to mark the session idle.
+          if (!isAgentStreamSession()) {
+            loading.value = false
+            isReplying.value = false
+            fullContent.value = ''
+            currentAssistantMessageId.value = ''
+          }
         }
         break
       }
@@ -1103,6 +1141,56 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         message.artifactsCollecting = true
         if (Number.isFinite(pendingCount) && pendingCount > 0) {
           message.artifactsPendingCount = pendingCount
+        }
+        break
+      }
+      case 'user_message_injected': {
+        // A message the user queued mid-run was accepted into the running
+        // turn. Place it under the work so far, then fork a continuation
+        // assistant so later thinking/tools/answer render below it.
+        const steerId = dataPayload?.steer_id as string | undefined
+        log('[Agent] User message injected, steer_id:', steerId)
+        let injectedUser: ChatMessage | undefined
+        let alreadyInList = false
+        if (steerId) {
+          const injectedId = dataPayload?.user_message_id as string | undefined
+          // Resuming a turn replays this event from the start of the log, by
+          // which point history has already loaded the persisted row. Reuse
+          // it — synthesizing here would show the same message twice.
+          injectedUser = messagesList.find(
+            (item) =>
+              item.role === 'user' &&
+              ((!!injectedId && item.id === injectedId) || item.steer_id === steerId),
+          )
+          alreadyInList = Boolean(injectedUser)
+          if (!injectedUser) {
+            // Queued messages live in the composer overlay, never as chat
+            // rows, so the first delivery builds the bubble here.
+            injectedUser = {
+              id: injectedId || steerId,
+              role: 'user',
+              content: String(dataPayload?.content || ''),
+              steer_id: steerId,
+              channel: 'web',
+              is_completed: true,
+            }
+            if (data.created_at) applyMessageCreatedAt(injectedUser, data.created_at)
+          }
+        }
+        if (injectedUser) {
+          if (dataId && !injectedUser.request_id) injectedUser.request_id = dataId
+          const continuation = forkAfterInjectedUser(
+            messagesList,
+            message,
+            injectedUser,
+            steerId,
+          )
+          if (!alreadyInList) emitMessageCreated(injectedUser)
+          if (continuation !== message) {
+            emitMessageCreated(continuation)
+            onAgentChunkBound?.(continuation, true)
+          }
+          if (steerId) onUserMessageInjected?.(steerId)
         }
         break
       }
@@ -1200,9 +1288,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
       let existingMessage = findLastMessage(
         (item) =>
-          item.id === data.id ||
-          item.request_id === data.id ||
-          item.id === data.assistant_message_id,
+          item.role === 'assistant' &&
+          (item.id === data.id ||
+            item.request_id === data.id ||
+            item.id === data.assistant_message_id ||
+            item.request_id === data.assistant_message_id),
       )
       const created = !existingMessage
       if (!existingMessage) {
@@ -1254,6 +1344,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       'reflection',
       'artifacts_pending',
       'context_compacted',
+      'user_message_injected',
     ])
     const chunkType = getChunkType(data)
     const isAgentOnlyResponse = isAgentStreamSession() && agentOnlyChunkTypes.has(chunkType)
@@ -1266,14 +1357,14 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       return
     }
 
-    const lastMessage = messagesList[messagesList.length - 1]
-    const isCurrentlyAgentMode = lastMessage?.isAgentMode === true
+    const activeAssistant = getTrailingIncompleteAssistant()
+    const isCurrentlyAgentMode = activeAssistant?.isAgentMode === true
     const targetsActiveAgentRequest =
       isAgentStreamSession() &&
       !!data.id &&
       (data.id === currentAssistantMessageId.value ||
-        lastMessage?.request_id === data.id ||
-        lastMessage?.id === data.id)
+        activeAssistant?.request_id === data.id ||
+        activeAssistant?.id === data.id)
     const isAgentAnswerChunk =
       getChunkType(data) === 'answer' && (isAgentStreamSession() || targetsActiveAgentRequest)
     const isAgentCompleteChunk =
@@ -1305,6 +1396,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         loading.value = false
         isReplying.value = false
         currentAssistantMessageId.value = ''
+        onGenerationStopped?.()
       }
       return
     }
@@ -1312,6 +1404,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (data.response_type === 'stop') {
       log('[Stop Event] Non-agent generation stopped')
       const stoppedMessage = findLastMessage((item) => {
+        if (item.role !== 'assistant') return false
         if (item.request_id === data.id) return true
         return item.id === data.id
       })
@@ -1321,10 +1414,12 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       isReplying.value = false
       fullContent.value = ''
       currentAssistantMessageId.value = ''
+      onGenerationStopped?.()
       return
     }
 
     const existingMessage = findLastMessage((item) => {
+      if (item.role !== 'assistant') return false
       if (item.request_id === data.id) return true
       return item.id === data.id
     })
