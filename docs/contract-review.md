@@ -289,7 +289,7 @@ SSE handler 每秒检查记录快照，只在 hash 变化时发送 `event: snaps
 - `MAX_FILE_SIZE_MB` 是部署级环境变量，默认 `500` MB；前端/nginx、App 和 DocReader 共享该上限，改动需要在启动时让这些层一致生效，不能当作单独的运行时 workspace setting。
 - 当前工作台只支持 PDF/DOCX 单文件。没有红线编辑、版本对比、导出、自定义 playbook 或用户自定义事实 schema。扫描 PDF、表格和复杂 DOCX 的解析文本顺序以及 source units 由实际 parser engine 决定。
 - 旧 DocReader 没有 `ReadStream` 时可用 unary 回退；旧 parser 没有 `source_units_json` 时可以审查，但会得到 `LOCATOR_UNSUPPORTED`，旧结果不能仅凭 quote 文本安全高亮。
-- PostgreSQL 的 `000103_contract_review_quality` 增加运行、来源、locator、质量、warning 和证据字段；`000104_contract_review_quality_source_fields` 是对已发布迁移编号的幂等修复，不应通过其 down migration 删除属于 `000103` 的字段。SQLite 的 `000015_contract_review_quality` 对应质量字段，`000016_legal_workspace_config` 是开关迁移。现有旧记录的迁移默认 `quality_status=legacy`。
+- PostgreSQL 的 `000103_contract_review_quality` 增加运行、来源、locator、质量、warning 和证据字段；`000104_contract_review_quality_source_fields` 是对已发布迁移编号的幂等修复，不应通过其 down migration 删除属于 `000103` 的字段。SQLite 的 `000019_contract_review_quality` 对应质量字段，`000016_legal_workspace_config` 是开关迁移；合同审查的 SQLite 迁移从 `000017` 开始，以避开上游已发布的 `000013_mcp_tool_enabled`。现有旧记录的迁移默认 `quality_status=legacy`。
 - 当前 [`docs/swagger.json`](swagger.json) 和 [`docs/swagger.yaml`](swagger.yaml) 没有合同审查 paths；本页的路由表以及 route/handler/types 代码才是当前接口事实源，不能以生成 Swagger 推断合同审查 API。
 - 关闭法律工作台不会隐式删除数据；只有 Owner 明确调用 `/legal-workspace-data` 才会租户级永久删除。物理文件清理发生在数据库事务提交后，存储服务失败可能需要再次处理。
 
