@@ -27,25 +27,24 @@ AI 结果只是辅助分析，不替代律师意见、业务审批或正式法�
 | 证据、事实和质量 | [`internal/application/service/contract_review_quality.go`](../internal/application/service/contract_review_quality.go) | 原文范围、source unit、校验、警告和降级 |
 | 持久化和领域结构 | [`internal/application/repository/contract_review.go`](../internal/application/repository/contract_review.go)、[`internal/types/contract_review.go`](../internal/types/contract_review.go) | 租户/用户隔离、条件更新、事务和兼容字段 |
 | 前端 API、状态和预览 | [`frontend/src/api/contract-review.ts`](../frontend/src/api/contract-review.ts)、[`frontend/src/stores/contractReview.ts`](../frontend/src/stores/contractReview.ts)、[`frontend/src/views/legal/contract-review/`](../frontend/src/views/legal/contract-review/) | SSE/轮询、集合加载状态、定位状态和高亮安全性 |
-| 内置 Agent 配置 | [`config/builtin_agents.yaml`](../config/builtin_agents.yaml) | 只用于模型选择回退；不要把完整 Agent 提示词当作工作台协议 |
+| 内置 Agent 配置 | [`config/builtin_agents.yaml`](../config/builtin_agents.yaml) | 用于模型选择回退及 temperature/max completion token 参数；不执行完整 Agent 提示词、技能和工具 |
 
-工作台的数据流是：
+工作台的数据流要区分控制流（谁触发谁）和数据流（数据在哪些组件之间流转）：浏览器通过 HTTP 请求发起操作，通过 SSE（服务器推送事件）和轮询（定时 GET）读取状态；handler（HTTP 请求适配层）只做鉴权、参数解析和错误映射；service（业务编排层）读写数据库、文件服务和任务队列；worker（异步任务执行函数）才调用 DocReader 或模型。任务队列只传递租户、用户、记录、运行和配置标识，不传递文件内容或完整解析文本，worker 会按这些标识重新读取数据库记录。
 
-```text
-创建记录 draft
-  → 上传校验、保存源文件、绑定 source_file、清理旧结果
-  → contract_review:document_process
-  → DocumentReader 返回 MarkdownContent + metadata.source_units_json
-  → 保存精确源文本、source_text_hash/source_revision 和 locator
-  → ready
-  → start/retry 创建新的 analysis_run_id 和 config_hash
-  → contract_review:analyze
-  → 自动分片 + 跨片段上下文 + KnowledgeQA 结构化 JSON
-  → 校验证据并写入 clauses/issues
-  → 对完整源文本提取 facts、冲突和结构 warnings
-  → 用已验证数据生成 overview，服务端计算风险
-  → completed(valid/degraded) 或 failed/取消为 cancelled
-```
+下表按首次成功路径从上到下阅读；`retry` 在第 4 阶段分支，`cancel` 可以在运行阶段把记录提前置为 `cancelled`，任一不可恢复错误则转到 `failed`，不再继续后续阶段。
+
+| 阶段 | 触发和输入 | 处理及持久化 | 对外状态和失败去向 |
+| --- | --- | --- | --- |
+| 1. 创建空记录 | `POST /contract-reviews` | 创建一条合同审查记录；默认规则集为 `general-contract-review` `1.0`，默认视角为 `neutral` | `draft`；此时没有源文件、解析文本或任务 |
+| 2. 上传并排队解析 | `POST /contract-reviews/:id/document` 的 multipart（表单文件上传格式）`file` | 校验文件名、扩展名、大小和 magic header（文件头标识）；文件服务保存原始文件，资源目录绑定 `source_file`；清理旧 clauses/issues（分析窗口和问题明细）；生成新的 `analysis_run_id`（本次运行的唯一标识），写入 `uploading` 后投递 `contract_review:document_process` | 投递成功时 HTTP 返回 `202`，记录为 `uploading`、进度 `5`；文件保存、绑定或数据库写入失败时请求报错，主记录可能保留原状态；只有投递失败会把记录转 `failed`，且当前可能保留 `quality_status=pending` |
+| 3. 解析源文件 | `contract_review:document_process` worker 按任务标识读取源文件 | 调用 DocReader；保存完整 `MarkdownContent`（解析后的合同文本）和 metadata（解析元数据），计算 `source_text_hash`（源文本指纹）与 `source_revision`（该份解析文本的身份），构造 locator（源文本范围到文档单元的定位元数据） | 成功转 `ready`、进度 `15`；解析器、文件读取或 locator 构造失败转 `failed`。解析成功后不会自动开始模型审查，必须再调用 `start` |
+| 4. 开始或重试分析 | `POST /contract-reviews/:id/start`，或对终态记录（已完成、失败或取消）调用 `POST /contract-reviews/:id/retry` | `start` 只接受 `ready`；`retry` 先清理旧结果。两者都生成新的 `analysis_run_id` 和 `config_hash`（当前规则、视角、模型选择与源文本的配置指纹），写入 `analyzing` 并投递 `contract_review:analyze`；重试时没有解析文本则先重新走第 3 阶段 | HTTP 返回 `202`，进度 `20`；投递失败转 `failed`，当前可能保留 `quality_status=pending`。清理旧结果和写入新运行不是一个跨表原子事务 |
+| 5. 准备分析窗口 | `contract_review:analyze` worker 读取当前记录和 `ExtractedContent`（完整解析文本） | 校验租户/用户/记录、`analysis_run_id`、`config_hash` 和运行中状态；选择可用 `KnowledgeQA`（知识问答模型类型）模型；将全文切成 clauses（分析窗口），先写入窗口范围和 `evidence_id` | 成功转 `reviewing_clauses`、进度 `25`；运行标识不匹配的旧任务直接停止且不写入；模型不可用、没有可分析窗口或结构化前置失败转 `failed` |
+| 6. 逐窗口模型审查 | 每个 clause 的完整主窗口和 supporting units（相关的辅助证据范围） | 组装小型结构化提示词；模型只返回 JSON（结构化对象）问题；服务校验字段和原文 quote（引用片段），解析证据范围，去重后写入 issues（问题明细），并更新 clause 状态和进度 | 可定位的证据错误可以丢弃单条问题并保留其余结果，质量转 `degraded`；模型调用、JSON、风险或不可隔离的证据错误转 `failed`。模型不负责写入事实 |
+| 7. 全文事实和概览 | 所有窗口完成后的完整 `ExtractedContent` | 服务端用确定性规则（相同输入得到相同结果，不依赖模型）提取 facts（全文事实）、冲突和结构 warnings（质量警告）；结构 warning 可物化为 issue。概览模型只总结已验证的 issue/fact，风险计数、party（合同当事方）、建议和质量状态由服务端组装并写入 overview（结果摘要） | 概览成功：`completed`、进度 `100`，质量为 `valid` 或 `degraded`；概览两次仍失败：保留已写入明细和降级 overview，但记录为 `failed`、质量 `invalid` |
+| 8. 查询和展示 | 前端 `GET` 记录、SSE/轮询状态、原文件 preview 和 locator | API 返回记录、clauses、issues、overview、warnings；preview 返回原始 PDF/DOCX；前端在 PDF.js（PDF 渲染库）或 `docx-preview`（DOCX 渲染库）渲染结果上重新定位证据并决定是否高亮 | API 查询是最终状态来源；定位不支持、版本不一致、找不到或候选不唯一时显示相应状态，不伪造高亮 |
+
+因此，`ready` 只表示“源文件已解析并可开始审查”，不表示已经有问题结果；`completed` 只表示整个窗口、全文检查和概览流程结束，仍必须结合 `quality_status` 和 `warnings` 判断结果是否降级。上传、开始和重试的 HTTP 请求在任务成功投递后就返回，不等待 DocReader、模型或概览完成。
 
 上传解析失败、模型或结构化校验不可恢复失败都走 `failed`。运行中可转为 `cancelled`；取消或旧任务返回后，记录状态和运行条件阻止迟到 worker 再写结果。
 
@@ -57,6 +56,7 @@ AI 结果只是辅助分析，不替代律师意见、业务审批或正式法�
 | `ExtractedContent` | DocReader 返回的完整 Markdown 文本；服务保存原样，不能 `TrimSpace`，因为所有 hash 和偏移都基于该值；该字段不直接序列化到 API |
 | `source_text_hash` | `sha256(ExtractedContent)` 的十六进制值；数据库还保留内部兼容别名 `source_hash`，新 API 使用 `source_text_hash` |
 | `source_revision` | 解析文本的身份标识；优先采用解析器 metadata 中的值，否则为 `text-v2:<source_text_hash>`；它不是合同业务版本号 |
+| `analysis_run_id` / `config_hash` | 每次上传、开始或重试都会创建新的运行 ID；分析阶段的配置 hash 由 playbook ID/版本、审查视角、trim 后的 `model_id`、源文本 hash 和 schema version `3` 计算，不包含内置 Agent 的 prompt/技能/工具/temperature/token 配置或运行时解析出的 fallback model ID。文档任务允许携带空 `config_hash`，分析任务必须携带非空值并与记录相等 |
 | source unit | 解析器为页、页图、正文块、表格行或表格单元等提供的源范围；`source_start`/`source_end` 是 `rune`、左闭右开范围 |
 | locator | `version: 1` 的定位信封，保存版本、偏移单位、源 hash/revision 和有效 units；无有效 unit 时审查可继续，但会产生 `LOCATOR_UNSUPPORTED` |
 | 分析片段/`clause` | 服务按源文本切出的分析窗口，不保证是正式法律条款；保存窗口范围和由范围派生的 `evidence_id` |
@@ -70,7 +70,9 @@ AI 结果只是辅助分析，不替代律师意见、业务审批或正式法�
 
 ### 上传和解析
 
-`POST /contract-reviews/:id/document` 只接受安全文件名下的 `.pdf` 或 `.docx`。服务端同时检查非空大小、`MAX_FILE_SIZE_MB`、PDF `%PDF-` 文件头或 DOCX `PK\x03\x04` 文件头，然后保存文件并绑定资源。重新上传只允许在 `draft`、`ready`、`failed`；它会清空旧 clauses/issues、locator、overview、源 hash 和质量状态，并创建新的 `analysis_run_id`。
+`POST /contract-reviews/:id/document` 只接受安全文件名下的 `.pdf` 或 `.docx`。服务端同时检查非空大小、`MAX_FILE_SIZE_MB`、PDF `%PDF-` 文件头或 DOCX `PK\x03\x04` 文件头，然后保存文件并绑定资源；这些是扩展名、大小和 magic header 检查，不等同于完整格式校验，最终可解析性由 DocReader 决定。重新上传只允许在 `draft`、`ready`、`failed`；它会清空旧 clauses/issues、locator、overview、源 hash 和质量状态，并创建新的 `analysis_run_id`。
+
+上传的 MIME 只保存到记录，不作为内容类型校验；文件保存/绑定、旧结果清理和主记录更新不是一个单一事务，错误时新文件删除是 best effort。
 
 容器默认通过 `DOCREADER_ADDR` 和 `DOCREADER_TRANSPORT` 构造 `DocumentReader`，传输方式缺省为 `grpc`；未配置地址时客户端处于 disconnected，解析任务会失败。gRPC 优先调用 `ReadStream`，连接到未实现该 RPC 的旧 DocReader 时回退到 unary `Read`；回退路径受 gRPC 消息大小限制，适合兼容旧部署，不改变合同审查的源文本契约。
 
@@ -80,28 +82,32 @@ AI 结果只是辅助分析，不替代律师意见、业务审批或正式法�
 
 ### 分析窗口和上下文
 
-`buildReviewClauses` 使用 chunker 的自动策略，窗口目标为约 `2800` 个 Unicode 字符，重叠 `120` 个字符；窗口 excerpt 最多 `360` 个 Unicode 字符。短文（最多 `12000` 个 Unicode 字符）把当前窗口外的全文作为上下文；长文只发送文档大纲和按中文三元组/ASCII 词段计算的相关 section，相关上下文最多 `3600` 个字符，单段 passage 最多 `900` 个字符，大纲最多 `1400` 个字符。
+`buildReviewClauses` 使用 chunker 的自动策略，窗口目标为约 `2800` 个 Unicode 字符，重叠 `120` 个字符；窗口 excerpt 最多 `360` 个 Unicode 字符。生产审查路径通过 `reviewPromptEvidenceUnits` 构造一个完整的 primary 窗口，再从解析出的 section 生成 supporting units：文档不超过 `12000` 个 Unicode 字符时考虑全部未完全落在当前窗口内的 section，每段 passage 最多 `900` 个字符且该分支没有单独的 `3600` 字符总量上限；超过该值时按中文三元组/ASCII 词段排序后截取相关 section，总量最多 `3600` 个字符。当前生产 prompt 不包含文档大纲；`CrossWindowContext` 和大纲上限 `1400` 是辅助实现/测试路径，不能当作 worker 一定发送的大纲协议。
 
 每个窗口的 primary evidence unit 是完整窗口；supporting unit 只能来自同一合同的相关上下文。模型提示中的 `evidence_id` 由源 hash 和窗口范围派生，例如 `evidence_<sha256>`；它与解析器的 `unit_id` 是两个命名空间。提示里的窗口标题（如 `Analysis segment 1`）只是分析标签，不是正式条款编号。
+
+supporting unit 的 `source_start/end` 覆盖完整 section，但 prompt 中的 `Text` 可能只是该 section 的最多 `900` 字符 passage；因此 unit 范围不等于模型实际看到的 passage 范围。重构时若要收紧范围，必须同步调整 quote 验证和 canonical ref 修复逻辑。
 
 模型选择顺序如下：
 
 1. 记录指定的可用、当前用户/工作空间可见的 `KnowledgeQA` 模型。
-2. 内置 Agent `builtin-contract-review` 的 `ModelID`。
-3. 工作空间默认的 active `KnowledgeQA` 模型，找不到时取第一个 active `KnowledgeQA` 模型。
+2. 记录未指定模型时，使用内置 Agent `builtin-contract-review` 的 `ModelID`（若该值非空则直接尝试实例化，不再回退到工作空间模型）。
+3. 内置 Agent 未提供 `ModelID` 时，使用工作空间默认的 active `KnowledgeQA` 模型，找不到时取第一个 active `KnowledgeQA` 模型。
 
-明确指定但已删除、停用、类型不符或无法实例化的模型不会静默换成其他模型；worker 进入 `failed`。没有任何可用模型也会失败。`represented_party` 只有 `customer`、`vendor`、`neutral`，表示审查视角，不表示服务已经识别出合同主体。
+明确指定但已删除、停用、类型不符或无法实例化的模型不会静默换成其他模型；worker 进入 `failed`。没有任何可用模型也会失败。记录的 `model_id` 为空时，`config_hash` 仍只包含空的显式模型选择；worker 执行时按当时的内置 Agent/工作空间默认配置解析模型，不会把最终选中的 fallback ID 持久化。需要固定模型时必须写入 `model_id`。`represented_party` 只有 `customer`、`vendor`、`neutral`，表示审查视角，不表示服务已经识别出合同主体。
 
 工作台使用 [`internal/application/service/contract_review.go`](../internal/application/service/contract_review.go) 中的小型结构化提示词，不直接拼接 Agent 的完整报告提示词。窗口模型必须返回单个 JSON 对象，只允许 `issues`（`facts` 可省略但不能返回非空事实）；每个 issue 必须含 `category`、`finding_type`、`risk_level`、`title`、`explanation`、`original_quote`、`suggestion`、`evidence_refs`。当前 canonical category 包括 `scope`、`parties`、`payment`、`term`、`acceptance`、`liability`、`dispute_resolution`、`guarantee`、`confidentiality`、`intellectual_property`、`data_security`、`compliance`、`other`；finding type 包括 `missing`、`contradiction`、`ambiguity`、`placeholder`、`external_reference`、`inconsistency`。服务接受代码中声明的别名后再归一化存储。
+
+窗口调用默认 completion budget 为 `4096`，内置 Agent 的正数 `MaxCompletionTokens` 会覆盖它；第二次恢复调用至少使用 `8192`。窗口 temperature 默认 `0.2`，有 Agent 配置时使用该值；`Thinking` 固定为 `false`。概览调用固定使用 temperature `0.1` 和 `1200` 个 completion tokens，同样最多两次，不沿用窗口的 completion budget。
 
 校验边界如下：
 
 - 单窗口最多保留 `5` 个 issue；超出的尾部按模型返回顺序丢弃并记录 `MODEL_ISSUE_LIMIT_EXCEEDED`，不是把整批判为失败。
 - `title` 最多 `80` 个 Unicode 字符；`explanation`/`suggestion` 最多 `540`；`original_quote` 最多 `360`；`evidence_refs` 必须有 `1..8` 个不重复 ID。
 - JSON 只接受对象、严格字段和无尾随 JSON；Markdown code fence、解释文字和未知字段会校验失败。
-- `original_quote` 必须是一个引用 evidence unit 中的连续原文。服务只忽略布局空白差异，仍要求标点、大小写和词语一致；省略号、模糊改写或拼接无关片段都不能成为证据。
-- 每个窗口正常调用失败或输出截断后最多再尝试一次；恢复调用的 completion budget 至少为 `8192`。两次之后，只有可隔离的 quote/evidence 错误才会丢弃该 issue、保留其他已验证 issue，并记录 `MODEL_ISSUE_EVIDENCE_UNLOCATED`；风险、schema 等非证据错误仍使整个任务失败。
-- 同一窗口内相同类别/发现类型/源范围的重复 issue 被忽略并记录 `MODEL_ISSUE_DUPLICATE`；跨窗口也会按已接受证据去重。模型返回非空 `facts` 是违反协议的 fatal 错误，因为事实归服务端所有。
+- `original_quote` 必须是一个或多个已声明 evidence unit 中的连续原文；验证先按 `evidence_refs` 声明顺序检查各 unit，某个 unit 内有多个候选即判为歧义，遇到唯一候选就采用，全部没有单 unit 匹配时才尝试跨 unit 的连续并集；只有并集连续且中间仅有布局空白时，才允许跨 unit。若引用 ID 与一个唯一、已验证的源范围不一致，服务可以确定性修复为 canonical unit ref；多个候选时不会修复。服务只忽略布局空白差异，仍要求标点、大小写和词语一致；省略号、模糊改写或拼接无关片段都不能成为证据。issue/fact 当前不强制第一个引用必须是 primary，但提示词仍要求优先使用 primary。
+- 每个窗口正常调用失败或输出截断后最多再尝试一次；恢复调用的 completion budget 至少为 `8192`。若两次响应都因可识别的 JSON 截断而失败，服务还会仅提取已经完整闭合、并再次通过严格 schema/证据校验的 issue，记录 `MODEL_OUTPUT_TRUNCATED` 并将结果降级；截断发生在第一个完整 issue 之前、尾部包含未允许字段或恢复后校验失败时仍使任务失败。其他 schema 错误仍使整个任务失败；只有可隔离的 quote/evidence 错误才会丢弃该 issue、保留其他已验证 issue，并记录 `MODEL_ISSUE_EVIDENCE_UNLOCATED`。
+- 同一窗口内相同类别/发现类型/解析后源范围的重复 issue 被忽略并记录 `MODEL_ISSUE_DUPLICATE`；跨窗口也按相同的规范化类别、发现类型和解析后 `source_start/end` 精确去重（跨窗口跳过不会额外产生该 warning）。持久化层的 `fingerprint` 唯一约束还会防止重复投递插入同一 issue。模型返回非空 `facts` 是违反协议的 fatal 错误，因为事实归服务端所有。
 
 ### 全文事实、警告和概览
 
@@ -139,7 +145,7 @@ AI 结果只是辅助分析，不替代律师意见、业务审批或正式法�
 | `GET` | `/contract-reviews/:id/document/preview` | 返回原始 PDF/DOCX，不返回解析 Markdown |
 | `GET` | `/contract-reviews/:id/document/locator` | 返回 locator 信封和 source units，不承诺返回 canonical source text |
 | `POST` | `/contract-reviews/:id/start` | 仅 `ready`；排队后返回 `202` |
-| `POST` | `/contract-reviews/:id/retry` | 仅 `completed`、`failed`、`cancelled`；清理旧结果后创建新运行 |
+| `POST` | `/contract-reviews/:id/retry` | 仅 `completed`、`failed`、`cancelled`；先用独立事务清理旧结果，再写入新运行 |
 | `POST` | `/contract-reviews/:id/cancel` | 仅运行中状态；记录先转终态，再尽力清理队列 |
 | `GET` | `/contract-reviews/:id/events` | SSE：初始/变化时 `snapshot`，每 15 秒 `heartbeat` |
 | `POST` | `/contract-reviews/bulk/archive` | body `{ "ids": ["..."] }`，逐项结果 |
@@ -147,7 +153,7 @@ AI 结果只是辅助分析，不替代律师意见、业务审批或正式法�
 | `POST` | `/contract-reviews/bulk/delete` | 逐项删除；输入最多 `500` 个 ID |
 | `DELETE` | `/legal-workspace-data` | Owner 专用的租户级永久删除；不受法律工作台开关阻断 |
 
-所有合同审查路由要求当前用户至少 `Viewer`；租户级永久删除要求 `Owner`。记录查询、更新、删除和任务 payload 都同时带 `tenant_id`/`user_id` 作用域，不能只用记录 ID 授权。法律工作台关闭时，除 `/legal-workspace-data` 外的合同审查和 playbook 路由返回 `403`。前端路由守卫在旧后端缺少开关接口时会兼容放行 URL，但后端路由和 handler 仍是最终权限边界。
+所有合同审查路由要求当前用户至少 `Viewer`；租户级永久删除要求 `Owner`。记录查询、更新、删除和任务 payload 都同时带 `tenant_id`/`user_id` 作用域，不能只用记录 ID 授权。法律工作台关闭时，除 `/legal-workspace-data` 外的合同审查和 playbook 路由返回 `403`。前端路由守卫在旧后端缺少开关接口时会兼容放行 URL，但后端路由和 handler 仍是最终权限边界。handler 将 not found 映射为 `404`，非法状态/文件映射为 `400`，无效模型为 `400` 且 details=`MODEL_NOT_AVAILABLE`，未配置模型为 `400` 且 details=`MODEL_NOT_CONFIGURED`，非法 JSON 或缺少 multipart `file` 也为 `400`，其余服务错误为 `500`。
 
 ### 更新和批量契约
 
@@ -188,7 +194,7 @@ overview 保留旧消费者使用的字段，并追加质量字段，典型形�
 
 `ContractReviewClause` 至少包含 `id`、`sequence`、`title`、`excerpt`、`source_start`、`source_end`、`evidence_id`、`review_status`、`issue_count`。`ContractReviewIssue` 至少包含 `id`、`clause_id`、`sequence`、`risk_level`、`category`、`finding_type`、`title`、`explanation`、`original_quote`、`suggestion`、`evidence_refs`、`source_start`、`source_end`。服务端读时根据 `evidence_refs` 合成只读的 `evidence` 和 `evidence_status`；它们不是独立持久化表。
 
-Issue 的 `source_start/end` 是 `original_quote` 在当前 `ExtractedContent` 中的精确范围；`evidence_refs` 指向窗口模型使用的 evidence ID，通常第一个为 primary、其余为 supporting。解析器 unit 的范围可能覆盖整页、整段或整行，不能直接拿来代替 issue 的 quote 范围。`ContractReviewFact` 具有 `type`、`key`、`value`、`normalized_value`、`unit`、`currency`、`condition`、`status`、`evidence_quote`、`source_start/end`、`evidence_refs`。
+Issue 的 `source_start/end` 是 `original_quote` 在当前 `ExtractedContent` 中的精确范围；`evidence_refs` 指向窗口模型使用的 evidence ID，通常第一个为 primary、其余为 supporting。解析器 unit 的范围可能覆盖整页、整段或整行，不能直接拿来代替 issue 的 quote 范围。`ContractReviewFact` 具有 `type`、`key`、`value`、`normalized_value`、`unit`、`currency`、`condition`、`status`、`evidence_quote`、`source_start/end`、`evidence_refs`。`ContractReviewWarning` 具有 `code`、`message`、可选的 `clause_id`/`evidence_id` 和 `source_start/end`；这些 warning 通过顶层 `warnings` 和兼容的 overview 字段返回。
 
 ### Locator 和前端高亮
 
@@ -219,7 +225,7 @@ Issue 的 `source_start/end` 是 `original_quote` 在当前 `ExtractedContent` �
 定位分两层：
 
 1. 后端 `normalizeContractReviewForRead` 只根据 source revision、unit 和范围给 API evidence 一个粗粒度状态；后端的 `located` 不等于浏览器已经成功高亮。
-2. 前端 [`documentLinking.ts`](../frontend/src/views/legal/contract-review/documentLinking.ts) 在 PDF.js 或 `docx-preview` 渲染文本上重新定位。它先检查 revision 和 source range，再用 unit 内相对偏移、可选 rendered offsets、页范围或全文精确匹配。只忽略布局空白，保留标点、大小写和词语；重复候选返回 `multiple_matches`，不取第一个。
+2. 前端 [`documentLinking.ts`](../frontend/src/views/legal/contract-review/documentLinking.ts) 在 PDF.js 或 `docx-preview` 渲染文本上重新定位。它先检查 revision 和 source range，再用 unit 内相对偏移、可选 rendered offsets、页范围或全文精确匹配。只忽略布局空白，保留标点、大小写和词语；在声明的 unit、源范围或页面约束下仍有多个候选时返回 `multiple_matches`，不能任意取全文第一个。
 
 前端 resolver 当前会产生 `pending`、`located`、`multiple_matches`、`not_found`、`version_mismatch`、`unsupported`、`error`；类型中的 `legacy_exact` 只保留作兼容值，当前 resolver 没有把纯文本 legacy 匹配提升为该状态。只有状态为 `located` 且恰好一个候选时，viewer 才创建高亮；无法映射时才接受目标页或全文的精确候选，重复候选仍不高亮。PDF 的渲染文本是 PDF.js text layer，DOCX 是 `docx-preview` DOM；服务器的 `rune` 源偏移和浏览器内部的 normalized text 偏移不是同一存储单位，重构时不能混用。
 
@@ -235,7 +241,7 @@ Issue 的 `source_start/end` 是 `original_quote` 在当前 `ExtractedContent` �
 | --- | --- |
 | `draft` | 创建后、尚未成功上传文件 |
 | `uploading` | 文件已保存，等待或正在解析；上传/解析进度初始化为 `5` |
-| `ready` | 有非空解析文本和 locator 信封，可启动审查；进度 `15` |
+| `ready` | 有非空解析文本；新解析路径同时有 locator 信封，旧记录可以没有 locator；可启动审查，进度 `15` |
 | `analyzing` | 已创建审查运行并排队分析任务；进度 `20` |
 | `reviewing_clauses` | clauses 已写入，逐窗口调用模型；初始化进度 `25` |
 | `completed` | 所有窗口、全文校验和概览流程结束；进度 `100`，质量可能是 `valid` 或 `degraded` |
@@ -250,11 +256,13 @@ Issue 的 `source_start/end` 是 `original_quote` 在当前 `ExtractedContent` �
 | --- | --- | --- |
 | 上传 | `draft`、`ready`、`failed` | 清理旧 clauses/issues 和源定位，写新资源，排队解析；排队失败转 `failed` |
 | 开始 | `ready` | 创建新的 `analysis_run_id`、`config_hash`，转 `analyzing`，排队分析 |
-| 重试 | `completed`、`failed`、`cancelled` | 事务清理旧结果并创建新运行；没有解析文本时先重新解析，否则直接分析 |
+| 重试 | `completed`、`failed`、`cancelled` | 先通过独立事务清理旧 clauses/issues，再写入新运行；没有解析文本时先重新解析，否则直接分析。清理与主记录更新不是一个跨表原子操作 |
 | 取消 | `uploading`、`analyzing`、`reviewing_clauses` | 先条件更新为 `cancelled`，设置 `completed_at` 和错误信息，再尽力清队列 |
 | 归档/恢复 | 非运行中 | 只改 `archived_at`，不等于删除；运行中归档被拒绝 |
-| 用户删除 | 任意可见记录 | 子表硬删除，主记录 GORM soft delete，源文件删除尽力而为；没有用户级恢复接口 |
+| 用户删除 | 任意可见记录 | 子表硬删除，主记录 GORM soft delete，调用文件服务尽力删除源文件；该路径不调用 `ResourceCatalog.Release`，没有用户级恢复接口 |
 | 租户永久删除 | Owner、`/legal-workspace-data` | 事务硬删除租户全部合同记录、子项、资源绑定；提交后清理物理源文件，共享资源仍保留 |
+
+取消若与重试或完成并发，条件更新失败时返回数据库中的最终记录，不覆盖已获胜的运行；队列清理仍是 best effort。
 
 队列配置是：
 
@@ -278,7 +286,7 @@ Redis/Asynq 模式中，取消只扫描合同审查的两种 live task（pending
 | `pending` | 新记录、解析完成待审查或审查进行中 |
 | `valid` | 任务 `completed` 且没有 warning |
 | `degraded` | 任务 `completed` 但存在模型/结构/事实/定位 warning |
-| `invalid` | `failed`、`cancelled` 或概览 fallback 失败 |
+| `invalid` | `fail` 路径持久化的 `failed`、`cancelled` 或概览 fallback 失败；但上传/开始/重试在排队失败时当前只改 `status=failed`，可能保留 `quality_status=pending`，这是现实现的边界 |
 | `stale` | 已完成记录改变审查配置，旧结果等待重审 |
 | `legacy` | 旧迁移创建的已结束记录没有新质量/来源字段；读时兼容归一化 |
 
@@ -286,10 +294,10 @@ SSE handler 每秒检查记录快照，只在 hash 变化时发送 `event: snaps
 
 ## 边界和兼容性
 
-- `MAX_FILE_SIZE_MB` 是部署级环境变量，默认 `500` MB；前端/nginx、App 和 DocReader 共享该上限，改动需要在启动时让这些层一致生效，不能当作单独的运行时 workspace setting。
+- `MAX_FILE_SIZE_MB` 是部署级环境变量，App、前端/nginx 和标准 compose 中的 DocReader 默认按 `500` MB 处理；DocReader gRPC 还读取独立的 `DOCREADER_GRPC_MAX_FILE_SIZE_MB`。标准 `docker-compose.yml` 会把它回退到 `MAX_FILE_SIZE_MB`，而 `docker-compose.dev.yml` 在两者都未设置时的 gRPC 回退为 `50` MB，因此部署合同审查时必须显式确认这些层的有效上限一致，不能当作单独的运行时 workspace setting。
 - 当前工作台只支持 PDF/DOCX 单文件。没有红线编辑、版本对比、导出、自定义 playbook 或用户自定义事实 schema。扫描 PDF、表格和复杂 DOCX 的解析文本顺序以及 source units 由实际 parser engine 决定。
 - 旧 DocReader 没有 `ReadStream` 时可用 unary 回退；旧 parser 没有 `source_units_json` 时可以审查，但会得到 `LOCATOR_UNSUPPORTED`，旧结果不能仅凭 quote 文本安全高亮。
-- PostgreSQL 的 `000103_contract_review_quality` 增加运行、来源、locator、质量、warning 和证据字段；`000104_contract_review_quality_source_fields` 是对已发布迁移编号的幂等修复，不应通过其 down migration 删除属于 `000103` 的字段。SQLite 的 `000019_contract_review_quality` 对应质量字段，`000016_legal_workspace_config` 是开关迁移；合同审查的 SQLite 迁移从 `000017` 开始，以避开上游已发布的 `000013_mcp_tool_enabled`。现有旧记录的迁移默认 `quality_status=legacy`。
+- 迁移分为两套：PostgreSQL 由 [`000101_contract_reviews`](../migrations/versioned/000101_contract_reviews.up.sql)、[`000102_contract_review_model`](../migrations/versioned/000102_contract_review_model.up.sql)、[`000103_contract_review_quality`](../migrations/versioned/000103_contract_review_quality.up.sql) 和 [`000104_contract_review_quality_source_fields`](../migrations/versioned/000104_contract_review_quality_source_fields.up.sql) 依次建立基础表、模型选择、质量/来源/证据字段及幂等修复；`000104` 不应通过其 down migration 删除属于 `000103` 的字段。SQLite 的 [`000016_legal_workspace_config`](../migrations/sqlite/000016_legal_workspace_config.up.sql) 是开关迁移，合同审查由 [`000017_contract_reviews`](../migrations/sqlite/000017_contract_reviews.up.sql)、[`000018_contract_review_model`](../migrations/sqlite/000018_contract_review_model.up.sql) 和 [`000019_contract_review_quality`](../migrations/sqlite/000019_contract_review_quality.up.sql) 建立，以避开上游已发布的 `000013_mcp_tool_enabled`。现有旧记录的迁移默认 `quality_status=legacy`。
 - 当前 [`docs/swagger.json`](swagger.json) 和 [`docs/swagger.yaml`](swagger.yaml) 没有合同审查 paths；本页的路由表以及 route/handler/types 代码才是当前接口事实源，不能以生成 Swagger 推断合同审查 API。
 - 关闭法律工作台不会隐式删除数据；只有 Owner 明确调用 `/legal-workspace-data` 才会租户级永久删除。物理文件清理发生在数据库事务提交后，存储服务失败可能需要再次处理。
 
@@ -299,20 +307,20 @@ SSE handler 每秒检查记录快照，只在 hash 变化时发送 `event: snaps
 
 1. **运行隔离。** 新上传、开始、重试都生成新的 `analysis_run_id`；分析任务还绑定当前 `config_hash`。任何 worker 写主记录、clause 或 issue 前都必须校验租户、用户、记录、run ID 和运行中状态。
 2. **来源一致。** `ExtractedContent`、`source_text_hash`、`source_revision`、locator units、clause 范围、issue quote/range 和 fact evidence 必须描述同一个精确解析文本。不得 trim 文本、把 rune 偏移当字节偏移，或用业务版本号替代 source revision。
-3. **证据可核验。** 每个模型 issue/fact 的 quote 必须是引用 unit 中可在源文本验证的连续片段；重复候选必须显式返回 `multiple_matches`，不得取首个、补省略号或扩大高亮范围。没有可靠 locator 时应显示 unsupported/degraded，而不是伪造 located。
+3. **证据可核验。** 每个 issue/fact 的 quote 必须是引用 unit 中可在源文本验证的连续片段；在声明的 unit、源范围或页面约束下仍有多个候选时必须显式返回 `multiple_matches`，不得任意取全文首个、补省略号或扩大高亮范围。没有可靠 locator 时应显示 unsupported/degraded，而不是伪造 located。
 4. **服务端拥有聚合结果。** 风险聚合、facts、parties、recommendations 和结构 warnings 由服务端已验证数据生成；模型 overview 只能摘要这些输入，不能重新发明风险、事实或建议。
 5. **状态和质量分离。** `completed` 只表示流程结束；消费者必须同时检查 `quality_status`、`warnings`、issue/fact 是否已加载和每个 evidence 状态。配置变化后的 completed 记录必须成为 `stale`，不能继续被当成当前配置结果。
-6. **删除和权限边界。** 普通 API 始终按 tenant/user 隔离；用户删除不提供恢复接口；关闭 workspace 不删除数据；Owner purge 需先完成数据库级联清理，再按共享资源计数清理物理文件。
+6. **删除和权限边界。** 普通 API 始终按 tenant/user 隔离；用户删除不提供恢复接口，且资源绑定的释放语义不同于租户 purge，修改普通删除时必须一并验证资源目录行为；关闭 workspace 不删除数据；Owner purge 需先完成数据库级联清理，再按共享资源计数清理物理文件。
 7. **兼容回退不改变正确性。** Asynq/Lite、ReadStream/unary、旧质量字段和无 locator 版本可以降级吞吐或定位覆盖率，但不能放宽 stale worker、证据精确性或权限校验。
 
 按改动范围执行最小验证：
 
 | 改动 | 重点测试 |
 | --- | --- |
-| 状态、任务、取消或重试 | `internal/application/service/contract_review_test.go`、`internal/application/service/contract_review_cancel_test.go`、`internal/router/task_inspector_contract_review_test.go`；检查状态转换、旧 run、超时持久化、巡检和队列匹配 |
+| 模型/配置、状态、任务、取消或重试 | `internal/application/service/contract_review_model_test.go`、`internal/application/service/contract_review_test.go`、`internal/application/service/contract_review_cancel_test.go`、`internal/router/task_inspector_contract_review_test.go`；检查模型 pin、状态转换、旧 run、超时持久化、巡检和队列匹配 |
 | 证据、事实或质量 | `internal/application/service/contract_review_quality_test.go`、`frontend/src/views/legal/contract-review/documentLinking.test.ts`、`docreader/tests/test_source_units.py`；检查重复 quote、Unicode/rune 范围、source unit、模型降级和事实 evidence |
-| API、权限或删除 | `internal/handler/contract_review_test.go`、`internal/router/routes_contract_review_test.go`、`internal/application/repository/contract_review_test.go`；检查 wrapper、403/404、tenant/user 隔离、子项清理和 purge |
-| schema/迁移 | `internal/database/migration_sqlite_versioned_schema_test.go`；检查 SQLite 版本 `16`、合同表及质量/证据字段 |
+| API、权限或删除 | `internal/handler/contract_review_test.go`、`internal/handler/contract_review_model_test.go`、`internal/router/routes_contract_review_test.go`、`internal/application/repository/contract_review_test.go`；检查 wrapper、403/404、模型错误、tenant/user 隔离、子项清理和 purge |
+| schema/迁移 | `internal/database/migration_sqlite_versioned_schema_test.go`；检查 SQLite 版本 `19`、合同表及质量/证据字段 |
 
 推荐命令：
 
@@ -326,3 +334,5 @@ npm run check-i18n
 ```
 
 不必机械执行全部命令：按后端、迁移、前端和国际化改动范围选择。完成任何文档或实现改动前都运行 `git diff --check`，并确认本文中的路径、状态值、JSON 字段、迁移编号和示例仍与事实源一致。
+
+当前测试覆盖了服务层状态/取消/质量规则、队列匹配、HTTP 路由与 handler、repository 隔离、SQLite 迁移、前端证据定位和 DocReader source units。以下内容仍属 `待验证`，不能仅凭这些单元测试视为已保证：使用实际 PDF/DOCX parser 版本的定位覆盖率；真实 KnowledgeQA 模型完成全流程时的 prompt/JSON 兼容；Asynq worker 超时、取消、重试与 SSE 在部署代理后的端到端行为。当前 `docreader/tests/test_source_units.py` 还有一个已知红测：table child fixture 使用范围 `[0,4]`，实现返回 `付款方式`，但断言写的是 `付款`；在修正 fixture 或断言前，不能把该测试视为通过。
