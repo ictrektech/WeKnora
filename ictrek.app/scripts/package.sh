@@ -95,19 +95,8 @@ PYYAML
 validate_migration_versions() {
   local migrations_dir="${REPO_DIR}/migrations/versioned"
   [[ -d "$migrations_dir" ]] || return 0
-  local duplicate_versions
-  duplicate_versions="$(
-    find "$migrations_dir" -maxdepth 1 -type f -name '*.sql' -print \
-      | sed -E 's#.*/([0-9]+)_.+\.(up|down)\.sql$#\1#' \
-      | sort \
-      | uniq -c \
-      | awk '$1 != 2 {print $2 " (" $1 " files)"}'
-  )"
-  if [[ -n "$duplicate_versions" ]]; then
-    err "migration version set is invalid:"
-    printf '%s\n' "$duplicate_versions" >&2
-    die "each migration version must have exactly one .up.sql and one .down.sql file"
-  fi
+  bash "${REPO_DIR}/scripts/check-migration-files.sh" "$migrations_dir" \
+    || die "migration version set is invalid"
 }
 
 validate_staged_files() {
