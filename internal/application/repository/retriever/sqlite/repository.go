@@ -377,6 +377,22 @@ func (r *sqliteRepository) vectorRetrieve(ctx context.Context, params types.Retr
 	}
 
 	tbl := vecTableName(dim)
+	filterWhere := buildFilterWhere(params, "filtered")
+	candidateQuery := r.db.WithContext(ctx).
+		Model(&sqliteEmbedding{}).
+		Where("dimension = ?", dim)
+
+	var vectorCount int64
+	if err := candidateQuery.Count(&vectorCount).Error; err != nil {
+		return nil, fmt.Errorf("count sqlite vector rows failed: %w", err)
+	}
+	if vectorCount == 0 || params.TopK <= 0 {
+		return []*types.RetrieveResult{{
+			Results:             []*types.IndexWithScore{},
+			RetrieverEngineType: types.SQLiteRetrieverEngineType,
+			RetrieverType:       types.VectorRetrieverType,
+		}}, nil
+	}
 
 	// ⚠️ sqlite-vec 要求必须有 k = ?
 	vecSQL := fmt.Sprintf(`
@@ -396,17 +412,19 @@ func (r *sqliteRepository) vectorRetrieve(ctx context.Context, params types.Retr
 
 	args := []interface{}{
 		queryBlob,
-		params.TopK, // 这里就是 k
+		vectorCount, // Fetch all vector rows before applying the outer predicates.
 	}
 
 	// 追加过滤条件
-	for _, wp := range buildFilterWhere(params, "filtered") {
+	for _, wp := range filterWhere {
 		vecSQL += " AND " + wp.clause
 		args = append(args, wp.args...)
 	}
 
-	// ⚠️ 这里仍然建议加 ORDER BY，虽然 vec0 已经按距离返回
-	vecSQL += ") ORDER BY v.distance ASC"
+	// sqlite-vec applies k before the outer SQL predicates. Fetch every vector,
+	// then apply the filters and TopK outside the virtual table query.
+	vecSQL += ") ORDER BY v.distance ASC LIMIT ?"
+	args = append(args, params.TopK)
 
 	type row struct {
 		Rowid           uint
