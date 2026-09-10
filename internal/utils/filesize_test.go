@@ -6,8 +6,12 @@ func TestGetMaxSkillBundleSizeMB(t *testing.T) {
 	t.Run("defaults above the knowledge upload cap", func(t *testing.T) {
 		t.Setenv("MAX_FILE_SIZE_MB", "")
 		t.Setenv("MAX_SKILL_BUNDLE_SIZE_MB", "")
-		if got := GetMaxSkillBundleSizeMB(); got != defaultMaxSkillBundleSizeMB {
-			t.Fatalf("GetMaxSkillBundleSizeMB() = %d, want %d", got, defaultMaxSkillBundleSizeMB)
+		wantSkillMB := int64(defaultMaxSkillBundleSizeMB)
+		if wantSkillMB < defaultMaxFileSizeMB {
+			wantSkillMB = defaultMaxFileSizeMB
+		}
+		if got := GetMaxSkillBundleSizeMB(); got != wantSkillMB {
+			t.Fatalf("GetMaxSkillBundleSizeMB() = %d, want %d", got, wantSkillMB)
 		}
 		if GetMaxFileSizeMB() != defaultMaxFileSizeMB {
 			t.Fatalf("knowledge cap must stay %d MB", defaultMaxFileSizeMB)

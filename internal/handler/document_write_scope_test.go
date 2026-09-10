@@ -26,6 +26,10 @@ func (*documentWriteHandlerKnowledge) GetKnowledgeByIDOnly(context.Context, stri
 	return &types.Knowledge{ID: "doc", TenantID: 7, KnowledgeBaseID: "kb"}, nil
 }
 
+func (*documentWriteHandlerKnowledge) MarkKnowledgeDeleting(context.Context, []string) error {
+	return nil
+}
+
 func (s *documentWriteHandlerKnowledge) UpdateKnowledgeTagBatch(
 	ctx context.Context,
 	kb string,
