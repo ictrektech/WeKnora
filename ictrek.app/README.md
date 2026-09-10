@@ -14,6 +14,7 @@
 | `src/README.zh-CN.md` / `src/README.en.md` | 当前维护 | 打进 VOS 安装包的简版说明。 |
 | `docs/USERGUIDE.md` | 当前维护 | 面向使用者的知识库、文档解析、问答、模型配置和界面操作说明。 |
 | `docs/legal-workspace.md` | 当前维护 | 法律工作台的工作区开关、侧栏入口、数据保留和删除边界。 |
+| `docs/smart-archive.md` | 当前维护 | 智能档案的导入队列、字段证据、检索、提醒和验证边界。 |
 | `docs/build-images.md` | 当前维护 | HybRAG 四个自有镜像的远端构建、推送和飞书记录规则。 |
 | `docs/vos-ollama-prewarm.md` | 当前维护 | Model Hub QA/VLM、embedding 预热和 Gateway 排错。 |
 | `docs/local-dev/README.md` | 当前维护 | 源码后端/前端的本地快速调试、隔离基础设施和模型 endpoint 配置。 |

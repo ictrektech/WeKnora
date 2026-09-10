@@ -67,12 +67,21 @@
                             </div>
                             <span>{{ t('legalWorkspace.title') }}</span>
                         </div>
-                        <button type="button" class="legal-panel-item legal-panel-item--active"
+                        <button type="button" class="legal-panel-item" data-testid="legal-nav-contract-review"
+                            :class="{ 'legal-panel-item--active': isContractReviewRoute }"
                             @click="openLegalContractReview">
                             <span class="legal-panel-item-icon">
                                 <TIcon name="file-search" size="18px" aria-hidden="true" />
                             </span>
                             <span class="legal-panel-item-label">{{ t('legalWorkspace.contractReview') }}</span>
+                        </button>
+                        <button type="button" class="legal-panel-item" data-testid="legal-nav-smart-archive"
+                            :class="{ 'legal-panel-item--active': isSmartArchiveRoute }"
+                            @click="openLegalSmartArchive">
+                            <span class="legal-panel-item-icon">
+                                <TIcon name="folder-open" size="18px" aria-hidden="true" />
+                            </span>
+                            <span class="legal-panel-item-label">{{ t('legalWorkspace.smartArchive') }}</span>
                         </button>
                     </template>
                     <template v-else>
@@ -85,10 +94,20 @@
                             </button>
                         </t-tooltip>
                         <t-tooltip :content="t('legalWorkspace.contractReview')" placement="right">
-                            <button type="button" class="menu_item legal-panel-collapsed-action legal-panel-item--active"
+                            <button type="button" data-testid="legal-nav-contract-review" class="menu_item legal-panel-collapsed-action"
+                                :class="{ 'legal-panel-item--active': isContractReviewRoute }"
                                 @click="openLegalContractReview" :aria-label="t('legalWorkspace.contractReview')">
                                 <div class="menu_item-box">
                                     <TIcon name="file-search" size="18px" aria-hidden="true" />
+                                </div>
+                            </button>
+                        </t-tooltip>
+                        <t-tooltip :content="t('legalWorkspace.smartArchive')" placement="right">
+                            <button type="button" data-testid="legal-nav-smart-archive" class="menu_item legal-panel-collapsed-action"
+                                :class="{ 'legal-panel-item--active': isSmartArchiveRoute }"
+                                @click="openLegalSmartArchive" :aria-label="t('legalWorkspace.smartArchive')">
+                                <div class="menu_item-box">
+                                    <TIcon name="folder-open" size="18px" aria-hidden="true" />
                                 </div>
                             </button>
                         </t-tooltip>
@@ -443,10 +462,14 @@ const isInAgentList = computed<boolean>(() => route.name === 'agentList');
 // 是否在组织列表页面
 const isInOrganizationList = computed<boolean>(() => route.name === 'organizationList');
 
-// 法律工作台使用页面级 drill-down，列表和详情路由都显示同一个子面板。
+// 法律工作台使用页面级 drill-down；合同审查和智能档案路由都显示同一个子面板。
 const isLegalWorkspacePanel = computed<boolean>(() =>
+    route.name === 'legalContractReview' || route.name === 'legalContractReviewDetail' || route.name === 'legalSmartArchive',
+);
+const isContractReviewRoute = computed<boolean>(() =>
     route.name === 'legalContractReview' || route.name === 'legalContractReviewDetail',
 );
+const isSmartArchiveRoute = computed<boolean>(() => route.name === 'legalSmartArchive');
 
 // 统一的菜单项激活状态判断
 const isMenuItemActive = (itemPath: string): boolean => {
@@ -464,7 +487,7 @@ const isMenuItemActive = (itemPath: string): boolean => {
         case 'creatChat':
             return currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat';
         case 'legal':
-            return currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail';
+            return currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail' || currentRoute === 'legalSmartArchive';
         case 'settings':
             return currentRoute === 'settings';
         default:
@@ -483,7 +506,7 @@ const getIconActiveState = (itemPath: string) => {
             currentRoute === 'knowledgeBaseSettings'
         ),
         isCreatChatActive: itemPath === 'creatChat' && (currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat'),
-        isLegalActive: itemPath === 'legal' && (currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail'),
+        isLegalActive: itemPath === 'legal' && (currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail' || currentRoute === 'legalSmartArchive'),
         isSettingsActive: itemPath === 'settings' && currentRoute === 'settings',
         isChatActive: itemPath === 'chat' && currentRoute === 'chat'
     };
@@ -1164,6 +1187,10 @@ const handleMenuClick = async (path: string) => {
 
 const openLegalContractReview = () => {
     router.push('/platform/contract-review')
+}
+
+const openLegalSmartArchive = () => {
+    router.push('/platform/smart-archive')
 }
 
 const returnToMainNavigation = () => {

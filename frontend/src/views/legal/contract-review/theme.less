@@ -21,6 +21,27 @@
   --legal-risk: var(--td-error-color);
   --legal-risk-strong: var(--td-error-color);
   --legal-risk-soft: var(--td-error-color-1);
+  // Smart Archive uses a five-tone status vocabulary for its seven extraction
+  // states: queued, running, completed, failed and review. Keep these aliases
+  // on the shared legal theme so the dots and labels work in both light and
+  // dark mode with the TDesign palette.
+  --legal-status-queued: var(--td-brand-color-6);
+  --legal-status-queued-strong: var(--td-brand-color-7);
+  --legal-status-queued-soft: var(--td-brand-color-1);
+  --legal-status-running: var(--td-warning-color-5);
+  --legal-status-running-strong: var(--td-warning-color-6);
+  --legal-status-running-soft: var(--td-warning-color-1);
+  --legal-status-completed: var(--td-success-color-5);
+  --legal-status-completed-strong: var(--td-success-color-6);
+  --legal-status-completed-soft: var(--td-success-color-1);
+  --legal-status-failed: var(--td-error-color-5);
+  --legal-status-failed-strong: var(--td-error-color-6);
+  --legal-status-failed-soft: var(--td-error-color-1);
+  // TDesign does not ship a dedicated review/purple semantic token; use the
+  // brand scale so review remains distinct from the warning/error states.
+  --legal-status-review: var(--td-brand-color-5);
+  --legal-status-review-strong: var(--td-brand-color-8);
+  --legal-status-review-soft: var(--td-brand-color-1);
   --legal-focus-ring: var(--td-brand-color-focus);
   --legal-shadow-soft: var(--td-shadow-1);
 }

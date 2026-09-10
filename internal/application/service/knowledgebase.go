@@ -29,6 +29,11 @@ import (
 // ErrInvalidTenantID represents an error for invalid tenant ID
 var ErrInvalidTenantID = errors.New("invalid tenant ID")
 
+// ErrManagedSmartArchiveKnowledgeBase protects the system-owned knowledge
+// base that mirrors Smart Archive documents. Archive service calls carry an
+// explicit internal context marker when maintaining that mirror.
+var ErrManagedSmartArchiveKnowledgeBase = errors.New("managed smart archive knowledge base")
+
 const kbTaskCleanupTimeout = 5 * time.Second
 
 // knowledgeBaseService implements the knowledge base service interface
@@ -518,6 +523,9 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 		})
 		return nil, err
 	}
+	if err := rejectManagedSmartArchiveMutation(ctx, kb); err != nil {
+		return nil, apperrors.NewForbiddenError(err.Error())
+	}
 	wasGraphEnabled := kb.IsGraphEnabled()
 	wasMultimodalEnabled := kb.IsMultimodalEnabled()
 
@@ -993,6 +1001,9 @@ func (s *knowledgeBaseService) DeleteKnowledgeBase(ctx context.Context, id strin
 			"knowledge_base_id": id,
 		})
 		return err
+	}
+	if err := rejectManagedSmartArchiveMutation(ctx, kb); err != nil {
+		return apperrors.NewForbiddenError(err.Error())
 	}
 	var vectorStoreIDSnapshot *string
 	if kb != nil {

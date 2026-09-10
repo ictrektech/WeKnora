@@ -131,6 +131,7 @@ type SyncTaskParams struct {
 	WikiIngest           interfaces.TaskHandler `name:"wikiIngest"`
 	TemporaryDocument    interfaces.TemporaryDocumentService
 	ContractReview       interfaces.ContractReviewService
+	SmartArchive         interfaces.SmartArchiveService
 	MemoryService        interfaces.MemoryService
 }
 
@@ -143,6 +144,7 @@ func RegisterSyncHandlers(params SyncTaskParams) {
 	params.Executor.RegisterHandler(types.TypeTemporaryDocumentProcess, params.TemporaryDocument.Process)
 	params.Executor.RegisterHandler(types.TypeContractReviewDocumentProcess, params.ContractReview.ProcessDocument)
 	params.Executor.RegisterHandler(types.TypeContractReviewAnalyze, params.ContractReview.ProcessReview)
+	params.Executor.RegisterHandler(types.TypeSmartArchiveDocumentProcess, params.SmartArchive.ProcessDocument)
 	params.Executor.RegisterHandler(types.TypeManualProcess, params.KnowledgeService.ProcessManualUpdate)
 	params.Executor.RegisterHandler(types.TypeFAQImport, params.KnowledgeService.ProcessFAQImport)
 	params.Executor.RegisterHandler(types.TypeQuestionGeneration, params.KnowledgeService.ProcessQuestionGeneration)

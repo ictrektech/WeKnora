@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS document_parse_artifacts;
+DROP TABLE IF EXISTS archive_reminder_candidates;
+DROP TABLE IF EXISTS archive_notifications;
+DROP TABLE IF EXISTS archive_reminder_occurrences;
+DROP TABLE IF EXISTS archive_reminders;
+DROP TABLE IF EXISTS archive_field_evidence;
+DROP TABLE IF EXISTS archive_document_links;
+DROP TABLE IF EXISTS archive_import_items;
+DROP TABLE IF EXISTS archive_documents;
+DROP TABLE IF EXISTS archive_customers;
+DROP TABLE IF EXISTS archive_import_batches;
+DROP TABLE IF EXISTS archive_settings;

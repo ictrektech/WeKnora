@@ -3348,6 +3348,43 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 
 	processOverrides, _ := knowledge.ProcessOverrides()
 	eff := ResolveProcessConfig(kb, processOverrides)
+	// Smart Archive persists one normalized parser/OCR result and passes its
+	// identifier to the managed knowledge-base mirror. Consume that artifact
+	// directly so indexing never parses or OCRs the source bytes a second time.
+	var parseArtifact *types.DocumentParseArtifact
+	failSharedArtifact := func(message string) error {
+		// An artifact is an internal, durable hand-off. Missing, corrupted or
+		// cross-document output must fail closed, but it must also leave a
+		// terminal status instead of stranding the managed mirror in
+		// "processing" after SkipRetry suppresses Asynq retries.
+		knowledge.ParseStatus = "failed"
+		knowledge.ErrorMessage = message
+		knowledge.UpdatedAt = time.Now()
+		_ = s.repo.UpdateKnowledge(ctx, knowledge)
+		s.failStage(ctx, knowledge.ID, types.StageDocReader, werrors.ErrCodeDocReaderParseFailed, message, nil)
+		return fmt.Errorf("%s: %w", message, asynq.SkipRetry)
+	}
+	if processOverrides != nil && strings.TrimSpace(processOverrides.ParseArtifactID) != "" {
+		if s.parseArtifacts == nil {
+			return failSharedArtifact("shared parse artifact repository unavailable")
+		}
+		parseArtifact, err = s.parseArtifacts.GetByID(ctx, payload.TenantID, processOverrides.ParseArtifactID)
+		if err != nil || parseArtifact == nil {
+			if err == nil {
+				err = errors.New("shared parse artifact not found")
+			}
+			logger.Errorf(ctx, "shared parse artifact unavailable for knowledge %s (%s): %v", knowledge.ID, processOverrides.ParseArtifactID, err)
+			return failSharedArtifact("shared parse artifact unavailable")
+		}
+		if parseArtifact.TenantID != payload.TenantID ||
+			(strings.TrimSpace(knowledge.FileHash) != "" && strings.TrimSpace(parseArtifact.FileHash) != strings.TrimSpace(knowledge.FileHash)) {
+			return failSharedArtifact("shared parse artifact source mismatch")
+		}
+		if sourceDocumentID := knowledge.GetMetadata()["archive_document_id"]; strings.TrimSpace(sourceDocumentID) != "" &&
+			strings.TrimSpace(parseArtifact.SourceDocumentID) != sourceDocumentID {
+			return failSharedArtifact("shared parse artifact document mismatch")
+		}
+	}
 
 	// Re-check abort status right before flipping to "processing" — closes
 	// the race where the user cancels between the entry guard above and
@@ -3378,7 +3415,7 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 	ctx = withAttempt(ctx, attempt)
 
 	// 检查多模态配置（仅对文件导入）
-	if payload.FilePath != "" && !payload.EnableMultimodel && IsImageType(payload.FileType) {
+	if payload.FilePath != "" && !payload.EnableMultimodel && IsImageType(payload.FileType) && parseArtifact == nil {
 		logger.GetLogger(ctx).WithField("knowledge_id", knowledge.ID).
 			WithField("error", ErrImageNotParse).Errorf("processDocument image without enable multimodel")
 		knowledge.ParseStatus = "failed"
@@ -3414,7 +3451,33 @@ func (s *knowledgeService) ProcessDocument(ctx context.Context, t *asynq.Task) e
 	var convertResult *types.ReadResult
 	var chunks []types.ParsedChunk
 
-	if payload.FileURL != "" {
+	if parseArtifact != nil {
+		s.beginStage(ctx, knowledge.ID, types.StageDocReader, types.JSONMap{
+			"file_name":   payload.FileName,
+			"file_type":   payload.FileType,
+			"reused":      true,
+			"artifact_id": parseArtifact.ID,
+		})
+		var reused types.ReadResult
+		if len(parseArtifact.Result) > 0 {
+			if unmarshalErr := json.Unmarshal(parseArtifact.Result, &reused); unmarshalErr != nil {
+				return failSharedArtifact("shared parse artifact decode failed")
+			}
+		}
+		if strings.TrimSpace(reused.MarkdownContent) == "" {
+			reused.MarkdownContent = parseArtifact.MarkdownContent
+		}
+		if strings.TrimSpace(reused.MarkdownContent) == "" {
+			return failSharedArtifact("shared parse artifact contains no extracted text")
+		}
+		sanitizeReadResult(&reused)
+		convertResult = &reused
+		s.endStage(ctx, knowledge.ID, types.StageDocReader, types.JSONMap{
+			"reused":      true,
+			"artifact_id": parseArtifact.ID,
+			"text_length": len(reused.MarkdownContent),
+		})
+	} else if payload.FileURL != "" {
 		// file_url import: SSRF re-check (防 DNS 重绑定), download, persist, then delegate to convert()
 		if err := secutils.ValidateURLForSSRF(payload.FileURL); err != nil {
 			logger.Errorf(ctx, "File URL rejected for SSRF protection in ProcessDocument: %s, err: %v", payload.FileURL, err)

@@ -185,6 +185,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewTaskPendingOpsRepository))
 	must(container.Provide(repository.NewTaskDeadLetterRepository))
 	must(container.Provide(repository.NewContractReviewRepository))
+	must(container.Provide(repository.NewSmartArchiveRepository))
+	must(container.Provide(repository.NewDocumentParseArtifactRepository))
 
 	// MCP manager for managing MCP client connections
 	logger.Debugf(ctx, "[Container] Registering MCP manager...")
@@ -360,6 +362,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(provideContractReviewTaskInspector))
 	must(container.Provide(service.NewTemporaryDocumentService))
 	must(container.Provide(service.NewContractReviewService))
+	must(container.Provide(service.NewSmartArchiveService))
 	must(container.Invoke(startTemporaryDocumentCleanup))
 
 	// Chat pipeline components for processing chat requests
@@ -454,6 +457,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewOrganizationHandler))
 	must(container.Provide(handler.NewMemoryHandler))
 	must(container.Provide(handler.NewContractReviewHandler))
+	must(container.Provide(handler.NewSmartArchiveHandler))
 
 	// Data source handler
 	must(container.Provide(handler.NewDataSourceHandler))
@@ -486,6 +490,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	// persistence succeeded immediately before trigger enqueue failed). Re-arm
 	// them only after the matching handlers are ready.
 	must(container.Invoke(recoverPendingWikiTasks))
+	must(container.Invoke(recoverPendingSmartArchiveImports))
+	must(container.Invoke(startSmartArchiveReminderRunner))
 
 	logger.Infof(ctx, "[Container] Container initialization completed successfully")
 	return container
@@ -2118,6 +2124,78 @@ func startTemporaryDocumentCleanup(svc interfaces.TemporaryDocumentService, clea
 		close(stop)
 		return nil
 	})
+}
+
+// startSmartArchiveReminderRunner drives durable in-app reminders. The timer
+// is only a wake-up optimization: persisted rows remain the source of truth,
+// and the bounded compensation scan covers restarts, lost wake-ups and clock
+// suspension. The service itself filters tenants whose legal workspace is
+// disabled, so re-enabling a workspace catches up only still-valid occurrences
+// and the repository's occurrence fingerprint keeps delivery idempotent.
+func startSmartArchiveReminderRunner(svc interfaces.SmartArchiveService, cleaner interfaces.ResourceCleaner) {
+	if svc == nil {
+		return
+	}
+	stop := make(chan struct{})
+	go func() {
+		if err := svc.BackfillReminderCandidates(context.Background()); err != nil {
+			logger.Warnf(context.Background(), "[SmartArchive] reminder candidate backfill failed: %v", err)
+		}
+		const compensationInterval = 5 * time.Minute
+		run := func() {
+			if err := svc.RunDueReminders(context.Background()); err != nil {
+				logger.Warnf(context.Background(), "[SmartArchive] reminder scan failed: %v", err)
+			}
+		}
+		run()
+		wakeups := svc.ReminderWakeups()
+		for {
+			wait := compensationInterval
+			if next, err := svc.NextReminderWakeAt(context.Background()); err != nil {
+				logger.Warnf(context.Background(), "[SmartArchive] next reminder lookup failed: %v", err)
+			} else if next != nil {
+				delta := time.Until(*next)
+				switch {
+				case delta <= 0:
+					// A due reminder may belong to a tenant whose legal
+					// workspace is disabled. RunDueReminders skips it, so a
+					// short retry loop would spin until that tenant is enabled.
+					// The bounded compensation interval still catches an
+					// enablement without busy polling.
+					wait = compensationInterval
+				case delta < wait:
+					wait = delta
+				}
+			}
+			timer := time.NewTimer(wait)
+			select {
+			case <-timer.C:
+				run()
+			case <-wakeups:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				run()
+			case <-stop:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return
+			}
+		}
+	}()
+	if cleaner != nil {
+		cleaner.RegisterWithName("SmartArchiveReminderRunner", func() error {
+			close(stop)
+			return nil
+		})
+	}
 }
 
 // startAuditLogRetention spins up the daily audit_logs purge sweep

@@ -2,6 +2,10 @@ package types
 
 // KnowledgeProcessOverrides stores per-upload parse config overrides in knowledge metadata.
 type KnowledgeProcessOverrides struct {
+	// ParseArtifactID points the document worker at a durable parser/OCR result
+	// produced by a domain importer such as Smart Archive. When present, the
+	// worker must consume that result instead of parsing the source bytes again.
+	ParseArtifactID          string                    `json:"parse_artifact_id,omitempty"`
 	ParserEngineRules        []ParserEngineRule        `json:"parser_engine_rules,omitempty"`
 	ChunkingConfig           *ChunkingConfig           `json:"chunking_config,omitempty"`
 	EnableMultimodel         *bool                     `json:"enable_multimodel,omitempty"`

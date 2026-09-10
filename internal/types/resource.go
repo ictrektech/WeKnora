@@ -29,6 +29,7 @@ const (
 	ResourceOwnerMessage           = "message"
 	ResourceOwnerTemporaryDocument = "temporary_document"
 	ResourceOwnerContractReview    = "contract_review"
+	ResourceOwnerSmartArchive      = "smart_archive"
 )
 
 // Resource binding relations describe why an owner claims a resource.

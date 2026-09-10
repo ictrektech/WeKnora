@@ -13,7 +13,7 @@ import (
 // create to stay in sync with the versioned (PostgreSQL) migrations:
 // 000041 task queue, 000053 system settings, 000055 processing spans,
 // 000063 knowledge multi-tags, 000101 contract review, 000102 contract review model,
-// 000103 contract review quality, 000106 legal workspace config.
+// 000103 contract review quality, 000106 legal workspace config, 000109/000020 smart archive.
 var versionedSQLiteTables = []string{
 	"task_pending_ops",
 	"task_dead_letters",
@@ -23,6 +23,18 @@ var versionedSQLiteTables = []string{
 	"contract_reviews",
 	"contract_review_clauses",
 	"contract_review_issues",
+	"archive_settings",
+	"archive_import_batches",
+	"archive_import_items",
+	"archive_customers",
+	"archive_documents",
+	"archive_document_links",
+	"archive_field_evidence",
+	"archive_reminders",
+	"archive_reminder_occurrences",
+	"archive_reminder_candidates",
+	"archive_notifications",
+	"document_parse_artifacts",
 }
 
 // versionedSQLiteColumns maps each existing table to the columns that the
@@ -41,7 +53,7 @@ var versionedSQLiteColumns = map[string][]string{
 	"contract_review_issues":  {"category", "finding_type", "evidence_refs"},                                                                                                 // 000103
 }
 
-const expectedSQLiteMigrationVersion = 19
+const expectedSQLiteMigrationVersion = 20
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

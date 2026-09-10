@@ -110,6 +110,12 @@ const router = createRouter({
           meta: { requiresInit: true, requiresAuth: true, requiresLegalWorkspace: true },
         },
         {
+          path: "smart-archive",
+          name: "legalSmartArchive",
+          component: () => import("../views/legal/SmartArchive.vue"),
+          meta: { requiresInit: true, requiresAuth: true, requiresLegalWorkspace: true },
+        },
+        {
           path: "tenant",
           redirect: "/platform/settings"
         },

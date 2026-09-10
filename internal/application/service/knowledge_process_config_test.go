@@ -364,6 +364,23 @@ func TestValidateProcessOverrides_ImageWithEffectiveVLM(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestValidateProcessOverrides_ImageWithSmartArchiveArtifact(t *testing.T) {
+	t.Parallel()
+
+	kb := &types.KnowledgeBase{VLMConfig: types.VLMConfig{Enabled: false}}
+	ctx := withSmartArchiveMutation(context.Background())
+	err := ValidateProcessOverrides(ctx, kb, &types.KnowledgeProcessOverrides{ParseArtifactID: "artifact-1", EnableMultimodel: processConfigBoolPtr(true)}, []string{"png"})
+	require.NoError(t, err)
+}
+
+func TestValidateProcessOverrides_ImageArtifactRequiresInternalContext(t *testing.T) {
+	t.Parallel()
+
+	kb := &types.KnowledgeBase{VLMConfig: types.VLMConfig{Enabled: false}}
+	err := ValidateProcessOverrides(context.Background(), kb, &types.KnowledgeProcessOverrides{ParseArtifactID: "artifact-1"}, []string{"png"})
+	require.Error(t, err)
+}
+
 func TestValidateProcessOverrides_AudioRequiresASR(t *testing.T) {
 	t.Parallel()
 

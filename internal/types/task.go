@@ -62,7 +62,7 @@ type QueueDefinition struct {
 
 var queueDefinitions = []QueueDefinition{
 	{Name: QueueDefault, Pool: WorkerPoolCore, Weight: 1, SharedWeight: 3, TaskTypes: []string{
-		TypeDocumentProcess, TypeManualProcess,
+		TypeDocumentProcess, TypeManualProcess, TypeSmartArchiveDocumentProcess,
 	}},
 	// Interactive chat attachment parsing: higher core weight than the default
 	// queue so a large KB import cannot make chat uploads queue behind it.
@@ -255,6 +255,7 @@ const (
 	TypeTemporaryDocumentProcess      = "temporary_document:process" // 会话临时文档解析任务
 	TypeContractReviewDocumentProcess = "contract_review:document_process"
 	TypeContractReviewAnalyze         = "contract_review:analyze"
+	TypeSmartArchiveDocumentProcess   = "smart_archive:document_process"
 	// TypeMemoryExtract 长期记忆抽取任务（会话轮次防抖后异步执行）
 	TypeMemoryExtract = "memory:extract"
 )

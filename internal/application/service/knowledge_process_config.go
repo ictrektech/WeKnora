@@ -156,6 +156,13 @@ func ValidateProcessOverrides(
 	if overrides == nil {
 		return nil
 	}
+	// Parse artifacts are an internal hand-off between Smart Archive's
+	// extraction pass and its managed Knowledge Base mirror. Never allow a
+	// caller to point an ordinary knowledge import at another tenant's parser
+	// output (the worker also verifies the source hash before consuming it).
+	if strings.TrimSpace(overrides.ParseArtifactID) != "" && !isSmartArchiveMutation(ctx) {
+		return werrors.NewBadRequestError("parse_artifact_id is reserved for smart archive imports")
+	}
 
 	hasImage := false
 	hasAudio := false
@@ -171,7 +178,12 @@ func ValidateProcessOverrides(
 	eff := ResolveProcessConfig(kb, overrides)
 
 	if hasImage {
-		if !eff.VLMConfig.IsEnabled() {
+		// Smart Archive has already performed OCR and persisted the normalized
+		// parser result. Its managed-KB mirror carries the artifact ID instead
+		// of a second VLM configuration; only that narrowly marked internal path
+		// may bypass the normal image-import prerequisite.
+		reusesArtifact := isSmartArchiveMutation(ctx) && strings.TrimSpace(overrides.ParseArtifactID) != ""
+		if !reusesArtifact && !eff.VLMConfig.IsEnabled() {
 			return werrors.NewBadRequestError("上传图片文件需要设置VLM模型")
 		}
 	}

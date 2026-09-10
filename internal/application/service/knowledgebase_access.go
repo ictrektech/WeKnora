@@ -29,6 +29,9 @@ func resolveKBReadTenant(ctx context.Context, kb *types.KnowledgeBase, shares ac
 }
 
 func requireKBWrite(ctx context.Context, kb *types.KnowledgeBase) (context.Context, error) {
+	if err := rejectManagedSmartArchiveMutation(ctx, kb); err != nil {
+		return ctx, apperrors.NewForbiddenError(err.Error())
+	}
 	if err := access.RequireKBWrite(ctx, kb); err != nil {
 		return ctx, apperrors.NewForbiddenError("无权修改该知识库")
 	}
