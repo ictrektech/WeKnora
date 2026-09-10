@@ -39,14 +39,29 @@ BASE_IMAGES=(
   "NEO4J_ARM_IMAGE=swr.cn-southwest-2.myhuaweicloud.com/ictrek-arm/neo4j:2025.10.1"
 )
 
+IMAGE_SOURCE="${IMAGE_SOURCE:-pull}"
+PLATFORM="${PLATFORM:-}"
+ASSET_FILES=()
+
+detect_platform() {
+  case "$(uname -m)" in
+    x86_64|amd64) echo "amd64" ;;
+    arm64|aarch64) echo "arm64" ;;
+    *) die "unsupported architecture: $(uname -m)" ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/package.sh
+  ./scripts/package.sh [--image-source local|pull] [--platform amd64|arm64]
 
-Builds one pull-mode VOS app tarball for all supported Docker Compose profiles.
-The package contains app.tar.gz only. Image versions are read from the Feishu
-release table and written to app.tar.gz/.env.
+Options:
+  --image-source     pull: one tarball for all profiles, image names only
+                     (default). local: embed docker-archive assets for one
+                     platform; the VOS host docker-loads them at install.
+  --platform         amd64 or arm64 for --image-source local (default:
+                     auto-detect).
 EOF
 }
 
@@ -95,8 +110,35 @@ PYYAML
 validate_migration_versions() {
   local migrations_dir="${REPO_DIR}/migrations/versioned"
   [[ -d "$migrations_dir" ]] || return 0
-  bash "${REPO_DIR}/scripts/check-migration-files.sh" "$migrations_dir" \
+  "${PYTHON_BIN}" - "$migrations_dir" <<'PYMIGRATIONS' \
     || die "migration version set is invalid"
+import re
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+migrations_dir = Path(sys.argv[1])
+pattern = re.compile(r"^(\d+)_.+\.(up|down)\.sql$")
+versions = defaultdict(Counter)
+bad_names = []
+for path in migrations_dir.glob("*.sql"):
+    match = pattern.match(path.name)
+    if not match:
+        bad_names.append(path.name)
+        continue
+    version, direction = match.groups()
+    versions[version][direction] += 1
+
+errors = []
+if bad_names:
+    errors.append("unexpected migration names: " + ", ".join(sorted(bad_names)))
+for version, directions in sorted(versions.items()):
+    if directions["up"] != 1 or directions["down"] != 1:
+        errors.append(f"{version}: expected one .up.sql and one .down.sql")
+if errors:
+    print("\n".join(errors), file=sys.stderr)
+    raise SystemExit(1)
+PYMIGRATIONS
 }
 
 validate_staged_files() {
@@ -495,7 +537,16 @@ verify_package() {
   fi
   ! grep -q "^config/" "$app_file_list"
   grep -qx "app.tar.gz" "$package_file_list"
-  ! grep -q "^assets/" "$package_file_list"
+  if [[ "$IMAGE_SOURCE" == "local" ]]; then
+    local asset
+    for asset in "${ASSET_FILES[@]}"; do
+      grep -qx "$asset" "$package_file_list" || die "package missing ${asset}"
+    done
+    tar xOf "$app_tarball" manifest.yml | grep -q 'kind: docker-archive' \
+      || die "manifest.yml missing docker-archive assets"
+  else
+    ! grep -q "^assets/" "$package_file_list"
+  fi
   rm -f "$app_file_list" "$package_file_list"
   package_text="$(tar tzf "$app_tarball" | while IFS= read -r file; do [[ "$file" == */ ]] && continue; tar xOf "$app_tarball" "$file"; printf '\n'; done)"
   if printf '%s' "$package_text" | grep -q '__APP_VERSION__'; then
@@ -558,14 +609,83 @@ env_key() {
   printf '%s' "$1" | tr '[:lower:]-' '[:upper:]_' | tr -c 'A-Z0-9_' '_'
 }
 
+embed_local_images() {
+  local profile_suffix key image archive
+  case "$PLATFORM" in
+    amd64) profile_suffix="AMD" ;;
+    arm64) profile_suffix="ARM" ;;
+    *) die "local mode requires --platform amd64 or arm64" ;;
+  esac
+  local keys=(
+    "WEKNORA_APP_${profile_suffix}_IMAGE"
+    "WEKNORA_UI_${profile_suffix}_IMAGE"
+    "WEKNORA_DOCREADER_${profile_suffix}_IMAGE"
+    "WEKNORA_SANDBOX_${profile_suffix}_IMAGE"
+    "REDIS_${profile_suffix}_IMAGE"
+    "NEO4J_${profile_suffix}_IMAGE"
+  )
+  local images=()
+  for key in "${keys[@]}"; do
+    image="$(grep -E "^${key}=" "$ENV_FILE" | tail -1 | cut -d= -f2-)"
+    [[ -n "$image" ]] || die "missing ${key} in ${ENV_FILE}"
+    images+=("$image")
+  done
+  log "Embed ${PLATFORM} images:"
+  printf '  %s\n' "${images[@]}"
+
+  local asset_dir="${PACKAGE_ROOT}/assets/${PLATFORM}"
+  mkdir -p "$asset_dir"
+  for image in "${images[@]}"; do
+    archive="$(printf '%s' "$image" | sed -E 's|.*/||; s|[:/]|-|g').tar.gz"
+    log "pull ${image}"
+    docker pull --platform "linux/${PLATFORM}" "$image"
+    log "save ${image} -> assets/${PLATFORM}/${archive}"
+    docker save "$image" | gzip > "${asset_dir}/${archive}"
+    ASSET_FILES+=("assets/${PLATFORM}/${archive}")
+  done
+
+  "${PYTHON_BIN}" - "${STAGE_DIR}/manifest.yml" "$PLATFORM" "${ASSET_FILES[@]}" <<'PYASSETS'
+import sys
+from pathlib import Path
+
+manifest = Path(sys.argv[1])
+platform = sys.argv[2]
+assets = sys.argv[3:]
+text = manifest.read_text(encoding="utf-8")
+old_arch = "arch:\n- amd64\n- arm64\n"
+if old_arch not in text:
+    raise SystemExit("expected arch block not found in manifest.yml")
+text = text.replace(old_arch, f"arch: [{platform}]\n")
+block = ["assets:"]
+for asset in assets:
+    name = asset.rsplit("/", 1)[-1]
+    block.append(f"  - filename: {name}")
+    block.append("    kind: docker-archive")
+    block.append("    arch: host")
+idx = text.find("storage:")
+if idx < 0:
+    raise SystemExit("storage: marker not found in manifest.yml")
+text = text[:idx] + "\n".join(block) + "\n" + text[idx:]
+manifest.write_text(text, encoding="utf-8")
+PYASSETS
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --image-source)
-      [[ "${2:-}" == "pull" ]] || die "only pull mode is supported"
-      shift 2
+      case "${2:-}" in
+        local|pull) IMAGE_SOURCE="${2}"; shift 2 ;;
+        *) die "unsupported image source: ${2:-} (use local or pull)" ;;
+      esac
       ;;
-    --platform|--profile)
-      die "profile is selected during VOS install; package.sh creates one tarball for all profiles"
+    --platform)
+      case "${2:-}" in
+        amd64|arm64) PLATFORM="${2}"; shift 2 ;;
+        *) die "unsupported platform: ${2:-} (use amd64 or arm64)" ;;
+      esac
+      ;;
+    --profile)
+      die "profile is selected during VOS install; package.sh creates one tarball per run"
       ;;
     -h|--help)
       usage
@@ -580,6 +700,11 @@ done
 require_cmd curl
 select_python
 require_cmd tar
+if [[ "$IMAGE_SOURCE" == "local" ]]; then
+  require_cmd docker
+  require_cmd gzip
+  PLATFORM="${PLATFORM:-$(detect_platform)}"
+fi
 validate_migration_versions
 mkdir -p "$DIST_DIR"
 acquire_lock
@@ -592,7 +717,8 @@ else
 fi
 [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "invalid VERSION: $APP_VERSION"
 log "Package version: ${APP_VERSION}"
-log "Image source: pull"
+log "Image source: ${IMAGE_SOURCE}"
+[[ "$IMAGE_SOURCE" == "local" ]] && log "Embedded platform: ${PLATFORM}"
 load_feishu_auth
 
 rm -rf "$STAGE_DIR"
@@ -616,17 +742,28 @@ if grep -q '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml"; then
 fi
 validate_staged_files
 
+if [[ "$IMAGE_SOURCE" == "local" ]]; then
+  PACKAGE_NAME="${APP_NAME}_${APP_VERSION}_${PLATFORM}.tar"
+else
+  PACKAGE_NAME="${APP_NAME}_${APP_VERSION}_pull.tar"
+fi
 APP_TARBALL="${DIST_DIR}/app.tar.gz"
-PACKAGE_NAME="${APP_NAME}_${APP_VERSION}_pull.tar"
 PACKAGE_PATH="${DIST_DIR}/${PACKAGE_NAME}"
 
 rm -rf "$PACKAGE_ROOT"
 mkdir -p "$PACKAGE_ROOT"
+if [[ "$IMAGE_SOURCE" == "local" ]]; then
+  embed_local_images
+fi
 TAR_FILES=(.env manifest.yml docker-compose.yml configs.yml routers.yml icon.png README.zh-CN.md README.en.md)
 [[ -f "${STAGE_DIR}/traefik.yml" ]] && TAR_FILES+=(traefik.yml)
 tar czf "$APP_TARBALL" -C "$STAGE_DIR" "${TAR_FILES[@]}"
 cp "$APP_TARBALL" "${PACKAGE_ROOT}/app.tar.gz"
-tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz
+if [[ "$IMAGE_SOURCE" == "local" ]]; then
+  tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz assets
+else
+  tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz
+fi
 verify_package "$PACKAGE_PATH" "$APP_TARBALL"
 
 log "Done: ${PACKAGE_PATH}"
