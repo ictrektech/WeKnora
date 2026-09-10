@@ -83,6 +83,12 @@ jobs:
           cache: true
           # v6 defaults to go.mod for the cache key (more stable than go.sum).
 
+      - uses: actions/setup-python@v6
+        with:
+          # The sandbox verifier runs on Python 3.11; keep its Go tests on the
+          # same runtime so tomllib-backed manifest checks are exercised.
+          python-version: "3.11"
+
       - name: Download modules
         run: go mod download
 
@@ -117,8 +123,9 @@ jobs:
         shell: bash
         run: |
           mapfile -t pkgs < <(go list ./... | grep -v '/docreader/')
-          go vet "${pkgs[@]}"
-          go test "${pkgs[@]}"
+          # SQLite retriever tests exercise FTS5, matching the Lite build tag.
+          go vet -tags sqlite_fts5 "${pkgs[@]}"
+          go test -tags sqlite_fts5 "${pkgs[@]}"
 
       - name: Build server
         run: go build ./cmd/server

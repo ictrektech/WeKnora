@@ -175,7 +175,7 @@ run_full_app_vet() {
     while IFS= read -r line; do
       [[ -n "$line" ]] && pkgs+=("$line")
     done < <(go list ./... | grep -v '/docreader/' || true)
-    go vet "${pkgs[@]}"
+    go vet -tags sqlite_fts5 "${pkgs[@]}"
   )
   log_ok "go vet"
 }
@@ -193,7 +193,7 @@ run_go_test_packages() {
   log_step "go test (${#pkgs[@]} changed package(s))"
   (
     cd "$ROOT"
-    go test -count=1 "${pkgs[@]}"
+    go test -tags sqlite_fts5 -count=1 "${pkgs[@]}"
   )
   log_ok "go test"
 }

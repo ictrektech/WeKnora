@@ -105,7 +105,7 @@ run: build
 
 # Run tests
 test:
-	go test -v ./...
+	go test -tags sqlite_fts5 -v ./...
 
 # Clean build artifacts
 clean:
@@ -348,5 +348,4 @@ dev-app:
 
 dev-frontend:
 	./scripts/dev.sh frontend
-
 
