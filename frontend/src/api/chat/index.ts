@@ -6,6 +6,11 @@ export async function createSessions(data = {}) {
   return post("/api/v1/sessions", data);
 }
 
+/** Create a session owned by the legal assistant workspace. */
+export async function createLegalAssistantSession(data: Record<string, unknown> = {}) {
+  return post("/api/v1/legal-assistant/sessions", data);
+}
+
 export async function getSessionsList(page: number, page_size: number, source?: string) {
   const params = new URLSearchParams({ page: String(page), page_size: String(page_size) });
   if (source) {

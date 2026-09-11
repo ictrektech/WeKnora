@@ -39,6 +39,9 @@ type SessionService interface {
 	BatchDeleteSessions(ctx context.Context, ids []string) error
 	// DeleteAllSessions deletes all sessions for the current tenant
 	DeleteAllSessions(ctx context.Context) error
+	// DeleteLegalAssistantSessions soft-deletes only legal-assistant sessions
+	// for an owner-authorized tenant purge. Platform sessions are untouched.
+	DeleteLegalAssistantSessions(ctx context.Context, tenantID uint64) error
 	// ListSessions returns a page of sessions for the current tenant/user with
 	// search/source filters and pin-aware ordering. User scope is pulled from ctx.
 	ListSessions(ctx context.Context, query *types.SessionListQuery) (*types.PageResult, error)
@@ -106,4 +109,9 @@ type SessionRepository interface {
 	BatchDelete(ctx context.Context, tenantID uint64, userID string, ids []string) (int64, error)
 	// DeleteAllByTenantID deletes all sessions visible to the tenant/user scope.
 	DeleteAllByTenantID(ctx context.Context, tenantID uint64, userID string) (int64, error)
+	// DeleteByTenantWorkspaceMode soft-deletes rows in one immutable workspace
+	// mode, without applying per-user scope. Callers must enforce tenant-owner
+	// authorization before using it.
+	DeleteByTenantWorkspaceMode(ctx context.Context, tenantID uint64, mode types.WorkspaceMode) (int64, error)
+	ListByTenantWorkspaceMode(ctx context.Context, tenantID uint64, mode types.WorkspaceMode) ([]*types.Session, error)
 }

@@ -1,8 +1,8 @@
 <template>
-    <div class="dialogue-wrap">
+    <div class="dialogue-wrap" :class="{ 'dialogue-wrap--legal': isLegalAssistant }">
         <div class="dialogue-answers">
             <div class="dialogue-title" style="--wails-draggable: drag">
-                <span style="--wails-draggable: drag">{{ $t('createChat.title') }}</span>
+                <span style="--wails-draggable: drag">{{ isLegalAssistant ? $t('legalAssistant.title') : $t('createChat.title') }}</span>
             </div>
             <!-- 推荐问题 -->
             <div ref="sqContainerRef" class="suggested-questions-container">
@@ -58,7 +58,8 @@
 import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import ContextualGuide from '@/components/ContextualGuide.vue';
 import InputField from '@/components/Input-field.vue';
-import { createSessions } from "@/api/chat/index";
+import { createLegalAssistantSession, createSessions } from "@/api/chat/index";
+import { BUILTIN_LEGAL_ASSISTANT_ID } from "@/api/agent/index";
 import { getSuggestedQuestions } from "@/api/agent/index";
 import type { SuggestedQuestion } from "@/api/agent/index";
 import { useMenuStore } from '@/stores/menu';
@@ -72,11 +73,17 @@ import { useKnowledgeBaseCreationNavigation } from '@/hooks/useKnowledgeBaseCrea
 
 const router = useRouter();
 const route = useRoute();
+const props = withDefaults(defineProps<{
+    workspaceMode?: 'platform' | 'legal_assistant';
+}>(), {
+    workspaceMode: 'platform',
+});
 const usemenuStore = useMenuStore();
 const settingsStore = useSettingsStore();
 const uiStore = useUIStore();
 const { t } = useI18n();
 const { navigateToKnowledgeBaseList } = useKnowledgeBaseCreationNavigation();
+const isLegalAssistant = computed(() => props.workspaceMode === 'legal_assistant');
 
 const showChatContextualGuide = computed(() => {
     return route.name === 'globalCreatChat' || route.name === 'kbCreatChat';
@@ -207,34 +214,63 @@ async function createNewSession(value: string, modelId: string, mentionedItems: 
     };
 
     try {
-        const res = await createSessions(sessionData);
-        if (res.data && res.data.id) {
-            await navigateToSession(res.data.id, value, modelId, mentionedItems, imageFiles, attachmentFiles);
+        const res: any = isLegalAssistant.value
+            ? await createLegalAssistantSession({
+                workspace_mode: 'legal_assistant',
+                agent_id: settingsStore.selectedAgentId || BUILTIN_LEGAL_ASSISTANT_ID,
+                agent_enabled: settingsStore.settings.isAgentEnabled,
+                agent_source_tenant_id: settingsStore.settings.selectedAgentSourceTenantId || undefined,
+                model_id: modelId || settingsStore.settings.conversationModels?.selectedChatModelId || undefined,
+                knowledge_base_ids: selectedKbs,
+                knowledge_ids: selectedFiles,
+                tag_ids: settingsStore.settings.selectedTags.map((tag) => tag.id),
+                mcp_service_ids: settingsStore.settings.selectedMCPServices,
+                skill_names: settingsStore.settings.selectedSkills,
+                web_search_enabled: settingsStore.settings.webSearchEnabled,
+            })
+            : await createSessions(sessionData);
+        const createdSession = isLegalAssistant.value
+            ? (res?.data?.session || res?.data)
+            : res?.data;
+        const sessionId = String(createdSession?.id || res?.session_id || '');
+        if (sessionId) {
+            await navigateToSession(sessionId, value, modelId, mentionedItems, imageFiles, attachmentFiles);
         } else {
             console.error('[createChat] Failed to create session');
-            MessagePlugin.error(t('createChat.messages.createFailed'));
+            MessagePlugin.error(isLegalAssistant.value ? t('legalAssistant.createFailed') : t('createChat.messages.createFailed'));
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('[createChat] Create session error:', error);
-        MessagePlugin.error(t('createChat.messages.createError'));
+        const status = error?.status || error?.response?.status;
+        if (isLegalAssistant.value && (status === 403 || status === 404)) {
+            MessagePlugin.warning(t('legalAssistant.workspaceUnavailable'));
+            await router.replace('/platform/knowledge-bases');
+            return;
+        }
+        MessagePlugin.error(isLegalAssistant.value ? t('legalAssistant.createFailed') : t('createChat.messages.createError'));
     }
 }
 
 const navigateToSession = async (sessionId: string, value: string, modelId: string, mentionedItems: any[], imageFiles: any[] = [], attachmentFiles: any[] = []) => {
     const now = new Date().toISOString();
-    let obj = {
+    const obj = {
         title: t('createChat.newSessionTitle'),
-        path: `chat/${sessionId}`,
+        path: isLegalAssistant.value ? `legal-assistant/chat/${sessionId}` : `chat/${sessionId}`,
         id: sessionId,
         isMore: false,
         isNoTitle: true,
         created_at: now,
-        updated_at: now
+        updated_at: now,
+        ...(isLegalAssistant.value ? { workspace_mode: 'legal_assistant' } : {}),
     };
     usemenuStore.updataMenuChildren(obj);
     usemenuStore.changeIsFirstSession(true);
     usemenuStore.changeFirstQuery(value, mentionedItems, modelId, imageFiles, attachmentFiles);
-    router.push(`/platform/chat/${sessionId}`);
+    if (isLegalAssistant.value) {
+        await router.push({ name: 'legalAssistantChat', params: { chatid: sessionId } });
+        return;
+    }
+    await router.push(`/platform/chat/${sessionId}`);
 }
 
 const handleKBEditorSuccess = (kbId: string) => {
@@ -245,10 +281,16 @@ const handleKBEditorSuccess = (kbId: string) => {
 <style lang="less" scoped>
 .dialogue-wrap {
     flex: 1;
+    width: 100%;
+    min-height: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     // position: relative;
+}
+
+.dialogue-wrap--legal {
+    background: var(--td-bg-color-page);
 }
 
 .dialogue-answers {

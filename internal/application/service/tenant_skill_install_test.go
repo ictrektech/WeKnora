@@ -3260,6 +3260,11 @@ func (s *installSessionService) DeleteAllSessions(context.Context) error {
 	return nil
 }
 
+func (s *installSessionService) DeleteLegalAssistantSessions(context.Context, uint64) error {
+	s.fx.sessionCalls = append(s.fx.sessionCalls, "DeleteLegalAssistantSessions")
+	return nil
+}
+
 func (s *installSessionService) ListSessions(context.Context, *types.SessionListQuery) (*types.PageResult, error) {
 	return nil, nil
 }

@@ -181,7 +181,7 @@
 import { makeSteerClientId } from '@/utils/steerId';
 import { storeToRefs } from 'pinia';
 import { ref, onMounted, onBeforeMount, onUnmounted, nextTick, watch, reactive, computed } from 'vue';
-import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
+import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import InputField from '../../components/Input-field.vue';
 import botmsg from './components/botmsg.vue';
 import usermsg from './components/usermsg.vue';
@@ -280,6 +280,7 @@ const attachStreamDebugToMessage = (message) => {
     message.debugRequest = payload;
 };
 const route = useRoute();
+const router = useRouter();
 const session_id = ref(props.session_id || route.params.chatid);
 const currentSession = ref(null);
 
@@ -302,6 +303,11 @@ const loadSessionAndHydrate = async (sid) => {
         }
     } catch (error) {
         console.error('Failed to load session data:', error);
+        const status = error?.status || error?.response?.status;
+        if ((route.name === 'legalAssistantChat') && (status === 403 || status === 404)) {
+            MessagePlugin.warning(t('legalAssistant.workspaceUnavailable'));
+            void router.replace('/platform/legal-assistant');
+        }
     }
 };
 const inputFieldRef = ref();
@@ -1803,6 +1809,11 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
         attachment_ids: attachmentIds.length > 0 ? attachmentIds : undefined,
         query: value,
         suggestion_attribution: suggestionAttribution || undefined,
+        // Legal sessions are still handled by the shared stream endpoint, but
+        // the workspace mode tells newer backends to resolve legal defaults.
+        workspace_mode: route.name === 'legalAssistantChat'
+            ? (currentSession.value?.workspace_mode || 'legal_assistant')
+            : undefined,
         method: 'POST',
         url: endpoint,
     });

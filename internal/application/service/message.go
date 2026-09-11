@@ -75,6 +75,17 @@ func sessionUserIDForLookup(ctx context.Context) string {
 	return types.SessionOwnerIDFromContext(ctx)
 }
 
+func (s *messageService) resolveSessionForMutation(ctx context.Context, tenantID uint64, sessionID string) (*types.Session, error) {
+	session, err := s.sessionRepo.Get(ctx, tenantID, sessionUserIDForLookup(ctx), sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureSessionWorkspaceAccess(ctx, session); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
 // CreateMessage creates a new message within an existing session
 func (s *messageService) CreateMessage(ctx context.Context, message *types.Message) (*types.Message, error) {
 	logger.Info(ctx, "Start creating message")
@@ -82,7 +93,7 @@ func (s *messageService) CreateMessage(ctx context.Context, message *types.Messa
 
 	tenantID := types.MustTenantIDFromContext(ctx)
 	logger.Infof(ctx, "Checking if session exists, tenant ID: %d, session ID: %s", tenantID, message.SessionID)
-	_, err := s.sessionRepo.Get(ctx, tenantID, sessionUserIDForLookup(ctx), message.SessionID)
+	_, err := s.resolveSessionForMutation(ctx, tenantID, message.SessionID)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get session: %v", err)
 		return nil, err
@@ -232,7 +243,7 @@ func (s *messageService) UpdateMessage(ctx context.Context, message *types.Messa
 
 	tenantID := types.MustTenantIDFromContext(ctx)
 	logger.Infof(ctx, "Checking if session exists, tenant ID: %d", tenantID)
-	_, err := s.sessionRepo.Get(ctx, tenantID, sessionUserIDForLookup(ctx), message.SessionID)
+	_, err := s.resolveSessionForMutation(ctx, tenantID, message.SessionID)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get session: %v", err)
 		return err
@@ -269,7 +280,7 @@ func (s *messageService) DeleteMessage(ctx context.Context, sessionID string, me
 
 	tenantID := types.MustTenantIDFromContext(ctx)
 	logger.Infof(ctx, "Checking if session exists, tenant ID: %d", tenantID)
-	_, err := s.sessionRepo.Get(ctx, tenantID, sessionUserIDForLookup(ctx), sessionID)
+	_, err := s.resolveSessionForMutation(ctx, tenantID, sessionID)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get session: %v", err)
 		return err
@@ -314,7 +325,7 @@ func (s *messageService) ClearSessionMessages(ctx context.Context, sessionID str
 	logger.Infof(ctx, "Start clearing all messages for session: %s", sessionID)
 
 	tenantID := types.MustTenantIDFromContext(ctx)
-	if _, err := s.sessionRepo.Get(ctx, tenantID, sessionUserIDForLookup(ctx), sessionID); err != nil {
+	if _, err := s.resolveSessionForMutation(ctx, tenantID, sessionID); err != nil {
 		logger.Errorf(ctx, "Failed to get session: %v", err)
 		return err
 	}
@@ -540,6 +551,14 @@ func (s *messageService) SearchMessages(ctx context.Context, params *types.Messa
 	if params.OwnerID == "" {
 		params.OwnerID = types.SessionOwnerIDFromContext(ctx)
 	}
+	var err error
+	hasSearchableSessions, err := s.excludeDisabledLegalSessions(ctx, tenantID, params)
+	if err != nil {
+		return nil, err
+	}
+	if !hasSearchableSessions {
+		return &types.MessageSearchResult{Items: []*types.MessageSearchGroupItem{}, Total: 0}, nil
+	}
 
 	// Set defaults
 	if params.Mode == "" {
@@ -551,8 +570,6 @@ func (s *messageService) SearchMessages(ctx context.Context, params *types.Messa
 
 	var keywordResults []*types.MessageWithSession
 	var vectorResults []*types.MessageSearchResultItem
-	var err error
-
 	// Step 1: Keyword search (direct PG ILIKE)
 	if params.Mode == types.MessageSearchModeKeyword || params.Mode == types.MessageSearchModeHybrid {
 		keywordResults, err = s.messageRepo.SearchMessagesByKeyword(
@@ -614,6 +631,46 @@ func (s *messageService) SearchMessages(ctx context.Context, params *types.Messa
 
 	logger.Infof(ctx, "Message search completed, returning %d grouped results", result.Total)
 	return result, nil
+}
+
+// excludeDisabledLegalSessions keeps ordinary conversation search from
+// becoming a side channel for a disabled legal workspace. The repository
+// search APIs intentionally remain generic, so the service narrows the
+// session-id scope before both keyword and vector branches run.
+func (s *messageService) excludeDisabledLegalSessions(
+	ctx context.Context,
+	tenantID uint64,
+	params *types.MessageSearchParams,
+) (bool, error) {
+	tenant, ok := types.TenantInfoFromContext(ctx)
+	if !ok || tenant.LegalWorkspaceConfig.IsEnabled() {
+		return true, nil
+	}
+	sessions, err := s.sessionRepo.GetByTenantID(ctx, tenantID, params.OwnerID)
+	if err != nil {
+		return false, err
+	}
+	allowed := make(map[string]struct{}, len(sessions))
+	for _, session := range sessions {
+		if session != nil && session.WorkspaceMode != types.WorkspaceModeLegalAssistant {
+			allowed[session.ID] = struct{}{}
+		}
+	}
+	if len(params.SessionIDs) == 0 {
+		params.SessionIDs = make([]string, 0, len(allowed))
+		for id := range allowed {
+			params.SessionIDs = append(params.SessionIDs, id)
+		}
+		return len(allowed) > 0, nil
+	}
+	filtered := params.SessionIDs[:0]
+	for _, id := range params.SessionIDs {
+		if _, exists := allowed[id]; exists {
+			filtered = append(filtered, id)
+		}
+	}
+	params.SessionIDs = filtered
+	return len(filtered) > 0, nil
 }
 
 // restrictToOwnedSessions drops results from sessions the caller does not own.

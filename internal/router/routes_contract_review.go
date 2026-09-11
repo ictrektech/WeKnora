@@ -21,12 +21,18 @@ func legalWorkspaceEnabled() gin.HandlerFunc {
 	}
 }
 
-func RegisterContractReviewRoutes(r *gin.RouterGroup, h *handler.ContractReviewHandler, g *rbacGuards) {
+func RegisterContractReviewRoutes(r *gin.RouterGroup, h *handler.ContractReviewHandler, g *rbacGuards, purgeHandlers ...*handler.LegalWorkspaceDataHandler) {
 	r.GET("/contract-review-playbooks", legalWorkspaceEnabled(), g.Viewer(), h.Playbooks)
 	// This is deliberately outside the gated review group. Owners must be able
 	// to purge data even after disabling the workspace, and the purge is never
 	// implied by changing the access switch.
-	r.DELETE("/legal-workspace-data", g.Owner(), h.DeleteTenantData)
+	if len(purgeHandlers) > 0 && purgeHandlers[0] != nil {
+		r.DELETE("/legal-workspace-data", g.Owner(), purgeHandlers[0].DeleteTenantData)
+	} else {
+		// Keep the legacy handler path for focused router tests and downstream
+		// integrations that construct this route without the coordinator.
+		r.DELETE("/legal-workspace-data", g.Owner(), h.DeleteTenantData)
+	}
 	reviews := r.Group("/contract-reviews", legalWorkspaceEnabled())
 	{
 		reviews.GET("", g.Viewer(), h.List)

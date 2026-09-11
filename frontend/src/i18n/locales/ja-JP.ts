@@ -7391,7 +7391,11 @@ export default {
     settings: 'Settings',
     collapse: 'Collapse sidebar',
     expand: 'Expand sidebar',
-    smartArchive: 'スマートアーカイブ'
+    smartArchive: 'スマートアーカイブ',
+    assistant: '法務アシスタント'
+  },
+  legalAssistant: {
+    eyebrow: '法律ワークスペース', title: '法務アシスタント', description: '契約書、法令、社内資料から根拠をすばやく探し、追跡可能な法務の回答を作成します。', sessions: '法務セッション', workspaceUnavailable: '法律ワークスペースを利用できません。ナレッジベースに戻ります。', createFailed: '法務アシスタントのセッションを作成できませんでした。'
   },
   mcpMetadata: {
     searchTools: 'ツール名や説明を検索',

@@ -29,6 +29,8 @@ const (
 	// BuiltinWikiFixerID is the ID for the built-in wiki fixer agent
 	BuiltinWikiFixerID      = "builtin-wiki-fixer"
 	BuiltinContractReviewID = "builtin-contract-review"
+	// BuiltinLegalAssistantID is the evidence-first general legal assistant.
+	BuiltinLegalAssistantID = "builtin-legal-assistant"
 	// BuiltinSkillInstallerID is the ID for the built-in skill installer agent
 	BuiltinSkillInstallerID = "builtin-skill-installer"
 )
@@ -593,6 +595,7 @@ var builtinAgentIDsOrdered = []string{
 	BuiltinKnowledgeGraphExpertID,
 	BuiltinDocumentAssistantID,
 	BuiltinContractReviewID,
+	BuiltinLegalAssistantID,
 }
 
 // GetBuiltinAgentIDs returns all built-in agent IDs in fixed order

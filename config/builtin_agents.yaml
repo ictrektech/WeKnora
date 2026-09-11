@@ -297,6 +297,55 @@ builtin_agents:
         - "请把审查结果整理成可直接给业务方看的合同审查报告。"
         - "请对比新版和旧版合同，只指出实质性不利变化。"
         - "请检查合同主体、授权代表、签章和生效条件风险。"
+
+  - id: "builtin-legal-assistant"
+    avatar: "⚖️"
+    is_builtin: true
+    i18n:
+      default:
+        name: "Legal Assistant"
+        description: "Evidence-first legal assistant for regulations, cases, compliance, and contracts; not a substitute for a lawyer"
+      zh-CN:
+        name: "综合法务助手"
+        description: "面向法规、案例、合规与合同问题的证据优先综合法务助手；不替代律师正式意见"
+      zh-TW:
+        name: "綜合法務助手"
+        description: "面向法規、案例、合規與合約問題的證據優先綜合法務助手；不替代律師正式意見"
+      ja-JP:
+        name: "総合法務アシスタント"
+        description: "法令、判例、コンプライアンス、契約を証拠優先で支援する法務アシスタント（弁護士の代替ではありません）"
+      ko-KR:
+        name: "종합 법무 어시스턴트"
+        description: "법령·판례·컴플라이언스·계약을 근거 우선으로 지원하며 변호사를 대체하지 않는 법무 어시스턴트"
+    config:
+      agent_mode: "smart-reasoning"
+      agent_type: "rag-qa"
+      system_prompt_id: "legal_assistant_main"
+      temperature: 0.2
+      max_completion_tokens: 4096
+      max_iterations: 30
+      kb_selection_mode: "all"
+      retrieve_kb_only_when_mentioned: false
+      allowed_tools:
+        - "knowledge_search"
+        - "grep_chunks"
+        - "list_knowledge_chunks"
+        - "query_knowledge_graph"
+        - "get_document_info"
+        - "wiki_search"
+        - "wiki_read_page"
+        - "wiki_read_source_doc"
+      web_search_enabled: true
+      web_search_max_results: 5
+      reflection_enabled: false
+      multi_turn_enabled: true
+      history_turns: 10
+      citation_enabled: true
+      embedding_top_k: 10
+      keyword_threshold: 0.3
+      vector_threshold: 0.5
+      rerank_top_k: 10
+      rerank_threshold: 0.3
   - id: "builtin-skill-installer"
     avatar: "📦"
     is_builtin: true

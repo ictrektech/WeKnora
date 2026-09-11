@@ -72,6 +72,20 @@ type ContextConfig struct {
 	SummarizeThreshold int `json:"summarize_threshold"`
 }
 
+// WorkspaceMode identifies the product surface that owns a session. It is
+// immutable after creation so a platform conversation cannot be moved into a
+// legal workspace (or vice versa) by updating session metadata.
+type WorkspaceMode string
+
+const (
+	WorkspaceModePlatform       WorkspaceMode = "platform"
+	WorkspaceModeLegalAssistant WorkspaceMode = "legal_assistant"
+)
+
+func (m WorkspaceMode) Valid() bool {
+	return m == WorkspaceModePlatform || m == WorkspaceModeLegalAssistant
+}
+
 // Session represents the session
 type Session struct {
 	// ID
@@ -85,6 +99,8 @@ type Session struct {
 	// UserID is the owner scope for this session. WeKnora user UUIDs, API
 	// external-user principals, and embed visitor principals all use this column.
 	UserID string `json:"user_id,omitempty" gorm:"type:varchar(512);index"`
+	// WorkspaceMode is immutable and defaults to the ordinary platform chat.
+	WorkspaceMode WorkspaceMode `json:"workspace_mode" gorm:"type:varchar(32);not null;default:'platform';index"`
 	// IsPinned indicates whether the session is pinned in the list.
 	IsPinned bool `json:"is_pinned" gorm:"default:false"`
 	// PinnedAt records when the session was pinned; nil when not pinned.
@@ -140,6 +156,9 @@ type Session struct {
 
 func (s *Session) BeforeCreate(tx *gorm.DB) (err error) {
 	s.ID = uuid.New().String()
+	if s.WorkspaceMode == "" {
+		s.WorkspaceMode = WorkspaceModePlatform
+	}
 	return nil
 }
 
@@ -217,8 +236,12 @@ type SessionListQuery struct {
 	Keyword  string
 	Source   string
 	AgentID  string
-	Page     int
-	PageSize int
+	// HideLegalSessions is set by the service when the tenant legal workspace
+	// is disabled. Keeping this as a query concern prevents disabled legal rows
+	// from leaking through any ordinary list/source filter.
+	HideLegalSessions bool
+	Page              int
+	PageSize          int
 }
 
 // SessionListItem is a session row enriched with its IM origin (when any).

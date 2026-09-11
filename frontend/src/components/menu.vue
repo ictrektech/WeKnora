@@ -83,6 +83,23 @@
                             </span>
                             <span class="legal-panel-item-label">{{ t('legalWorkspace.smartArchive') }}</span>
                         </button>
+                        <button type="button" class="legal-panel-item" data-testid="legal-nav-assistant"
+                            :class="{ 'legal-panel-item--active': isLegalAssistantRoute }"
+                            @click="openLegalAssistant">
+                            <span class="legal-panel-item-icon">
+                                <TIcon name="chat" size="18px" aria-hidden="true" />
+                            </span>
+                            <span class="legal-panel-item-label">{{ t('legalWorkspace.assistant') }}</span>
+                        </button>
+                        <div v-if="legalAssistantSessions.length" class="legal-panel-sessions" aria-label="legal assistant sessions">
+                            <div class="legal-panel-sessions__label">{{ t('legalAssistant.sessions') }}</div>
+                            <button v-for="session in legalAssistantSessions" :key="session.id" type="button"
+                                class="legal-panel-session" :class="{ 'legal-panel-session--active': session.path === currentSecondpath }"
+                                @click="gotopage(session.path)">
+                                <TIcon name="chat" size="14px" aria-hidden="true" />
+                                <span>{{ session.title }}</span>
+                            </button>
+                        </div>
                     </template>
                     <template v-else>
                         <t-tooltip :content="t('legalWorkspace.backToPlatform')" placement="right">
@@ -108,6 +125,15 @@
                                 @click="openLegalSmartArchive" :aria-label="t('legalWorkspace.smartArchive')">
                                 <div class="menu_item-box">
                                     <TIcon name="folder-open" size="18px" aria-hidden="true" />
+                                </div>
+                            </button>
+                        </t-tooltip>
+                        <t-tooltip :content="t('legalWorkspace.assistant')" placement="right">
+                            <button type="button" data-testid="legal-nav-assistant" class="menu_item legal-panel-collapsed-action"
+                                :class="{ 'legal-panel-item--active': isLegalAssistantRoute }"
+                                @click="openLegalAssistant" :aria-label="t('legalWorkspace.assistant')">
+                                <div class="menu_item-box">
+                                    <TIcon name="chat" size="18px" aria-hidden="true" />
                                 </div>
                             </button>
                         </t-tooltip>
@@ -455,6 +481,8 @@ const isInCreatChat = computed<boolean>(() => {
 
 // 是否在对话详情页
 const isInChatDetail = computed<boolean>(() => route.name === 'chat');
+const legalAssistantHomePath = '/platform/legal-assistant';
+const isLegalAssistantSessionRoute = computed<boolean>(() => route.name === 'legalAssistantChat');
 
 // 是否在智能体列表页面
 const isInAgentList = computed<boolean>(() => route.name === 'agentList');
@@ -464,12 +492,18 @@ const isInOrganizationList = computed<boolean>(() => route.name === 'organizatio
 
 // 法律工作台使用页面级 drill-down；合同审查和智能档案路由都显示同一个子面板。
 const isLegalWorkspacePanel = computed<boolean>(() =>
-    route.name === 'legalContractReview' || route.name === 'legalContractReviewDetail' || route.name === 'legalSmartArchive',
+    route.name === 'legalContractReview' || route.name === 'legalContractReviewDetail' || route.name === 'legalSmartArchive' ||
+    route.name === 'legalAssistant' || route.name === 'legalAssistantHome' || route.name === 'legalAssistantChat',
 );
 const isContractReviewRoute = computed<boolean>(() =>
     route.name === 'legalContractReview' || route.name === 'legalContractReviewDetail',
 );
 const isSmartArchiveRoute = computed<boolean>(() => route.name === 'legalSmartArchive');
+const isLegalAssistantRoute = computed<boolean>(() => route.name === 'legalAssistant' || route.name === 'legalAssistantHome' || route.name === 'legalAssistantChat');
+const legalAssistantSessions = computed(() => {
+    const chatMenu = (menuArr.value as unknown as MenuItem[]).find((item) => item.path === 'creatChat');
+    return (chatMenu?.children || []).filter((session: any) => session.workspace_mode === 'legal_assistant');
+});
 
 // 统一的菜单项激活状态判断
 const isMenuItemActive = (itemPath: string): boolean => {
@@ -487,7 +521,7 @@ const isMenuItemActive = (itemPath: string): boolean => {
         case 'creatChat':
             return currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat';
         case 'legal':
-            return currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail' || currentRoute === 'legalSmartArchive';
+            return currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail' || currentRoute === 'legalSmartArchive' || currentRoute === 'legalAssistant' || currentRoute === 'legalAssistantHome' || currentRoute === 'legalAssistantChat';
         case 'settings':
             return currentRoute === 'settings';
         default:
@@ -506,7 +540,7 @@ const getIconActiveState = (itemPath: string) => {
             currentRoute === 'knowledgeBaseSettings'
         ),
         isCreatChatActive: itemPath === 'creatChat' && (currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat'),
-        isLegalActive: itemPath === 'legal' && (currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail' || currentRoute === 'legalSmartArchive'),
+        isLegalActive: itemPath === 'legal' && (currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail' || currentRoute === 'legalSmartArchive' || currentRoute === 'legalAssistant' || currentRoute === 'legalAssistantHome' || currentRoute === 'legalAssistantChat'),
         isSettingsActive: itemPath === 'settings' && currentRoute === 'settings',
         isChatActive: itemPath === 'chat' && currentRoute === 'chat'
     };
@@ -651,7 +685,7 @@ const handleInlineBatchDelete = () => {
                     }
                     const currentChatId = route.params.chatid as string;
                     if (currentChatId && (isDeleteAll || batchSelectedIds.value.includes(currentChatId))) {
-                        router.push('/platform/creatChat');
+                        router.push(isLegalAssistantSessionRoute.value ? legalAssistantHomePath : '/platform/creatChat');
                     }
                     batchSelectedIds.value = []
                     MessagePlugin.success(t('batchManage.deleteSuccess'))
@@ -763,7 +797,7 @@ const debounce = (fn: (...args: any[]) => void, delay: number) => {
 }
 const mapSessionRow = (item: any) => ({
     title: item.title ? item.title : t('menu.newSession'),
-    path: `chat/${item.id}`,
+    path: item.workspace_mode === 'legal_assistant' ? `legal-assistant/chat/${item.id}` : `chat/${item.id}`,
     id: item.id,
     isMore: false,
     isNoTitle: item.title ? false : true,
@@ -774,6 +808,7 @@ const mapSessionRow = (item: any) => ({
     im_platform: item.im_platform || '',
     description: item.description || '',
     user_id: item.user_id || '',
+    workspace_mode: item.workspace_mode || '',
 });
 
 const syncMenuStoreFromBuckets = () => {
@@ -1043,7 +1078,7 @@ const handleSessionMutation = (event: Event) => {
         sessionBuckets.value = removeSessionFromBuckets(sessionBuckets.value, detail.sessionId);
         syncMenuStoreFromBuckets();
         if (detail.sessionId === route.params.chatid) {
-            router.push('/platform/creatChat');
+            router.push(isLegalAssistantSessionRoute.value ? legalAssistantHomePath : '/platform/creatChat');
         }
     }
 };
@@ -1053,7 +1088,9 @@ onMounted(async () => {
     const routeName = typeof route.name === 'string' ? route.name : (route.name ? String(route.name) : '')
     currentpath.value = routeName;
     if (route.params.chatid) {
-        currentSecondpath.value = `chat/${route.params.chatid}`;
+        currentSecondpath.value = route.name === 'legalAssistantChat'
+            ? `legal-assistant/chat/${route.params.chatid}`
+            : `chat/${route.params.chatid}`;
     }
 
     window.addEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);
@@ -1105,7 +1142,9 @@ watch([() => route.name, () => route.params], (newvalue, oldvalue) => {
     const nameStr = typeof newvalue[0] === 'string' ? (newvalue[0] as string) : (newvalue[0] ? String(newvalue[0]) : '')
     currentpath.value = nameStr;
     if (newvalue[1].chatid) {
-        currentSecondpath.value = `chat/${newvalue[1].chatid}`;
+        currentSecondpath.value = nameStr === 'legalAssistantChat'
+            ? `legal-assistant/chat/${newvalue[1].chatid}`
+            : `chat/${newvalue[1].chatid}`;
     } else {
         currentSecondpath.value = "";
     }
@@ -1113,7 +1152,7 @@ watch([() => route.name, () => route.params], (newvalue, oldvalue) => {
     // 创建新会话时 creatChat 会先 updataMenuChildren，再跳转 chat/:id。
     // 侧栏实际渲染 sessionBuckets，需按 buckets 判断是否缺失，不能把 menuStore 当真相来源。
     const newChatId = (newvalue[1] as any)?.chatid as string | undefined;
-    if (nameStr === 'chat' && newChatId) {
+    if ((nameStr === 'chat' || nameStr === 'legalAssistantChat') && newChatId) {
         ensureSessionInSidebar(newChatId);
         void syncActiveBucketFromChat(newChatId);
     }
@@ -1191,6 +1230,10 @@ const openLegalContractReview = () => {
 
 const openLegalSmartArchive = () => {
     router.push('/platform/smart-archive')
+}
+
+const openLegalAssistant = () => {
+    router.push('/platform/legal-assistant')
 }
 
 const returnToMainNavigation = () => {
@@ -1477,6 +1520,46 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         font-family: var(--app-font-family);
         text-align: left;
         cursor: pointer;
+    }
+
+    .legal-panel-sessions {
+        margin: 8px 0 0;
+        padding-top: 8px;
+        border-top: 1px solid var(--td-component-stroke);
+    }
+
+    .legal-panel-sessions__label {
+        padding: 0 12px 5px;
+        color: var(--td-text-color-placeholder);
+        font-size: 11px;
+    }
+
+    .legal-panel-session {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        padding: 5px 12px;
+        border: 0;
+        border-radius: 6px;
+        color: var(--td-text-color-secondary);
+        background: transparent;
+        text-align: left;
+        cursor: pointer;
+        font-size: 12px;
+
+        span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        &:hover,
+        &--active {
+            color: var(--td-text-color-primary);
+            background: var(--td-bg-color-container-hover);
+        }
     }
 
     .legal-panel-back {

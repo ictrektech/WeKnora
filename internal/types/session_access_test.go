@@ -2,6 +2,25 @@ package types
 
 import "testing"
 
+func TestSessionWorkspaceModeDefaultsToPlatform(t *testing.T) {
+	s := &Session{TenantID: 1}
+	if err := s.BeforeCreate(nil); err != nil {
+		t.Fatal(err)
+	}
+	if s.WorkspaceMode != WorkspaceModePlatform {
+		t.Fatalf("workspace mode = %q, want %q", s.WorkspaceMode, WorkspaceModePlatform)
+	}
+}
+
+func TestSessionWorkspaceModeValues(t *testing.T) {
+	if !WorkspaceModePlatform.Valid() || !WorkspaceModeLegalAssistant.Valid() {
+		t.Fatal("known workspace modes must be valid")
+	}
+	if WorkspaceMode("unknown").Valid() {
+		t.Fatal("unknown workspace mode must be invalid")
+	}
+}
+
 func TestSessionListSourceRequiresAdmin(t *testing.T) {
 	tests := []struct {
 		source string

@@ -457,6 +457,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewOrganizationHandler))
 	must(container.Provide(handler.NewMemoryHandler))
 	must(container.Provide(handler.NewContractReviewHandler))
+	must(container.Provide(service.NewLegalWorkspaceDataService))
+	must(container.Provide(handler.NewLegalWorkspaceDataHandler))
 	must(container.Provide(handler.NewSmartArchiveHandler))
 
 	// Data source handler

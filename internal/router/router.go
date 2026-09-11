@@ -89,6 +89,7 @@ type RouterParams struct {
 	WikiPageHandler              *handler.WikiPageHandler
 	MemoryHandler                *handler.MemoryHandler
 	ContractReviewHandler        *handler.ContractReviewHandler
+	LegalWorkspaceDataHandler    *handler.LegalWorkspaceDataHandler
 	SmartArchiveHandler          *handler.SmartArchiveHandler
 }
 
@@ -276,6 +277,7 @@ func NewRouter(params RouterParams) *gin.Engine {
 		RegisterFAQRoutes(v1, params.FAQHandler, rbacGuards)
 		RegisterChunkRoutes(v1, params.ChunkHandler, rbacGuards)
 		RegisterSessionRoutes(v1, params.SessionHandler, params.MessageSuggestionHandler, rbacGuards)
+		RegisterLegalAssistantRoutes(v1, params.SessionHandler, rbacGuards)
 		RegisterChatRoutes(v1, params.SessionHandler, rbacGuards)
 		RegisterMessageRoutes(v1, params.MessageHandler, rbacGuards)
 		RegisterModelRoutes(v1, params.ModelHandler, params.ModelCredentialsHandler, rbacGuards)
@@ -301,7 +303,7 @@ func NewRouter(params RouterParams) *gin.Engine {
 		RegisterWeKnoraCloudRoutes(v1, params.WeKnoraCloudHandler, rbacGuards)
 		RegisterWikiPageRoutes(v1, params.WikiPageHandler, rbacGuards)
 		RegisterMemoryRoutes(v1, params.MemoryHandler, rbacGuards)
-		RegisterContractReviewRoutes(v1, params.ContractReviewHandler, rbacGuards)
+		RegisterContractReviewRoutes(v1, params.ContractReviewHandler, rbacGuards, params.LegalWorkspaceDataHandler)
 		RegisterSmartArchiveRoutes(v1, params.SmartArchiveHandler, rbacGuards)
 		RegisterChunkerDebugRoutes(v1, rbacGuards)
 

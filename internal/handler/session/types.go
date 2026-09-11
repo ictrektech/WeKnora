@@ -12,6 +12,9 @@ type CreateSessionRequest struct {
 	Title string `json:"title"`
 	// Description for the session (optional)
 	Description string `json:"description"`
+	// WorkspaceMode is omitted by ordinary clients and defaults to platform.
+	// The legal-assistant endpoint accepts only legal_assistant.
+	WorkspaceMode types.WorkspaceMode `json:"workspace_mode,omitempty"`
 }
 
 // GenerateTitleRequest defines the request structure for generating a session title

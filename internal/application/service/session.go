@@ -75,6 +75,9 @@ func loadSessionForRead(
 			!runtimeMayBypassAdminConsoleRead(ctx, session, imPlatform) {
 			return nil, apperrors.ErrSessionNotFound
 		}
+		if err := ensureSessionWorkspaceAccess(ctx, session); err != nil {
+			return nil, err
+		}
 		if imPlatform != "" {
 			session.IMPlatform = imPlatform
 		}
@@ -94,10 +97,27 @@ func loadSessionForRead(
 	if !types.SessionRequiresAdminConsoleRead(s, imPlatform) {
 		return nil, err
 	}
+	if accessErr := ensureSessionWorkspaceAccess(ctx, s); accessErr != nil {
+		return nil, accessErr
+	}
 	if imPlatform != "" {
 		s.IMPlatform = imPlatform
 	}
 	return s, nil
+}
+
+// ensureSessionWorkspaceAccess is the shared domain gate for all session
+// resolution paths. A missing tenant in unit/background contexts is treated as
+// enabled; authenticated HTTP requests always carry TenantInfo in context.
+func ensureSessionWorkspaceAccess(ctx context.Context, session *types.Session) error {
+	if session == nil || session.WorkspaceMode != types.WorkspaceModeLegalAssistant {
+		return nil
+	}
+	tenant, ok := types.TenantInfoFromContext(ctx)
+	if ok && !tenant.LegalWorkspaceConfig.IsEnabled() {
+		return apperrors.ErrLegalWorkspaceDisabled
+	}
+	return nil
 }
 
 // generateEventID generates a unique event ID with type suffix for better traceability
@@ -193,6 +213,15 @@ func (s *sessionService) CreateSession(ctx context.Context, session *types.Sessi
 		logger.Error(ctx, "Failed to create session: tenant ID cannot be empty")
 		return nil, stderrors.New("tenant ID is required")
 	}
+	if session.WorkspaceMode == "" {
+		session.WorkspaceMode = types.WorkspaceModePlatform
+	}
+	if !session.WorkspaceMode.Valid() {
+		return nil, fmt.Errorf("invalid workspace_mode: %q", session.WorkspaceMode)
+	}
+	if err := ensureSessionWorkspaceAccess(ctx, session); err != nil {
+		return nil, err
+	}
 
 	logger.Infof(ctx, "Creating session, tenant ID: %d", session.TenantID)
 
@@ -256,7 +285,14 @@ func (s *sessionService) GetOwnedSession(ctx context.Context, id string) (*types
 	}
 	tenantID := types.MustTenantIDFromContext(ctx)
 	userID := sessionUserIDFromContext(ctx)
-	return s.sessionRepo.Get(ctx, tenantID, userID, id)
+	session, err := s.sessionRepo.Get(ctx, tenantID, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureSessionWorkspaceAccess(ctx, session); err != nil {
+		return nil, err
+	}
+	return session, nil
 }
 
 // GetSessionByID loads a session by tenant and id without user scoping.
@@ -267,7 +303,14 @@ func (s *sessionService) GetSessionByID(ctx context.Context, tenantID uint64, id
 	if tenantID == 0 {
 		return nil, stderrors.New("workspace id is required")
 	}
-	return s.sessionRepo.GetByID(ctx, tenantID, id)
+	session, err := s.sessionRepo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureSessionWorkspaceAccess(ctx, session); err != nil {
+		return nil, err
+	}
+	return session, nil
 }
 
 // SetSessionOwnerID assigns sessions.user_id for the given session row.
@@ -337,6 +380,9 @@ func (s *sessionService) ListSessions(
 		query = &types.SessionListQuery{}
 	}
 	query.TenantID = types.MustTenantIDFromContext(ctx)
+	if tenant, ok := types.TenantInfoFromContext(ctx); ok {
+		query.HideLegalSessions = !tenant.LegalWorkspaceConfig.IsEnabled()
+	}
 	// API / IM / embed source filters are tenant-wide admin views over channel
 	// traffic. Gate them behind Admin+ and drop the per-user owner scope so an
 	// Owner/admin can observe sessions that are otherwise isolated per key,
@@ -378,6 +424,9 @@ func (s *sessionService) CountSessionsBySource(
 		query = &types.SessionListQuery{}
 	}
 	query.TenantID = types.MustTenantIDFromContext(ctx)
+	if tenant, ok := types.TenantInfoFromContext(ctx); ok {
+		query.HideLegalSessions = !tenant.LegalWorkspaceConfig.IsEnabled()
+	}
 	if types.SessionListSourceRequiresAdmin(query.Source) {
 		query.UserID = ""
 	} else if uid := types.SessionOwnerIDFromContext(ctx); uid != "" {
@@ -406,6 +455,11 @@ func (s *sessionService) SetSessionPinned(
 	}
 	tenantID := types.MustTenantIDFromContext(ctx)
 	userID := sessionUserIDFromContext(ctx)
+	if existing, err := s.sessionRepo.Get(ctx, tenantID, userID, sessionID); err != nil {
+		return 0, err
+	} else if err := ensureSessionWorkspaceAccess(ctx, existing); err != nil {
+		return 0, err
+	}
 	return s.sessionRepo.SetPinned(ctx, tenantID, userID, sessionID, pinned)
 }
 
@@ -421,6 +475,9 @@ func (s *sessionService) UpdateSession(ctx context.Context, session *types.Sessi
 	userID := sessionUserIDFromContext(ctx)
 	existing, err := s.sessionRepo.Get(ctx, session.TenantID, userID, session.ID)
 	if err != nil {
+		return err
+	}
+	if err := ensureSessionWorkspaceAccess(ctx, existing); err != nil {
 		return err
 	}
 	if existing != nil {
@@ -454,6 +511,11 @@ func (s *sessionService) UpdateSessionLastRequestState(
 	}
 	tenantID := types.MustTenantIDFromContext(ctx)
 	userID := sessionUserIDFromContext(ctx)
+	if existing, err := s.sessionRepo.Get(ctx, tenantID, userID, sessionID); err != nil {
+		return err
+	} else if err := ensureSessionWorkspaceAccess(ctx, existing); err != nil {
+		return err
+	}
 	affected, err := s.sessionRepo.UpdateLastRequestState(ctx, tenantID, userID, sessionID, state)
 	if err != nil {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{
@@ -480,7 +542,9 @@ func (s *sessionService) DeleteSession(ctx context.Context, id string) error {
 	tenantID := types.MustTenantIDFromContext(ctx)
 	userID := sessionUserIDFromContext(ctx)
 
-	if _, err := s.sessionRepo.Get(ctx, tenantID, userID, id); err != nil {
+	if existing, err := s.sessionRepo.Get(ctx, tenantID, userID, id); err != nil {
+		return err
+	} else if err := ensureSessionWorkspaceAccess(ctx, existing); err != nil {
 		return err
 	}
 
@@ -550,7 +614,10 @@ func (s *sessionService) BatchDeleteSessions(ctx context.Context, ids []string) 
 
 	visibleIDs := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if _, err := s.sessionRepo.Get(ctx, tenantID, userID, id); err == nil {
+		if existing, err := s.sessionRepo.Get(ctx, tenantID, userID, id); err == nil {
+			if accessErr := ensureSessionWorkspaceAccess(ctx, existing); accessErr != nil {
+				return accessErr
+			}
 			visibleIDs = append(visibleIDs, id)
 		} else if !stderrors.Is(err, apperrors.ErrSessionNotFound) {
 			return err
@@ -665,6 +732,55 @@ func (s *sessionService) DeleteAllSessions(ctx context.Context) error {
 
 	logger.Infof(ctx, "All sessions deleted for tenant %d", tenantID)
 	return nil
+}
+
+// DeleteLegalAssistantSessions removes only legal-assistant session rows for a
+// tenant-wide owner purge. Associated legal documents are owned by their
+// respective services; this method deliberately limits its responsibility to
+// the session domain and never touches platform sessions.
+func (s *sessionService) DeleteLegalAssistantSessions(ctx context.Context, tenantID uint64) error {
+	if tenantID == 0 {
+		return stderrors.New("workspace id is required")
+	}
+	sessions, err := s.sessionRepo.ListByTenantWorkspaceMode(ctx, tenantID, types.WorkspaceModeLegalAssistant)
+	if err != nil {
+		return err
+	}
+	// Remove message rows and suggestion rows before soft-deleting the session
+	// rows. Physical attachments/document blobs are owned by the temporary
+	// document service and must be purged by the outer legal-data coordinator.
+	for _, session := range sessions {
+		if session == nil {
+			continue
+		}
+		if s.messageRepo != nil {
+			if err := s.messageRepo.DeleteMessagesBySessionID(ctx, session.ID); err != nil {
+				return err
+			}
+		}
+		if s.suggestionRepo != nil {
+			if err := s.suggestionRepo.DeleteBySessionID(ctx, tenantID, session.ID); err != nil {
+				return err
+			}
+		}
+		if s.webSearchStateRepo != nil {
+			if err := s.webSearchStateRepo.DeleteWebSearchTempKBState(ctx, session.ID); err != nil {
+				logger.Warnf(ctx, "failed to cleanup legal session temporary KB %s: %v", session.ID, err)
+			}
+		}
+	}
+	_, err = s.sessionRepo.DeleteByTenantWorkspaceMode(ctx, tenantID, types.WorkspaceModeLegalAssistant)
+	return err
+}
+
+// ListLegalAssistantSessions returns active legal-assistant sessions for the
+// tenant-wide legal-workspace purge coordinator. It is intentionally a
+// concrete-service capability rather than a general user-facing list API.
+func (s *sessionService) ListLegalAssistantSessions(ctx context.Context, tenantID uint64) ([]*types.Session, error) {
+	if tenantID == 0 {
+		return nil, stderrors.New("workspace id is required")
+	}
+	return s.sessionRepo.ListByTenantWorkspaceMode(ctx, tenantID, types.WorkspaceModeLegalAssistant)
 }
 
 // destroyBoundSandbox tears down the sandbox MicroVM bound to sessionID, if

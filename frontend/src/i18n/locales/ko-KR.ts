@@ -12,7 +12,11 @@ export default {
     settings: '설정',
     collapse: '사이드바 접기',
     expand: '사이드바 펼치기',
-    smartArchive: '스마트 아카이브'
+    smartArchive: '스마트 아카이브',
+    assistant: '법무 어시스턴트'
+  },
+  legalAssistant: {
+    eyebrow: '법률 워크스페이스', title: '법무 어시스턴트', description: '계약서, 법령, 내부 자료에서 근거를 빠르게 찾고 추적 가능한 법률 업무 답변을 만듭니다.', sessions: '법무 세션', workspaceUnavailable: '법률 워크스페이스를 사용할 수 없습니다. 지식베이스로 돌아갑니다.', createFailed: '법무 어시스턴트 세션을 만들지 못했습니다.'
   },
   legalWorkspaceSettings: {
     description: '이 워크스페이스에서 법률 워크스페이스를 표시하고 사용할 수 있는지 제어합니다. 끄더라도 기존 데이터는 삭제되지 않습니다.',

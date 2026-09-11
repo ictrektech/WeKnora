@@ -112,6 +112,10 @@ func (h *MessageHandler) LoadMessages(c *gin.Context) {
 		logger.Infof(ctx, "Getting recent messages for session, session ID: %s, limit: %d", sessionID, limitInt)
 		messages, err := h.MessageService.GetRecentMessagesBySession(ctx, sessionID, limitInt)
 		if err != nil {
+			if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+				c.Error(errors.NewForbiddenError(err.Error()))
+				return
+			}
 			if stderrors.Is(err, errors.ErrSessionNotFound) {
 				// PR #1309 plumbed user-scope into the message service's
 				// session existence check; non-owner / wrong-tenant lookups
@@ -155,6 +159,10 @@ func (h *MessageHandler) LoadMessages(c *gin.Context) {
 		sessionID, beforeTime.Format(time.RFC3339Nano), limitInt)
 	messages, err := h.MessageService.GetMessagesBySessionBeforeTime(ctx, sessionID, beforeTime, limitInt)
 	if err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, errors.ErrSessionNotFound) {
 			// See note on the GetRecentMessagesBySession path above.
 			logger.Warnf(ctx, "Session not found, ID: %s", sessionID)
@@ -203,6 +211,10 @@ func (h *MessageHandler) DeleteMessage(c *gin.Context) {
 
 	// Delete the message using the message service
 	if err := h.MessageService.DeleteMessage(ctx, sessionID, messageID); err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, errors.ErrSessionNotFound) {
 			// See note on LoadMessages above — message-service operations
 			// surface ErrSessionNotFound when the caller can't see the

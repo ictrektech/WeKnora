@@ -491,7 +491,7 @@ func (h *Handler) SteerMessage(c *gin.Context) {
 	// use the strict owner scope and reject cross-tenant access.
 	if _, err := h.sessionService.GetOwnedSession(ctx, sessionID); err != nil {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{"session_id": sessionID})
-		_ = c.Error(errors.NewNotFoundError("Session not found"))
+		_ = c.Error(sessionNotAccessibleError(err))
 		return
 	}
 
@@ -622,7 +622,7 @@ func (h *Handler) PromoteSteerMessage(c *gin.Context) {
 
 	if _, err := h.sessionService.GetOwnedSession(ctx, sessionID); err != nil {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{"session_id": sessionID})
-		_ = c.Error(errors.NewNotFoundError("Session not found"))
+		_ = c.Error(sessionNotAccessibleError(err))
 		return
 	}
 
@@ -703,7 +703,7 @@ func (h *Handler) ListSteerMessages(c *gin.Context) {
 
 	if _, err := h.sessionService.GetOwnedSession(ctx, sessionID); err != nil {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{"session_id": sessionID})
-		_ = c.Error(errors.NewNotFoundError("Session not found"))
+		_ = c.Error(sessionNotAccessibleError(err))
 		return
 	}
 
@@ -757,7 +757,7 @@ func (h *Handler) DeleteSteerMessage(c *gin.Context) {
 
 	if _, err := h.sessionService.GetOwnedSession(ctx, sessionID); err != nil {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{"session_id": sessionID})
-		_ = c.Error(errors.NewNotFoundError("Session not found"))
+		_ = c.Error(sessionNotAccessibleError(err))
 		return
 	}
 

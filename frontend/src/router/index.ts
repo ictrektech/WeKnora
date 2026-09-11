@@ -116,6 +116,26 @@ const router = createRouter({
           meta: { requiresInit: true, requiresAuth: true, requiresLegalWorkspace: true },
         },
         {
+          path: "legal-assistant",
+          name: "legalAssistant",
+          component: () => import("../views/legal/LegalAssistant.vue"),
+          meta: { requiresInit: true, requiresAuth: true, requiresLegalWorkspace: true },
+          children: [
+            {
+              path: "",
+              name: "legalAssistantHome",
+              component: () => import("../views/legal/LegalAssistantHome.vue"),
+              meta: { requiresInit: true, requiresAuth: true, requiresLegalWorkspace: true },
+            },
+            {
+              path: "chat/:chatid",
+              name: "legalAssistantChat",
+              component: () => import("../views/chat/index.vue"),
+              meta: { requiresInit: true, requiresAuth: true, requiresLegalWorkspace: true },
+            },
+          ],
+        },
+        {
           path: "tenant",
           redirect: "/platform/settings"
         },

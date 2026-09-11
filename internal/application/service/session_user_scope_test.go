@@ -84,6 +84,19 @@ func TestGetSessionIsScopedToCurrentUser(t *testing.T) {
 	require.Equal(t, legacySession.ID, got.ID)
 }
 
+func TestLegalSessionAccessIsForbiddenWhenWorkspaceDisabled(t *testing.T) {
+	svc, db := newTestSessionService(t)
+	legal := &types.Session{TenantID: 1, UserID: "alice", WorkspaceMode: types.WorkspaceModeLegalAssistant}
+	require.NoError(t, db.Create(legal).Error)
+	ctx := testSessionScopeContext(1, "alice")
+	ctx = context.WithValue(ctx, types.TenantInfoContextKey, &types.Tenant{
+		ID:                   1,
+		LegalWorkspaceConfig: &types.LegalWorkspaceConfig{Enabled: false},
+	})
+	_, err := svc.GetSession(ctx, legal.ID)
+	require.ErrorIs(t, err, apperrors.ErrLegalWorkspaceDisabled)
+}
+
 func TestUpdateSessionIsScopedToCurrentUserAndAllowsNoOp(t *testing.T) {
 	svc, db := newTestSessionService(t)
 	aliceSession := &types.Session{

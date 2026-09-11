@@ -2,8 +2,64 @@ package types
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
+
+func TestLegalAssistantBuiltinConfigIsEvidenceFirst(t *testing.T) {
+	root := filepath.Join("..", "..")
+	data, err := os.ReadFile(filepath.Join(root, "config", "builtin_agents.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg builtinAgentsFile
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	var found *BuiltinAgentEntry
+	for i := range cfg.BuiltinAgents {
+		if cfg.BuiltinAgents[i].ID == BuiltinLegalAssistantID {
+			found = &cfg.BuiltinAgents[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("builtin legal assistant is missing from builtin_agents.yaml")
+	}
+	if found.Config.SystemPromptID != "legal_assistant_main" {
+		t.Fatalf("system prompt id = %q", found.Config.SystemPromptID)
+	}
+	if !found.Config.WebSearchEnabled || len(found.Config.AllowedTools) == 0 {
+		t.Fatal("legal assistant must have optional web search and read-only retrieval tools configured")
+	}
+	prompt, err := os.ReadFile(filepath.Join(root, "config", "prompt_templates", "agent_system_prompt.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsPromptID(prompt, "legal_assistant_main") {
+		t.Fatal("legal_assistant_main prompt is missing")
+	}
+}
+
+func containsPromptID(data []byte, id string) bool {
+	var file struct {
+		Templates []struct {
+			ID string `yaml:"id"`
+		} `yaml:"templates"`
+	}
+	if yaml.Unmarshal(data, &file) != nil {
+		return false
+	}
+	for _, template := range file.Templates {
+		if template.ID == id {
+			return true
+		}
+	}
+	return false
+}
 
 func TestApplyBuiltinAgentLocalizationOverlaysYAMLLocale(t *testing.T) {
 	restore := OverrideBuiltinAgentEntriesForTest(map[string]*BuiltinAgentEntry{

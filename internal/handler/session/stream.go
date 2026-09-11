@@ -66,6 +66,10 @@ func (h *Handler) ContinueStream(c *gin.Context) {
 
 	// Verify that the session exists and belongs to this tenant
 	if _, err := h.sessionService.GetSession(ctx, sessionID); err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, errors.ErrSessionNotFound) {
 			logger.Warnf(ctx, "Session not found, ID: %s", sessionID)
 			c.Error(errors.NewNotFoundError(err.Error()))
@@ -270,6 +274,10 @@ func (h *Handler) StopSession(c *gin.Context) {
 	// API-key session but must not be able to interrupt its (external) API calls.
 	session, err := h.sessionService.GetOwnedSession(ctx, sessionID)
 	if err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{
 			"session_id": sessionID,
 		})

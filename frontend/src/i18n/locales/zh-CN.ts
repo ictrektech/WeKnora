@@ -10,7 +10,11 @@ export default {
     settings: '设置',
     collapse: '收起侧边栏',
     expand: '展开侧边栏',
-    smartArchive: '智能档案'
+    smartArchive: '智能档案',
+    assistant: '法务助手'
+  },
+  legalAssistant: {
+    eyebrow: '法律工作台', title: '法务助手', description: '在合同、法规和内部资料中快速查找依据，生成可追溯的法律工作结论。', sessions: '法务会话', workspaceUnavailable: '法务工作台不可用，已返回知识库。', createFailed: '创建法务会话失败。'
   },
   legalWorkspaceSettings: {
     description: '控制当前工作区是否显示并允许访问法律工作台。关闭只隐藏入口，不会删除已有数据。',

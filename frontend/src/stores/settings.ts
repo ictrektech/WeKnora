@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { nextTick } from "vue";
-import { BUILTIN_QUICK_ANSWER_ID, BUILTIN_SMART_REASONING_ID } from "@/api/agent";
+import { BUILTIN_LEGAL_ASSISTANT_ID, BUILTIN_QUICK_ANSWER_ID, BUILTIN_SMART_REASONING_ID } from "@/api/agent";
 import { getApiBaseUrl } from "@/utils/api-base";
 import { isAgentStreamAgentId } from "@/utils/agent-mode";
 import { loadAndReconcileSettings } from "@/stores/settingsStorage";
@@ -40,6 +40,22 @@ interface ConversationModels {
   summaryModelId: string;
   rerankModelId: string;
   selectedChatModelId: string;  // 用户当前选择的对话模型ID
+}
+
+/** Composer state kept apart from the user's normal chat defaults. */
+export interface LegalAssistantComposerProfile {
+  isAgentEnabled: boolean;
+  agentConfig: AgentConfig;
+  selectedAgentId: string;
+  selectedAgentSourceTenantId: string | null;
+  selectedKnowledgeBases: string[];
+  selectedFiles: string[];
+  selectedFileKbMap: Record<string, string>;
+  selectedTags: Array<{ id: string; name: string; kbId: string; kbName?: string }>;
+  selectedMCPServices: string[];
+  selectedSkills: string[];
+  webSearchEnabled: boolean;
+  conversationModels: ConversationModels;
 }
 
 // 单个模型项接口
@@ -108,6 +124,36 @@ const defaultSettings: Settings = {
   autoCheckUpdate: true,
 };
 
+const defaultLegalAssistantProfile = (): LegalAssistantComposerProfile => ({
+  isAgentEnabled: true,
+  agentConfig: JSON.parse(JSON.stringify(defaultSettings.agentConfig)),
+  selectedAgentId: BUILTIN_LEGAL_ASSISTANT_ID,
+  selectedAgentSourceTenantId: null,
+  selectedKnowledgeBases: [],
+  selectedFiles: [],
+  selectedFileKbMap: {},
+  selectedTags: [],
+  selectedMCPServices: [],
+  selectedSkills: [],
+  webSearchEnabled: false,
+  conversationModels: { summaryModelId: '', rerankModelId: '', selectedChatModelId: '' },
+});
+
+const loadLegalAssistantProfile = (): LegalAssistantComposerProfile => {
+  if (typeof localStorage === 'undefined') return defaultLegalAssistantProfile();
+  try {
+    // Keep this profile in its own key. The legacy settings actions persist
+    // the ordinary composer as a complete object and must not erase legal
+    // preferences after the user leaves the workbench.
+    const isolated = JSON.parse(localStorage.getItem('WeKnora_legal_assistant_profile') || 'null');
+    const parsed = JSON.parse(localStorage.getItem('WeKnora_settings') || '{}');
+    const profile = isolated || parsed?.legalAssistantProfile;
+    return profile ? { ...defaultLegalAssistantProfile(), ...profile } : defaultLegalAssistantProfile();
+  } catch {
+    return defaultLegalAssistantProfile();
+  }
+};
+
 export const useSettingsStore = defineStore("settings", {
   state: () => ({
     // 从本地存储加载设置，如果没有则使用默认设置
@@ -117,6 +163,8 @@ export const useSettingsStore = defineStore("settings", {
     _defaultsSnapshot: null as Settings | null,
     /** 正在从 session.last_request_state 恢复输入栏，避免 agent 切换 watch 覆盖 KB 选择 */
     _isApplyingSessionState: false,
+    legalAssistantProfile: loadLegalAssistantProfile(),
+    _legalAssistantSnapshot: null as Settings | null,
   }),
 
   getters: {
@@ -177,6 +225,50 @@ export const useSettingsStore = defineStore("settings", {
   },
 
   actions: {
+    /** Enter the legal assistant without leaking its composer choices into chat. */
+    enterLegalAssistant() {
+      if (this._legalAssistantSnapshot) return;
+      this._legalAssistantSnapshot = JSON.parse(JSON.stringify(this.settings));
+      const profile = this.legalAssistantProfile || defaultLegalAssistantProfile();
+      this.settings = {
+        ...this.settings,
+        isAgentEnabled: profile.isAgentEnabled,
+        agentConfig: JSON.parse(JSON.stringify(profile.agentConfig)),
+        selectedAgentId: profile.selectedAgentId || BUILTIN_LEGAL_ASSISTANT_ID,
+        selectedAgentSourceTenantId: profile.selectedAgentSourceTenantId,
+        selectedKnowledgeBases: [...profile.selectedKnowledgeBases],
+        selectedFiles: [...profile.selectedFiles],
+        selectedFileKbMap: { ...profile.selectedFileKbMap },
+        selectedTags: [...profile.selectedTags],
+        selectedMCPServices: [...profile.selectedMCPServices],
+        selectedSkills: [...profile.selectedSkills],
+        webSearchEnabled: profile.webSearchEnabled,
+        conversationModels: { ...profile.conversationModels },
+      };
+    },
+
+    /** Persist the current legal composer and restore ordinary chat defaults. */
+    leaveLegalAssistant() {
+      if (!this._legalAssistantSnapshot) return;
+      this.legalAssistantProfile = {
+        isAgentEnabled: this.settings.isAgentEnabled,
+        agentConfig: JSON.parse(JSON.stringify(this.settings.agentConfig)),
+        selectedAgentId: this.settings.selectedAgentId,
+        selectedAgentSourceTenantId: this.settings.selectedAgentSourceTenantId,
+        selectedKnowledgeBases: [...this.settings.selectedKnowledgeBases],
+        selectedFiles: [...this.settings.selectedFiles],
+        selectedFileKbMap: { ...this.settings.selectedFileKbMap },
+        selectedTags: [...this.settings.selectedTags],
+        selectedMCPServices: [...this.settings.selectedMCPServices],
+        selectedSkills: [...this.settings.selectedSkills],
+        webSearchEnabled: this.settings.webSearchEnabled,
+        conversationModels: { ...this.settings.conversationModels },
+      };
+      this.settings = this._legalAssistantSnapshot;
+      this._legalAssistantSnapshot = null;
+      localStorage.setItem('WeKnora_legal_assistant_profile', JSON.stringify(this.legalAssistantProfile));
+      localStorage.setItem('WeKnora_settings', JSON.stringify({ ...this.settings, legalAssistantProfile: this.legalAssistantProfile }));
+    },
     // 保存设置
     saveSettings(settings: Settings) {
       this.settings = { ...settings };

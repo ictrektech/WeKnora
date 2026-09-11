@@ -172,6 +172,9 @@ func (r *sessionRepository) QueryPaged(
 			"(s.description IS NULL OR s.description NOT LIKE ?)",
 			types.SkillMaintenanceSessionMarker+"%",
 		)
+		if q.HideLegalSessions {
+			db = db.Where("COALESCE(s.workspace_mode, ?) <> ?", string(types.WorkspaceModePlatform), string(types.WorkspaceModeLegalAssistant))
+		}
 		if kw := strings.TrimSpace(q.Keyword); kw != "" {
 			db = db.Where(titleLikeExpr, "%"+escapeLikeKeyword(kw)+"%")
 		}
@@ -390,4 +393,26 @@ func (r *sessionRepository) DeleteAllByTenantID(ctx context.Context, tenantID ui
 		userID,
 	).Delete(&types.Session{})
 	return res.RowsAffected, res.Error
+}
+
+// DeleteByTenantWorkspaceMode soft-deletes one workspace's sessions without
+// user scoping. This is intentionally narrow so legal-data purge cannot touch
+// ordinary platform conversations.
+func (r *sessionRepository) DeleteByTenantWorkspaceMode(
+	ctx context.Context, tenantID uint64, mode types.WorkspaceMode,
+) (int64, error) {
+	res := r.db.WithContext(ctx).
+		Where("tenant_id = ? AND workspace_mode = ?", tenantID, mode).
+		Delete(&types.Session{})
+	return res.RowsAffected, res.Error
+}
+
+func (r *sessionRepository) ListByTenantWorkspaceMode(
+	ctx context.Context, tenantID uint64, mode types.WorkspaceMode,
+) ([]*types.Session, error) {
+	var sessions []*types.Session
+	err := r.db.WithContext(ctx).
+		Where("tenant_id = ? AND workspace_mode = ?", tenantID, mode).
+		Find(&sessions).Error
+	return sessions, err
 }

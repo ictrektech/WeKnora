@@ -22,7 +22,7 @@ func (h *Handler) UploadTemporaryDocument(c *gin.Context) {
 	// Uploading attaches content to the session, so use the strict owner scope:
 	// a tenant admin may read an API-key session but must not add attachments.
 	if _, err := h.sessionService.GetOwnedSession(ctx, sessionID); err != nil {
-		c.Error(apperrors.NewNotFoundError("Session not found"))
+		c.Error(sessionNotAccessibleError(err))
 		return
 	}
 	maxBytes := secutils.GetMaxFileSizeMB()*1024*1024 + 1024*1024
@@ -96,7 +96,7 @@ func (h *Handler) ListTemporaryDocuments(c *gin.Context) {
 	ctx := c.Request.Context()
 	sessionID := sessionIDParam(c)
 	if _, err := h.sessionService.GetSession(ctx, sessionID); err != nil {
-		c.Error(apperrors.NewNotFoundError("Session not found"))
+		c.Error(sessionNotAccessibleError(err))
 		return
 	}
 	documents, err := h.temporaryDocuments.List(ctx, c.GetUint64(types.TenantIDContextKey.String()), sessionID)
@@ -111,7 +111,7 @@ func (h *Handler) GetTemporaryDocument(c *gin.Context) {
 	ctx := c.Request.Context()
 	sessionID := sessionIDParam(c)
 	if _, err := h.sessionService.GetSession(ctx, sessionID); err != nil {
-		c.Error(apperrors.NewNotFoundError("Session not found"))
+		c.Error(sessionNotAccessibleError(err))
 		return
 	}
 	document, err := h.temporaryDocuments.Get(ctx, c.GetUint64(types.TenantIDContextKey.String()), sessionID, c.Param("attachment_id"))
@@ -130,7 +130,7 @@ func (h *Handler) PreviewTemporaryDocument(c *gin.Context) {
 	ctx := c.Request.Context()
 	sessionID := sessionIDParam(c)
 	if _, err := h.sessionService.GetSession(ctx, sessionID); err != nil {
-		c.Error(apperrors.NewNotFoundError("Session not found"))
+		c.Error(sessionNotAccessibleError(err))
 		return
 	}
 	attachmentID := secutils.SanitizeForLog(c.Param("attachment_id"))
@@ -163,7 +163,7 @@ func (h *Handler) DeleteTemporaryDocument(c *gin.Context) {
 	// Deleting mutates the session's attachments, so use the strict owner scope:
 	// a tenant admin may read an API-key session but must not remove attachments.
 	if _, err := h.sessionService.GetOwnedSession(ctx, sessionID); err != nil {
-		c.Error(apperrors.NewNotFoundError("Session not found"))
+		c.Error(sessionNotAccessibleError(err))
 		return
 	}
 	if err := h.temporaryDocuments.Delete(ctx, c.GetUint64(types.TenantIDContextKey.String()), sessionID, c.Param("attachment_id")); err != nil {

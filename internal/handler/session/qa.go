@@ -182,6 +182,9 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 	session, err := h.sessionService.GetOwnedSession(ctx, sessionID)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get session, session ID: %s, error: %v", sessionID, err)
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			return nil, nil, errors.NewForbiddenError(err.Error())
+		}
 		return nil, nil, errors.NewNotFoundError("Session not found")
 	}
 

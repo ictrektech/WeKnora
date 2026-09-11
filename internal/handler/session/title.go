@@ -48,6 +48,10 @@ func (h *Handler) GenerateTitle(c *gin.Context) {
 	// not be able to (re)generate its title.
 	session, err := h.sessionService.GetOwnedSession(ctx, sessionID)
 	if err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, errors.ErrSessionNotFound) {
 			logger.Warnf(ctx, "Session not found, ID: %s", sessionID)
 			c.Error(errors.NewNotFoundError(err.Error()))

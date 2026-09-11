@@ -117,12 +117,27 @@ func NewHandler(
 // @Security     ApiKeyAuth
 // @Router       /sessions [post]
 func (h *Handler) CreateSession(c *gin.Context) {
+	h.createSession(c, types.WorkspaceModePlatform)
+}
+
+// CreateLegalAssistantSession creates a session owned by the legal assistant
+// workspace. The route is separately guarded by the tenant legal-workspace
+// switch and Viewer RBAC.
+func (h *Handler) CreateLegalAssistantSession(c *gin.Context) {
+	h.createSession(c, types.WorkspaceModeLegalAssistant)
+}
+
+func (h *Handler) createSession(c *gin.Context, forcedMode types.WorkspaceMode) {
 	ctx := c.Request.Context()
 	// Parse and validate the request body
 	var request CreateSessionRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		logger.Error(ctx, "Failed to validate session creation parameters", err)
 		c.Error(errors.NewBadRequestError(err.Error()))
+		return
+	}
+	if request.WorkspaceMode != "" && request.WorkspaceMode != forcedMode {
+		c.Error(errors.NewBadRequestError("invalid workspace_mode"))
 		return
 	}
 
@@ -145,9 +160,10 @@ func (h *Handler) CreateSession(c *gin.Context) {
 
 	// Create session object with base properties
 	createdSession := &types.Session{
-		TenantID:    tenantID.(uint64),
-		Title:       request.Title,
-		Description: types.SanitizeClientSessionDescription(request.Description, ""),
+		TenantID:      tenantID.(uint64),
+		Title:         request.Title,
+		Description:   types.SanitizeClientSessionDescription(request.Description, ""),
+		WorkspaceMode: forcedMode,
 	}
 	// Attach the calling user as the session owner when available.
 	// API-key callers scope sessions per external user when configured;
@@ -161,6 +177,10 @@ func (h *Handler) CreateSession(c *gin.Context) {
 	createdSession, err := h.sessionService.CreateSession(ctx, createdSession)
 	if err != nil {
 		logger.ErrorWithFields(ctx, err, nil)
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		c.Error(errors.NewInternalServerError(err.Error()))
 		return
 	}
@@ -202,6 +222,10 @@ func (h *Handler) GetSession(c *gin.Context) {
 	logger.Infof(ctx, "Retrieving session, ID: %s", id)
 	session, err := h.sessionService.GetSession(ctx, id)
 	if err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, errors.ErrSessionNotFound) {
 			logger.Warnf(ctx, "Session not found, ID: %s", id)
 			c.Error(errors.NewNotFoundError(err.Error()))
@@ -218,6 +242,13 @@ func (h *Handler) GetSession(c *gin.Context) {
 		"success": true,
 		"data":    session,
 	})
+}
+
+func sessionNotAccessibleError(err error) error {
+	if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		return errors.NewForbiddenError(err.Error())
+	}
+	return errors.NewNotFoundError("Session not found")
 }
 
 // GetSessionsByTenant godoc
@@ -317,6 +348,10 @@ func (h *Handler) UpdateSession(c *gin.Context) {
 
 	// Call service to update session
 	if err := h.sessionService.UpdateSession(ctx, &session); err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, errors.ErrSessionNotFound) {
 			logger.Warnf(ctx, "Session not found, ID: %s", id)
 			c.Error(errors.NewNotFoundError(err.Error()))
@@ -330,6 +365,14 @@ func (h *Handler) UpdateSession(c *gin.Context) {
 	// Reload session from database to return complete timestamps and stored fields
 	updatedSession, err := h.sessionService.GetSession(ctx, id)
 	if err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
+		if stderrors.Is(err, errors.ErrSessionNotFound) {
+			c.Error(errors.NewNotFoundError(err.Error()))
+			return
+		}
 		logger.ErrorWithFields(ctx, err, nil)
 		c.Error(errors.NewInternalServerError(err.Error()))
 		return
@@ -368,6 +411,10 @@ func (h *Handler) DeleteSession(c *gin.Context) {
 
 	// Call service to delete session
 	if err := h.sessionService.DeleteSession(ctx, id); err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, errors.ErrSessionNotFound) {
 			logger.Warnf(ctx, "Session not found, ID: %s", id)
 			c.Error(errors.NewNotFoundError(err.Error()))
@@ -411,6 +458,10 @@ func (h *Handler) ClearSessionMessages(c *gin.Context) {
 	logger.Infof(ctx, "Clearing all messages for session: %s", id)
 
 	if err := h.messageService.ClearSessionMessages(ctx, id); err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, errors.ErrSessionNotFound) {
 			logger.Warnf(ctx, "Session not found, ID: %s", id)
 			c.Error(errors.NewNotFoundError(err.Error()))
@@ -458,6 +509,10 @@ func (h *Handler) BatchDeleteSessions(c *gin.Context) {
 
 	if req.DeleteAll {
 		if err := h.sessionService.DeleteAllSessions(ctx); err != nil {
+			if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+				c.Error(errors.NewForbiddenError(err.Error()))
+				return
+			}
 			logger.ErrorWithFields(ctx, err, nil)
 			c.Error(errors.NewInternalServerError(err.Error()))
 			return
@@ -489,6 +544,10 @@ func (h *Handler) BatchDeleteSessions(c *gin.Context) {
 	}
 
 	if err := h.sessionService.BatchDeleteSessions(ctx, sanitizedIDs); err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, errors.ErrSessionNotFound) {
 			logger.Warnf(ctx, "No visible sessions found for batch delete")
 			c.Error(errors.NewNotFoundError(err.Error()))
@@ -553,6 +612,10 @@ func (h *Handler) setSessionPinned(c *gin.Context, pinned bool) {
 
 	rows, err := h.sessionService.SetSessionPinned(ctx, id, pinned)
 	if err != nil {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{
 			"session_id": id,
 			"pinned":     pinned,
