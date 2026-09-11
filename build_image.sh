@@ -17,7 +17,7 @@ FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.json}"
 FEISHU_SPREADSHEET_TOKEN="Htotsn3oahO1zxt73YMcaB1zn8e"
 TARGET="${WEKNORA_BUILD_TARGET:-}"
 TARGET_SHEET_SPEC="${FEISHU_SHEET_TITLE:-}"
-DATE="${WEKNORA_BUILD_DATE:-$(date +%Y-%m-%d)}"
+DATE=""
 PROFILE_TAG=""
 TARGET_SHEET_TITLES=()
 
@@ -44,6 +44,18 @@ err() {
   echo "[ERROR] $*" >&2
 }
 
+normalize_build_date() {
+  local value="$1"
+  if [[ "$value" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})$ ]]; then
+    printf '%s%s%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+  elif [[ "$value" =~ ^[0-9]{8}$ ]]; then
+    printf '%s\n' "$value"
+  else
+    err "Invalid WEKNORA_BUILD_DATE: ${value}; expected YYYYMMDD"
+    return 1
+  fi
+}
+
 usage() {
   cat <<'EOF'
 Usage: ./build_image.sh [options]
@@ -68,6 +80,8 @@ Environment:
   FEISHU_CONFIG_FILE     Defaults to ~/.feishu.json on the build host
   WEKNORA_BUILD_TARGET   Optional default for --target
   FEISHU_SHEET_TITLE     Optional default for --sheet, comma-separated values accepted
+  WEKNORA_BUILD_DATE     Feishu date row; accepts YYYYMMDD or legacy YYYY-MM-DD,
+                         and writes YYYYMMDD (default: current date)
   APK_MIRROR_ARG         Optional Debian mirror for app image
   APT_MIRROR             Optional Debian mirror for docreader image
   NPM_REGISTRY           Optional npm registry for frontend image
@@ -491,8 +505,16 @@ data = json.loads(sys.argv[2])
 if data.get("code") != 0:
     raise SystemExit(f"read date column failed: {data}")
 values = data.get("data", {}).get("valueRange", {}).get("values", [])
+
+def normalize_date(value):
+    text = str(value).strip()
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        return text[:4] + text[5:7] + text[8:10]
+    return text
+
+target = normalize_date(target)
 for idx, row in enumerate(values, start=4):
-    if row and str(row[0]).strip() == target:
+    if row and normalize_date(row[0]) == target:
         print(idx)
         raise SystemExit(0)
 print("")
@@ -570,6 +592,9 @@ update_feishu() {
       date_row=4
     else
       log "Date ${DATE} already exists in ${sheet_title} at row ${date_row}"
+      # Keep legacy YYYY-MM-DD rows readable while converging the selected
+      # row to the canonical YYYYMMDD format.
+      write_cell "$token" "$sheet_id" "A${date_row}" "$DATE"
     fi
 
     token="$(get_feishu_token "$app_id" "$app_secret")"
@@ -662,6 +687,12 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Feishu release-table date rows use a compact YYYYMMDD value. Accept the
+# legacy hyphenated form in the environment, but always normalize what we
+# write back to the table. Do this after argument parsing so --help remains
+# usable even when an inherited environment variable is malformed.
+DATE="$(normalize_build_date "${WEKNORA_BUILD_DATE:-$(date +%Y%m%d)}")"
 
 require_cmd python3
 

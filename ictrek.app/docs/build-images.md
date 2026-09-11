@@ -68,6 +68,7 @@ EOF
 - arm 目标默认更新 `ARM_without_cuda`、`l4t`、`ARM_with_cuda`、`thor_spark`、`SOPHON_bm1688`；
 - 每个服务镜像一列：`weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox`；
 - 第 1 行是服务名，第 2 行是镜像仓库地址，日期行写 tag，完整镜像是 `<row-2-repository>:<date-row-tag>`；
+- 日期行统一使用 `YYYYMMDD`（例如 `20260911`）。脚本兼容历史 `YYYY-MM-DD` 行，并在更新时规范化为 `YYYYMMDD`；
 - 脚本会先在已读取表头范围内查找同名服务列；服务列不存在时，只追加到从 B 列开始的连续组件块之后第一个空列，不能跳到远端空列继续写；
 - 构建脚本不能删除或整理飞书列。历史空列或误写远端列只能通过飞书 UI 或一次性维护脚本单独处理。
 
@@ -262,6 +263,10 @@ the tag. The full image name is:
 ```text
 <row-2-repository>:<date-row-tag>
 ```
+
+Date rows use the canonical `YYYYMMDD` format (for example, `20260911`). The
+script accepts legacy `YYYY-MM-DD` rows and normalizes the selected row when it
+writes an update.
 
 For example, the ARM record for `20260626` currently resolves to:
 
