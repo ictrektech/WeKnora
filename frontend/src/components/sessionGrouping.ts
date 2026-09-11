@@ -23,6 +23,7 @@ export interface SessionForGrouping {
   im_platform?: string
   description?: string
   user_id?: string
+  workspace_mode?: string
   originalIndex?: number
 }
 

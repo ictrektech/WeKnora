@@ -299,6 +299,7 @@ import {
     SESSION_MUTATION_EVENT,
     setSessionPinned,
     type SessionMutationDetail,
+    type SessionMutationSession,
 } from './sessionMutations';
 import SessionSourceFilter from './SessionSourceFilter.vue';
 import {
@@ -401,6 +402,10 @@ let bucketRequestToken = 0;
 const sessionListBooting = ref(false);
 const currentSecondpath = ref('');
 const scrollContainer = ref<HTMLElement | null>(null);
+// A create request can finish while the initial sidebar request is still
+// building its buckets. Keep the optimistic row until a bucket can accept it;
+// otherwise the older list response can erase the just-created conversation.
+const pendingCreatedSessions = new Map<string, SessionMutationSession>();
 const imPlatforms = ref<string[]>([]);
 const embedChannelNames = ref<Record<string, string>>({});
 const activeSessionBucketKey = ref(DEFAULT_SESSION_BUCKET_KEY);
@@ -820,9 +825,12 @@ const syncMenuStoreFromBuckets = () => {
 
 const menuChildToSessionRow = (item: Record<string, unknown>): SessionForGrouping & { path: string } => {
     const id = String(item.id);
+    const workspaceMode = typeof item.workspace_mode === 'string' ? item.workspace_mode : '';
     return {
         id,
-        path: typeof item.path === 'string' ? item.path : `chat/${id}`,
+        path: typeof item.path === 'string'
+            ? item.path
+            : workspaceMode === 'legal_assistant' ? `legal-assistant/chat/${id}` : `chat/${id}`,
         title: typeof item.title === 'string' ? item.title : undefined,
         is_pinned: !!item.is_pinned,
         created_at: typeof item.created_at === 'string' ? item.created_at : undefined,
@@ -830,6 +838,7 @@ const menuChildToSessionRow = (item: Record<string, unknown>): SessionForGroupin
         im_platform: typeof item.im_platform === 'string' ? item.im_platform : '',
         description: typeof item.description === 'string' ? item.description : '',
         user_id: typeof item.user_id === 'string' ? item.user_id : '',
+        workspace_mode: workspaceMode,
     };
 };
 
@@ -852,7 +861,33 @@ const ensureSessionInSidebar = (sessionId: string) => {
         ...sessionBuckets.value,
         web: prependSessionToWebBucket(web, menuChildToSessionRow(fromStore)),
     };
-    total.value = flattenBucketItems(sessionBuckets.value, bucketOrder.value).length;
+    syncMenuStoreFromBuckets();
+};
+
+const insertCreatedSessionInSidebar = (session: SessionMutationSession): boolean => {
+    const sessionId = String(session.id || '');
+    const web = sessionBuckets.value.web;
+    if (!sessionId || !web) return false;
+    if (sessionExistsInBuckets(sessionId)) {
+        pendingCreatedSessions.delete(sessionId);
+        return true;
+    }
+
+    sessionBuckets.value = {
+        ...sessionBuckets.value,
+        // Sessions created by the authenticated chat composer, including the
+        // legal assistant composer, are user-owned Web sessions.
+        web: prependSessionToWebBucket(web, mapSessionRow(session)),
+    };
+    pendingCreatedSessions.delete(sessionId);
+    syncMenuStoreFromBuckets();
+    return true;
+};
+
+const applyPendingCreatedSessions = () => {
+    for (const session of pendingCreatedSessions.values()) {
+        insertCreatedSessionInSidebar(session);
+    }
 };
 
 const rebuildBucketDefinitions = () => buildBucketDefinitions(
@@ -988,6 +1023,7 @@ const initSessionBuckets = async () => {
         buckets[def.key] = createEmptyBucket(def);
     }
     sessionBuckets.value = buckets;
+    applyPendingCreatedSessions();
 
     // 首屏：拉 web 会话 + 轻量探测各渠道 count（不拉完整列表）；有会话的渠道才展示文件夹
     const channelKeys = defs.map((def) => def.key).filter((key) => isChannelBucketKey(key));
@@ -1067,6 +1103,10 @@ const loadSessionOriginMeta = async () => {
 const handleSessionMutation = (event: Event) => {
     const detail = (event as CustomEvent<SessionMutationDetail>).detail;
     if (!detail?.sessionId) return;
+    if (detail.created && detail.session) {
+        pendingCreatedSessions.set(detail.sessionId, detail.session);
+        insertCreatedSessionInSidebar(detail.session);
+    }
     if (detail.removed || detail.messagesCleared) sessionActivity.update(detail.sessionId, false);
     if (detail.patch) {
         updateSessionInBuckets(detail.sessionId, {

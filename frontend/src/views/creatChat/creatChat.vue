@@ -70,6 +70,7 @@ import { MessagePlugin } from 'tdesign-vue-next';
 import { useI18n } from 'vue-i18n';
 import KnowledgeBaseEditorModal from '@/views/knowledge/KnowledgeBaseEditorModal.vue';
 import { useKnowledgeBaseCreationNavigation } from '@/hooks/useKnowledgeBaseCreationNavigation';
+import { notifySessionCreated } from '@/components/sessionMutations';
 
 const router = useRouter();
 const route = useRoute();
@@ -266,6 +267,7 @@ const navigateToSession = async (sessionId: string, value: string, modelId: stri
     usemenuStore.updataMenuChildren(obj);
     usemenuStore.changeIsFirstSession(true);
     usemenuStore.changeFirstQuery(value, mentionedItems, modelId, imageFiles, attachmentFiles);
+    notifySessionCreated(obj);
     if (isLegalAssistant.value) {
         await router.push({ name: 'legalAssistantChat', params: { chatid: sessionId } });
         return;

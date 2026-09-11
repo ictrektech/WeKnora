@@ -8,6 +8,22 @@ import {
 
 export const SESSION_MUTATION_EVENT = 'weknora:session-mutation'
 
+/** The sidebar row created optimistically before the next list request. */
+export interface SessionMutationSession {
+  id: string
+  title?: string
+  path?: string
+  isNoTitle?: boolean
+  created_at?: string
+  updated_at?: string
+  is_pinned?: boolean
+  pinned_at?: string | null
+  im_platform?: string
+  description?: string
+  user_id?: string
+  workspace_mode?: string
+}
+
 export interface SessionMutationPatch {
   title?: string
   is_pinned?: boolean
@@ -16,6 +32,8 @@ export interface SessionMutationPatch {
 
 export interface SessionMutationDetail {
   sessionId: string
+  created?: boolean
+  session?: SessionMutationSession
   patch?: SessionMutationPatch
   messagesCleared?: boolean
   removed?: boolean
@@ -24,6 +42,11 @@ export interface SessionMutationDetail {
 export function notifySessionMutation(detail: SessionMutationDetail): void {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent<SessionMutationDetail>(SESSION_MUTATION_EVENT, { detail }))
+}
+
+export function notifySessionCreated(session: SessionMutationSession): void {
+  if (!session?.id) return
+  notifySessionMutation({ sessionId: session.id, created: true, session })
 }
 
 function ensureSuccess(response: any): any {
