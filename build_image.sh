@@ -88,6 +88,8 @@ Environment:
   GOPROXY_ARG            Optional Go proxy for app image
   GOPRIVATE_ARG          Optional Go private module pattern for app image
   GOSUMDB_ARG            Optional Go checksum DB setting, default off in Dockerfile
+  COMMIT_ID_ARG          Source commit to embed in backend and frontend metadata
+  GITHUB_SHA             CI commit source when COMMIT_ID_ARG is not provided
   WEKNORA_VOS_VERSION_FILE
                          Optional VOS version file; defaults to ictrek.app/VERSION
   DOCKER_CLI_VERSION     Optional Docker CLI version bundled into the app image
@@ -764,6 +766,30 @@ next_vos_version() {
   printf '%s.%s.%s\n' "$major" "$minor" "$((patch + 1))"
 }
 
+# The VOS build context is commonly synced without .git, so do not rely on
+# Git metadata being available on the build host. Prefer an explicit value or
+# the CI commit, then fall back to the local checkout/commit marker.
+resolve_commit_id() {
+  local candidate="${COMMIT_ID_ARG:-}"
+
+  if [[ -z "$candidate" && -n "${GITHUB_SHA:-}" ]]; then
+    candidate="${GITHUB_SHA:0:7}"
+  fi
+
+  if [[ -z "$candidate" ]] && command -v git >/dev/null 2>&1; then
+    candidate="$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$candidate" && -r "${SCRIPT_DIR}/.git-commit" ]]; then
+    candidate="$(tr -d '[:space:]' < "${SCRIPT_DIR}/.git-commit")"
+  fi
+
+  if [[ -z "$candidate" ]]; then
+    candidate="unknown"
+  fi
+  printf '%s\n' "$candidate"
+}
+
 if [[ -n "$TAG_OVERRIDE" ]]; then
   TAG="$TAG_OVERRIDE"
 else
@@ -781,6 +807,8 @@ log "APP_IMAGE=${APP_IMAGE}:${TAG}"
 log "UI_IMAGE=${UI_IMAGE}:${TAG}"
 log "DOCREADER_IMAGE=${DOCREADER_IMAGE}:${TAG}"
 log "SANDBOX_IMAGE=${SANDBOX_IMAGE}:${TAG}"
+COMMIT_ID_VALUE="$(resolve_commit_id)"
+log "COMMIT_ID=${COMMIT_ID_VALUE}"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
@@ -803,13 +831,14 @@ APP_BUILD_ARGS=(
   --build-arg "RUSTUP_DIST_SERVER_ARG=${RUSTUP_DIST_SERVER_ARG:-https://mirrors.tuna.tsinghua.edu.cn/rustup}"
   --build-arg "RUSTUP_UPDATE_ROOT_ARG=${RUSTUP_UPDATE_ROOT_ARG:-https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup}"
   --build-arg "VERSION_ARG=${TAG}"
-  --build-arg "COMMIT_ID_ARG=${COMMIT_ID_ARG:-$(cat .git-commit 2>/dev/null || echo unknown)}"
+  --build-arg "COMMIT_ID_ARG=${COMMIT_ID_VALUE}"
   --build-arg "BUILD_TIME_ARG=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   --build-arg "GO_VERSION_ARG=$(go version 2>/dev/null | awk '{print $3}' || echo unknown)"
 )
 
 FRONTEND_BUILD_ARGS=(
   --build-arg "NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmmirror.com}"
+  --build-arg "VITE_FRONTEND_COMMIT=${COMMIT_ID_VALUE}"
 )
 
 DOCREADER_BUILD_ARGS=(

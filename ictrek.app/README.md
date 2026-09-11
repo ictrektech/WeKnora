@@ -43,7 +43,7 @@ dist/hybrag_${VERSION}_pull.tar
 
 安装包内只有 `app.tar.gz`，不会内置镜像归档。脚本会优先读取 `~/.feishu.components.json`，失败时回退到 `~/.feishu.json`，从飞书发布表读取 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 的最新镜像版本，并写入包内 `.env`。这里仍读取 `weknora*` 镜像列，是因为本次只改 VOS 应用、容器和显示名称，不改已发布镜像仓库名。
 
-版本信息注入使用以下环境变量；当前 VOS compose 会按 AMD/ARM profile 自动写入，部署者不需要手工维护：
+VOS 运行时版本信息由 compose 按 AMD/ARM profile 自动写入，部署者不需要手工维护：
 
 ```text
 WEKNORA_VOS_APP_VERSION
@@ -52,6 +52,10 @@ WEKNORA_UI_IMAGE
 WEKNORA_DOCREADER_IMAGE
 WEKNORA_SANDBOX_IMAGE
 ```
+
+镜像构建时通过 `COMMIT_ID_ARG` 注入源码 commit；GitHub Actions 也可以使用
+`GITHUB_SHA`。远程构建目录通常不包含 `.git`，所以同步源码时必须显式传入
+commit 或写入 `.git-commit`，否则系统设置会显示 `(unknown)`。
 
 打包脚本会校验 VOS 入口契约：`routers.yml` 必须声明 `entry-point: true` 和 `embed: true`，`docker-compose.yml` 必须把顶层文档请求 `/app/com.ictrek.hybrag/` 重定向到 VOS 侧边栏内部路径。缺少这些字段时，VOS“我的应用”卡片的“打开”按钮可能只打开空白页或不能在侧边栏打开。
 

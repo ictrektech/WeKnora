@@ -19,9 +19,10 @@ WeKnora 这些镜像本身不包含 CUDA 运行时依赖，所以 tag 不应带 
 当前 VERSION=0.1.45 时：amd_0.1.46、arm_0.1.46
 ```
 
-构建前不要在远程构建机上跑 git。先把本地工作树同步过去：
+构建前不要在远程构建机上跑 git。先在源码工作树取得 commit，再把工作树和 commit 一起传给构建机。`build_image.sh` 会把这个值同时注入后端和前端；如果没有显式值，才会尝试构建机上的 Git 或 `.git-commit`，最后回退为 `unknown`：
 
 ```bash
+SOURCE_COMMIT="$(git -C apps/WeKnora rev-parse --short HEAD)"
 rsync -az --delete \
   --exclude '.git' \
   --exclude 'frontend/node_modules' \
@@ -35,13 +36,15 @@ rsync -az --delete \
 然后在构建机执行：
 
 ```bash
-ssh <build-host> 'bash -s' <<'EOF'
+ssh <build-host> "bash -s" <<EOF
 set -euo pipefail
 cd /data/jhu/build/weknora
 chmod +x build_image.sh
-./build_image.sh --target amd
+COMMIT_ID_ARG='${SOURCE_COMMIT}' ./build_image.sh --target amd
 EOF
 ```
+
+也可以在构建机上预先写入 `/data/jhu/build/weknora/.git-commit`；显式的 `COMMIT_ID_ARG` 优先级更高。不要覆盖已发布的镜像 tag；需要修复历史镜像的版本信息时，应重新构建并发布新的 VOS 版本。
 
 构建同步目录只用于构建镜像，不是部署目录。不要在 `/data/jhu/build/weknora` 里执行 `docker compose pull`、`docker compose up` 或重启运行服务，除非已经确认该目录就是当前运行容器的 compose project。源码默认 compose 里仍可能保留上游默认 image/build 配置；在构建目录误跑 compose 会拉取或启动上游镜像，而不是 ictrek 的 SWR 发布镜像。
 
@@ -132,9 +135,14 @@ itself starts depending on CUDA libraries.
 
 ## Build
 
-Do not run git on the remote build host. Sync the local working tree first:
+Do not run git on the remote build host. Resolve the commit in the source
+checkout, then sync the working tree and pass that commit to the build host.
+`build_image.sh` injects it into both the backend and frontend; without an
+explicit value it tries Git or `.git-commit` on the build host and finally
+falls back to `unknown`:
 
 ```bash
+SOURCE_COMMIT="$(git -C apps/WeKnora rev-parse --short HEAD)"
 rsync -az --delete \
   --exclude '.git' \
   --exclude 'frontend/node_modules' \
@@ -148,13 +156,18 @@ rsync -az --delete \
 Then build and push from the synced tree:
 
 ```bash
-ssh <build-host> 'bash -s' <<'EOF'
+ssh <build-host> "bash -s" <<EOF
 set -euo pipefail
 cd /data/jhu/build/weknora
 chmod +x build_image.sh
-./build_image.sh --target amd
+COMMIT_ID_ARG='${SOURCE_COMMIT}' ./build_image.sh --target amd
 EOF
 ```
+
+Alternatively, create `/data/jhu/build/weknora/.git-commit` before the build;
+an explicit `COMMIT_ID_ARG` takes precedence. Do not overwrite an already
+released image tag; rebuild and publish a new VOS version when correcting
+historical image metadata.
 
 The synced build directory is only for building images. Do not run
 `docker compose pull`, `docker compose up`, or runtime restarts from
