@@ -699,7 +699,6 @@ func (h *AgentStreamHandler) handleComplete(ctx context.Context, evt event.Event
 
 	// Update assistant message with final data
 	if data.MessageID == h.assistantMessageID {
-		// h.assistantMessage.Content = data.FinalAnswer
 		h.assistantMessage.IsCompleted = true
 		h.assistantMessage.AgentDurationMs = data.TotalDurationMs
 
@@ -714,7 +713,12 @@ func (h *AgentStreamHandler) handleComplete(ctx context.Context, evt event.Event
 			h.assistantMessage.KnowledgeReferences = knowledgeRefs
 		}
 
-		h.assistantMessage.Content += data.FinalAnswer
+		// Answer chunks are persisted as they arrive. Only use FinalAnswer when
+		// no answer event was streamed; appending it here would persist the same
+		// answer a second time at completion.
+		if h.finalAnswer == "" && h.assistantMessage.Content == "" && data.FinalAnswer != "" {
+			h.assistantMessage.Content = data.FinalAnswer
+		}
 
 		// Update agent steps if provided
 		if data.AgentSteps != nil {
