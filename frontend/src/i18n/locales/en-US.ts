@@ -15,7 +15,7 @@ export default {
     assistant: 'Legal Assistant'
   },
   legalAssistant: {
-    eyebrow: 'Legal workspace', title: 'Legal Assistant', description: 'Find support across contracts, regulations, and internal materials, then produce traceable legal work.', sessions: 'Legal sessions', workspaceUnavailable: 'The legal workspace is unavailable. Returning to the knowledge base.', createFailed: 'Could not create the legal assistant session.'
+    eyebrow: 'Legal workspace', title: 'Legal Assistant', homeGreeting: "Hi, I'm LexAI. What legal matter can I help with today?", description: 'Find support across contracts, regulations, and internal materials, then produce traceable legal work.', sessions: 'Legal sessions', workspaceUnavailable: 'The legal workspace is unavailable. Returning to the knowledge base.', createFailed: 'Could not create the legal assistant session.'
   },
   legalWorkspaceSettings: {
     description: 'Control whether the legal workspace is visible and available in this workspace. Turning it off does not delete existing data.',

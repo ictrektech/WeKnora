@@ -91,14 +91,22 @@
                             </span>
                             <span class="legal-panel-item-label">{{ t('legalWorkspace.assistant') }}</span>
                         </button>
-                        <div v-if="legalAssistantSessions.length" class="legal-panel-sessions" aria-label="legal assistant sessions">
+                        <div v-if="legalAssistantSessions.length" class="legal-panel-sessions" data-testid="legal-session-list"
+                            aria-label="legal assistant sessions">
                             <div class="legal-panel-sessions__label">{{ t('legalAssistant.sessions') }}</div>
-                            <button v-for="session in legalAssistantSessions" :key="session.id" type="button"
-                                class="legal-panel-session" :class="{ 'legal-panel-session--active': session.path === currentSecondpath }"
-                                @click="gotopage(session.path)">
-                                <TIcon name="chat" size="14px" aria-hidden="true" />
-                                <span>{{ session.title }}</span>
-                            </button>
+                            <div v-for="session in legalAssistantSessions" :key="session.id" class="legal-panel-session-row"
+                                :class="{
+                                    'legal-panel-session-row--active': !batchMode && session.path === currentSecondpath,
+                                    'legal-panel-session-row--selected': batchMode && batchSelectedIds.includes(session.id),
+                                }">
+                                <SessionSidebarRow :item="session" :batch-mode="batchMode"
+                                    :running="Boolean(sessionActivityEntries[session.id])" :active-path="currentSecondpath"
+                                    :selected-ids="batchSelectedIds" :menu-options="buildSessionMenuOptions(session)"
+                                    @navigate="gotopage(session.path)" @toggle-select="toggleBatchSelect(session.id)"
+                                    @menu-click="handleSessionMenuClick($event, session)"
+                                    @rename-submit="renameSessionTitle(session, $event.title)"
+                                    @hover-in="mouseenteBotDownr(session.id)" @hover-out="mouseleaveBotDown" />
+                            </div>
                         </div>
                     </template>
                     <template v-else>
@@ -257,8 +265,8 @@
             </template>
         </div>
 
-        <!-- 批量管理底部操作条：固定在侧栏底部、用户头像上方 -->
-        <div v-if="batchMode && !uiStore.sidebarCollapsed && !isLegalWorkspacePanel" class="batch-inline-footer">
+        <!-- 批量管理底部操作条：固定在侧栏底部、用户头像上方。普通聊天和法律会话共用。 -->
+        <div v-if="batchMode && !uiStore.sidebarCollapsed" class="batch-inline-footer" data-testid="session-batch-footer">
             <div class="batch-footer-left">
                 <t-checkbox :checked="isAllBatchSelected" :indeterminate="isBatchIndeterminate"
                     @change="toggleBatchSelectAll">
@@ -288,7 +296,7 @@
 import { storeToRefs } from 'pinia';
 import { onMounted, onUnmounted, watch, computed, ref, h, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getSessionsList, batchDelSessions, deleteAllSessions, getSession } from "@/api/chat/index";
+import { getSessionsList, batchDelSessions, getSession } from "@/api/chat/index";
 import { useChatResourcesStore } from '@/stores/chatResources';
 import { listAllIMChannels } from '@/api/agent/index';
 import SessionSidebarRow from './SessionSidebarRow.vue';
@@ -347,6 +355,14 @@ import UserMenu from '@/components/UserMenu.vue';
 import TenantSelector from '@/components/TenantSelector.vue';
 import { useI18n } from 'vue-i18n';
 import { getSystemInfo } from '@/api/system';
+import {
+    LEGAL_ASSISTANT_CHAT_ROUTE,
+    LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
+    LEGAL_CONTRACT_REVIEW_ROUTE,
+    LEGAL_SMART_ARCHIVE_ROUTE,
+    isLegalAssistantRouteName,
+    isLegalWorkspaceRouteName,
+} from '@/router/paths';
 
 const chatResources = useChatResourcesStore();
 // Platform logos reused from IMChannelsOverviewPanel — keeps the session list
@@ -446,10 +462,16 @@ const batchMode = ref(false)
 const batchSelectedIds = ref<string[]>([])
 const batchDeleting = ref(false)
 
+const isSessionInCurrentWorkspace = (session: { workspace_mode?: string }): boolean =>
+    isLegalWorkspaceRouteName(route.name)
+        ? session.workspace_mode === 'legal_assistant'
+        : session.workspace_mode !== 'legal_assistant';
+
 const allSessionIds = computed(() => {
     const chatMenu = (menuArr.value as unknown as MenuItem[]).find((item: MenuItem) => item.path === 'creatChat');
     if (!chatMenu?.children) return [];
-    return (chatMenu.children as any[]).map((s: any) => s.id);
+    const sessions = chatMenu.children as any[];
+    return sessions.filter(isSessionInCurrentWorkspace).map((session) => session.id);
 })
 
 const isAllBatchSelected = computed(() =>
@@ -461,7 +483,7 @@ const isBatchIndeterminate = computed(() =>
 )
 
 const batchDisplayCount = computed(() =>
-    isAllBatchSelected.value ? total.value : batchSelectedIds.value.length
+    isAllBatchSelected.value ? allSessionIds.value.length : batchSelectedIds.value.length
 )
 
 // 是否可以访问所有空间
@@ -479,15 +501,10 @@ const isInKnowledgeBaseList = computed<boolean>(() => {
     return route.name === 'knowledgeBaseList';
 });
 
-// 是否在创建聊天页面
-const isInCreatChat = computed<boolean>(() => {
-    return route.name === 'globalCreatChat' || route.name === 'kbCreatChat';
-});
-
 // 是否在对话详情页
 const isInChatDetail = computed<boolean>(() => route.name === 'chat');
 const legalAssistantHomePath = '/platform/legal-assistant';
-const isLegalAssistantSessionRoute = computed<boolean>(() => route.name === 'legalAssistantChat');
+const isLegalAssistantSessionRoute = computed<boolean>(() => route.name === LEGAL_ASSISTANT_CHAT_ROUTE);
 
 // 是否在智能体列表页面
 const isInAgentList = computed<boolean>(() => route.name === 'agentList');
@@ -497,14 +514,13 @@ const isInOrganizationList = computed<boolean>(() => route.name === 'organizatio
 
 // 法律工作台使用页面级 drill-down；合同审查和智能档案路由都显示同一个子面板。
 const isLegalWorkspacePanel = computed<boolean>(() =>
-    route.name === 'legalContractReview' || route.name === 'legalContractReviewDetail' || route.name === 'legalSmartArchive' ||
-    route.name === 'legalAssistant' || route.name === 'legalAssistantHome' || route.name === 'legalAssistantChat',
+    isLegalWorkspaceRouteName(route.name),
 );
 const isContractReviewRoute = computed<boolean>(() =>
-    route.name === 'legalContractReview' || route.name === 'legalContractReviewDetail',
+    route.name === LEGAL_CONTRACT_REVIEW_ROUTE || route.name === LEGAL_CONTRACT_REVIEW_DETAIL_ROUTE,
 );
-const isSmartArchiveRoute = computed<boolean>(() => route.name === 'legalSmartArchive');
-const isLegalAssistantRoute = computed<boolean>(() => route.name === 'legalAssistant' || route.name === 'legalAssistantHome' || route.name === 'legalAssistantChat');
+const isSmartArchiveRoute = computed<boolean>(() => route.name === LEGAL_SMART_ARCHIVE_ROUTE);
+const isLegalAssistantRoute = computed<boolean>(() => isLegalAssistantRouteName(route.name));
 const legalAssistantSessions = computed(() => {
     const chatMenu = (menuArr.value as unknown as MenuItem[]).find((item) => item.path === 'creatChat');
     return (chatMenu?.children || []).filter((session: any) => session.workspace_mode === 'legal_assistant');
@@ -526,7 +542,7 @@ const isMenuItemActive = (itemPath: string): boolean => {
         case 'creatChat':
             return currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat';
         case 'legal':
-            return currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail' || currentRoute === 'legalSmartArchive' || currentRoute === 'legalAssistant' || currentRoute === 'legalAssistantHome' || currentRoute === 'legalAssistantChat';
+            return isLegalWorkspaceRouteName(currentRoute);
         case 'settings':
             return currentRoute === 'settings';
         default:
@@ -545,7 +561,7 @@ const getIconActiveState = (itemPath: string) => {
             currentRoute === 'knowledgeBaseSettings'
         ),
         isCreatChatActive: itemPath === 'creatChat' && (currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat'),
-        isLegalActive: itemPath === 'legal' && (currentRoute === 'legalContractReview' || currentRoute === 'legalContractReviewDetail' || currentRoute === 'legalSmartArchive' || currentRoute === 'legalAssistant' || currentRoute === 'legalAssistantHome' || currentRoute === 'legalAssistantChat'),
+        isLegalActive: itemPath === 'legal' && isLegalWorkspaceRouteName(currentRoute),
         isSettingsActive: itemPath === 'settings' && currentRoute === 'settings',
         isChatActive: itemPath === 'chat' && currentRoute === 'chat'
     };
@@ -588,8 +604,10 @@ const dateBucketLabels = computed<Record<DateBucketKey, string>>(() => ({
 const filteredGroupedSessions = computed(() => {
     const bucket = activeBucket.value;
     if (!bucket?.items.length) return [];
+    const sessions = bucket.items.filter(isSessionInCurrentWorkspace);
+    if (!sessions.length) return [];
     return groupSessionsByDate(
-        bucket.items.map((item) => ({
+        sessions.map((item) => ({
             ...item,
             path: `chat/${item.id}`,
             title: item.title || '',
@@ -656,41 +674,28 @@ const toggleBatchSelectAll = (checked: boolean) => {
 
 const handleInlineBatchDelete = () => {
     if (batchSelectedIds.value.length === 0) return
-    const isDeleteAll = isAllBatchSelected.value
+    const selectedIds = [...batchSelectedIds.value]
     const displayCount = batchDisplayCount.value
     const confirmDialog = DialogPlugin.confirm({
         header: t('batchManage.deleteConfirmTitle'),
-        body: isDeleteAll
-            ? t('batchManage.deleteAllConfirmBody') || t('batchManage.deleteConfirmBody', { count: displayCount })
-            : t('batchManage.deleteConfirmBody', { count: displayCount }),
+        body: t('batchManage.deleteConfirmBody', { count: displayCount }),
         confirmBtn: { content: t('batchManage.delete'), theme: 'danger' as const },
         cancelBtn: t('batchManage.cancel'),
         theme: 'warning',
         onConfirm: async () => {
             batchDeleting.value = true
             try {
-                let res: any
-                if (isDeleteAll) {
-                    res = await deleteAllSessions()
-                } else {
-                    res = await batchDelSessions([...batchSelectedIds.value])
-                }
+                const res = await batchDelSessions(selectedIds)
                 if (res && res.success === true) {
-                    if (isDeleteAll) {
-                        usemenuStore.clearMenuArr();
-                        total.value = 0;
-                        await getMessageList();
-                    } else {
-                        let next = sessionBuckets.value;
-                        for (const id of batchSelectedIds.value) {
-                            next = removeSessionFromBuckets(next, id);
-                        }
-                        sessionBuckets.value = next;
-                        syncMenuStoreFromBuckets();
+                    let next = sessionBuckets.value;
+                    for (const id of selectedIds) {
+                        next = removeSessionFromBuckets(next, id);
                     }
+                    sessionBuckets.value = next;
+                    syncMenuStoreFromBuckets();
                     const currentChatId = route.params.chatid as string;
-                    if (currentChatId && (isDeleteAll || batchSelectedIds.value.includes(currentChatId))) {
-                        router.push(isLegalAssistantSessionRoute.value ? legalAssistantHomePath : '/platform/creatChat');
+                    if (currentChatId && selectedIds.includes(currentChatId)) {
+                        router.push(isLegalAssistantRouteName(route.name) ? legalAssistantHomePath : '/platform/creatChat');
                     }
                     batchSelectedIds.value = []
                     MessagePlugin.success(t('batchManage.deleteSuccess'))
@@ -1128,7 +1133,7 @@ onMounted(async () => {
     const routeName = typeof route.name === 'string' ? route.name : (route.name ? String(route.name) : '')
     currentpath.value = routeName;
     if (route.params.chatid) {
-        currentSecondpath.value = route.name === 'legalAssistantChat'
+        currentSecondpath.value = route.name === LEGAL_ASSISTANT_CHAT_ROUTE
             ? `legal-assistant/chat/${route.params.chatid}`
             : `chat/${route.params.chatid}`;
     }
@@ -1180,9 +1185,17 @@ onUnmounted(() => {
 
 watch([() => route.name, () => route.params], (newvalue, oldvalue) => {
     const nameStr = typeof newvalue[0] === 'string' ? (newvalue[0] as string) : (newvalue[0] ? String(newvalue[0]) : '')
+    const oldName = typeof oldvalue?.[0] === 'string' ? oldvalue[0] : (oldvalue?.[0] ? String(oldvalue[0]) : '')
     currentpath.value = nameStr;
+
+    const hasSessionList = nameStr === 'globalCreatChat' || nameStr === 'kbCreatChat' || nameStr === 'chat' || isLegalAssistantRouteName(nameStr);
+    const sessionScopeChanged = isLegalAssistantRouteName(nameStr) !== isLegalAssistantRouteName(oldName);
+    if ((!hasSessionList || sessionScopeChanged) && batchMode.value) {
+        exitBatchMode();
+    }
+
     if (newvalue[1].chatid) {
-        currentSecondpath.value = nameStr === 'legalAssistantChat'
+        currentSecondpath.value = nameStr === LEGAL_ASSISTANT_CHAT_ROUTE
             ? `legal-assistant/chat/${newvalue[1].chatid}`
             : `chat/${newvalue[1].chatid}`;
     } else {
@@ -1192,7 +1205,7 @@ watch([() => route.name, () => route.params], (newvalue, oldvalue) => {
     // 创建新会话时 creatChat 会先 updataMenuChildren，再跳转 chat/:id。
     // 侧栏实际渲染 sessionBuckets，需按 buckets 判断是否缺失，不能把 menuStore 当真相来源。
     const newChatId = (newvalue[1] as any)?.chatid as string | undefined;
-    if ((nameStr === 'chat' || nameStr === 'legalAssistantChat') && newChatId) {
+    if ((nameStr === 'chat' || nameStr === LEGAL_ASSISTANT_CHAT_ROUTE) && newChatId) {
         ensureSessionInSidebar(newChatId);
         void syncActiveBucketFromChat(newChatId);
     }
@@ -1574,31 +1587,66 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         font-size: 11px;
     }
 
-    .legal-panel-session {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 32px;
-        padding: 5px 12px;
-        border: 0;
+    .legal-panel-session-row {
+        min-width: 0;
+        overflow: hidden;
         border-radius: 6px;
-        color: var(--td-text-color-secondary);
-        background: transparent;
-        text-align: left;
-        cursor: pointer;
-        font-size: 12px;
 
-        span {
+        :deep(.submenu_item) {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 32px;
+            padding: 5px 6px;
+            border-radius: 6px;
+            color: var(--td-text-color-secondary);
+            font-size: 12px;
+            line-height: 20px;
+            cursor: pointer;
+        }
+
+        :deep(.submenu_title) {
+            display: flex;
+            align-items: center;
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        :deep(.submenu_title-text) {
+            flex: 1 1 auto;
+            min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        &:hover,
-        &--active {
+        :deep(.batch-checkbox) {
+            flex-shrink: 0;
+        }
+
+        :deep(.menu-more-wrap) {
+            flex: 0 0 auto;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        &:hover :deep(.submenu_item),
+        &--active :deep(.submenu_item),
+        :deep(.submenu_item_active) {
             color: var(--td-text-color-primary);
             background: var(--td-bg-color-container-hover);
+        }
+
+        &:hover :deep(.menu-more-wrap),
+        &--active :deep(.menu-more-wrap),
+        :deep(.submenu_item_active .menu-more-wrap) {
+            opacity: 1;
+        }
+
+        &--selected :deep(.submenu_item) {
+            background: rgba(7, 192, 95, 0.05);
         }
     }
 

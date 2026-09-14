@@ -2,7 +2,7 @@
     <div class="dialogue-wrap" :class="{ 'dialogue-wrap--legal': isLegalAssistant }">
         <div class="dialogue-answers">
             <div class="dialogue-title" style="--wails-draggable: drag">
-                <span style="--wails-draggable: drag">{{ isLegalAssistant ? $t('legalAssistant.title') : $t('createChat.title') }}</span>
+                <span style="--wails-draggable: drag">{{ isLegalAssistant ? $t('legalAssistant.homeGreeting') : $t('createChat.title') }}</span>
             </div>
             <!-- 推荐问题 -->
             <div ref="sqContainerRef" class="suggested-questions-container">

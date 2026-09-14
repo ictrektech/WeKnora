@@ -4,8 +4,10 @@
     !batchMode && activePath === item.path ? 'submenu_item_active' : '',
     batchMode && selectedIds.includes(item.id) ? 'submenu_item_selected' : '',
     batchMode ? 'submenu_item_batch' : '',
-  ]" @mouseenter="emit('hover-in')" @mouseleave="emit('hover-out')"
-    @click="batchMode ? emit('toggle-select') : emit('navigate')">
+  ]" role="button" :tabindex="titleEditing ? -1 : 0"
+    :aria-current="!batchMode && activePath === item.path ? 'page' : undefined"
+    @mouseenter="emit('hover-in')" @mouseleave="emit('hover-out')"
+    @click="batchMode ? emit('toggle-select') : emit('navigate')" @keydown="handleRowKeydown">
     <t-checkbox v-if="batchMode" class="batch-checkbox" :checked="selectedIds.includes(item.id)" @click.stop
       @change="emit('toggle-select')" />
     <form v-if="titleEditing" class="session-title-edit" @submit.prevent="submitTitleEdit" @click.stop>
@@ -172,6 +174,19 @@ const submitTitleEdit = (): void => {
   titleDraft.value = ''
   if (!nextTitle || nextTitle === currentTitle) return
   emit('rename-submit', { title: nextTitle })
+}
+
+const handleRowKeydown = (event: KeyboardEvent): void => {
+  // The row contains an inline title input and a popup menu. Their own
+  // keyboard interactions must not also activate the row underneath.
+  if (event.target !== event.currentTarget) return
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  if (props.batchMode) {
+    emit('toggle-select')
+  } else {
+    emit('navigate')
+  }
 }
 
 const handleMenuClick = (option: SessionMenuOption): void => {
