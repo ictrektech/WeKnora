@@ -859,7 +859,19 @@ func (s *smartArchiveService) createManagedKnowledge(ctx context.Context, kbID s
 			return nil, modelErr
 		}
 	}
-	return s.knowledge.CreateKnowledgeFromFile(withSmartArchiveMutation(ctx), kbID, files[0], map[string]string{"source": "smart_archive", "archive_document_id": documentID}, nil, "", nil, "smart_archive", processOverrides)
+	tenantID, ok := types.TenantIDFromContext(ctx)
+	if !ok || tenantID == 0 {
+		return nil, errors.New("smart archive tenant context is unavailable for managed knowledge")
+	}
+	managedKB, err := s.resolveManagedArchiveKnowledgeBase(archiveContextWithTenant(ctx, tenantID), kbID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	mutationCtx, err := withSmartArchiveKnowledgeWrite(ctx, managedKB, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return s.knowledge.CreateKnowledgeFromFile(mutationCtx, managedKB.ID, files[0], map[string]string{"source": "smart_archive", "archive_document_id": documentID}, nil, "", nil, "smart_archive", processOverrides)
 }
 
 func (s *smartArchiveService) archiveImageProcessOverrides(ctx context.Context) (*types.KnowledgeProcessOverrides, error) {
@@ -884,6 +896,10 @@ func (s *smartArchiveService) syncUnlinkedManagedKnowledge(ctx context.Context, 
 	if s.repo == nil || s.files == nil || s.knowledge == nil || strings.TrimSpace(kbID) == "" {
 		return nil
 	}
+	managedKB, err := s.resolveManagedArchiveKnowledgeBase(archiveContextWithTenant(ctx, tenantID), kbID, tenantID)
+	if err != nil {
+		return err
+	}
 	rows, err := s.repo.ListDocuments(ctx, tenantID, "", false)
 	if err != nil {
 		return err
@@ -892,7 +908,7 @@ func (s *smartArchiveService) syncUnlinkedManagedKnowledge(ctx context.Context, 
 		if doc == nil {
 			continue
 		}
-		mirrorCtx := withSmartArchiveMutation(archiveContextWithTenant(ctx, tenantID))
+		mirrorCtx := archiveContextWithTenant(ctx, tenantID)
 		artifact, _ := s.ensureExistingParseArtifact(ctx, tenantID, doc)
 		if doc.KnowledgeID != "" {
 			// A previous mirror may have been created before the worker received
@@ -917,7 +933,12 @@ func (s *smartArchiveService) syncUnlinkedManagedKnowledge(ctx context.Context, 
 						continue
 					}
 				}
-				if _, reparseErr := s.knowledge.ReparseKnowledge(mirrorCtx, doc.KnowledgeID, overrides); reparseErr != nil {
+				mutationCtx, mutationErr := withSmartArchiveKnowledgeWrite(mirrorCtx, managedKB, tenantID)
+				if mutationErr != nil {
+					logger.Warnf(ctx, "smart archive: image mirror write context unavailable for %s: %v", doc.ID, mutationErr)
+					continue
+				}
+				if _, reparseErr := s.knowledge.ReparseKnowledge(mutationCtx, doc.KnowledgeID, overrides); reparseErr != nil {
 					logger.Warnf(ctx, "smart archive: image mirror reparse failed for %s: %v", doc.ID, reparseErr)
 				}
 			}
@@ -1670,7 +1691,6 @@ func (s *smartArchiveService) deleteManagedKnowledgeMirror(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	mirrorCtx = withSmartArchiveMutation(mirrorCtx)
 	knowledge, err := s.knowledge.GetKnowledgeByID(mirrorCtx, doc.KnowledgeID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// The mirror may already have been removed by a retry or a prior
@@ -1689,7 +1709,15 @@ func (s *smartArchiveService) deleteManagedKnowledgeMirror(ctx context.Context, 
 	if settings == nil || strings.TrimSpace(settings.ManagedKnowledgeBaseID) == "" || knowledge.KnowledgeBaseID != settings.ManagedKnowledgeBaseID || !managedArchiveMirrorMatches(knowledge, doc.ID) {
 		return ErrArchiveManagedMirrorMismatch
 	}
-	if err := s.knowledge.DeleteKnowledge(mirrorCtx, doc.KnowledgeID); err != nil {
+	managedKB, err := s.resolveManagedArchiveKnowledgeBase(mirrorCtx, knowledge.KnowledgeBaseID, tenantID)
+	if err != nil {
+		return err
+	}
+	mutationCtx, err := withSmartArchiveKnowledgeWrite(mirrorCtx, managedKB, tenantID)
+	if err != nil {
+		return err
+	}
+	if err := s.knowledge.DeleteKnowledge(mutationCtx, doc.KnowledgeID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			doc.KnowledgeID = ""
 			return nil
@@ -1980,7 +2008,25 @@ func (s *smartArchiveService) processRetry(ctx context.Context, tenantID uint64,
 					enableMultimodel := true
 					overrides.EnableMultimodel = &enableMultimodel
 				}
-				_, _ = s.knowledge.ReparseKnowledge(withSmartArchiveMutation(parseCtx), doc.KnowledgeID, overrides)
+				settings, settingsErr := s.repo.GetSettings(parseCtx, tenantID)
+				if settingsErr != nil || settings == nil {
+					if settingsErr == nil {
+						settingsErr = errors.New("smart archive settings are unavailable")
+					}
+					logger.Warnf(ctx, "smart archive: managed mirror reparse context unavailable for %s: %v", doc.ID, settingsErr)
+					return
+				}
+				managedKB, resolveErr := s.resolveManagedArchiveKnowledgeBase(parseCtx, settings.ManagedKnowledgeBaseID, tenantID)
+				if resolveErr != nil {
+					logger.Warnf(ctx, "smart archive: managed mirror reparse target unavailable for %s: %v", doc.ID, resolveErr)
+					return
+				}
+				mutationCtx, mutationErr := withSmartArchiveKnowledgeWrite(parseCtx, managedKB, tenantID)
+				if mutationErr != nil {
+					logger.Warnf(ctx, "smart archive: managed mirror reparse context unavailable for %s: %v", doc.ID, mutationErr)
+					return
+				}
+				_, _ = s.knowledge.ReparseKnowledge(mutationCtx, doc.KnowledgeID, overrides)
 			} else if settings, settingsErr := s.GetSettings(ctx, tenantID); settingsErr == nil && settings.ManagedKnowledgeBaseID != "" {
 				if knowledge, createErr := s.createManagedKnowledge(parseCtx, settings.ManagedKnowledgeBaseID, upload, doc.ID, artifact.ID); knowledge != nil {
 					doc.KnowledgeID = knowledge.ID
