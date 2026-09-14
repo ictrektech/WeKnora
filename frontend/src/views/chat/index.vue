@@ -344,7 +344,8 @@ const sessionActivity = useSessionActivityStore();
 const activitySessionId = ref('');
 watch([activitySessionId, isReplying, isStreaming, isImRecovering, currentAssistantMessageId], () => {
     if (props.embeddedMode || !activitySessionId.value) return;
-    sessionActivity.update(activitySessionId.value, isReplying.value || isStreaming.value || isImRecovering.value, currentAssistantMessageId.value);
+    const currentSessionStreaming = hasActiveStream(activitySessionId.value);
+    sessionActivity.update(activitySessionId.value, isReplying.value || currentSessionStreaming || isImRecovering.value, currentAssistantMessageId.value);
 }, { flush: 'sync' });
 const historyLoading = ref(true);
 const historyLoadingMore = ref(false);

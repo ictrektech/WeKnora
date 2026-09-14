@@ -85,6 +85,12 @@ test('completed background streams clear their own session cache', () => {
   assert.match(source, /if \(completedSessionId === session_id\.value\) \{[\s\S]*loadFollowUpSuggestions\(message,\s*true\)/)
 })
 
+test('sidebar activity is scoped to the current session stream', () => {
+  assert.match(source, /const currentSessionStreaming = hasActiveStream\(activitySessionId\.value\)/)
+  assert.match(source, /sessionActivity\.update\(activitySessionId\.value, isReplying\.value \|\| currentSessionStreaming \|\| isImRecovering\.value/)
+  assert.doesNotMatch(source, /sessionActivity\.update\(activitySessionId\.value, isReplying\.value \|\| isStreaming\.value/)
+})
+
 test('restored in-flight cache is discarded when history already has the completed answer', () => {
   assert.match(source, /const hasPersistedAssistantAfterCachedUser = \(cachedUserMessage\) => \{/)
   assert.match(source, /message\?\.role === 'assistant' &&[\s\S]*normalizeAssistantAnswerText\(getAssistantAnswerText\(message\)\)/)
