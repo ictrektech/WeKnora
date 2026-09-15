@@ -53,6 +53,8 @@ profiles:
   description:
     zh-CN: 使用 AMD_with_cuda 飞书标签页中的 HybRAG 镜像。
     en: Use HybRAG images from the AMD_with_cuda Feishu sheet.
+  caps:
+    arch: amd64
   conflicts:
   - arm
 - name: arm
@@ -62,6 +64,8 @@ profiles:
   description:
     zh-CN: 使用 ARM_with_cuda 飞书标签页中的 HybRAG 镜像。
     en: Use HybRAG images from the ARM_with_cuda Feishu sheet.
+  caps:
+    arch: arm64
   conflicts:
   - amd
 require-profiles: true
