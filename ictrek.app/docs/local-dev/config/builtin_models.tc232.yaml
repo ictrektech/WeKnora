@@ -58,6 +58,19 @@ builtin_models:
         truncate_prompt_tokens: 8192
         supports_dimension_override: false
 
+  - id: ictrek-weknora-vllm-rerank
+    name: "${ICTREK_DEV_RERANK_VLLM_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_RERANK_VLLM_MODEL_NAME} (vLLM ReRank)"
+    type: Rerank
+    source: remote
+    description: OpenAI-compatible ReRank model for ictrek local development.
+    is_default: true
+    parameters:
+      base_url: "${ICTREK_DEV_RERANK_VLLM_BASE_URL}"
+      api_key: ""
+      interface_type: openai
+      provider: generic
+
   - id: ictrek-weknora-ollama-qa
     name: "${ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME}"
     display_name: "${ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME} (Ollama QA fallback)"

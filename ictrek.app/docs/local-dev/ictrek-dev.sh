@@ -57,6 +57,9 @@ Usage:
   $0 start-vllm                   Start or reuse the optional QA vLLM container
   $0 stop-vllm                    Stop the QA vLLM container and keep it
   $0 restart-vllm                 Recreate the QA vLLM container with current parameters
+  $0 start-rerank                 Start or reuse the local ReRank vLLM container
+  $0 stop-rerank                  Stop the local ReRank vLLM container and keep it
+  $0 restart-rerank               Recreate the local ReRank vLLM container
   $0 check                        Check configuration, containers and endpoints
   $0 help                         Show this help
 
@@ -69,6 +72,7 @@ Default endpoints:
   neo4j     bolt://127.0.0.1:27687 (HTTP: 127.0.0.1:27474)
   vLLM      http://127.0.0.1:38118/v1
   bge-m3    http://127.0.0.1:32223/v1 (external or separately started)
+  rerank    http://127.0.0.1:32224 (optional vLLM)
 
 Typical flow:
   $0 setup
@@ -233,6 +237,15 @@ refresh_config() {
     DEV_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_VLLM_MAX_NUM_SEQS:-20}"
     DEV_VLLM_MAX_NUM_BATCHED_TOKENS="${ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS:-4096}"
     DEV_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION:-0.3}"
+    DEV_RERANK_VLLM_PORT="${ICTREK_DEV_RERANK_VLLM_PORT:-32224}"
+    DEV_RERANK_VLLM_BASE_URL="${ICTREK_DEV_RERANK_VLLM_BASE_URL:-http://127.0.0.1:${DEV_RERANK_VLLM_PORT}}"
+    DEV_RERANK_VLLM_CONTAINER="${ICTREK_DEV_RERANK_VLLM_CONTAINER:-bge-reranker-v2-m3-vllm}"
+    DEV_RERANK_VLLM_MODEL_DIR="${ICTREK_DEV_RERANK_VLLM_MODEL_DIR:-/data/models/bge-reranker-v2-m3}"
+    DEV_RERANK_VLLM_MODEL_NAME="${ICTREK_DEV_RERANK_VLLM_MODEL_NAME:-bge-reranker-v2-m3}"
+    DEV_RERANK_VLLM_MAX_MODEL_LEN="${ICTREK_DEV_RERANK_VLLM_MAX_MODEL_LEN:-8192}"
+    DEV_RERANK_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS:-16}"
+    DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS="${ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS:-8192}"
+    DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
 }
 
 export_compose_env() {
@@ -412,6 +425,15 @@ setup_env() {
     set_env_value ICTREK_DEV_VLLM_MAX_NUM_SEQS "$DEV_VLLM_MAX_NUM_SEQS"
     set_env_value ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS "$DEV_VLLM_MAX_NUM_BATCHED_TOKENS"
     set_env_value ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION "$DEV_VLLM_GPU_MEMORY_UTILIZATION"
+    set_env_value ICTREK_DEV_RERANK_VLLM_PORT "$DEV_RERANK_VLLM_PORT"
+    set_env_value ICTREK_DEV_RERANK_VLLM_BASE_URL "$DEV_RERANK_VLLM_BASE_URL"
+    set_env_value ICTREK_DEV_RERANK_VLLM_CONTAINER "$DEV_RERANK_VLLM_CONTAINER"
+    set_env_value ICTREK_DEV_RERANK_VLLM_MODEL_DIR "$DEV_RERANK_VLLM_MODEL_DIR"
+    set_env_value ICTREK_DEV_RERANK_VLLM_MODEL_NAME "$DEV_RERANK_VLLM_MODEL_NAME"
+    set_env_value ICTREK_DEV_RERANK_VLLM_MAX_MODEL_LEN "$DEV_RERANK_VLLM_MAX_MODEL_LEN"
+    set_env_value ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS "$DEV_RERANK_VLLM_MAX_NUM_SEQS"
+    set_env_value ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS "$DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS"
+    set_env_value ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION "$DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION"
     set_env_value ICTREK_DEV_BGE_VLLM_BASE_URL "$DEV_BGE_VLLM_BASE_URL"
     set_env_value ICTREK_DEV_BGE_VLLM_MODEL_NAME "${ICTREK_DEV_BGE_VLLM_MODEL_NAME:-bge-m3}"
     set_env_value ICTREK_DEV_OLLAMA_BASE_URL "$DEV_OLLAMA_BASE_URL"
@@ -629,6 +651,7 @@ wait_for_url() {
     local name="$1"
     local url="$2"
     local timeout="${3:-300}"
+    local container="${4:-${DEV_VLLM_CONTAINER:-vLLM container}}"
     local deadline=$((SECONDS + timeout))
 
     if ! command -v curl >/dev/null 2>&1; then
@@ -642,7 +665,7 @@ wait_for_url() {
         fi
         sleep 5
     done
-    log_warning "$name did not become ready in ${timeout}s; inspect: docker logs $DEV_VLLM_CONTAINER"
+    log_warning "$name did not become ready in ${timeout}s; inspect: docker logs $container"
     return 1
 }
 
@@ -674,8 +697,15 @@ vllm_shm_size_bytes() {
 }
 
 vllm_container_matches() {
-    local resolved_model_dir="$1"
-    shift
+    local container="$1"
+    local image="$2"
+    local network="$3"
+    local port="$4"
+    local shm_size="$5"
+    local security_opt="$6"
+    local resolved_model_dir="$7"
+    local hf_home="$8"
+    shift 8
     local expected_args
     local actual_args
     local expected_shm_size
@@ -686,54 +716,61 @@ vllm_container_matches() {
 
     # The image entrypoint contributes the leading serve argument to .Args.
     expected_args="$(printf '%s\n' serve "$@")"
-    actual_args="$(docker inspect --format '{{range .Args}}{{println .}}{{end}}' "$DEV_VLLM_CONTAINER")" || return 1
+    actual_args="$(docker inspect --format '{{range .Args}}{{println .}}{{end}}' "$container")" || return 1
     [ "$actual_args" = "$expected_args" ] || return 1
-    [ "$(docker inspect --format '{{json .Config.Entrypoint}}' "$DEV_VLLM_CONTAINER")" = '["vllm","serve"]' ] || return 1
+    [ "$(docker inspect --format '{{json .Config.Entrypoint}}' "$container")" = '["vllm","serve"]' ] || return 1
 
-    [ "$(docker inspect --format '{{.Config.Image}}' "$DEV_VLLM_CONTAINER")" = "$DEV_VLLM_IMAGE" ] || return 1
-    [ "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$DEV_VLLM_CONTAINER")" = "$DEV_VLLM_NETWORK" ] || return 1
-    [ "$(docker inspect --format '{{.HostConfig.IpcMode}}' "$DEV_VLLM_CONTAINER")" = "host" ] || return 1
-    [ "$(docker inspect --format '{{.HostConfig.Runtime}}' "$DEV_VLLM_CONTAINER")" = "nvidia" ] || return 1
-    [ "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$DEV_VLLM_CONTAINER")" = "no" ] || return 1
-    [ "$(docker inspect --format '{{.HostConfig.AutoRemove}}' "$DEV_VLLM_CONTAINER")" = "false" ] || return 1
+    [ "$(docker inspect --format '{{.Config.Image}}' "$container")" = "$image" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$container")" = "$network" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.IpcMode}}' "$container")" = "host" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.Runtime}}' "$container")" = "nvidia" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$container")" = "no" ] || return 1
+    [ "$(docker inspect --format '{{.HostConfig.AutoRemove}}' "$container")" = "false" ] || return 1
 
-    actual_devices="$(docker inspect --format '{{json .HostConfig.DeviceRequests}}' "$DEV_VLLM_CONTAINER")" || return 1
+    actual_devices="$(docker inspect --format '{{json .HostConfig.DeviceRequests}}' "$container")" || return 1
     [ "$actual_devices" = '[{"Driver":"","Count":-1,"DeviceIDs":null,"Capabilities":[["gpu"]],"Options":{}}]' ] || return 1
 
-    expected_shm_size="$(vllm_shm_size_bytes "$DEV_VLLM_SHM_SIZE")" || return 1
-    actual_shm_size="$(docker inspect --format '{{.HostConfig.ShmSize}}' "$DEV_VLLM_CONTAINER")" || return 1
+    expected_shm_size="$(vllm_shm_size_bytes "$shm_size")" || return 1
+    actual_shm_size="$(docker inspect --format '{{.HostConfig.ShmSize}}' "$container")" || return 1
     [ "$actual_shm_size" = "$expected_shm_size" ] || return 1
 
-    actual_mount="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/model"}}{{printf "%s|%s" .Source .Mode}}{{end}}{{end}}' "$DEV_VLLM_CONTAINER")" || return 1
+    actual_mount="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/model"}}{{printf "%s|%s" .Source .Mode}}{{end}}{{end}}' "$container")" || return 1
     [ "$actual_mount" = "${resolved_model_dir}|ro" ] || return 1
 
-    if ! docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$DEV_VLLM_CONTAINER" | grep -Fxq "HF_HOME=$DEV_VLLM_HF_HOME"; then
+    if ! docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container" | grep -Fxq "HF_HOME=$hf_home"; then
         return 1
     fi
 
-    actual_port="$(docker inspect --format '{{range $port, $bindings := .HostConfig.PortBindings}}{{if eq $port "8000/tcp"}}{{range $bindings}}{{printf "%s:%s" .HostIp .HostPort}}{{end}}{{end}}{{end}}' "$DEV_VLLM_CONTAINER")" || return 1
-    [ "$actual_port" = ":$DEV_VLLM_PORT" ] || return 1
+    actual_port="$(docker inspect --format '{{range $port, $bindings := .HostConfig.PortBindings}}{{if eq $port "8000/tcp"}}{{range $bindings}}{{printf "%s:%s" .HostIp .HostPort}}{{end}}{{end}}{{end}}' "$container")" || return 1
+    [ "$actual_port" = ":$port" ] || return 1
 
-    [ "$(docker inspect --format '{{json .HostConfig.SecurityOpt}}' "$DEV_VLLM_CONTAINER")" = "[\"$DEV_VLLM_SECURITY_OPT\"]" ] || return 1
+    [ "$(docker inspect --format '{{json .HostConfig.SecurityOpt}}' "$container")" = "[\"$security_opt\"]" ] || return 1
 }
 
 print_vllm_docker_command() {
-    local resolved_model_dir="$1"
-    shift
+    local container="$1"
+    local image="$2"
+    local network="$3"
+    local port="$4"
+    local shm_size="$5"
+    local security_opt="$6"
+    local resolved_model_dir="$7"
+    local hf_home="$8"
+    shift 8
     local arg
 
     printf '  docker run -d \\\n'
-    printf '    --name %s \\\n' "$(quote_shell_arg "$DEV_VLLM_CONTAINER")"
+    printf '    --name %s \\\n' "$(quote_shell_arg "$container")"
     printf '    --gpus all \\\n'
     printf '    --runtime nvidia \\\n'
     printf '    --ipc host \\\n'
-    printf '    --shm-size %s \\\n' "$(quote_shell_arg "$DEV_VLLM_SHM_SIZE")"
-    printf '    --security-opt %s \\\n' "$(quote_shell_arg "$DEV_VLLM_SECURITY_OPT")"
-    printf '    --network %s \\\n' "$(quote_shell_arg "$DEV_VLLM_NETWORK")"
-    printf '    -p %s \\\n' "$(quote_shell_arg "$DEV_VLLM_PORT:8000")"
+    printf '    --shm-size %s \\\n' "$(quote_shell_arg "$shm_size")"
+    printf '    --security-opt %s \\\n' "$(quote_shell_arg "$security_opt")"
+    printf '    --network %s \\\n' "$(quote_shell_arg "$network")"
+    printf '    -p %s \\\n' "$(quote_shell_arg "$port:8000")"
     printf '    -v %s \\\n' "$(quote_shell_arg "${resolved_model_dir}:/model:ro")"
-    printf '    -e %s \\\n' "$(quote_shell_arg "HF_HOME=$DEV_VLLM_HF_HOME")"
-    printf '    %s' "$(quote_shell_arg "$DEV_VLLM_IMAGE")"
+    printf '    -e %s \\\n' "$(quote_shell_arg "HF_HOME=$hf_home")"
+    printf '    %s' "$(quote_shell_arg "$image")"
     for arg in "$@"; do
         printf ' \\\n    %s' "$(quote_shell_arg "$arg")"
     done
@@ -804,7 +841,10 @@ start_vllm() {
     )
 
     log_info "Equivalent docker deployment command:"
-    print_vllm_docker_command "$resolved_model_dir" "${vllm_args[@]}"
+    print_vllm_docker_command \
+        "$DEV_VLLM_CONTAINER" "$DEV_VLLM_IMAGE" "$DEV_VLLM_NETWORK" \
+        "$DEV_VLLM_PORT" "$DEV_VLLM_SHM_SIZE" "$DEV_VLLM_SECURITY_OPT" \
+        "$resolved_model_dir" "$DEV_VLLM_HF_HOME" "${vllm_args[@]}"
 
     if docker ps -a --format '{{.Names}}' | grep -Fxq "$DEV_VLLM_CONTAINER"; then
         if [ "$force_recreate" -eq 1 ]; then
@@ -813,14 +853,17 @@ start_vllm() {
                 docker stop --time "$DEV_VLLM_STOP_TIMEOUT" "$DEV_VLLM_CONTAINER" >/dev/null
             fi
             docker rm "$DEV_VLLM_CONTAINER" >/dev/null
-        elif vllm_container_matches "$resolved_model_dir" "${vllm_args[@]}"; then
+        elif vllm_container_matches \
+            "$DEV_VLLM_CONTAINER" "$DEV_VLLM_IMAGE" "$DEV_VLLM_NETWORK" \
+            "$DEV_VLLM_PORT" "$DEV_VLLM_SHM_SIZE" "$DEV_VLLM_SECURITY_OPT" \
+            "$resolved_model_dir" "$DEV_VLLM_HF_HOME" "${vllm_args[@]}"; then
             if docker ps --format '{{.Names}}' | grep -Fxq "$DEV_VLLM_CONTAINER"; then
                 log_success "vLLM container is already running with consistent parameters: $DEV_VLLM_CONTAINER"
             else
                 docker start "$DEV_VLLM_CONTAINER" >/dev/null
                 log_success "Started existing vLLM container with consistent parameters: $DEV_VLLM_CONTAINER"
             fi
-            wait_for_url "vLLM" "${DEV_VLLM_BASE_URL%/}/models" "${ICTREK_DEV_VLLM_WAIT_SEC:-900}" || true
+            wait_for_url "vLLM" "${DEV_VLLM_BASE_URL%/}/models" "${ICTREK_DEV_VLLM_WAIT_SEC:-900}" "$DEV_VLLM_CONTAINER" || true
             return 0
         else
             log_error "Existing container $DEV_VLLM_CONTAINER has different startup parameters"
@@ -834,7 +877,7 @@ start_vllm() {
     log_info "vLLM tuning: max_model_len=$DEV_VLLM_MAX_MODEL_LEN, max_num_seqs=$DEV_VLLM_MAX_NUM_SEQS, gpu_memory_utilization=$DEV_VLLM_GPU_MEMORY_UTILIZATION"
     "${docker_run_args[@]}" >/dev/null
     log_success "Started vLLM on $DEV_VLLM_BASE_URL"
-    wait_for_url "vLLM" "${DEV_VLLM_BASE_URL%/}/models" "${ICTREK_DEV_VLLM_WAIT_SEC:-900}" || true
+    wait_for_url "vLLM" "${DEV_VLLM_BASE_URL%/}/models" "${ICTREK_DEV_VLLM_WAIT_SEC:-900}" "$DEV_VLLM_CONTAINER" || true
 }
 
 stop_vllm() {
@@ -859,6 +902,137 @@ stop_vllm() {
 
 restart_vllm() {
     start_vllm --recreate
+}
+
+validate_rerank_vllm_port() {
+    if [ "$DEV_RERANK_VLLM_PORT" = "$DEV_VLLM_PORT" ] || [ "$DEV_RERANK_VLLM_PORT" = "$DEV_BGE_VLLM_PORT" ]; then
+        log_error "ReRank port $DEV_RERANK_VLLM_PORT conflicts with an existing model service port"
+        log_error "Use ICTREK_DEV_RERANK_VLLM_PORT to select a free port"
+        return 1
+    fi
+}
+
+start_rerank_vllm() {
+    local force_recreate=0
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --recreate) force_recreate=1 ;;
+            *) log_error "Unknown start-rerank option: $1"; return 1 ;;
+        esac
+        shift
+    done
+
+    cd "$PROJECT_ROOT"
+    load_env || { log_error "Missing $ENV_FILE; run: $0 setup"; return 1; }
+    refresh_config
+    check_docker
+    validate_rerank_vllm_port || return 1
+    [ -d "$DEV_RERANK_VLLM_MODEL_DIR" ] || {
+        log_error "Model directory not found: $DEV_RERANK_VLLM_MODEL_DIR"
+        log_error "Override with ICTREK_DEV_RERANK_VLLM_MODEL_DIR=/path/to/model"
+        return 1
+    }
+
+    local resolved_model_dir
+    resolved_model_dir="$(resolve_vllm_model_dir "$DEV_RERANK_VLLM_MODEL_DIR")" || {
+        log_error "No config.json found under $DEV_RERANK_VLLM_MODEL_DIR"
+        return 1
+    }
+    docker network inspect "$DEV_VLLM_NETWORK" >/dev/null 2>&1 || {
+        log_error "Docker network not found: $DEV_VLLM_NETWORK"
+        return 1
+    }
+
+    local vllm_args=(
+        --host 0.0.0.0
+        --port 8000
+        --model /model
+        --served-model-name "$DEV_RERANK_VLLM_MODEL_NAME"
+        --runner pooling
+        --max-model-len "$DEV_RERANK_VLLM_MAX_MODEL_LEN"
+        --max-num-seqs "$DEV_RERANK_VLLM_MAX_NUM_SEQS"
+        --max-num-batched-tokens "$DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS"
+        --gpu-memory-utilization "$DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION"
+        --trust-remote-code
+    )
+    local docker_run_args=(
+        docker run -d
+        --name "$DEV_RERANK_VLLM_CONTAINER"
+        --gpus all
+        --runtime nvidia
+        --ipc host
+        --shm-size "$DEV_VLLM_SHM_SIZE"
+        --security-opt "$DEV_VLLM_SECURITY_OPT"
+        --network "$DEV_VLLM_NETWORK"
+        -p "$DEV_RERANK_VLLM_PORT:8000"
+        -v "${resolved_model_dir}:/model:ro"
+        -e "HF_HOME=$DEV_VLLM_HF_HOME"
+        "$DEV_VLLM_IMAGE"
+        "${vllm_args[@]}"
+    )
+
+    log_info "Equivalent docker deployment command:"
+    print_vllm_docker_command \
+        "$DEV_RERANK_VLLM_CONTAINER" "$DEV_VLLM_IMAGE" "$DEV_VLLM_NETWORK" \
+        "$DEV_RERANK_VLLM_PORT" "$DEV_VLLM_SHM_SIZE" "$DEV_VLLM_SECURITY_OPT" \
+        "$resolved_model_dir" "$DEV_VLLM_HF_HOME" "${vllm_args[@]}"
+
+    if docker ps -a --format '{{.Names}}' | grep -Fxq "$DEV_RERANK_VLLM_CONTAINER"; then
+        if [ "$force_recreate" -eq 1 ]; then
+            log_info "Recreating $DEV_RERANK_VLLM_CONTAINER with the current vLLM parameters"
+            if docker ps --format '{{.Names}}' | grep -Fxq "$DEV_RERANK_VLLM_CONTAINER"; then
+                docker stop --time "$DEV_VLLM_STOP_TIMEOUT" "$DEV_RERANK_VLLM_CONTAINER" >/dev/null
+            fi
+            docker rm "$DEV_RERANK_VLLM_CONTAINER" >/dev/null
+        elif vllm_container_matches \
+            "$DEV_RERANK_VLLM_CONTAINER" "$DEV_VLLM_IMAGE" "$DEV_VLLM_NETWORK" \
+            "$DEV_RERANK_VLLM_PORT" "$DEV_VLLM_SHM_SIZE" "$DEV_VLLM_SECURITY_OPT" \
+            "$resolved_model_dir" "$DEV_VLLM_HF_HOME" "${vllm_args[@]}"; then
+            if docker ps --format '{{.Names}}' | grep -Fxq "$DEV_RERANK_VLLM_CONTAINER"; then
+                log_success "ReRank vLLM container is already running with consistent parameters: $DEV_RERANK_VLLM_CONTAINER"
+            else
+                docker start "$DEV_RERANK_VLLM_CONTAINER" >/dev/null
+                log_success "Started existing ReRank vLLM container with consistent parameters: $DEV_RERANK_VLLM_CONTAINER"
+            fi
+            wait_for_url "ReRank vLLM" "${DEV_RERANK_VLLM_BASE_URL%/}/health" "${ICTREK_DEV_RERANK_VLLM_WAIT_SEC:-900}" "$DEV_RERANK_VLLM_CONTAINER" || true
+            return 0
+        else
+            log_error "Existing container $DEV_RERANK_VLLM_CONTAINER has different startup parameters"
+            log_error "Run $0 restart-rerank to recreate it with the current configuration"
+            return 1
+        fi
+    fi
+
+    log_info "Starting ReRank vLLM container $DEV_RERANK_VLLM_CONTAINER"
+    log_info "Model: $resolved_model_dir"
+    log_info "ReRank vLLM tuning: max_model_len=$DEV_RERANK_VLLM_MAX_MODEL_LEN, max_num_seqs=$DEV_RERANK_VLLM_MAX_NUM_SEQS, gpu_memory_utilization=$DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION"
+    "${docker_run_args[@]}" >/dev/null
+    log_success "Started ReRank vLLM on $DEV_RERANK_VLLM_BASE_URL"
+    wait_for_url "ReRank vLLM" "${DEV_RERANK_VLLM_BASE_URL%/}/health" "${ICTREK_DEV_RERANK_VLLM_WAIT_SEC:-900}" "$DEV_RERANK_VLLM_CONTAINER" || true
+}
+
+stop_rerank_vllm() {
+    cd "$PROJECT_ROOT"
+    if [ -f "$ENV_FILE" ]; then
+        load_env
+    fi
+    refresh_config
+    check_docker
+
+    if ! docker ps -a --format '{{.Names}}' | grep -Fxq "$DEV_RERANK_VLLM_CONTAINER"; then
+        log_warning "ReRank vLLM container does not exist: $DEV_RERANK_VLLM_CONTAINER"
+        return 0
+    fi
+    if docker ps --format '{{.Names}}' | grep -Fxq "$DEV_RERANK_VLLM_CONTAINER"; then
+        docker stop --time "$DEV_VLLM_STOP_TIMEOUT" "$DEV_RERANK_VLLM_CONTAINER" >/dev/null
+        log_success "Stopped ReRank vLLM container: $DEV_RERANK_VLLM_CONTAINER"
+    else
+        log_info "ReRank vLLM container is already stopped: $DEV_RERANK_VLLM_CONTAINER"
+    fi
+}
+
+restart_rerank_vllm() {
+    start_rerank_vllm --recreate
 }
 
 check_url() {
@@ -906,6 +1080,7 @@ check_setup() {
     printf '  Backend:      http://127.0.0.1:%s\n' "$DEV_APP_PORT"
     printf '  vLLM:         %s\n' "$DEV_VLLM_BASE_URL"
     printf '  bge-m3:       %s\n' "$DEV_BGE_VLLM_BASE_URL"
+    printf '  ReRank vLLM:  %s\n' "$DEV_RERANK_VLLM_BASE_URL"
     printf '  Ollama:       %s\n' "$DEV_OLLAMA_BASE_URL"
 
     if check_docker; then
@@ -925,6 +1100,7 @@ check_setup() {
     check_port Neo4j 127.0.0.1 "$DEV_NEO4J_BOLT_PORT"
     check_url "vLLM models" "${DEV_VLLM_BASE_URL%/}/models"
     check_url "bge-m3 vLLM models" "${DEV_BGE_VLLM_BASE_URL%/}/models"
+    check_url "ReRank vLLM health" "${DEV_RERANK_VLLM_BASE_URL%/}/health"
     check_url "Ollama tags" "${DEV_OLLAMA_BASE_URL%/}/api/tags"
     return "$failed"
 }
@@ -943,6 +1119,9 @@ case "$command_name" in
     start-vllm) start_vllm "$@" ;;
     stop-vllm) stop_vllm "$@" ;;
     restart-vllm) restart_vllm "$@" ;;
+    start-rerank) start_rerank_vllm "$@" ;;
+    stop-rerank) stop_rerank_vllm "$@" ;;
+    restart-rerank) restart_rerank_vllm "$@" ;;
     check) check_setup "$@" ;;
     help|-h|--help) show_help ;;
     *) log_error "Unknown command: $command_name"; show_help; exit 1 ;;

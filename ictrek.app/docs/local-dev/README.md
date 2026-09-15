@@ -9,7 +9,7 @@
 | Go 后端源码调试 | 已实现 | 支持 `go run`；安装 Air 后自动热重载。 |
 | 前端源码调试 | 已实现 | Vite 热更新，默认代理到 `127.0.0.1:8080`。 |
 | 基础设施 | 已实现 | 使用本目录的隔离 Compose 和 `/data/hybrag-dev-data`。 |
-| 模型初始化 | 部分落地 | 默认提供 tc232 vLLM YAML；也提供宿主机 Ollama YAML。 |
+| 模型初始化 | 部分落地 | 默认提供 tc232 vLLM YAML；QA 和 ReRank 可由脚本启动，bge-m3 embedding 仍由外部服务提供；也提供宿主机 Ollama YAML。 |
 | VOS iframe 免登录 | 未启用 | 本地源码模式使用普通注册/登录，`HYBRAG_VOS_SSO_ENABLED=false`。 |
 | VOS 发布部署 | 不在本流程 | 发布和安装仍以 `ictrek.app/README.md`、`src/` 和 `package.sh` 为准。 |
 
@@ -23,6 +23,8 @@
 ```
 
 如果当前目录已经是 `ictrek.app`，上面的脚本路径应改为 `./docs/local-dev/ictrek-dev.sh`。
+
+首次执行 `setup` 且根目录没有 `.env` 时，会为 `DB_PASSWORD`、`REDIS_PASSWORD`、`NEO4J_PASSWORD`、`JWT_SECRET`、`TENANT_AES_KEY` 和 `SYSTEM_AES_KEY` 生成随机值并写入 `.env`。已有值不会覆盖；已有 `.env` 缺少服务密码时会补写固定的本地开发回退值。
 
 然后分别打开两个终端：
 
@@ -44,7 +46,7 @@ make dev-frontend
 
 ## 模型后端
 
-默认配置文件是 `ictrek.app/docs/local-dev/config/builtin_models.tc232.yaml`。它把 QA/VLM 指向 `http://127.0.0.1:38118/v1`，把 bge-m3 embedding 指向 `http://127.0.0.1:32223/v1`。两个地址都必须由 vLLM 或其他 OpenAI-compatible 服务提供；本目录的基础设施 Compose 不会自动启动 bge-m3。
+默认配置文件是 `ictrek.app/docs/local-dev/config/builtin_models.tc232.yaml`。它把 QA/VLM 指向 `http://127.0.0.1:38118/v1`，把 bge-m3 embedding 指向 `http://127.0.0.1:32223/v1`，把 `bge-reranker-v2-m3` ReRank 指向 `http://127.0.0.1:32224`。这些地址都必须由 vLLM 或其他 OpenAI-compatible 服务提供；本目录的基础设施 Compose 不会自动启动 bge-m3 或模型服务。
 
 如果 tc232 上已有 QA 模型目录，可以启动可选的 QA vLLM：
 
@@ -72,6 +74,34 @@ ICTREK_DEV_VLLM_MODEL_DIR=/path/to/Qwen-model \
   ./docs/local-dev/ictrek-dev.sh restart-vllm
 ```
 
+### ReRank vLLM
+
+`bge-reranker-v2-m3` 使用 Hugging Face/Transformers 格式模型目录（包含 `model.safetensors`），通过 vLLM 的 pooling 模式提供 ReRank API，不通过 Ollama。默认使用独立端口 `32224`，与 QA `38118` 和 embedding `32223` 分开。
+
+执行 `setup` 后，使用下面的命令启动或重建 ReRank 服务：
+
+```bash
+./ictrek.app/docs/local-dev/ictrek-dev.sh setup
+./ictrek.app/docs/local-dev/ictrek-dev.sh start-rerank
+
+# 模型目录或启动参数变化后重建
+ICTREK_DEV_RERANK_VLLM_MODEL_DIR=/path/to/bge-reranker-v2-m3 \
+  ./ictrek.app/docs/local-dev/ictrek-dev.sh restart-rerank
+```
+
+脚本默认管理容器 `bge-reranker-v2-m3-vllm`，只读挂载 `/data/models/bge-reranker-v2-m3`，使用 `vllm/vllm-openai:v0.18.1-cu130` 和 `--runner pooling`。`start-rerank` 会拒绝使用 QA 或 embedding 已配置的端口；如需改端口，同时设置 `ICTREK_DEV_RERANK_VLLM_PORT` 和 `ICTREK_DEV_RERANK_VLLM_BASE_URL`，并保持它与 `38118`、`32223` 不同。
+
+验证服务：
+
+```bash
+curl -fsS http://127.0.0.1:32224/health
+curl -sS http://127.0.0.1:32224/rerank \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge-reranker-v2-m3","query":"什么是人工智能？","documents":["人工智能是研究智能机器的技术。","今天是晴天。"]}'
+```
+
+YAML 中 ReRank 的 `Base URL` 要填 `http://127.0.0.1:32224`，不要加 `/v1`；WeKnora 会在该地址后请求 `/rerank`。本地后端运行在宿主机，当前默认 `SSRF_WHITELIST` 已包含 `127.0.0.1`。YAML 模型在后端启动时加载；如果后端已经运行，启动 ReRank 服务后还需重启一次 `$DEV app`，新的默认模型才会出现在模型管理页面。
+
 如果使用宿主机 Ollama，不需要启动 vLLM，切换到 Ollama 配置：
 
 ```bash
@@ -92,7 +122,7 @@ curl -fsS http://127.0.0.1:32223/v1/models
 curl -fsS http://127.0.0.1:11434/api/tags
 ```
 
-只使用 vLLM 时，Ollama 检查失败是正常的；只使用 Ollama 时，vLLM 检查失败是正常的。
+只使用 vLLM 时，Ollama 检查失败是正常的；只使用 Ollama 时，vLLM 检查失败是正常的；尚未启动可选 ReRank 服务时，ReRank 检查失败也是正常的。
 
 ## 地址与数据
 
@@ -107,6 +137,7 @@ curl -fsS http://127.0.0.1:11434/api/tags
 | Neo4j Browser | `http://127.0.0.1:27474` | — |
 | QA vLLM | `http://127.0.0.1:38118/v1` | 外部模型目录 |
 | bge-m3 vLLM | `http://127.0.0.1:32223/v1` | 外部模型目录 |
+| ReRank vLLM | `http://127.0.0.1:32224` | `/data/models/bge-reranker-v2-m3` |
 
 `stop` 只移除开发容器和网络，不删除 `/data/hybrag-dev-data`。如需清空本地数据库，请先确认目标路径，再单独备份或删除该目录。
 
@@ -125,6 +156,9 @@ $DEV restart                       # 重启开发基础设施
 $DEV stop-vllm                     # 停止 QA vLLM，保留容器
 $DEV start-vllm                    # 启动或复用参数一致的 QA vLLM
 $DEV restart-vllm                  # 按当前参数重建 QA vLLM
+$DEV start-rerank                  # 启动或复用 bge-reranker-v2-m3
+$DEV stop-rerank                   # 停止 ReRank vLLM，保留容器
+$DEV restart-rerank                # 按当前参数重建 ReRank vLLM
 $DEV check                         # 检查配置、端口和模型 endpoint
 ```
 
@@ -158,6 +192,15 @@ go install github.com/air-verse/air@latest
 | `ICTREK_DEV_VLLM_SHM_SIZE` | `8g` | Docker `--shm-size`。 |
 | `ICTREK_DEV_VLLM_SECURITY_OPT` | `label=disable` | Docker `--security-opt`。 |
 | `ICTREK_DEV_BGE_VLLM_BASE_URL` | `http://127.0.0.1:32223/v1` | embedding endpoint。 |
+| `ICTREK_DEV_RERANK_VLLM_PORT` | `32224` | ReRank vLLM 宿主机端口；必须不同于 QA `38118` 和 embedding `32223`。 |
+| `ICTREK_DEV_RERANK_VLLM_BASE_URL` | `http://127.0.0.1:32224` | ReRank base URL；WeKnora 会追加 `/rerank`，不要追加 `/v1`。 |
+| `ICTREK_DEV_RERANK_VLLM_CONTAINER` | `bge-reranker-v2-m3-vllm` | ReRank vLLM 容器名。 |
+| `ICTREK_DEV_RERANK_VLLM_MODEL_DIR` | `/data/models/bge-reranker-v2-m3` | 宿主机 ReRank 模型目录。 |
+| `ICTREK_DEV_RERANK_VLLM_MODEL_NAME` | `bge-reranker-v2-m3` | vLLM 对外暴露的模型名。 |
+| `ICTREK_DEV_RERANK_VLLM_MAX_MODEL_LEN` | `8192` | vLLM `--max-model-len`。 |
+| `ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS` | `16` | vLLM `--max-num-seqs`。 |
+| `ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS` | `8192` | vLLM `--max-num-batched-tokens`；不能小于 `max_model_len`。 |
+| `ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION` | `0.1` | vLLM `--gpu-memory-utilization`。 |
 | `ICTREK_DEV_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama 原生 API。 |
 | `BUILTIN_MODELS_CONFIG` | tc232 YAML | 声明式内置模型配置。 |
 
@@ -174,5 +217,7 @@ go install github.com/air-verse/air@latest
 - 后端连接不上数据库：先执行 `$DEV status`，确认 PostgreSQL 为 `healthy`，再检查 `.env` 中 `DB_PASSWORD` 是否在数据库首次初始化后被改过。
 - 文档上传失败：查看 `$DEV logs docreader`；源码后端必须使用 `DOCREADER_ADDR=127.0.0.1:15051` 和 `DOCREADER_TRANSPORT=grpc`。
 - 默认模型不可用：检查对应 `/v1/models`，并确认 YAML 中的模型名与服务返回的 `id` 一致。
+- ReRank 不可用：先执行 `$DEV start-rerank`，检查 `http://127.0.0.1:32224/health` 和 `/rerank`；如果改过端口，保持 YAML 的 `Base URL` 与 `ICTREK_DEV_RERANK_VLLM_PORT` 一致。
+- 模型名或 Base URL 显示为 `${ICTREK_DEV_RERANK_VLLM_*}`：说明后端启动时没有加载 `.env`；仅刷新页面无效，停止当前 `make dev-app`/`air` 后重新执行 `$DEV setup` 和 `$DEV app`。
 - SSRF 校验拒绝本地模型：保留 `SSRF_WHITELIST=localhost,127.0.0.1,::1`；不要为了绕过校验关闭生产环境 SSRF 防护。
 - 管理员入口仍不可用：先用 `admin@weknora.local` 注册并完全登录一次，再重启 `$DEV app`；启动日志中应出现 bootstrap 提权结果。
