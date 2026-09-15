@@ -64,6 +64,8 @@ profiles:
     en: Use HybRAG images from the ARM_with_cuda Feishu sheet.
   conflicts:
   - amd
+require-profiles: true
+
 storage:
   directories:
   - path: files
