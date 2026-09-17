@@ -33,6 +33,7 @@ import {
   reparseKnowledge,
   cancelKnowledgeParse,
   batchDeleteKnowledge,
+  batchDownloadKnowledge,
   delKnowledgeDetails,
   batchReparseKnowledge,
   downKnowledgeDetails,
@@ -43,6 +44,7 @@ import {
   renameKnowledgeFolder,
   type KnowledgeFolderTree,
 } from "@/api/knowledge-base/index";
+import { isBatchDownloadableKnowledge } from './knowledgeDownloadFileName';
 import { waitForKnowledgeDeletion } from '@/utils/knowledgeDeletion';
 import { knowledgeSpansPayloadHasTrace } from '@/utils/knowledgeTrace';
 import FAQEntryManager from './components/FAQEntryManager.vue';
@@ -445,6 +447,66 @@ const batchDownloading = ref(false);
 const downloadingKnowledgeBase = ref(false);
 const failedReparsing = ref(false);
 const batchTagging = ref(false);
+let batchDownloadController: AbortController | undefined;
+
+const MAX_BATCH_DOWNLOAD_FILES = 200;
+const MAX_BATCH_DOWNLOAD_BYTES = 512 * 1024 * 1024;
+
+const handleBatchDownload = async () => {
+  if (batchDownloading.value || batchDeleting.value || batchReparsing.value || batchTagging.value || selectedIds.value.size === 0) return;
+  const selected = Array.from(selectedIds.value);
+  const itemsById = new Map((cardList.value || []).map((item) => [item.id, item]));
+  const ids = selected.filter((id) => isBatchDownloadableKnowledge(itemsById.get(id)));
+  const skipped = selected.length - ids.length;
+  if (ids.length === 0) {
+    MessagePlugin.warning(t('knowledgeBase.batchDownloadNoFiles'));
+    return;
+  }
+  if (ids.length > MAX_BATCH_DOWNLOAD_FILES) {
+    MessagePlugin.warning(t('knowledgeBase.batchDownloadHint'));
+    return;
+  }
+  let knownBytes = 0;
+  for (const id of ids) {
+    const size = Number(itemsById.get(id)?.file_size);
+    if (Number.isFinite(size) && size > 0) knownBytes += size;
+  }
+  if (knownBytes > MAX_BATCH_DOWNLOAD_BYTES) {
+    MessagePlugin.warning(t('knowledgeBase.batchDownloadTooLarge'));
+    return;
+  }
+  if (skipped > 0) {
+    MessagePlugin.warning(t('knowledgeBase.batchDownloadSkipped', { count: skipped }));
+  }
+  const controller = new AbortController();
+  batchDownloadController = controller;
+  batchDownloading.value = true;
+  try {
+    const blob = await batchDownloadKnowledge(kbId.value, ids, controller.signal);
+    if (controller.signal.aborted) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `knowledge-files-${Date.now()}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // 延迟释放，给浏览器留出开始保存文件的时间。
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    MessagePlugin.success(t('knowledgeBase.batchDownloadStarted'));
+  } catch (error: any) {
+    if (!controller.signal.aborted) {
+      MessagePlugin.error(error?.message || t('knowledgeBase.batchDownloadFailed'));
+    }
+  } finally {
+    if (batchDownloadController === controller) {
+      batchDownloading.value = false;
+      batchDownloadController = undefined;
+    }
+  }
+};
+watch(kbId, () => batchDownloadController?.abort());
+onUnmounted(() => batchDownloadController?.abort());
 const batchTagDialogVisible = ref(false);
 const batchTagPreSelectedIds = computed(() => {
   const ids = Array.from(selectedIds.value);
@@ -732,6 +794,7 @@ const sourceOptions = computed(() => [
   { label: t('knowledgeBase.channelFeishuDrive'), value: 'feishu_drive' },
   { label: t('knowledgeBase.channelNotion'), value: 'notion' },
   { label: t('knowledgeBase.channelYuque'), value: 'yuque' },
+  { label: t('knowledgeBase.channelConfluence'), value: 'confluence' },
   { label: t('knowledgeBase.channelGitLab'), value: 'gitlab' },
   { label: t('knowledgeBase.channelIma'), value: 'ima' },
   { label: t('knowledgeBase.channelWechat'), value: 'wechat' },
@@ -2195,7 +2258,7 @@ const {
   itemSelector: '.knowledge-card[data-select-id], .doc-list-row[data-select-id]',
   selectedIds,
   getItemId: (el) => el.dataset.selectId || null,
-  enabled: computed(() => canEdit.value && !isFAQ.value && cardList.value.length > 0),
+  enabled: computed(() => (canEdit.value || canDownloadKnowledge.value) && !isFAQ.value && cardList.value.length > 0),
   onSelectionStart: () => {
     batchMode.value = true;
   },
@@ -2296,7 +2359,7 @@ const confirmBatchDelete = () => {
 };
 
 const handleBatchTag = () => {
-  if (batchDeleting.value || batchReparsing.value || batchTagging.value || selectedIds.value.size === 0) return;
+  if (batchDeleting.value || batchReparsing.value || batchTagging.value || batchDownloading.value || selectedIds.value.size === 0) return;
   batchTagDialogVisible.value = true;
 };
 
@@ -2727,6 +2790,12 @@ async function createNewSession(value: string): Promise<void> {
                 </div>
                 </div>
                 <div class="doc-filter-bar__trailing">
+                  <t-button v-if="(canDownloadKnowledge || canMutateKnowledge) && cardList.length"
+                    variant="outline" size="small"
+                    :disabled="batchDeleting || batchReparsing || batchTagging || batchDownloading"
+                    @click="toggleBatchMode">
+                    {{ $t(batchMode ? 'knowledgeBase.clearSelection' : 'menu.batchManage') }}
+                  </t-button>
                   <div class="doc-view-toggle" role="group" :aria-label="$t('knowledgeBase.viewModeToggle')">
                     <t-tooltip :content="$t('knowledgeBase.viewModeGrid')" placement="top">
                       <button type="button" class="doc-view-toggle-btn" :class="{ active: viewMode === 'grid' }"
@@ -2856,11 +2925,12 @@ async function createNewSession(value: string): Promise<void> {
               </div>
               <div class="doc-batch-bar-anchor" v-show="batchMode || selectedIds.size > 0">
                 <DocumentBatchBar :count="selectedIds.size" :delete-loading="batchDeleting"
-                  :reparse-loading="batchReparsing" :download-loading="batchDownloading"
-                  :tag-loading="batchTagging" :visible="batchMode || selectedIds.size > 0"
+                  :reparse-loading="batchReparsing" :tag-loading="batchTagging" :download-loading="batchDownloading"
+                  :can-download="canDownloadKnowledge" :can-mutate="canMutateKnowledge"
+                  :visible="batchMode || selectedIds.size > 0"
                   :show-move-to-folder="canEdit" :folder-options="folderOptions"
                   @cancel="handleBatchCancel" @delete="confirmBatchDelete" @reparse="confirmBatchReparse"
-                  @download="confirmBatchDownload" @batch-tag="handleBatchTag"
+                  @batch-tag="handleBatchTag" @download="handleBatchDownload" @select-loaded="toggleSelectAll(true)"
                   @move-to-folder="(path: string) => moveKnowledgeIntoFolder(Array.from(selectedIds), path)" />
               </div>
             </div>

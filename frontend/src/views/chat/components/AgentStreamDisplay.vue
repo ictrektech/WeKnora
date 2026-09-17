@@ -146,7 +146,8 @@
                   <div class="action-header" @click.stop="handleActionHeaderClick(event)"
                     :class="{ 'no-results': !hasActionResult(event) }">
                     <div class="action-title">
-                      <t-icon v-if="event.tool_name" class="action-title-icon"
+                      <BrowserIcon v-if="event.tool_name === 'local_browser'" class="action-title-icon browser-tool-icon" />
+                      <t-icon v-else-if="event.tool_name" class="action-title-icon"
                         :name="getToolIconName(event.tool_name)" />
                       <t-tooltip v-if="event.tool_name === 'todo_write' && event.tool_data?.steps"
                         :content="t('agent.updatePlan')" placement="top">
@@ -203,6 +204,11 @@
                     <div class="results-summary-text" v-html="getKnowledgeChunksSummary(event.tool_data)"></div>
                   </div>
 
+                  <SandboxCommandProgress
+                    v-if="event.tool_name === 'shell_exec' && event.pending && event.command_output && !event.command_output.done"
+                    :progress="event.command_output"
+                  />
+
                   <div v-if="!event.pending && event.tool_name === 'attachment_parsing'"
                     class="search-results-summary-fixed attachment-parsing-summary">
                     <div class="results-summary-text" v-html="getAttachmentParsingSummary(event)"></div>
@@ -210,7 +216,8 @@
 
                     <div v-if="isEventExpanded(event.tool_call_id) && !event.pending && hasExpandableResults(event)"
                     class="action-details">
-                    <div v-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
+                    <BrowserToolDetails v-if="event.tool_name === 'local_browser'" :event="event" />
+                    <div v-else-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
                       <ToolResultRenderer :display-type="resolveToolDisplayType(event)" :tool-data="event.tool_data"
                         :output="mcpToolResultOutput(event)" :arguments="event.arguments" :success="event.success" />
                     </div>
@@ -434,7 +441,8 @@
                 <div class="action-header" @click.stop="handleActionHeaderClick(event)"
                   :class="{ 'no-results': !hasActionResult(event) }">
                   <div class="action-title">
-                    <t-icon v-if="event.tool_name" class="action-title-icon" :name="getToolIconName(event.tool_name)" />
+                    <BrowserIcon v-if="event.tool_name === 'local_browser'" class="action-title-icon browser-tool-icon" />
+                    <t-icon v-else-if="event.tool_name" class="action-title-icon" :name="getToolIconName(event.tool_name)" />
                     <t-tooltip v-if="event.tool_name === 'todo_write' && event.tool_data?.steps"
                       :content="t('agent.updatePlan')" placement="top">
                       <span class="action-name">
@@ -492,6 +500,11 @@
                   <div class="results-summary-text" v-html="getKnowledgeChunksSummary(event.tool_data)"></div>
                 </div>
 
+                <SandboxCommandProgress
+                  v-if="event.tool_name === 'shell_exec' && event.pending && event.command_output && !event.command_output.done"
+                  :progress="event.command_output"
+                />
+
                 <div v-if="!event.pending && event.tool_name === 'attachment_parsing'"
                   class="search-results-summary-fixed attachment-parsing-summary">
                   <div class="results-summary-text" v-html="getAttachmentParsingSummary(event)"></div>
@@ -499,7 +512,8 @@
 
                 <div v-if="isEventExpanded(event.tool_call_id) && !event.pending && hasExpandableResults(event)"
                   class="action-details">
-                  <div v-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
+                  <BrowserToolDetails v-if="event.tool_name === 'local_browser'" :event="event" />
+                    <div v-else-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
                     <ToolResultRenderer :display-type="resolveToolDisplayType(event)" :tool-data="event.tool_data"
                       :output="mcpToolResultOutput(event)" :arguments="event.arguments" :success="event.success" />
                   </div>
@@ -593,6 +607,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, onUpdated, nextTick }
 import { useRouter, useRoute } from 'vue-router';
 import { marked } from 'marked';
 import 'katex/dist/katex.min.css';
+import SandboxCommandProgress from '@/components/SandboxCommandProgress.vue';
 import ToolResultRenderer from './ToolResultRenderer.vue';
 import ToolApprovalCard from './ToolApprovalCard.vue';
 import McpOAuthCard from './McpOAuthCard.vue';
@@ -668,6 +683,9 @@ import {
 import { attachMarkdownEnhancementListeners, refreshMarkdownEnhancements } from '@/utils/markdownEnhancements';
 import { useTypewriter } from '@/composables/useTypewriter';
 
+import BrowserToolDetails from './BrowserToolDetails.vue';
+import { browserToolTitle } from '@/utils/browserToolDisplay';
+import BrowserIcon from '@/components/icons/BrowserIcon.vue';
 const getToolIconName = getAgentToolIconName;
 
 const router = useRouter();
@@ -716,6 +734,7 @@ const TOOL_NAME_KEYS: Record<string, string> = {
   write_sandbox_file: 'agentStream.tools.writeSandboxFile',
   edit_sandbox_file: 'agentStream.tools.editSandboxFile',
   shell_exec: 'agentStream.tools.shellExec',
+  local_browser: 'localBrowser.local',
   data_analysis: 'agentStream.tools.dataAnalysis',
   data_schema: 'agentStream.tools.dataSchema',
   database_query: 'agentStream.tools.databaseQuery',
@@ -1554,6 +1573,11 @@ watch(eventStream, (stream) => {
 
 
 // A steer boundary stops local animation without completing or folding the task.
+const isAnswerEventStreaming = (event: any): boolean => {
+  if (!event || event.type !== 'answer') return false;
+  return hasActiveAnswerStream.value && !event.done;
+};
+
 const isConversationDone = computed(() => {
   if (props.session?.steerForked) return false;
   if (isAssistantTurnComplete(props.session)) return true;
@@ -1563,24 +1587,19 @@ const isConversationDone = computed(() => {
     return false;
   }
 
-  if (stream.some((e: any) => e.type === 'stop' || e.type === 'agent_complete')) return true;
+  if (stream.some((e) => e.type === 'stop' || e.type === 'agent_complete')) return true;
 
   // Check for answer event with done=true. Exclude superseded preambles: a
   // retracted tool-round preamble is also closed with done=true, but the agent
   // keeps running, so it must not mark the whole conversation as finished.
-  const answerEvents = stream.filter((e: any) => e.type === 'answer' && !e.superseded);
-  return Boolean(answerEvents.find((e: any) => e.done === true));
+  const answerEvents = stream.filter((e) => e.type === 'answer' && !e.superseded);
+  return Boolean(answerEvents.find((e) => e.done === true));
 });
 const isSegmentDone = computed(() => Boolean(props.session?.steerForked) || isConversationDone.value);
 
 const hasActiveAnswerStream = computed(() =>
   Boolean(props.session?.__stream_active) && !isConversationDone.value
 );
-
-const isAnswerEventStreaming = (event: any): boolean => {
-  if (!event || event.type !== 'answer') return false;
-  return hasActiveAnswerStream.value && !event.done;
-};
 
 const streamingMermaidSvgCache = ref<string[]>([]);
 let streamingMermaidRenderTask: Promise<void> | null = null;
@@ -1686,6 +1705,7 @@ const activeAnswerMarkdown = computed(() => {
 const { displayed: typedAnswer } = useTypewriter(
   () => activeAnswerMarkdown.value,
   () => isSegmentDone.value,
+  { revealMode: 'character' },
 );
 
 const cacheStreamingMermaidSvg = async () => {
@@ -1735,10 +1755,7 @@ watch(activeAnswerMarkdown, () => {
 // complete, switch to Markdown rendering immediately so restored in-flight turns
 // cannot stay in the grey streaming block.
 const answerFullyRendered = computed(
-  () =>
-    !props.session?.steerForked &&
-    isSegmentDone.value &&
-    typedAnswer.value.length >= activeAnswerMarkdown.value.length,
+  () => isConversationDone.value || !hasActiveAnswerStream.value,
 );
 watch(answerFullyRendered, (ready) => {
   emit('render-complete-change', ready);
@@ -2929,6 +2946,7 @@ const getAttachmentParsingSummary = (event: any): string => {
 
 // Get tool title - prefer summary over description, add query for search tools
 const getToolTitle = (event: any): string => {
+  if (event.tool_name === 'local_browser') return browserToolTitle(t, event);
   const mcpTitle = getMcpToolTitle(t, event)
   if (mcpTitle) return mcpTitle
   if (event.pending) {
@@ -3092,6 +3110,7 @@ const skillScriptCommandLabel = (event: any): string => {
 
 // Tool description
 const getToolDescription = (event: any): string => {
+  if (event.tool_name === 'local_browser') return browserToolTitle(t, event);
   if (event.pending) {
     if (event.tool_name === 'image_analysis') {
       return t('agentStream.toolStatus.imageAnalyzing');
@@ -3588,6 +3607,8 @@ const handleAddToKnowledge = (answerEvent: any) => {
 
   .action-title-icon {
     flex-shrink: 0;
+
+    &.browser-tool-icon { width: 18px; height: 18px; color: var(--agent-step-icon-color); }
 
     &.t-icon {
       width: 18px;

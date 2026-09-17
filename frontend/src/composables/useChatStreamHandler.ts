@@ -671,7 +671,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         const expanded = expandSteerForksInHistory([...messagesList])
         messagesList.splice(0, messagesList.length, ...expanded)
       } else {
-        messagesList.push(...expandSteerForksInHistory(processed))
+        const insertAt = messagesList.length
+        messagesList.push(...processed)
+        messagesList.splice(insertAt, processed.length, ...expandSteerForksInHistory(processed))
         dedupeCurrentTurnCompletedAssistants()
       }
     }
@@ -1030,6 +1032,19 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
         break
       }
+      case 'command_output': {
+        const toolCallId = dataPayload?.tool_call_id as string | undefined
+        if (!toolCallId) break
+        const tool = (message.agentEventStream as ChatMessage[] | undefined)?.find(
+          event => event.type === 'tool_call' && event.tool_call_id === toolCallId,
+        )
+        // Late progress must not resurrect a completed command or attach to
+        // another concurrent call just because it uses the same tool name.
+        if (tool?.pending && tool.tool_name === 'shell_exec' && !(tool.command_output as ChatMessage | undefined)?.done) {
+          tool.command_output = dataPayload
+        }
+        break
+      }
       case 'tool_result':
       case 'error': {
         if (dataPayload) {
@@ -1359,6 +1374,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       'thinking',
       'tool_call',
       'tool_result',
+      'command_output',
       'reflection',
       'artifacts_pending',
       'context_compacted',

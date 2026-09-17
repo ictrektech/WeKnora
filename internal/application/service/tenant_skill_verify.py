@@ -142,7 +142,18 @@ def load_pyproject(path):
     try:
         import tomllib
     except ImportError:
-        return None
+        # Python 3.10 does not ship tomllib. Seeded skill environments carry
+        # pip, whose vendored tomli parser handles the same TOML subset; use
+        # it as a compatibility fallback without adding a runtime dependency.
+        try:
+            import pip._vendor.tomli as tomli
+        except Exception:
+            return None
+        try:
+            with open(path, encoding="utf-8") as handle:
+                return tomli.loads(handle.read())
+        except Exception:
+            return None
     try:
         with open(path, "rb") as handle:
             return tomllib.load(handle)

@@ -12,15 +12,20 @@ import (
 // versionedSQLiteTables is the set of tables that SQLite migrations must
 // create to stay in sync with the versioned (PostgreSQL) migrations:
 // 000041 task queue, 000053 system settings, 000055 processing spans,
-// 000063 knowledge multi-tags, 000101 contract review, 000102 contract review model,
-// 000103 contract review quality, 000106 legal workspace config, 000109/000020 smart archive,
-// and 000110/000021 session workspace mode.
+// 000063 knowledge multi-tags, 000111 browser authorization, 000112/000113 memory
+// consistency and vector search. Local ictrek migrations append contract review,
+// legal workspace, smart archive and session workspace mode tables.
 var versionedSQLiteTables = []string{
+	"memory_extraction_sessions",
 	"task_pending_ops",
 	"task_dead_letters",
 	"system_settings",
 	"knowledge_processing_spans",
 	"knowledge_tag_relations",
+	"browser_devices",
+	"browser_pairings",
+	"browser_task_interruptions",
+	"memory_extraction_sessions",
 	"contract_reviews",
 	"contract_review_clauses",
 	"contract_review_issues",
@@ -41,21 +46,23 @@ var versionedSQLiteTables = []string{
 // versionedSQLiteColumns maps each existing table to the columns that the
 // versioned migrations add and the SQLite baseline was missing.
 var versionedSQLiteColumns = map[string][]string{
-	"sessions":                {"workspace_mode"},                                                                                                                            // 000021
-	"tenants":                 {"api_principal_config", "legal_workspace_config"},                                                                                            // 000064, 000106
-	"users":                   {"is_system_admin"},                                                                                                                           // 000053
-	"knowledges":              {"pending_subtasks_count"},                                                                                                                    // 000056
-	"messages":                {"attachments", "usage"},                                                                                                                      // 000034, 000085
-	"tenant_invitations":      {"token", "accepted_count"},                                                                                                                   // 000054
-	"embed_channels":          {"allow_memory"},                                                                                                                              // 000060
-	"mcp_oauth_tokens":        {"principal_type", "principal_id"},                                                                                                            // 000064
-	"mcp_tool_approvals":      {"enabled"},                                                                                                                                   // 000091
-	"contract_reviews":        {"model_id", "analysis_run_id", "config_hash", "source_revision", "source_text_hash", "source_hash", "locator", "quality_status", "warnings"}, // 000102, 000103
-	"contract_review_clauses": {"evidence_id"},                                                                                                                               // 000103
-	"contract_review_issues":  {"category", "finding_type", "evidence_refs"},                                                                                                 // 000103
+	"memory_subjects":         {"extraction_state"}, // 000015
+	"memory_items":            {"replaces_id"},      // 000015
+	"sessions":                {"workspace_mode"},   // 000023
+	"tenants":                 {"api_principal_config", "legal_workspace_config"},
+	"users":                   {"is_system_admin"},
+	"knowledges":              {"pending_subtasks_count"},
+	"messages":                {"attachments", "usage"},
+	"tenant_invitations":      {"token", "accepted_count"},
+	"embed_channels":          {"allow_memory"},
+	"mcp_oauth_tokens":        {"principal_type", "principal_id"},
+	"mcp_tool_approvals":      {"enabled"},
+	"contract_reviews":        {"model_id", "analysis_run_id", "config_hash", "source_revision", "source_text_hash", "source_hash", "locator", "quality_status", "warnings"},
+	"contract_review_clauses": {"evidence_id"},
+	"contract_review_issues":  {"category", "finding_type", "evidence_refs"},
 }
 
-const expectedSQLiteMigrationVersion = 21
+const expectedSQLiteMigrationVersion = 23
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

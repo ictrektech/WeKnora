@@ -134,18 +134,15 @@
                             @dismiss="(set) => dismissSuggestions(session, set)" />
                     </div>
                 </div>
-				<div v-if="showGlobalTypingIndicator" class="chat-global-wait" role="status"
-					:aria-label="t('chat.thinkingAlt')">
-					<span class="chat-global-wait__spinner" aria-hidden="true"></span>
-				</div>
-			</div>
-			</div>
-			<ChatQuestionMinimap
-				v-if="!embeddedMode"
-				:scroll-container="scrollContainer"
-                :messages="messagesList"
-                @jump="jumpToQuestion"
-            />
+                <div v-if="showGlobalTypingIndicator" class="chat-global-wait" role="status"
+                    :aria-label="t('chat.thinkingAlt')">
+                    <span class="chat-global-wait__spinner" aria-hidden="true"></span>
+                </div>
+            </div>
+            </div>
+            <BrowserTaskPreview v-if="!embeddedMode && session_id" :key="session_id" :session-id="session_id" />
+            <ChatQuestionMinimap v-if="!embeddedMode" :scroll-container="scrollContainer" :messages="messagesList"
+                @jump="jumpToQuestion" />
         </div>
         <transition name="scroll-btn-fade">
             <div v-show="userHasScrolledUp" class="scroll-to-bottom-btn" @click="onClickScrollToBottom">
@@ -193,6 +190,7 @@ import { listSteerSession, promoteSteerSession, removeSteerSession, steerSession
 import { persistedAssistantId, previewSteerMessage, discardSteerPreview, reconcileSteerMessageId } from '@/utils/steerStreamFork';
 import { useMenuStore } from '@/stores/menu';
 import { useSettingsStore } from '@/stores/settings';
+import { useBrowserConnectionStore } from '@/stores/browserConnection';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useI18n } from 'vue-i18n';
 import { useUIStore } from '@/stores/ui';
@@ -222,6 +220,7 @@ import { shouldShowConversationTimestamp } from '@/utils/messageTimestamp';
 import { useSessionActivityStore } from '@/stores/sessionActivity';
 import { provideChatSandboxPanel } from '@/composables/useChatSandboxPanel';
 import SandboxSidePanel from '@/components/chat/SandboxSidePanel.vue';
+import BrowserTaskPreview from './components/BrowserTaskPreview.vue';
 import { collectSessionArtifacts } from '@/utils/sessionArtifacts';
 import { isCollectingSkillArtifacts } from '@/utils/skillArtifacts';
 const referencesDrawer = provideChatReferencesDrawer();
@@ -289,17 +288,15 @@ const currentSession = ref(null);
 // 避免污染宿主的 settings store。
 const loadSessionAndHydrate = async (sid) => {
     if (!sid || props.embeddedMode) return;
+    // Capture before awaiting: onMounted sends and clears firstQuery while this
+    // request is in flight. A new session must retain the createChat draft.
+    const preserveDraft = Boolean(firstQuery.value);
     try {
         const sessionRes = await getSession(sid);
         if (sessionRes?.data && sid === session_id.value) {
             currentSession.value = sessionRes.data;
             const lastState = sessionRes.data.last_request_state;
-            if (lastState) {
-                // 先把当前的"全局默认"快照下来，再用 session 状态覆盖；
-                // 离开会话时会从快照还原，避免本会话的状态污染新建对话。
-                useSettingsStoreInstance.snapshotAsDefaultsIfNeeded();
-                useSettingsStoreInstance.applyLastRequestState(lastState);
-            }
+            useSettingsStoreInstance.hydrateSessionInputState(lastState, preserveDraft);
         }
     } catch (error) {
         console.error('Failed to load session data:', error);
@@ -1800,6 +1797,7 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
         agent_id: selectedAgentId,
         agent_source_tenant_id: selectedAgentSourceTenantId,
         web_search_enabled: webSearchEnabled,
+        local_browser_enabled: !props.embeddedMode && agentEnabled && useSettingsStoreInstance.isLocalBrowserEnabled && !useBrowserConnectionStore().knownOffline,
         summary_model_id: modelId,
         mcp_service_ids: requestMcpServiceIds,
         skill_names: requestSkillNames,

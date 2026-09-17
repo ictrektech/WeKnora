@@ -52,6 +52,7 @@ type qaRequestContext struct {
 	mcpServiceIDs         []string
 	skillNames            []string
 	summaryModelID        string
+	localBrowserEnabled   bool
 	webSearchEnabled      bool
 	mentionedItems        types.MentionedItems
 	effectiveTenantID     uint64                   // when using shared agent, tenant ID for model/KB/MCP resolution; 0 = use context tenant
@@ -112,6 +113,7 @@ func (rc *qaRequestContext) buildQARequest() *types.QARequest {
 		ImageDescription:    imageDescription,
 		UserMessageID:       rc.userMessageID,
 		WebSearchEnabled:    rc.webSearchEnabled,
+		LocalBrowserEnabled: rc.localBrowserEnabled,
 		Attachments:         rc.attachments,
 	}
 	if rc.steerSink != nil {
@@ -216,6 +218,10 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 			effectiveTenantID = scopedTenantID
 			sharedAgentReadOnly = false
 		}
+	}
+
+	if request.LocalBrowserEnabled && (customAgent == nil || !customAgent.IsAgentMode()) {
+		return nil, nil, errors.NewBadRequestError("Local browser requires an agent with tool calling enabled")
 	}
 
 	// Log merge results for debugging
@@ -376,6 +382,8 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 		request.WebSearchEnabled,
 	)
 
+	executionContext.LocalBrowserEnabled = request.LocalBrowserEnabled
+
 	// Build request context
 	reqCtx := &qaRequestContext{
 		ctx:         ctx,
@@ -405,6 +413,7 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 		skillNames:            secutils.SanitizeForLogArray(skillNames),
 		summaryModelID:        secutils.SanitizeForLog(request.SummaryModelID),
 		webSearchEnabled:      request.WebSearchEnabled,
+		localBrowserEnabled:   request.LocalBrowserEnabled,
 		mentionedItems:        convertMentionedItems(request.MentionedItems),
 		effectiveTenantID:     effectiveTenantID,
 		sharedAgentReadOnly:   sharedAgentReadOnly,
@@ -893,6 +902,10 @@ func (h *Handler) KnowledgeQA(c *gin.Context) {
 	}
 
 	// Execute normal mode QA, generate title unless disabled
+	if request.LocalBrowserEnabled {
+		_ = c.Error(errors.NewBadRequestError("Local browser requests must use the agent endpoint"))
+		return
+	}
 	h.executeQA(reqCtx, qaModeNormal, !request.DisableTitle)
 }
 
@@ -1648,16 +1661,17 @@ func (h *Handler) persistLastRequestState(parentCtx context.Context, reqCtx *qaR
 	}
 
 	state := &types.SessionLastRequestState{
-		AgentID:          reqCtx.reqAgentID,
-		AgentEnabled:     agentEnabled,
-		ModelID:          reqCtx.summaryModelID,
-		KnowledgeBaseIDs: reqCtx.knowledgeBaseIDs,
-		KnowledgeIDs:     reqCtx.knowledgeIDs,
-		TagIDs:           reqCtx.tagIDs,
-		MCPServiceIDs:    reqCtx.mcpServiceIDs,
-		SkillNames:       reqCtx.skillNames,
-		MentionedItems:   reqCtx.mentionedItems,
-		WebSearchEnabled: reqCtx.webSearchEnabled,
+		AgentID:             reqCtx.reqAgentID,
+		AgentEnabled:        agentEnabled,
+		ModelID:             reqCtx.summaryModelID,
+		KnowledgeBaseIDs:    reqCtx.knowledgeBaseIDs,
+		KnowledgeIDs:        reqCtx.knowledgeIDs,
+		TagIDs:              reqCtx.tagIDs,
+		MCPServiceIDs:       reqCtx.mcpServiceIDs,
+		SkillNames:          reqCtx.skillNames,
+		MentionedItems:      reqCtx.mentionedItems,
+		WebSearchEnabled:    reqCtx.webSearchEnabled,
+		LocalBrowserEnabled: reqCtx.localBrowserEnabled,
 	}
 
 	if err := h.sessionService.UpdateSessionLastRequestState(ctx, reqCtx.sessionID, state); err != nil {

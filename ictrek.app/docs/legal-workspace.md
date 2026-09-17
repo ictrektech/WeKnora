@@ -12,7 +12,7 @@
 | 设置入口 | 已实现；设置 → 发布集成 → 法律工作台 |
 | 关闭后的数据行为 | 已实现；只隐藏入口并阻止法律页面和法务会话访问，不删除数据；提醒调度跳过已关闭租户 |
 | 工作区数据删除 | 已实现；工作区 Owner 二次确认后清理合同审查、法务助手会话及其会话级数据，普通平台会话不受影响 |
-| PostgreSQL / SQLite 迁移验证 | 待验证；法律开关沿用 `000106`/`000016`，法务会话归属使用 `000110`/`000021`，需在目标部署执行升级验证 |
+| PostgreSQL / SQLite 迁移验证 | 待验证；法律开关沿用 `000106`/`000018`，法务会话归属使用 `000110`/`000023`，需在目标部署执行升级验证 |
 
 ## 为什么增加这个开关
 
@@ -42,7 +42,7 @@ ICTREK_LEGAL_WORKSPACE_DEFAULT_ENABLED=false
 - `false`、未配置或无法解析时，法律工作台默认关闭；设置为 `true` 时默认开启。
 - 该变量只控制新建工作区，或数据库中尚未保存法律工作台配置的工作区。设置页保存的工作区级开关优先于 `.env`。
 - 修改 `.env` 后需要重启后端容器或 Go 后端进程；不会自动修改已有工作区，也不会删除任何法律工作台数据。
-- 迁移 `000106`/`000107` 和 SQLite `000016` 为已有部署保留了 `enabled: true` 的数据库兼容默认值。因此，已经被迁移回填为 `true` 的旧工作区不会因 `.env=false` 自动关闭；如需关闭，请在设置页切换开关。
+- 迁移 `000106`/`000107` 和 SQLite `000018` 为已有部署保留了 `enabled: true` 的数据库兼容默认值。因此，已经被迁移回填为 `true` 的旧工作区不会因 `.env=false` 自动关闭；如需关闭，请在设置页切换开关。
 
 ## 数据删除
 
@@ -73,8 +73,8 @@ API 前缀为 `/api/v1`，配置按当前工作区隔离。
 - PostgreSQL 使用 `migrations/versioned/000106_legal_workspace_config.up.sql`。
 - 法务会话归属使用 `migrations/versioned/000110_session_workspace_mode.up.sql`。
 - 如果数据库的迁移记录已经到 `000106`，但缺少该列，后续 `migrations/versioned/000107_legal_workspace_config_repair.up.sql` 会幂等补齐字段。
-- SQLite/Lite 使用 `migrations/sqlite/000016_legal_workspace_config.up.sql`。
-- 法务会话归属使用 `migrations/sqlite/000021_session_workspace_mode.up.sql`。
+- SQLite/Lite 使用 `migrations/sqlite/000018_legal_workspace_config.up.sql`。
+- 法务会话归属使用 `migrations/sqlite/000023_session_workspace_mode.up.sql`。
 - 数据库新字段默认 `enabled: true`，兼容升级前已有合同审查数据；应用创建工作区时使用 `ICTREK_LEGAL_WORKSPACE_DEFAULT_ENABLED` 的默认值。
 - 代码验证包括前端 `npm run type-check`、`npm run check-i18n`，以及后端法律配置、会话归属、路由、数据清理和 SQLite migration 测试。
 - 发布到实际 VOS 环境前，应在备份数据库上验证迁移、关闭后数据仍存在、重新开启后记录可读，以及删除确认后的共享文件保留行为。

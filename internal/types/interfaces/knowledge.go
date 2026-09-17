@@ -130,6 +130,18 @@ type KnowledgeService interface {
 		knowledgeID string,
 		processOverrides *types.KnowledgeProcessOverrides,
 	) (*types.Knowledge, error)
+	// ReplaceKnowledgeFile replaces the source file of an existing file knowledge
+	// while preserving its ID, then re-parses it. A path-qualified customFileName
+	// also sets the folder; a bare filename keeps the current folder. Metadata
+	// entries are merged into the stored metadata. Identical content on this
+	// same path returns a DuplicateKnowledgeError without re-parsing.
+	ReplaceKnowledgeFile(
+		ctx context.Context,
+		knowledgeID string,
+		file *multipart.FileHeader,
+		customFileName string,
+		metadata map[string]string,
+	) (*types.Knowledge, error)
 	// CancelKnowledgeParse marks an in-progress parse as cancelled by the
 	// user. The knowledge row and any partially written chunks/index are
 	// kept; downstream queued tasks for the same knowledge are best-effort
@@ -155,6 +167,7 @@ type KnowledgeService interface {
 		keyword string,
 		searchField string,
 		sortOrder string,
+		isEnabled *bool,
 	) (*types.PageResult, error)
 	// UpsertFAQEntries imports or appends FAQ entries asynchronously.
 	// When DryRun is true, only validates entries without actually importing.
