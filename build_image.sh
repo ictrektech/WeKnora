@@ -196,8 +196,15 @@ ensure_dockerfile_base_images() {
   done < <(
     awk '
       toupper($1) == "FROM" {
-        froms[++from_count] = $2
-        for (i = 3; i <= NF; i++) {
+        image_field = 2
+        while (image_field <= NF && $image_field ~ /^--/) {
+          image_field++
+        }
+        if (image_field > NF) {
+          next
+        }
+        froms[++from_count] = $image_field
+        for (i = image_field + 1; i <= NF; i++) {
           if (toupper($i) == "AS" && (i + 1) <= NF) {
             aliases[$(i + 1)] = 1
           }
