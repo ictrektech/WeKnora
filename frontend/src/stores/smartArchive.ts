@@ -26,7 +26,7 @@ export const useSmartArchiveStore = defineStore('smartArchive', () => {
   let activeSearchFilters: ArchiveSearchFilters = {}
 
   async function loadDocuments(q = '', archived = false, silent = false) { documentSearchActive = false; documentListQuery = q; documentListArchived = archived; if (!silent) loading.value = true; try { documents.value = (await listArchiveDocuments(q, archived)).data || [] } finally { if (!silent) loading.value = false } }
-  async function refreshDocuments() { try { if (documentSearchActive) await refreshSearch(activeSearchQuery, activeSearchFilters, searchPage.value || 1); else documents.value = (await listArchiveDocuments(documentListQuery, documentListArchived)).data || [] } catch { /* A later poll or the SSE reconnect will retry. */ } }
+  async function refreshDocuments() { if (documentSearchActive) await refreshSearch(activeSearchQuery, activeSearchFilters, searchPage.value || 1); else documents.value = (await listArchiveDocuments(documentListQuery, documentListArchived)).data || [] }
   async function loadSettings() { settings.value = (await getArchiveSettings()).data; return settings.value }
   async function loadDocument(id: string) { current.value = (await getArchiveDocument(id)).data; return current.value }
   async function upload(files: File[]) { importProgress.value = 0; const batch = (await importArchiveFiles(files, (v) => importProgress.value = v)).data; connectBatch(batch.id); return batch }
@@ -94,8 +94,9 @@ export const useSmartArchiveStore = defineStore('smartArchive', () => {
     streamController = new AbortController()
     void streamArchiveBatch(id, streamController.signal, (batch) => {
       importProgress.value = archiveImportProgress(batch)
-      void refreshDocuments()
-      if (batch.status === 'completed' || batch.status === 'failed') stopBatchPolling()
+      void refreshDocuments().then(() => {
+        if (batch.status === 'completed' || batch.status === 'failed') stopBatchPolling()
+      }).catch(() => undefined)
     }).catch(() => undefined)
     // SSE gives low-latency updates, while this durable snapshot poll covers
     // proxies that buffer/close SSE and pages reopened after the upload.
