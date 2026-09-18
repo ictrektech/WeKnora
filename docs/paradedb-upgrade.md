@@ -57,13 +57,13 @@ older 0.18.9 default is outside this validated upgrade path.
    Do not install it into databases that do not use it. The catalog and
    `paradedb.version_info()` should both report 0.22.6; pgvector stays at 0.8.1.
 
-   Migration `000099` also performs this step in the WeKnora database when the
+   Migration `000117` also performs this step in the WeKnora database when the
    installed extension is 0.22.2–0.22.5 and the 0.22.6 package is available.
    It respects `app.skip_embedding` and leaves absent extensions and other
    release lines alone. If the migration
    ran before the new database image was installed, perform the SQL step above
    manually: applied migrations are not repeated. Older application releases
-   without migration `000099` also require the manual step.
+   without migration `000117` also require the manual step.
 5. Resume the application writers, check migration status and run representative
    keyword/vector searches. No `REINDEX` or document re-ingestion is required
    by this patch upgrade. Preserve the backup until deployment checks pass.

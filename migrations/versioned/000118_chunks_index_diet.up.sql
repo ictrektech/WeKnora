@@ -1,5 +1,5 @@
 -- ============================================================================
--- Migration 000100: Drop chunks indexes that only slow down writes
+-- Migration 000118: Drop chunks indexes that only slow down writes
 -- ============================================================================
 -- Every INSERT/UPDATE on chunks maintains all of its indexes. Three of them
 -- never help a query:
@@ -13,10 +13,10 @@
 --                               the high-cardinality knowledge_id.
 -- ============================================================================
 
-DO $$ BEGIN RAISE NOTICE '[Migration 000100] Dropping redundant chunks indexes'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000118] Dropping redundant chunks indexes'; END $$;
 
 DROP INDEX IF EXISTS idx_chunks_chunk_type;
 DROP INDEX IF EXISTS idx_chunks_content_hash;
 DROP INDEX IF EXISTS idx_chunks_tenant_kg;
 
-DO $$ BEGIN RAISE NOTICE '[Migration 000100] Redundant chunks indexes dropped'; END $$;
+DO $$ BEGIN RAISE NOTICE '[Migration 000118] Redundant chunks indexes dropped'; END $$;
