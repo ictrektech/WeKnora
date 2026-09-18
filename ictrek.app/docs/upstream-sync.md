@@ -188,6 +188,29 @@ After resolving each conflict:
 git add <resolved-file>
 ```
 
+Migration numbers are global history across branches and deployments. A Git
+merge can succeed while the migration source is still invalid. Before
+committing the merge:
+
+```bash
+bash scripts/check-migration-files.sh migrations/versioned
+bash scripts/check-migration-files.sh migrations/sqlite
+git diff --check
+```
+
+Keep migration numbers already published by the fork. If an incoming upstream
+migration uses one of those numbers, assign it the next unused number and
+rename its `.up.sql` and `.down.sql` files together with `git mv`. Update
+comments, documentation links, tests, and version references as well. For
+example, if the fork already owns `000097`–`000114`, incoming upstream
+`000097`–`000102` must become `000115`–`000120`; never rename the existing
+fork migrations.
+
+The checker rejects duplicate numbers, missing pairs, mismatched `.up.sql` /
+`.down.sql` names, and malformed filenames. Do not start the local backend or
+commit the merge while either checker fails. When practical, also execute the
+PostgreSQL migrations from an empty database.
+
 Complete the merge:
 
 ```bash
@@ -207,6 +230,13 @@ rg -n "Vivibit|www.vivibit.com|ictrektech/WeKnora|host.docker.internal|builtin_m
 For code-level verification, use the build path documented in
 `build-images.md`. Build and deployment should run on the selected remote host,
 not locally, unless the task explicitly asks for a local check.
+
+The VOS migration workflow runs only for matching `pull_request` events or
+after a push to remote `main`; a local merge or local commit does not trigger
+GitHub Actions. It runs the versioned migration checker and a full PostgreSQL
+empty-database migration, but it does not validate SQLite migrations or the
+current local development database. Always run the local checker commands
+before starting a local backend and before committing the merge.
 
 ## Push And Parent Repo Update
 
