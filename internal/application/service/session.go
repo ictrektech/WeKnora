@@ -154,6 +154,10 @@ type sessionService struct {
 	// TenantSkillService because that service depends on this one.
 	sandboxConfigRepo repository.TenantSandboxConfigRepository
 	tenantSkillRepo   repository.TenantSkillRepository
+	// forkSnapshots retires provider snapshots when a forked session is deleted
+	// before its sandbox is provisioned. Nil uses NewResolverForkSnapshotDeleter
+	// from sandboxResolver/sandboxMgr.
+	forkSnapshots ForkSnapshotDeleter
 }
 
 // NewSessionService creates a new session service instance with all required dependencies
@@ -542,9 +546,11 @@ func (s *sessionService) DeleteSession(ctx context.Context, id string) error {
 	tenantID := types.MustTenantIDFromContext(ctx)
 	userID := sessionUserIDFromContext(ctx)
 
-	if existing, err := s.sessionRepo.Get(ctx, tenantID, userID, id); err != nil {
+	session, err := s.sessionRepo.Get(ctx, tenantID, userID, id)
+	if err != nil {
 		return err
-	} else if err := ensureSessionWorkspaceAccess(ctx, existing); err != nil {
+	}
+	if err := ensureSessionWorkspaceAccess(ctx, session); err != nil {
 		return err
 	}
 
@@ -598,6 +604,7 @@ func (s *sessionService) DeleteSession(ctx context.Context, id string) error {
 		return apperrors.ErrSessionNotFound
 	}
 
+	s.releaseForkSnapshot(ctx, session)
 	return nil
 }
 
@@ -612,12 +619,15 @@ func (s *sessionService) BatchDeleteSessions(ctx context.Context, ids []string) 
 	tenantID := types.MustTenantIDFromContext(ctx)
 	userID := sessionUserIDFromContext(ctx)
 
+	visible := make([]*types.Session, 0, len(ids))
 	visibleIDs := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if existing, err := s.sessionRepo.Get(ctx, tenantID, userID, id); err == nil {
-			if accessErr := ensureSessionWorkspaceAccess(ctx, existing); accessErr != nil {
+		session, err := s.sessionRepo.Get(ctx, tenantID, userID, id)
+		if err == nil {
+			if accessErr := ensureSessionWorkspaceAccess(ctx, session); accessErr != nil {
 				return accessErr
 			}
+			visible = append(visible, session)
 			visibleIDs = append(visibleIDs, id)
 		} else if !stderrors.Is(err, apperrors.ErrSessionNotFound) {
 			return err
@@ -672,6 +682,7 @@ func (s *sessionService) BatchDeleteSessions(ctx context.Context, ids []string) 
 		}
 	}
 
+	s.releaseForkSnapshots(ctx, visible)
 	return nil
 }
 
@@ -730,6 +741,7 @@ func (s *sessionService) DeleteAllSessions(ctx context.Context) error {
 		}
 	}
 
+	s.releaseForkSnapshots(ctx, sessions)
 	logger.Infof(ctx, "All sessions deleted for tenant %d", tenantID)
 	return nil
 }
@@ -837,6 +849,35 @@ func (s *sessionService) destroyBoundSandbox(ctx context.Context, sessionID stri
 		if err := s.sandboxPinner.Clear(ctx, sessionID); err != nil {
 			logger.Warnf(ctx, "Failed to clear sandbox pin for session %s: %v", sessionID, err)
 		}
+	}
+}
+
+func (s *sessionService) releaseForkSnapshot(ctx context.Context, session *types.Session) {
+	if s == nil || session == nil {
+		return
+	}
+	snapshots := s.forkSnapshots
+	if snapshots == nil {
+		snapshots = NewResolverForkSnapshotDeleter(s.sandboxResolver, s.sandboxMgr)
+	}
+	releaseForkSnapshotOnDelete(ctx, s.sessionRepo, snapshots, session)
+}
+
+func (s *sessionService) releaseForkSnapshots(ctx context.Context, sessions []*types.Session) {
+	seen := make(map[string]struct{}, len(sessions))
+	for _, session := range sessions {
+		if session == nil || session.ForkBootstrap == nil {
+			continue
+		}
+		snapshotID := strings.TrimSpace(session.ForkBootstrap.SnapshotID)
+		if snapshotID == "" {
+			continue
+		}
+		if _, ok := seen[snapshotID]; ok {
+			continue
+		}
+		seen[snapshotID] = struct{}{}
+		s.releaseForkSnapshot(ctx, session)
 	}
 }
 

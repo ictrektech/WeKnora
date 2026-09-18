@@ -24,6 +24,7 @@ export interface SessionForGrouping {
   description?: string
   user_id?: string
   workspace_mode?: string
+  parent_session_id?: string
   originalIndex?: number
 }
 

@@ -234,9 +234,10 @@
                                 </span>
                             </div>
                             <div v-for="subitem in group.items" :key="subitem.id"
-                                class="submenu_item_p session-chat-row" :class="{
+                                class="submenu_item_p session-chat-row" :data-session-id="subitem.id" :class="{
                                     'session-chat-row--active': !batchMode && subitem.path === currentSecondpath,
                                     'session-chat-row--selected': batchMode && batchSelectedIds.includes(subitem.id),
+                                    'session-chat-row--revealed': revealedSessionId === subitem.id,
                                 }">
                                 <div class="session-list-row session-list-row--flat">
                                     <div class="session-list-row__body">
@@ -617,6 +618,45 @@ const filteredGroupedSessions = computed(() => {
     );
 });
 
+// Only a locally created fork requests attention; loading history and switching
+// between existing sessions must not replay the entrance animation.
+const pendingForkRevealId = ref('');
+const revealedSessionId = ref('');
+let forkRevealTimer: ReturnType<typeof setTimeout> | undefined;
+usemenuStore.$onAction(({ name, args, after }) => {
+    if (name !== 'updataMenuChildren' || !args[0]?.parent_session_id) return;
+    const sessionId = String(args[0].id);
+    after(() => { pendingForkRevealId.value = sessionId; });
+});
+
+watch(
+    () => {
+        const id = pendingForkRevealId.value;
+        return id && !uiStore.sidebarCollapsed && currentSecondpath.value === `chat/${id}`
+            && filteredGroupedSessions.value.some((group) => group.items.some((item) => item.id === id))
+            ? id : '';
+    },
+    (id) => {
+        if (!id) return;
+        const container = scrollContainer.value;
+        const row = Array.from(container?.querySelectorAll<HTMLElement>('[data-session-id]') ?? [])
+            .find((element) => element.dataset.sessionId === id);
+        if (!container || !row) return;
+
+        // Reveal within the sidebar only, without moving the conversation pane.
+        const bounds = container.getBoundingClientRect();
+        const rowBounds = row.getBoundingClientRect();
+        if (rowBounds.top < bounds.top) container.scrollTop += rowBounds.top - bounds.top;
+        else if (rowBounds.bottom > bounds.bottom) container.scrollTop += rowBounds.bottom - bounds.bottom;
+
+        clearTimeout(forkRevealTimer);
+        revealedSessionId.value = id;
+        pendingForkRevealId.value = '';
+        forkRevealTimer = setTimeout(() => { revealedSessionId.value = ''; }, 350);
+    },
+    { flush: 'post' },
+);
+
 const refreshSessionListScrollability = async () => {
     await nextTick();
     const container = scrollContainer.value;
@@ -819,6 +859,7 @@ const mapSessionRow = (item: any) => ({
     description: item.description || '',
     user_id: item.user_id || '',
     workspace_mode: item.workspace_mode || '',
+    parent_session_id: item.parent_session_id || '',
 });
 
 const syncMenuStoreFromBuckets = () => {
@@ -844,6 +885,7 @@ const menuChildToSessionRow = (item: Record<string, unknown>): SessionForGroupin
         description: typeof item.description === 'string' ? item.description : '',
         user_id: typeof item.user_id === 'string' ? item.user_id : '',
         workspace_mode: workspaceMode,
+        parent_session_id: typeof item.parent_session_id === 'string' ? item.parent_session_id : '',
     };
 };
 
@@ -1179,6 +1221,7 @@ watch(
 
 onUnmounted(() => {
     clearInterval(sessionActivityTimer);
+    clearTimeout(forkRevealTimer);
     sessionActivity.clear();
     window.removeEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);
 });
@@ -1451,8 +1494,8 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         flex-shrink: 0;
         cursor: pointer;
         color: var(--td-text-color-secondary);
-        border-radius: 4px;
-        transition: background-color 0.2s ease;
+        border-radius: var(--app-radius-xs);
+        transition: background-color var(--app-motion-base) ease;
         box-sizing: border-box;
 
         &:hover {
@@ -1475,6 +1518,14 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         }
     }
 
+    .logo_box {
+        display: flex;
+        align-items: center;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+    }
+
     .logo_img {
         margin-left: 24px;
         width: 30px;
@@ -1492,6 +1543,22 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         line-height: 21.7px;
     }
 
+    .logo_box .logo {
+        width: 128px;
+        height: auto;
+    }
+
+    .logo_box .lite-badge {
+        margin-left: 2px;
+        align-self: flex-start;
+        margin-top: 2px;
+        font-size: 9px;
+        font-weight: 600;
+        color: var(--td-text-color-placeholder);
+        user-select: none;
+        white-space: nowrap;
+    }
+
     .menu_top {
         flex: 1;
         display: flex;
@@ -1507,7 +1574,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         // Claude 风格细滚动条：默认透明，悬浮时显示一条圆角细灰条
         scrollbar-width: thin;
         scrollbar-color: transparent transparent;
-        transition: scrollbar-color 0.2s ease;
+        transition: scrollbar-color var(--app-motion-base) ease;
 
         &::-webkit-scrollbar {
             width: 6px;
@@ -1519,20 +1586,20 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
         &::-webkit-scrollbar-thumb {
             background-color: transparent;
-            border-radius: 6px;
-            transition: background-color 0.2s ease;
+            border-radius: var(--app-radius-sm);
+            transition: background-color var(--app-motion-base) ease;
         }
 
         &:hover {
-            scrollbar-color: var(--td-scrollbar-color, rgba(0, 0, 0, 0.18)) transparent;
+            scrollbar-color: var(--td-scrollbar-color) transparent;
 
             &::-webkit-scrollbar-thumb {
-                background-color: var(--td-scrollbar-color, rgba(0, 0, 0, 0.18));
+                background-color: var(--td-scrollbar-color);
             }
         }
 
         &::-webkit-scrollbar-thumb:hover {
-            background-color: var(--td-scrollbar-hover-color, rgba(0, 0, 0, 0.32));
+            background-color: var(--td-scrollbar-hover-color);
         }
     }
 
@@ -1747,32 +1814,12 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
     }
 
 
-    .upload-file-wrap {
-        padding: 6px;
-        border-radius: 3px;
-        height: 32px;
-        width: 32px;
-        box-sizing: border-box;
-    }
-
-    .upload-file-wrap:hover {
-        background-color: var(--td-brand-color-light);
-        color: var(--td-brand-color);
-
-    }
-
-    .upload-file-icon {
-        width: 20px;
-        height: 20px;
-        color: var(--td-text-color-secondary);
-    }
-
     .active-upload {
         color: var(--td-brand-color);
     }
 
     .menu_item_active {
-        border-radius: 4px;
+        border-radius: var(--app-radius-xs);
         background: var(--td-bg-color-secondarycontainer) !important;
 
         .menu_icon,
@@ -1789,12 +1836,6 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         }
     }
 
-    .menu_p {
-        height: 46px;
-        padding: 3px 0;
-        box-sizing: border-box;
-    }
-
     .menu_item {
         cursor: pointer;
         display: flex;
@@ -1804,8 +1845,8 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         padding: 8px 10px 8px var(--sidebar-inset-x);
         box-sizing: border-box;
         margin-bottom: 2px;
-        border-radius: 4px;
-        transition: background-color 0.2s ease;
+        border-radius: var(--app-radius-xs);
+        transition: background-color var(--app-motion-base) ease;
 
         .menu_item-box {
             display: flex;
@@ -1813,7 +1854,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         }
 
         &:hover {
-            border-radius: 4px;
+            border-radius: var(--app-radius-xs);
             background: var(--td-bg-color-container-hover);
 
             .menu_icon,
@@ -1841,7 +1882,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         color: var(--td-text-color-primary);
         text-overflow: ellipsis;
         font-family: var(--app-font-family);
-        font-size: 14px;
+        font-size: var(--app-text-base);
         font-style: normal;
         font-weight: 600;
         line-height: 20px;
@@ -1854,7 +1895,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
     .submenu {
         position: relative;
         font-family: var(--app-font-family);
-        font-size: 14px;
+        font-size: var(--app-text-base);
         font-style: normal;
         min-width: 0;
         padding-top: 3px;
@@ -1862,7 +1903,15 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
     :deep(.submenu_pin_icon) {
         color: inherit;
-        font-size: 12px;
+        font-size: var(--app-text-sm);
+        margin-right: 4px;
+        vertical-align: middle;
+        flex-shrink: 0;
+    }
+
+    :deep(.submenu_fork_icon) {
+        color: inherit;
+        font-size: var(--app-text-sm);
         margin-right: 4px;
         vertical-align: middle;
         flex-shrink: 0;
@@ -1879,7 +1928,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         // 悬浮或选中时恢复彩色，交互时才引人注意。
         filter: grayscale(1);
         opacity: 0.55;
-        transition: filter 0.15s ease, opacity 0.15s ease;
+        transition: filter var(--app-motion-fast) ease, opacity var(--app-motion-fast) ease;
     }
 
     :deep(.submenu_item:hover .submenu_source_icon),
@@ -1929,7 +1978,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
     .timeline_header {
         font-family: var(--app-font-family);
-        font-size: 11px;
+        font-size: var(--app-text-xs);
         font-weight: 600;
         color: var(--td-text-color-disabled);
         padding-top: 4px;
@@ -1961,7 +2010,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
             min-width: 0;
             max-width: 100%;
             opacity: 0;
-            transition: opacity 0.15s ease;
+            transition: opacity var(--app-motion-fast) ease;
         }
     }
 
@@ -1980,8 +2029,12 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
         &.session-chat-row .session-list-row {
             min-height: 30px;
-            border-radius: 6px;
-            transition: background 0.15s ease, color 0.15s ease;
+            border-radius: var(--app-radius-sm);
+            transition: background var(--app-motion-fast) ease, color var(--app-motion-fast) ease;
+        }
+
+        &.session-chat-row--revealed {
+            animation: session-fork-enter 280ms ease-out both;
         }
 
         &.session-chat-row:hover .session-list-row {
@@ -2013,7 +2066,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         }
 
         &.session-chat-row--selected .session-list-row {
-            background: rgba(7, 192, 95, 0.05);
+            background: color-mix(in srgb, var(--td-brand-color) 5%, transparent);
         }
     }
 
@@ -2024,7 +2077,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         align-items: center;
         color: var(--td-text-color-primary);
         font-weight: 400;
-        font-size: 14px;
+        font-size: var(--app-text-base);
         line-height: 20px;
         height: 100%;
         width: 100%;
@@ -2056,7 +2109,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
         .menu-more-wrap {
             opacity: 0;
-            transition: opacity 0.2s ease;
+            transition: opacity var(--app-motion-base) ease;
             flex-shrink: 0;
         }
 
@@ -2098,7 +2151,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
     .batch-footer-left {
         display: flex;
         align-items: center;
-        font-size: 13px;
+        font-size: var(--app-text-md);
         color: var(--td-text-color-placeholder);
     }
 
@@ -2106,81 +2159,6 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         display: flex;
         align-items: center;
         gap: 6px;
-    }
-}
-
-/* 知识库下拉菜单样式 */
-.kb-dropdown-icon {
-    margin-left: auto;
-    color: var(--td-text-color-secondary);
-    transition: transform 0.3s ease, color 0.2s ease;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-
-    &.rotate-180 {
-        transform: rotate(180deg);
-    }
-
-    &:hover {
-        color: var(--td-brand-color);
-    }
-
-    &.active {
-        color: var(--td-brand-color);
-    }
-
-    &.active:hover {
-        color: var(--td-brand-color-active);
-    }
-
-    svg {
-        width: 12px;
-        height: 12px;
-        transition: inherit;
-    }
-}
-
-.kb-dropdown-menu {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--td-bg-color-container);
-    border: 1px solid var(--td-component-stroke);
-    border-radius: 6px;
-    box-shadow: var(--td-shadow-2);
-    z-index: 1000;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.kb-dropdown-item {
-    padding: 8px 16px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-    font-size: 14px;
-    color: var(--td-text-color-primary);
-
-    &:hover {
-        background-color: var(--td-bg-color-container-hover);
-    }
-
-    &.active {
-        background-color: var(--td-brand-color-light);
-        color: var(--td-brand-color);
-        font-weight: 500;
-    }
-
-    &:first-child {
-        border-radius: 6px 6px 0 0;
-    }
-
-    &:last-child {
-        border-radius: 0 0 6px 6px;
     }
 }
 
@@ -2195,7 +2173,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 .submenu_empty {
     padding: 24px 14px;
     text-align: center;
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     color: var(--td-text-color-placeholder);
     user-select: none;
 }
@@ -2216,9 +2194,9 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
     height: 26px;
     flex-shrink: 0;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     color: var(--td-text-color-secondary);
-    transition: background-color 0.2s ease;
+    transition: background-color var(--app-motion-base) ease;
     box-sizing: border-box;
 
     &:hover {
@@ -2240,11 +2218,11 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
     white-space: nowrap;
 
     .cmdk-tip-label {
-        font-size: 13px;
+        font-size: var(--app-text-md);
     }
 
     .cmdk-tip-keys {
-        font-size: 13px;
+        font-size: var(--app-text-md);
         opacity: 0.6;
         letter-spacing: 0.5px;
     }
@@ -2258,7 +2236,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
     border-radius: 9px;
     background: rgba(250, 173, 20, 0.2);
     color: var(--td-warning-color);
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     font-weight: 600;
     line-height: 18px;
     text-align: center;
@@ -2267,6 +2245,17 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
 .menu_box {
     position: relative;
+}
+
+@keyframes session-fork-enter {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .aside_box .submenu_item_p.session-chat-row--revealed {
+        animation: none;
+    }
 }
 </style>
 <style lang="less">
@@ -2322,10 +2311,10 @@ html[theme-mode="dark"] .aside_box .menu_item_active .menu_icon img.icon {
     .t-popconfirm__content {
         background: var(--td-bg-color-container);
         border: 1px solid var(--td-component-stroke);
-        border-radius: 6px;
+        border-radius: var(--app-radius-sm);
         box-shadow: var(--td-shadow-3);
         padding: 12px 16px;
-        font-size: 14px;
+        font-size: var(--app-text-base);
         color: var(--td-text-color-primary);
         max-width: 200px;
     }

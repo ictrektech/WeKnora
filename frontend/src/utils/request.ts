@@ -82,10 +82,10 @@ instance.interceptors.request.use(
         config.headers["Authorization"] = `Bearer ${token}`;
       }
     }
-    
+
     // 添加用户语言偏好
     config.headers["Accept-Language"] = getCurrentLanguage();
-    
+
     // 添加跨空间访问请求头：只要 setSelectedTenant 写过激活空间，
     // 每个请求都要附 X-Tenant-ID。早期版本会 short-circuit
     // "selectedTenantId === defaultTenantId 时不附"以减少 header 体积，
@@ -101,7 +101,7 @@ instance.interceptors.request.use(
         config.headers["X-Tenant-ID"] = selectedTenantId;
       }
     }
-    
+
     config.headers["X-Request-ID"] = `${generateRandomString(12)}`;
     return config;
   },
@@ -137,7 +137,7 @@ const processQueue = (error: any, token: string | null = null) => {
       resolve(token);
     }
   });
-  
+
   failedQueue = [];
 };
 
@@ -247,7 +247,7 @@ instance.interceptors.response.use(
   },
   async (error: any) => {
     const originalRequest = error.config;
-    
+
     if (!error.response) {
       return Promise.reject({ message: t('error.networkError') });
     }
@@ -264,7 +264,7 @@ instance.interceptors.response.use(
         // 非法 JSON 继续使用原有错误处理。
       }
     }
-    
+
     // 公开认证接口的 401 不走 refresh 逻辑，直接返回错误
     if ((error.response.status === 401 || error.response.status === 403) && isPublicAuthRequest(originalRequest?.url)) {
       const { status, data } = error.response;
@@ -287,28 +287,28 @@ instance.interceptors.response.use(
     if (error.response.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/refresh')) {
       originalRequest._retry = true;
       isRefreshing = true;
-      
+
       const refreshToken = localStorage.getItem('weknora_refresh_token');
-      
+
       if (refreshToken) {
         try {
           // 动态导入refresh token API
           const { refreshToken: refreshTokenAPI } = await import('../api/auth/index');
           const response = await refreshTokenAPI(refreshToken);
-          
+
           if (response.success && response.data) {
             const { token, refreshToken: newRefreshToken } = response.data;
-            
+
             // 更新localStorage中的token
             localStorage.setItem('weknora_token', token);
             localStorage.setItem('weknora_refresh_token', newRefreshToken);
-            
+
             // 更新请求头
             originalRequest.headers['Authorization'] = 'Bearer ' + token;
-            
+
             // 处理队列中的请求
             processQueue(null, token);
-            
+
             return instance(originalRequest);
           } else {
             throw new Error(response.message || t('error.tokenRefreshFailed'));
@@ -326,11 +326,11 @@ instance.interceptors.response.use(
           localStorage.removeItem('weknora_refresh_token');
           localStorage.removeItem('weknora_user');
           localStorage.removeItem('weknora_tenant');
-          
+
           processQueue(refreshError, null);
-          
+
           redirectToLogin();
-          
+
           return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;
@@ -347,13 +347,13 @@ instance.interceptors.response.use(
         localStorage.removeItem('weknora_token');
         localStorage.removeItem('weknora_user');
         localStorage.removeItem('weknora_tenant');
-        
+
         redirectToLogin();
-        
+
         return Promise.reject({ message: t('error.pleaseRelogin') });
       }
     }
-    
+
     // 处理 Nginx 413 Request Entity Too Large
     const ERR_ENTITY_TOO_LARGE = 413;
     if (error.response.status === ERR_ENTITY_TOO_LARGE) {
@@ -386,7 +386,7 @@ instance.interceptors.response.use(
     return Promise.reject(withHttpStatus({
       status,
       message: errorMessage,
-      ...(typeof data === 'object' ? data : {}) 
+      ...(typeof data === 'object' ? data : {})
     }, status));
   }
 );

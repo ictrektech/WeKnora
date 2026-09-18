@@ -39,6 +39,8 @@ func TestHandleCompleteDoesNotAppendStreamedAnswerAgain(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 
 	err := handler.handleFinalAnswer(context.Background(), event.Event{
@@ -71,6 +73,8 @@ func TestHandleCompleteUsesFinalAnswerWhenNoAnswerWasStreamed(t *testing.T) {
 		message.CreatedAt,
 		message,
 		stream,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,

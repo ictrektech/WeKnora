@@ -73,7 +73,8 @@ var queueDefinitions = []QueueDefinition{
 		TypeKnowledgePostProcess,
 	}},
 	{Name: QueueSummary, Pool: WorkerPoolEnrichment, Weight: 2, SharedWeight: 2, TaskTypes: []string{
-		TypeSummaryGeneration, TypeDataTableSummary, TypeKnowledgeAutoTag, TypeContractReviewAnalyze,
+		TypeSummaryGeneration, TypeDataTableSummary, TypeKnowledgeAutoTag,
+		TypeContractReviewAnalyze, TypeKnowledgeBaseProfile,
 	}},
 	{Name: QueueMultimodal, Pool: WorkerPoolEnrichment, Weight: 1, SharedWeight: 1, TaskTypes: []string{TypeImageMultimodal}},
 	{Name: QueueGraph, Pool: WorkerPoolEnrichment, Weight: 1, SharedWeight: 1, TaskTypes: []string{TypeChunkExtract}},
@@ -256,6 +257,7 @@ const (
 	TypeContractReviewDocumentProcess = "contract_review:document_process"
 	TypeContractReviewAnalyze         = "contract_review:analyze"
 	TypeSmartArchiveDocumentProcess   = "smart_archive:document_process"
+	TypeKnowledgeBaseProfile          = "kb:profile" // 知识库描述（画像）生成任务
 	// TypeMemoryExtract 长期记忆抽取任务（会话轮次防抖后异步执行）
 	TypeMemoryExtract = "memory:extract"
 )
@@ -546,6 +548,17 @@ type KnowledgeAutoTagPayload struct {
 	KnowledgeBaseID string `json:"knowledge_base_id"`
 	Language        string `json:"language,omitempty"`
 	Attempt         int    `json:"attempt,omitempty"`
+}
+
+// KnowledgeBaseProfilePayload asks the worker to rebuild the generated
+// description of one knowledge base from its current document profiles.
+// Force bypasses the aggregate-hash short circuit (manual regeneration).
+type KnowledgeBaseProfilePayload struct {
+	TracingContext
+	TenantID        uint64 `json:"tenant_id"`
+	KnowledgeBaseID string `json:"knowledge_base_id"`
+	Language        string `json:"language,omitempty"`
+	Force           bool   `json:"force,omitempty"`
 }
 
 // KBCloneTaskStatus represents the status of a knowledge base clone task

@@ -111,9 +111,13 @@
                         <usermsg :content="session.content" :mentioned_items="session.mentioned_items"
                             :images="session.images" :attachments="session.attachments" :embeddedMode="embeddedMode"
                             :session-id="session_id"
+                            :message-id="session.id"
+                            :created-at="session.created_at"
+                            :can-fork="!embeddedMode && forkAffordanceOf(session.id).canFork"
                             :steer-failed="Boolean(session._steerFailed)"
                             @retry-steer="handleRetrySteer(session.steer_id)"
-                            @remove-steer="handleRemoveSteer(session.steer_id)">
+                            @remove-steer="handleRemoveSteer(session.steer_id)"
+                            @fork="handleFork">
                         </usermsg>
                     </div>
                     <div v-if="session.role == 'assistant' && shouldRenderAssistantMessage(session)"
@@ -122,6 +126,8 @@
                             :user-query="getRenderedUserQuery(index)" @scroll-bottom="scrollToBottom"
                             :isFirstEnter="isFirstEnter" :embeddedMode="embeddedMode"
                             :follow-up-loading="Boolean(session.suggestionLoading && !session.suggestionSet?.questions?.length)"
+                            :can-fork="!embeddedMode && forkAffordanceOf(session.id).canFork"
+                            @fork="handleFork"
                             @render-complete-change="(ready) => handleAnswerRenderComplete(session, ready)">
                         </botmsg>
                         <FollowUpSuggestions v-if="session.answerFullyRendered && !session.steerForked && !session.suggestionsDismissed"
@@ -182,7 +188,8 @@ import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vu
 import InputField from '../../components/Input-field.vue';
 import botmsg from './components/botmsg.vue';
 import usermsg from './components/usermsg.vue';
-import { getMessageList, getSession } from "@/api/chat/index";
+import { getMessageList, getSession, forkSession } from "@/api/chat/index";
+import { resolveForkAffordance } from './forkPoint';
 import { getSuggestedQuestions } from "@/api/agent/index";
 import { deleteTemporaryAttachment, uploadTemporaryAttachment } from '@/api/chat/temporary-attachments';
 import { useStream } from '../../api/chat/streame'
@@ -312,6 +319,102 @@ const created_at = ref('');
 const limit = ref(20);
 const messagesList = reactive([]);
 const inFlightTurnCache = new Map();
+
+function forkAffordanceOf(messageId) {
+    if (!messageId) return { canFork: false }
+    return resolveForkAffordance(messagesList, messageId)
+}
+
+const FORK_PREFILL_KEY = 'weknora:fork-prefill'
+let forkInFlight = false
+
+function stashForkLanding(sessionId, text) {
+    const payload = JSON.stringify({ sessionId, text })
+    try {
+        sessionStorage.setItem(FORK_PREFILL_KEY, payload)
+    } catch {
+        // sessionStorage can throw in private mode; landing still navigates.
+    }
+}
+
+function readForkLanding() {
+    try {
+        const raw = sessionStorage.getItem(FORK_PREFILL_KEY)
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        if (!parsed || typeof parsed !== 'object') return null
+        return {
+            sessionId: String(parsed.sessionId || ''),
+            text: String(parsed.text || ''),
+        }
+    } catch {
+        return null
+    }
+}
+
+function clearForkLanding() {
+    try {
+        sessionStorage.removeItem(FORK_PREFILL_KEY)
+    } catch {
+        // ignore
+    }
+}
+
+function applyForkLanding() {
+    const landed = readForkLanding()
+    if (!landed || landed.sessionId !== String(session_id.value || '')) {
+        return false
+    }
+    clearForkLanding()
+    inputFieldRef.value?.prefill(landed.text)
+    return true
+}
+
+async function handleFork(messageId) {
+    if (props.embeddedMode) return
+    if (forkInFlight) return
+    if (!messageId || !session_id.value) return
+    const source = messagesList.find((m) => m.id === messageId)
+    if (!source) return
+    const sourceSessionId = session_id.value
+
+    forkInFlight = true
+    try {
+        const res = await forkSession(sourceSessionId, { message_id: messageId })
+        const data = res?.data
+        if (!data?.session_id) return
+
+        // Carry the question across navigation in sessionStorage: the chat view
+        // is reused across chat/:chatid, and history reload / composer reset
+        // would clobber an in-memory prefill if we applied it too early.
+        const prefill = source.role === 'user' ? String(source.content ?? '') : ''
+        stashForkLanding(data.session_id, prefill)
+
+        const now = new Date().toISOString()
+        const sourceTitle = currentSession.value?.title || t('menu.newSession')
+        usemenuStore.updataMenuChildren({
+            id: data.session_id,
+            path: `chat/${data.session_id}`,
+            title: `${sourceTitle}（分支）`,
+            parent_session_id: sourceSessionId,
+            isMore: false,
+            isNoTitle: false,
+            created_at: now,
+            updated_at: now,
+        })
+
+        await router.push(`/platform/chat/${data.session_id}`)
+    } catch (err) {
+        if (err?.status === 409 || err?.$httpStatus === 409) {
+            MessagePlugin.warning('请等本轮回答结束后再分叉')
+            return
+        }
+        MessagePlugin.error('分叉失败，请重试')
+    } finally {
+        forkInFlight = false
+    }
+}
+
 const sessionArtifacts = computed(() => collectSessionArtifacts(messagesList));
 const sessionArtifactsCollecting = computed(() =>
     messagesList.some((message) => isCollectingSkillArtifacts(message)),
@@ -347,6 +450,14 @@ watch([activitySessionId, isReplying, isStreaming, isImRecovering, currentAssist
 const historyLoading = ref(true);
 const historyLoadingMore = ref(false);
 const hasMoreHistory = ref(true);
+
+// Prefill after THIS session's history load settles. A messagesList watch
+// would fire on the splice-to-empty that starts a session switch and then
+// get clobbered by composer reset / history mount.
+watch(historyLoading, (loading) => {
+    if (loading) return
+    applyForkLanding()
+}, { flush: 'post' })
 let fullContent = ref('')
 const scrollContainer = ref(null)
 const userHasScrolledUp = ref(false)
@@ -2024,9 +2135,10 @@ onBeforeRouteUpdate((to, from, next) => {
 </script>
 <style lang="less" scoped>
 .chat {
-    font-size: 20px;
-    // 右侧不留 padding，滚动条贴到内容区最右缘
-    padding: 0 0 20px 20px;
+    // 水平方向不留 padding，让滚动条贴到内容区最右缘；
+    // 消息列与输入列各自用 --chat-content-inset 做左右对称的留白（窄屏时才可见）。
+    padding: 0 0 20px 0;
+    --chat-content-inset: 20px;
     // 右侧抽屉让出的宽度。回到底部按钮按「剩余聊天列」居中，而不是整页 50%。
     --chat-right-inset: 0px;
     box-sizing: border-box;
@@ -2058,7 +2170,7 @@ onBeforeRouteUpdate((to, from, next) => {
 
     &:not(.is-embedded) {
         @media (min-width: 960px) {
-            transition: padding-right 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
+            transition: padding-right var(--app-motion-slow) cubic-bezier(0.22, 0.61, 0.36, 1);
         }
     }
 
@@ -2150,7 +2262,7 @@ onBeforeRouteUpdate((to, from, next) => {
     display: inline-flex;
     align-items: center;
     padding: 2px;
-    border-radius: 8px;
+    border-radius: var(--app-radius-md);
     box-sizing: border-box;
     background: color-mix(in srgb, var(--td-bg-color-container) 88%, transparent);
     backdrop-filter: blur(8px);
@@ -2170,7 +2282,7 @@ onBeforeRouteUpdate((to, from, next) => {
     color: var(--td-text-color-placeholder);
     background: transparent;
     cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: background-color var(--app-motion-fast) ease, color var(--app-motion-fast) ease;
 
     &:hover {
         color: var(--td-text-color-primary);
@@ -2226,7 +2338,7 @@ onBeforeRouteUpdate((to, from, next) => {
     justify-content: center;
     cursor: pointer;
     color: var(--td-text-color-secondary);
-    transition: left 0.3s cubic-bezier(0.22, 0.61, 0.36, 1), background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    transition: left var(--app-motion-slow) cubic-bezier(0.22, 0.61, 0.36, 1), background-color var(--app-motion-base) ease, color var(--app-motion-base) ease, box-shadow var(--app-motion-base) ease;
 
     &:hover {
         background: var(--td-bg-color-container-hover);
@@ -2241,7 +2353,7 @@ onBeforeRouteUpdate((to, from, next) => {
 
 .scroll-btn-fade-enter-active,
 .scroll-btn-fade-leave-active {
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity var(--app-motion-base) ease, transform var(--app-motion-base) ease;
 }
 
 .scroll-btn-fade-enter-from,
@@ -2292,6 +2404,11 @@ onBeforeRouteUpdate((to, from, next) => {
     box-sizing: border-box;
     position: relative;
 
+    &:not(.is-embedded) {
+        padding: 0 var(--chat-content-inset, 20px);
+        max-width: calc(960px + 2 * var(--chat-content-inset, 20px));
+    }
+
     &.is-embedded {
         max-width: 100%;
         width: 100%;
@@ -2311,6 +2428,12 @@ onBeforeRouteUpdate((to, from, next) => {
     flex: 1;
     margin: 0 auto;
     width: 100%;
+    box-sizing: border-box;
+
+    &:not(.is-embedded) {
+        padding: 0 var(--chat-content-inset, 20px);
+        max-width: calc(960px + 2 * var(--chat-content-inset, 20px));
+    }
 
     /*
       给每条消息加 layout/style containment：
@@ -2360,13 +2483,7 @@ onBeforeRouteUpdate((to, from, next) => {
         border: 1.5px solid var(--td-component-stroke);
         border-top-color: var(--td-text-color-secondary);
         border-radius: 50%;
-        animation: chatGlobalWaitSpin 0.8s linear infinite;
-    }
-}
-
-@keyframes chatGlobalWaitSpin {
-    to {
-        transform: rotate(360deg);
+        animation: wk-spin 0.8s linear infinite;
     }
 }
 
@@ -2389,7 +2506,7 @@ onBeforeRouteUpdate((to, from, next) => {
 @import '../../components/css/suggested-questions.less';
 
 .suggested-questions-container {
-    transition: min-height 0.3s @suggested-ease;
+    transition: min-height var(--app-motion-slow) @suggested-ease;
 }
 
 .suggested-questions-inner {

@@ -305,23 +305,15 @@
               above and the 自定义请求头 controls below — no more
               "card inside a card" feel.
               Create mode: the resource doesn't exist yet, so we render a
-              plain password input with a leading lock icon and a trailing
-              show/hide eye toggle.
+              plain password input with a leading lock icon; TDesign's password
+              input provides the show/hide toggle.
             -->
             <CredentialResource v-if="isEdit && props.modelData?.id" :api="credentialApi" :fields="credentialFields"
               :meta="credentialMeta" @changed="invalidateConnectionTest()" />
-            <t-input v-else v-model="formData.apiKey" :type="showApiKey ? 'text' : 'password'"
+            <t-input v-else v-model="formData.apiKey" type="password"
               :placeholder="isSignedRerank ? signedRerankAccessKeyPlaceholder : apiKeyPlaceholder"
               class="api-key-input" autocomplete="off" spellcheck="false">
               <template #prefix-icon><t-icon name="lock-on" /></template>
-              <template #suffix-icon>
-                <t-icon
-                  :name="showApiKey ? 'browse-off' : 'browse'"
-                  class="api-key-toggle"
-                  :aria-label="showApiKey ? 'Hide' : 'Show'"
-                  @click.stop="showApiKey = !showApiKey"
-                />
-              </template>
             </t-input>
             <p v-if="isSignedRerank" class="form-desc">{{ signedRerankCredentialHint }}</p>
           </div>
@@ -962,7 +954,6 @@ watch(() => props.visible && saving.value, (locked) => {
 // affordance for everyday use. Reset every time the drawer closes (see
 // reset block in the visible watcher) so we never leak the previous value
 // across editor sessions.
-const showApiKey = ref(false)
 const modelChecked = ref(false)
 const modelAvailable = ref(false)
 const checking = ref(false)
@@ -1329,7 +1320,6 @@ const resetForm = () => {
   dimensionChecked.value = false
   dimensionSuccess.value = false
   dimensionMessage.value = ''
-  showApiKey.value = false
 }
 
 const copyVosDesensitizeUrl = async () => {
@@ -2007,7 +1997,7 @@ const handleCancel = () => {
 .form-label {
   display: block;
   margin-bottom: 6px;
-  font-size: 13px;
+  font-size: var(--app-text-md);
   font-weight: 500;
   color: var(--td-text-color-primary);
   line-height: 1.4;
@@ -2036,16 +2026,16 @@ const handleCancel = () => {
   padding: 6px 12px;
   min-height: 32px;
   border: 1px solid var(--td-component-stroke);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--td-bg-color-container);
   color: var(--td-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--app-text-md);
   line-height: 1.4;
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  transition: border-color var(--app-motion-fast) ease, color var(--app-motion-fast) ease, background var(--app-motion-fast) ease;
 
   &__icon {
-    font-size: 15px;
+    font-size: var(--app-text-lg);
     flex-shrink: 0;
   }
 
@@ -2054,7 +2044,7 @@ const handleCancel = () => {
   }
 
   &:hover:not(.is-active) {
-    border-color: var(--td-brand-color-3, var(--td-brand-color));
+    border-color: var(--td-brand-color-3);
     color: var(--td-text-color-primary);
   }
 
@@ -2080,7 +2070,7 @@ const handleCancel = () => {
   padding: 3px;
   background: var(--td-bg-color-component);
   border: 1px solid var(--td-component-stroke);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 
 .source-option {
@@ -2091,13 +2081,13 @@ const handleCancel = () => {
   height: 28px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--app-radius-sm);
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--app-text-md);
   color: var(--td-text-color-secondary);
   line-height: 1;
-  transition: all 0.15s ease;
+  transition: all var(--app-motion-fast) ease;
 
   &:hover:not(.is-disabled):not(.is-active) {
     color: var(--td-text-color-primary);
@@ -2119,7 +2109,7 @@ const handleCancel = () => {
 }
 
 .source-option__icon {
-  font-size: 14px;
+  font-size: var(--app-text-base);
   flex-shrink: 0;
 }
 
@@ -2134,7 +2124,7 @@ const handleCancel = () => {
 :deep(.t-textarea),
 :deep(.t-input-number) {
   width: 100%;
-  font-size: 13px;
+  font-size: var(--app-text-md);
 }
 
 // 厂商选择器样式 — 移至非 scoped 块，因为 t-select popup 渲染到 body 下
@@ -2142,10 +2132,10 @@ const handleCancel = () => {
 
 // 复选框
 :deep(.t-checkbox) {
-  font-size: 13px;
+  font-size: var(--app-text-md);
 
   .t-checkbox__label {
-    font-size: 13px;
+    font-size: var(--app-text-md);
     color: var(--td-text-color-primary);
   }
 }
@@ -2162,15 +2152,6 @@ const handleCancel = () => {
     color: var(--td-text-color-placeholder);
   }
 
-  .api-key-toggle {
-    cursor: pointer;
-    transition: color 0.15s ease;
-    font-size: 16px;
-
-    &:hover {
-      color: var(--td-text-color-primary);
-    }
-  }
 }
 
 // API 测试区域 — 弱卡片化：用浅底 + dashed 边把"操作 + 反馈"框成一块，
@@ -2184,10 +2165,10 @@ const handleCancel = () => {
   padding: 10px 12px;
   background: var(--td-bg-color-container-hover);
   border: 1px dashed var(--td-component-stroke);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 
   .test-message {
-    font-size: 13px;
+    font-size: var(--app-text-md);
     line-height: 1.5;
     flex: 1;
 
@@ -2203,13 +2184,13 @@ const handleCancel = () => {
   :deep(.t-button) {
     min-width: 88px;
     height: 32px;
-    font-size: 13px;
-    border-radius: 6px;
+    font-size: var(--app-text-md);
+    border-radius: var(--app-radius-sm);
     flex-shrink: 0;
   }
 
   .status-icon {
-    font-size: 16px;
+    font-size: var(--app-text-xl);
     flex-shrink: 0;
 
     &.available {
@@ -2223,7 +2204,7 @@ const handleCancel = () => {
 }
 
 .connection-status {
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   &.success { color: var(--td-brand-color-active); }
   &.error { color: var(--td-error-color); }
 }
@@ -2231,7 +2212,7 @@ const handleCancel = () => {
 .connection-hint {
   margin: 0 0 8px;
   color: var(--td-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   line-height: 1.5;
 }
 
@@ -2242,7 +2223,7 @@ const handleCancel = () => {
   border-radius: var(--td-radius-default);
   background: var(--td-error-color-1);
   color: var(--td-error-color);
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   text-align: left;
 
   &__header {
@@ -2264,7 +2245,7 @@ const handleCancel = () => {
 
 // Status icon variant used inside the footer button.
 .status-icon {
-  font-size: 16px;
+  font-size: var(--app-text-xl);
   flex-shrink: 0;
 
   &.available {
@@ -2282,8 +2263,8 @@ const handleCancel = () => {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--app-radius-md);
+  font-size: var(--app-text-md);
   color: var(--td-text-color-secondary);
   line-height: 1.5;
 
@@ -2295,13 +2276,13 @@ const handleCancel = () => {
   }
 
   &--warn {
-    background: var(--td-warning-color-light, #fff7ed);
-    border: 1px solid var(--td-warning-color-focus, #fed7aa);
-    border-left: 3px solid var(--td-warning-color, #f97316);
+    background: var(--td-warning-color-light);
+    border: 1px solid var(--td-warning-color-focus);
+    border-left: 3px solid var(--td-warning-color);
   }
 
   .hint-icon {
-    font-size: 16px;
+    font-size: var(--app-text-xl);
     flex-shrink: 0;
     margin-top: 2px;
 
@@ -2310,7 +2291,7 @@ const handleCancel = () => {
     }
 
     &--warn {
-      color: var(--td-warning-color, #f97316);
+      color: var(--td-warning-color);
     }
 
     &--loading {
@@ -2328,25 +2309,25 @@ const handleCancel = () => {
   padding: 4px 0;
 
   .downloaded-icon {
-    font-size: 14px;
+    font-size: var(--app-text-base);
     color: var(--td-brand-color);
     flex-shrink: 0;
   }
 
   .download-icon {
-    font-size: 14px;
+    font-size: var(--app-text-base);
     color: var(--td-brand-color);
     flex-shrink: 0;
   }
 
   .model-name {
     flex: 1;
-    font-size: 13px;
+    font-size: var(--app-text-md);
     color: var(--td-text-color-primary);
   }
 
   .model-size {
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     color: var(--td-text-color-placeholder);
     margin-left: auto;
   }
@@ -2367,13 +2348,13 @@ const handleCancel = () => {
   padding: 0 4px;
 
   .spinning {
-    animation: spin 1s linear infinite;
-    font-size: 14px;
+    animation: wk-spin 1s linear infinite;
+    font-size: var(--app-text-base);
     color: var(--td-brand-color);
   }
 
   .progress-text {
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     font-weight: 500;
     color: var(--td-brand-color);
   }
@@ -2392,8 +2373,8 @@ const handleCancel = () => {
       top: 0;
       bottom: 0;
       width: var(--progress, 0%);
-      background: linear-gradient(90deg, rgba(7, 192, 95, 0.08), rgba(7, 192, 95, 0.15));
-      transition: width 0.3s ease;
+      background: linear-gradient(90deg, color-mix(in srgb, var(--td-brand-color) 8%, transparent), color-mix(in srgb, var(--td-brand-color) 15%, transparent));
+      transition: width var(--app-motion-slow) ease;
       z-index: 0;
       border-radius: 5px 0 0 5px;
     }
@@ -2421,16 +2402,6 @@ const handleCancel = () => {
   flex-shrink: 0;
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 // 维度控制样式
 .dimension-control {
   display: flex;
@@ -2448,7 +2419,7 @@ const handleCancel = () => {
 
 .dimension-hint {
   margin: 8px 0 0 0;
-  font-size: 13px;
+  font-size: var(--app-text-md);
   line-height: 1.5;
   color: var(--td-error-color);
 
@@ -2467,7 +2438,7 @@ const handleCancel = () => {
 
 .custom-headers-desc {
   margin: 0 0 10px 0;
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   line-height: 1.5;
   color: var(--td-text-color-placeholder);
 }
@@ -2500,7 +2471,7 @@ const handleCancel = () => {
     height: 32px;
     padding: 0;
     color: var(--td-text-color-placeholder);
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     transition: all 0.18s ease;
 
     &:hover {
@@ -2512,7 +2483,7 @@ const handleCancel = () => {
 
 .form-desc {
   margin: 4px 0 0 0;
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   line-height: 1.5;
   color: var(--td-text-color-placeholder);
 
@@ -2546,12 +2517,12 @@ const handleCancel = () => {
   padding: 10px 12px;
   background: var(--td-error-color-light);
   border: 1px solid var(--td-error-color-focus);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--app-radius-md);
+  font-size: var(--app-text-md);
 
   .tip-icon {
     color: var(--td-error-color);
-    font-size: 16px;
+    font-size: var(--app-text-xl);
     flex-shrink: 0;
     margin-right: 2px;
 
@@ -2568,7 +2539,7 @@ const handleCancel = () => {
 
   :deep(.tip-link) {
     color: var(--td-brand-color);
-    font-size: 13px;
+    font-size: var(--app-text-md);
     font-weight: 500;
     padding: 4px 6px 4px 10px !important;
     min-height: auto !important;
@@ -2579,20 +2550,20 @@ const handleCancel = () => {
     display: inline-flex !important;
     align-items: center !important;
     gap: 1px;
-    border-radius: 4px;
-    transition: all 0.2s ease;
+    border-radius: var(--app-radius-xs);
+    transition: all var(--app-motion-base) ease;
 
     &:hover {
-      background: rgba(7, 192, 95, 0.08) !important;
+      background: color-mix(in srgb, var(--td-brand-color) 8%, transparent) !important;
       color: var(--td-brand-color-active) !important;
     }
 
     &:active {
-      background: rgba(7, 192, 95, 0.12) !important;
+      background: color-mix(in srgb, var(--td-brand-color) 12%, transparent) !important;
     }
 
     .t-icon {
-      font-size: 14px !important;
+      font-size: var(--app-text-base) !important;
       margin: 0 !important;
       line-height: 1 !important;
       display: inline-flex !important;
@@ -2609,7 +2580,7 @@ const handleCancel = () => {
 
   :deep(.t-checkbox__label) {
     color: var(--td-error-color);
-    font-size: 13px;
+    font-size: var(--app-text-md);
   }
 }
 </style>
@@ -2624,7 +2595,7 @@ const handleCancel = () => {
   .t-select-option {
     height: auto !important;
     padding: 8px 10px;
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     margin: 2px 0;
     white-space: normal;
   }
@@ -2638,12 +2609,12 @@ const handleCancel = () => {
   min-width: 0;
 
   &__title {
-    font-size: 13px;
+    font-size: var(--app-text-md);
     color: var(--td-text-color-primary);
   }
 
   &__hint {
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     color: var(--td-text-color-placeholder);
     word-break: break-word;
   }
@@ -2664,10 +2635,10 @@ const handleCancel = () => {
   .t-select-option {
     height: auto !important;
     padding: 8px 10px;
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     margin: 2px 0;
     outline: none;
-    transition: background-color 0.15s ease;
+    transition: background-color var(--app-motion-fast) ease;
 
     &:focus,
     &:focus-visible {
@@ -2711,14 +2682,14 @@ const handleCancel = () => {
     min-width: 0;
 
     .provider-name {
-      font-size: 13px;
+      font-size: var(--app-text-md);
       font-weight: 500;
       color: var(--td-text-color-primary);
       line-height: 20px;
     }
 
     .provider-desc {
-      font-size: 12px;
+      font-size: var(--app-text-sm);
       color: var(--td-text-color-placeholder);
       line-height: 18px;
       white-space: nowrap;

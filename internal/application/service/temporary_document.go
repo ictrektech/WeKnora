@@ -82,15 +82,24 @@ var temporaryTextExtensions = map[string]struct{}{
 	".md": {}, ".markdown": {}, ".txt": {}, ".csv": {}, ".json": {}, ".xml": {}, ".yaml": {}, ".yml": {}, ".log": {},
 }
 
+// sessionAttachmentLookup is the message-store surface Get/OpenFile need to
+// authorize a parent-session temporary document after a fork. Fork copies
+// attachment IDs onto the new messages but leaves the temporary_documents
+// row on the parent; preview still has to work from the fork session id.
+type sessionAttachmentLookup interface {
+	GetSessionAttachments(ctx context.Context, sessionID string) (types.MessageAttachments, error)
+}
+
 type temporaryDocumentService struct {
-	repo            interfaces.TemporaryDocumentRepository
-	fileService     interfaces.FileService
-	resourceCatalog interfaces.ResourceCatalog
-	documentReader  interfaces.DocumentReader
-	imageResolver   *docparser.ImageResolver
-	modelService    interfaces.ModelService
-	tenantService   interfaces.TenantService
-	taskEnqueuer    interfaces.TaskEnqueuer
+	repo               interfaces.TemporaryDocumentRepository
+	fileService        interfaces.FileService
+	resourceCatalog    interfaces.ResourceCatalog
+	documentReader     interfaces.DocumentReader
+	imageResolver      *docparser.ImageResolver
+	modelService       interfaces.ModelService
+	tenantService      interfaces.TenantService
+	taskEnqueuer       interfaces.TaskEnqueuer
+	sessionAttachments sessionAttachmentLookup
 }
 
 func NewTemporaryDocumentService(
@@ -102,11 +111,13 @@ func NewTemporaryDocumentService(
 	modelService interfaces.ModelService,
 	tenantService interfaces.TenantService,
 	taskEnqueuer interfaces.TaskEnqueuer,
+	messages interfaces.MessageRepository,
 ) interfaces.TemporaryDocumentService {
 	return &temporaryDocumentService{
 		repo: repo, fileService: fileService, resourceCatalog: resourceCatalog,
 		documentReader: documentReader, imageResolver: imageResolver,
 		modelService: modelService, tenantService: tenantService, taskEnqueuer: taskEnqueuer,
+		sessionAttachments: messages,
 	}
 }
 
@@ -231,11 +242,11 @@ func (s *temporaryDocumentService) supportsExtension(ctx context.Context, tenant
 }
 
 func (s *temporaryDocumentService) Get(ctx context.Context, tenantID uint64, sessionID, documentID string) (*types.TemporaryDocument, error) {
-	return s.repo.GetScoped(ctx, tenantID, sessionID, documentID)
+	return s.resolveInSession(ctx, tenantID, sessionID, documentID)
 }
 
 func (s *temporaryDocumentService) OpenFile(ctx context.Context, tenantID uint64, sessionID, documentID string) (io.ReadCloser, string, error) {
-	document, err := s.repo.GetScoped(ctx, tenantID, sessionID, documentID)
+	document, err := s.resolveInSession(ctx, tenantID, sessionID, documentID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -247,6 +258,52 @@ func (s *temporaryDocumentService) OpenFile(ctx context.Context, tenantID uint64
 		return nil, "", err
 	}
 	return file, document.FileName, nil
+}
+
+// resolveInSession finds a temporary document the caller may read from this
+// session. Composer uploads live on temporary_documents.session_id; forked
+// history keeps the parent's document id on copied messages, so a scoped miss
+// falls back to tenant+id when that id appears on this session's messages.
+func (s *temporaryDocumentService) resolveInSession(
+	ctx context.Context, tenantID uint64, sessionID, documentID string,
+) (*types.TemporaryDocument, error) {
+	document, err := s.repo.GetScoped(ctx, tenantID, sessionID, documentID)
+	if err != nil || document != nil {
+		return document, err
+	}
+	document, err = s.repo.GetByID(ctx, tenantID, documentID)
+	if err != nil || document == nil {
+		return document, err
+	}
+	if document.SessionID == sessionID {
+		return document, nil
+	}
+	ok, authErr := s.sessionReferencesAttachment(ctx, sessionID, documentID)
+	if authErr != nil {
+		return nil, authErr
+	}
+	if !ok {
+		return nil, nil
+	}
+	return document, nil
+}
+
+func (s *temporaryDocumentService) sessionReferencesAttachment(
+	ctx context.Context, sessionID, documentID string,
+) (bool, error) {
+	if s == nil || s.sessionAttachments == nil || sessionID == "" || documentID == "" {
+		return false, nil
+	}
+	attachments, err := s.sessionAttachments.GetSessionAttachments(ctx, sessionID)
+	if err != nil {
+		return false, fmt.Errorf("authorize forked attachment: %w", err)
+	}
+	for _, attachment := range attachments {
+		if attachment.ID == documentID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *temporaryDocumentService) List(ctx context.Context, tenantID uint64, sessionID string) ([]*types.TemporaryDocument, error) {
@@ -598,7 +655,7 @@ func (s *temporaryDocumentService) ResolveForPrompt(ctx context.Context, tenantI
 			continue
 		}
 		seen[documentID] = struct{}{}
-		document, err := s.repo.GetScoped(ctx, tenantID, sessionID, documentID)
+		document, err := s.resolveInSession(ctx, tenantID, sessionID, documentID)
 		if err != nil {
 			return nil, err
 		}

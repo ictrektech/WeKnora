@@ -533,6 +533,7 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 	wasMultimodalEnabled := kb.IsMultimodalEnabled()
 
 	changedFields := make([]string, 0, 3)
+	profileWasEnabled := kb.ProfileConfig.IsEnabled()
 	if kb.Name != name {
 		changedFields = append(changedFields, "name")
 	}
@@ -558,6 +559,10 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 		if config.AutoTagConfig != nil {
 			config.AutoTagConfig.Normalize()
 			kb.AutoTagConfig = config.AutoTagConfig
+		}
+		if config.ProfileConfig != nil {
+			profileWasEnabled = kb.ProfileConfig.IsEnabled()
+			kb.ProfileConfig = config.ProfileConfig
 		}
 		// Update indexing strategy — syncs to ExtractConfig for backward compat
 		if config.IndexingStrategy != nil {
@@ -604,6 +609,11 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 		} else if recovered > 0 {
 			logger.Infof(ctx, "knowledge base multimodal recovery enqueued for %d knowledge item(s), kb=%s", recovered, kb.ID)
 		}
+	}
+	// Turning automatic description generation on should produce a
+	// description now, not after the next upload.
+	if !profileWasEnabled && kb.ProfileConfig.IsEnabled() {
+		_ = requestKnowledgeBaseProfileRefresh(ctx, s.asynqClient, kb, false)
 	}
 
 	logger.Infof(ctx, "Knowledge base updated successfully, ID: %s, name: %s", kb.ID, kb.Name)
@@ -1495,6 +1505,11 @@ func (s *knowledgeBaseService) CopyKnowledgeBase(ctx context.Context,
 			cfg := *sourceKB.FAQConfig
 			faqConfig = &cfg
 		}
+		var profileConfig *types.KnowledgeBaseProfileConfig
+		if sourceKB.ProfileConfig != nil {
+			cfg := *sourceKB.ProfileConfig
+			profileConfig = &cfg
+		}
 		// Preserve VectorStoreID so the cloned KB lands on the same
 		// physical index. GORM `<-:create` permits the value at INSERT.
 		targetKB = &types.KnowledgeBase{
@@ -1513,6 +1528,7 @@ func (s *knowledgeBaseService) CopyKnowledgeBase(ctx context.Context,
 			StorageBackendID:      sourceKB.StorageBackendID,
 			StorageConfig:         sourceKB.StorageConfig,
 			FAQConfig:             faqConfig,
+			ProfileConfig:         profileConfig,
 			VectorStoreID:         sourceKB.VectorStoreID,
 		}
 		// The clone is owned by the caller, not the original creator —
@@ -1554,6 +1570,11 @@ func (s *knowledgeBaseService) DuplicateKnowledgeBase(
 	if err != nil {
 		return nil, err
 	}
+	// A duplicate copies settings, not content. The generated description is
+	// derived from the source's documents, so carrying it over would describe
+	// documents the copy does not have; ProfileConfig is kept so the copy
+	// produces its own once documents arrive.
+	targetKB.GeneratedProfile = nil
 	targetKB.ID = uuid.New().String()
 	targetKB.TenantID = tenantID
 	targetKB.Name = s.buildDuplicateKnowledgeBaseName(ctx, tenantID, sourceKB.Name)
