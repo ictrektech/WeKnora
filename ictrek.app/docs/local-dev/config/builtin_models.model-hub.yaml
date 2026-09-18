@@ -1,0 +1,56 @@
+# WeKnora/ictrek local development models backed by the VOS Model Hub.
+#
+# The host-side Go process talks to the independent proxy created by
+# ictrek-dev.sh:
+#   QA/VLM Ollama API:  http://127.0.0.1:31535
+#   Embedding gateway: http://127.0.0.1:31536/v1
+#
+# Do not point these rows at the Model Hub containers' native 11434 ports or
+# their Docker bridge IPs. The proxy preserves the 11535 Gateway path so VOS
+# Model Hub slot, phase and token/s metrics continue to work.
+
+builtin_models:
+  - id: ictrek-model-hub-ollama-qa
+    name: "${ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME} (Model Hub Ollama QA)"
+    type: KnowledgeQA
+    source: local
+    description: QA model from the VOS Model Hub Ollama proxy.
+    is_default: true
+    parameters:
+      base_url: ""
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: ictrek-model-hub-ollama-vlm
+    name: "${ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME} (Model Hub Ollama VLM)"
+    type: VLLM
+    source: local
+    description: Vision model from the VOS Model Hub Ollama proxy.
+    is_default: true
+    parameters:
+      base_url: ""
+      api_key: ""
+      interface_type: ollama
+      provider: generic
+      supports_vision: true
+
+  - id: ictrek-model-hub-ollama-embedding
+    name: "${ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME}"
+    display_name: "${ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME} (Model Hub Ollama Embedding)"
+    type: Embedding
+    source: remote
+    description: Embedding model from the VOS Model Hub Ollama Gateway proxy.
+    is_default: true
+    parameters:
+      base_url: "${ICTREK_DEV_MODEL_HUB_EMBEDDING_BASE_URL}"
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false

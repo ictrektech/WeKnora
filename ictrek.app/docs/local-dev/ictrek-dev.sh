@@ -3,7 +3,8 @@
 #
 # This bundle is intentionally separate from the VOS package compose and from
 # the upstream generic dev compose. The app and frontend run from source on
-# the host; Docker only provides local infrastructure and, optionally, vLLM.
+# the host; Docker only provides local infrastructure and, optionally, a
+# profile-specific model service.
 
 set -euo pipefail
 
@@ -18,8 +19,14 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 ENV_FILE="${ICTREK_DEV_ENV_FILE:-$PROJECT_ROOT/.env}"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 PROJECT_NAME="${ICTREK_DEV_COMPOSE_PROJECT:-weknora-ictrek-local-dev}"
-DEFAULT_MODEL_CONFIG="ictrek.app/docs/local-dev/config/builtin_models.tc232.yaml"
 DEFAULT_DEV_DATA_DIR="/data/hybrag-dev-data"
+DEFAULT_MODEL_HUB_NETWORK="vos_default"
+DEFAULT_MODEL_HUB_PROXY_NAME="weknora-ictrek-local-dev-model-hub-gateway"
+DEFAULT_MODEL_HUB_PROXY_IMAGE="weknora-ictrek-model-hub-proxy:dev"
+DEFAULT_MODEL_HUB_QA_HOST_PORT="31535"
+DEFAULT_MODEL_HUB_EMBEDDING_HOST_PORT="31536"
+DEFAULT_MODEL_HUB_QA_UPSTREAM="model-hub-ollama-qa:11535"
+DEFAULT_MODEL_HUB_EMBEDDING_UPSTREAM="model-hub-ollama-embedding:11535"
 
 declare -a EXTERNAL_ICTREK_DEV_ENV_NAMES=()
 declare -A EXTERNAL_ICTREK_DEV_ENV_VALUES=()
@@ -41,12 +48,172 @@ log_error() {
     printf "%b\n" "${RED}[ERROR]${NC} $*" >&2
 }
 
+host_arch() {
+    printf '%s\n' "${ICTREK_DEV_HOST_ARCH:-$(uname -m)}"
+}
+
+model_hub_network_name() {
+    printf '%s\n' "${ICTREK_DEV_MODEL_HUB_NETWORK:-$DEFAULT_MODEL_HUB_NETWORK}"
+}
+
+model_hub_container_id() {
+    local role="$1"
+    local service
+    local container_id
+
+    command -v docker >/dev/null 2>&1 || return 1
+
+    case "$role" in
+        qa)
+            for service in model-hub-ollama-qa-l4t model-hub-ollama-qa ollama-qa; do
+                container_id="$(docker ps -q --filter "label=com.docker.compose.service=$service" | head -n 1)"
+                [ -n "$container_id" ] && {
+                    printf '%s\n' "$container_id"
+                    return 0
+                }
+            done
+            for service in model-hub-ollama-qa ollama-qa; do
+                container_id="$(docker ps -q --filter "name=$service" | head -n 1)"
+                [ -n "$container_id" ] && {
+                    printf '%s\n' "$container_id"
+                    return 0
+                }
+            done
+            ;;
+        embedding)
+            for service in model-hub-ollama-embedding-l4t model-hub-ollama-embedding ollama-embedding; do
+                container_id="$(docker ps -q --filter "label=com.docker.compose.service=$service" | head -n 1)"
+                [ -n "$container_id" ] && {
+                    printf '%s\n' "$container_id"
+                    return 0
+                }
+            done
+            for service in model-hub-ollama-embedding ollama-embedding; do
+                container_id="$(docker ps -q --filter "name=$service" | head -n 1)"
+                [ -n "$container_id" ] && {
+                    printf '%s\n' "$container_id"
+                    return 0
+                }
+            done
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    return 1
+}
+
+model_hub_available() {
+    local network="${1:-$(model_hub_network_name)}"
+    local role
+    local container_id
+
+    command -v docker >/dev/null 2>&1 || return 1
+    docker network inspect "$network" >/dev/null 2>&1 || return 1
+    for role in qa embedding; do
+        container_id="$(model_hub_container_id "$role" 2>/dev/null || true)"
+        [ -n "$container_id" ] || return 1
+        docker inspect "$container_id" --format '{{json .NetworkSettings.Networks}}' 2>/dev/null \
+            | grep -Fq "\"$network\"" || return 1
+    done
+    return 0
+}
+
+is_jetson_host() {
+    case "${ICTREK_DEV_HOST_PLATFORM:-auto}" in
+        jetson) return 0 ;;
+        generic) return 1 ;;
+    esac
+
+    if [ -f "/etc/nv_tegra_release" ]; then
+        return 0
+    fi
+    if [ -r "/proc/device-tree/model" ] && tr -d '\0' < /proc/device-tree/model | grep -qi jetson; then
+        return 0
+    fi
+    return 1
+}
+
+default_profile_for_host() {
+    case "$(host_arch)" in
+        aarch64|arm64)
+            if is_jetson_host; then
+                if model_hub_available; then
+                    printf '%s\n' "jetson-model-hub"
+                else
+                    log_error "Jetson host requires a running VOS Model Hub for the auto profile"
+                    log_error "Use --profile jetson-model-hub after starting Model Hub"
+                    return 1
+                fi
+            else
+                printf '%s\n' "ollama"
+            fi
+            ;;
+        x86_64|amd64)
+            printf '%s\n' "tc232"
+            ;;
+        *)
+            # Keep the historical tc232 behavior on an unknown host. Users
+            # can select --profile ollama explicitly.
+            printf '%s\n' "tc232"
+            ;;
+    esac
+}
+
+resolve_profile() {
+    local requested="${1:-auto}"
+
+    case "$requested" in
+        auto|'')
+            default_profile_for_host
+            ;;
+        tc232|jetson-model-hub|ollama)
+            printf '%s\n' "$requested"
+            ;;
+        model-hub|vos-model-hub)
+            printf '%s\n' "jetson-model-hub"
+            ;;
+        *)
+            log_error "Unknown local-dev profile: $requested"
+            log_error "Use one of: auto, tc232, jetson-model-hub, ollama"
+            return 1
+            ;;
+    esac
+}
+
+default_model_config_for_profile() {
+    case "$1" in
+        ollama)
+            printf '%s\n' "ictrek.app/docs/local-dev/config/builtin_models.ollama.yaml"
+            ;;
+        jetson-model-hub)
+            printf '%s\n' "ictrek.app/docs/local-dev/config/builtin_models.model-hub.yaml"
+            ;;
+        tc232)
+            printf '%s\n' "ictrek.app/docs/local-dev/config/builtin_models.tc232.yaml"
+            ;;
+        *)
+            log_error "No model config is defined for profile: $1"
+            return 1
+            ;;
+    esac
+}
+
+default_data_dir() {
+    if [ -d "/data" ] && [ -w "/data" ]; then
+        printf '%s\n' "$DEFAULT_DEV_DATA_DIR"
+    else
+        printf '%s\n' "$PROJECT_ROOT/.local-dev-data"
+    fi
+}
+
 show_help() {
     cat <<EOF
 WeKnora ictrek local development helper
 
 Usage:
-  $0 setup [--model-config PATH]  Prepare the root .env for local development
+  $0 setup [--profile PROFILE] [--model-config PATH]
+                                  Prepare the root .env for local development
   $0 start [--no-neo4j] [--build] Start local infrastructure
   $0 stop                         Stop and remove local containers/network
   $0 restart                      Restart local infrastructure
@@ -60,6 +227,9 @@ Usage:
   $0 start-rerank                 Start or reuse the local ReRank vLLM container
   $0 stop-rerank                  Stop the local ReRank vLLM container and keep it
   $0 restart-rerank               Recreate the local ReRank vLLM container
+  $0 start-model-hub-proxy        Create or reuse the independent Model Hub proxy
+  $0 stop-model-hub-proxy         Stop the independent Model Hub proxy
+  $0 restart-model-hub-proxy      Restart the independent Model Hub proxy
   $0 check                        Check configuration, containers and endpoints
   $0 help                         Show this help
 
@@ -70,15 +240,27 @@ Default endpoints:
   redis     127.0.0.1:6380
   docreader 127.0.0.1:15051
   neo4j     bolt://127.0.0.1:27687 (HTTP: 127.0.0.1:27474)
-  vLLM      http://127.0.0.1:38118/v1
-  bge-m3    http://127.0.0.1:32223/v1 (external or separately started)
-  rerank    http://127.0.0.1:32224 (optional vLLM)
+  tc232     http://127.0.0.1:38118/v1 (vLLM QA/VLM)
+  tc232     http://127.0.0.1:32223/v1 (vLLM embedding)
+  Ollama    http://127.0.0.1:11434 (non-Jetson host profile)
+  Model Hub  http://127.0.0.1:31535 (QA Ollama)
+  Model Hub  http://127.0.0.1:31536/v1 (embedding gateway)
 
 Typical flow:
   $0 setup
   $0 start
   $0 app                         # terminal 2
   make dev-frontend              # terminal 3, or: $0 frontend
+
+Profiles:
+  auto                             Jetson + Model Hub -> jetson-model-hub; non-Jetson ARM64 -> Ollama, x86_64 -> tc232
+  tc232                            host-side QA/VLM/Embedding/ReRank vLLM
+  jetson-model-hub                 reuse VOS Model Hub through the independent 31535/31536 proxy
+  ollama                           host-side Ollama on any architecture
+
+Examples:
+  $0 setup --profile jetson-model-hub
+  ICTREK_DEV_PROFILE=tc232 $0 setup
 EOF
 }
 
@@ -194,12 +376,62 @@ ensure_csv_value() {
     set_env_value "$key" "$current"
 }
 
+remove_csv_value() {
+    local key="$1"
+    local item="$2"
+    local current
+    local value
+    local rebuilt=""
+    local -a values=()
+
+    current="$(get_env_value "$key")"
+    [ -n "$current" ] || return 0
+    IFS=',' read -r -a values <<< "$current"
+    for value in "${values[@]}"; do
+        [ "$value" = "$item" ] && continue
+        if [ -n "$rebuilt" ]; then
+            rebuilt="$rebuilt,$value"
+        else
+            rebuilt="$value"
+        fi
+    done
+    set_env_value "$key" "$rebuilt"
+}
+
+remove_model_hub_bridge_whitelist_entries() {
+    local role
+    local container_id
+    local ip_address
+
+    command -v docker >/dev/null 2>&1 || return 0
+    for role in qa embedding; do
+        container_id="$(model_hub_container_id "$role" 2>/dev/null || true)"
+        [ -n "$container_id" ] || continue
+        ip_address="$(docker inspect "$container_id" --format \
+            "{{with index .NetworkSettings.Networks \"$DEV_MODEL_HUB_NETWORK\"}}{{.IPAddress}}{{end}}" \
+            2>/dev/null || true)"
+        [ -n "$ip_address" ] || continue
+        # The old bridge-IP implementation added these addresses to SSRF
+        # whitelist. They are no longer valid model endpoints because all
+        # requests now use the loopback proxy and its Gateway ports.
+        remove_csv_value SSRF_WHITELIST "$ip_address"
+    done
+}
+
 random_secret() {
     od -An -N16 -tx1 /dev/urandom | tr -d ' \n'
 }
 
 model_config_file() {
-    local configured="${1:-${ICTREK_DEV_MODEL_CONFIG:-${BUILTIN_MODELS_CONFIG:-$DEFAULT_MODEL_CONFIG}}}"
+    local configured="${1:-}"
+
+    if [ -z "$configured" ]; then
+        configured="${ICTREK_DEV_MODEL_CONFIG:-${BUILTIN_MODELS_CONFIG:-}}"
+    fi
+    if [ -z "$configured" ]; then
+        configured="$(default_model_config_for_profile "${DEV_PROFILE:-$(resolve_profile "${ICTREK_DEV_PROFILE:-auto}")}")"
+    fi
+
     if [[ "$configured" = /* ]]; then
         printf '%s\n' "$configured"
     else
@@ -208,7 +440,46 @@ model_config_file() {
 }
 
 refresh_config() {
-    DEV_DATA_DIR="${ICTREK_DEV_DATA_DIR:-$DEFAULT_DEV_DATA_DIR}"
+    DEV_PROFILE="$(resolve_profile "${ICTREK_DEV_PROFILE:-auto}")"
+
+    case "$DEV_PROFILE" in
+        tc232)
+            DEV_MODEL_BACKEND="vllm"
+            DEV_CHAT_MODEL_CONTEXT_TOKENS="${ICTREK_DEV_CHAT_MODEL_CONTEXT_TOKENS:-65536}"
+            DEV_MAIN_QA_MODEL_CONCURRENCY="${ICTREK_DEV_MAIN_QA_MODEL_CONCURRENCY:-20}"
+            DEV_CHAT_RESERVED_CONCURRENCY="${ICTREK_DEV_CHAT_RESERVED_CONCURRENCY:-2}"
+            DEV_MODEL_MAX_CONCURRENCY="${ICTREK_DEV_MODEL_MAX_CONCURRENCY:-6}"
+            DEV_BATCH_EMBED_SIZE="${ICTREK_DEV_BATCH_EMBED_SIZE:-4}"
+            DEV_CONCURRENCY_POOL_SIZE="${ICTREK_DEV_CONCURRENCY_POOL_SIZE:-4}"
+            ;;
+        jetson-model-hub)
+            DEV_MODEL_BACKEND="model-hub"
+            # The VOS Model Hub containers already use separate QA and
+            # embedding runtimes. Keep application-side settings aligned with
+            # the conservative Orin NX 16GB deployment profile.
+            DEV_CHAT_MODEL_CONTEXT_TOKENS="${ICTREK_DEV_CHAT_MODEL_CONTEXT_TOKENS:-24000}"
+            DEV_MAIN_QA_MODEL_CONCURRENCY="${ICTREK_DEV_MAIN_QA_MODEL_CONCURRENCY:-3}"
+            DEV_CHAT_RESERVED_CONCURRENCY="${ICTREK_DEV_CHAT_RESERVED_CONCURRENCY:-2}"
+            DEV_MODEL_MAX_CONCURRENCY="${ICTREK_DEV_MODEL_MAX_CONCURRENCY:-1}"
+            DEV_BATCH_EMBED_SIZE="${ICTREK_DEV_BATCH_EMBED_SIZE:-4}"
+            DEV_CONCURRENCY_POOL_SIZE="${ICTREK_DEV_CONCURRENCY_POOL_SIZE:-1}"
+            ;;
+        ollama)
+            DEV_MODEL_BACKEND="ollama"
+            DEV_CHAT_MODEL_CONTEXT_TOKENS="${ICTREK_DEV_CHAT_MODEL_CONTEXT_TOKENS:-24000}"
+            DEV_MAIN_QA_MODEL_CONCURRENCY="${ICTREK_DEV_MAIN_QA_MODEL_CONCURRENCY:-4}"
+            DEV_CHAT_RESERVED_CONCURRENCY="${ICTREK_DEV_CHAT_RESERVED_CONCURRENCY:-2}"
+            DEV_MODEL_MAX_CONCURRENCY="${ICTREK_DEV_MODEL_MAX_CONCURRENCY:-2}"
+            DEV_BATCH_EMBED_SIZE="${ICTREK_DEV_BATCH_EMBED_SIZE:-4}"
+            DEV_CONCURRENCY_POOL_SIZE="${ICTREK_DEV_CONCURRENCY_POOL_SIZE:-2}"
+            ;;
+        *)
+            log_error "Unsupported local-dev profile: $DEV_PROFILE"
+            return 1
+            ;;
+    esac
+
+    DEV_DATA_DIR="${ICTREK_DEV_DATA_DIR:-$(default_data_dir)}"
     if [[ "$DEV_DATA_DIR" != /* ]]; then
         DEV_DATA_DIR="$PROJECT_ROOT/$DEV_DATA_DIR"
     fi
@@ -219,33 +490,114 @@ refresh_config() {
     DEV_NEO4J_HTTP_PORT="${ICTREK_DEV_NEO4J_HTTP_PORT:-27474}"
     DEV_NEO4J_BOLT_PORT="${ICTREK_DEV_NEO4J_BOLT_PORT:-27687}"
     DEV_NEO4J_URI="${ICTREK_DEV_NEO4J_URI:-bolt://127.0.0.1:${DEV_NEO4J_BOLT_PORT}}"
-    DEV_VLLM_PORT="${ICTREK_DEV_VLLM_PORT:-38118}"
-    DEV_VLLM_BASE_URL="${ICTREK_DEV_VLLM_BASE_URL:-http://127.0.0.1:${DEV_VLLM_PORT}/v1}"
-    DEV_BGE_VLLM_PORT="${ICTREK_DEV_BGE_VLLM_PORT:-32223}"
-    DEV_BGE_VLLM_BASE_URL="${ICTREK_DEV_BGE_VLLM_BASE_URL:-http://127.0.0.1:${DEV_BGE_VLLM_PORT}/v1}"
     DEV_OLLAMA_BASE_URL="${ICTREK_DEV_OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
-    DEV_VLLM_CONTAINER="${ICTREK_DEV_VLLM_CONTAINER:-qwen35-9b-awq-vllm}"
-    DEV_VLLM_IMAGE="${ICTREK_DEV_VLLM_IMAGE:-vllm/vllm-openai:v0.18.1-cu130}"
-    DEV_VLLM_MODEL_DIR="${ICTREK_DEV_VLLM_MODEL_DIR:-/data/models/QuantTrio--Qwen3.5-9B-AWQ}"
-    DEV_VLLM_MODEL_NAME="${ICTREK_DEV_VLLM_MODEL_NAME:-qwen3.5-9b-awq}"
-    DEV_VLLM_NETWORK="${ICTREK_DEV_VLLM_NETWORK:-lexai}"
-    DEV_VLLM_HF_HOME="${ICTREK_DEV_VLLM_HF_HOME:-/tmp/hf-home}"
-    DEV_VLLM_SHM_SIZE="${ICTREK_DEV_VLLM_SHM_SIZE:-8g}"
-    DEV_VLLM_SECURITY_OPT="${ICTREK_DEV_VLLM_SECURITY_OPT:-label=disable}"
-    DEV_VLLM_STOP_TIMEOUT="${ICTREK_DEV_VLLM_STOP_TIMEOUT:-30}"
-    DEV_VLLM_MAX_MODEL_LEN="${ICTREK_DEV_VLLM_MAX_MODEL_LEN:-65536}"
-    DEV_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_VLLM_MAX_NUM_SEQS:-20}"
-    DEV_VLLM_MAX_NUM_BATCHED_TOKENS="${ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS:-4096}"
-    DEV_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION:-0.3}"
+    DEV_OLLAMA_CHAT_MODEL_NAME="${ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME:-qwen3.5:2b}"
+    DEV_OLLAMA_VLM_MODEL_NAME="${ICTREK_DEV_OLLAMA_VLM_MODEL_NAME:-qwen3.5:2b}"
+    DEV_OLLAMA_EMBEDDING_MODEL_NAME="${ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME:-bge-m3}"
+    DEV_MODEL_HUB_QA_MODEL_NAME="${ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME:-qwen3.5:2b}"
+    DEV_MODEL_HUB_EMBEDDING_MODEL_NAME="${ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME:-bge-m3:latest}"
+    DEV_MODEL_HUB_NETWORK="${ICTREK_DEV_MODEL_HUB_NETWORK:-$DEFAULT_MODEL_HUB_NETWORK}"
+    DEV_MODEL_HUB_PROXY_NAME="${ICTREK_DEV_MODEL_HUB_PROXY_NAME:-$DEFAULT_MODEL_HUB_PROXY_NAME}"
+    DEV_MODEL_HUB_PROXY_IMAGE="${ICTREK_DEV_MODEL_HUB_PROXY_IMAGE:-$DEFAULT_MODEL_HUB_PROXY_IMAGE}"
+    DEV_MODEL_HUB_QA_HOST_PORT="${ICTREK_DEV_MODEL_HUB_QA_HOST_PORT:-$DEFAULT_MODEL_HUB_QA_HOST_PORT}"
+    DEV_MODEL_HUB_EMBEDDING_HOST_PORT="${ICTREK_DEV_MODEL_HUB_EMBEDDING_HOST_PORT:-$DEFAULT_MODEL_HUB_EMBEDDING_HOST_PORT}"
+    DEV_MODEL_HUB_QA_UPSTREAM="${ICTREK_DEV_MODEL_HUB_QA_UPSTREAM:-$DEFAULT_MODEL_HUB_QA_UPSTREAM}"
+    DEV_MODEL_HUB_EMBEDDING_UPSTREAM="${ICTREK_DEV_MODEL_HUB_EMBEDDING_UPSTREAM:-$DEFAULT_MODEL_HUB_EMBEDDING_UPSTREAM}"
+
+    # A previous Model Hub setup writes the proxy endpoint into the shared
+    # Ollama variable. When switching back to tc232 or a normal Ollama
+    # profile, restore the historical native-Ollama default instead of
+    # leaving the old 31535 endpoint active.
+    if [ "$DEV_MODEL_BACKEND" != "model-hub" ] && {
+        [ "${ICTREK_DEV_MODEL_BACKEND:-}" = "model-hub" ] ||
+        [ "$DEV_OLLAMA_BASE_URL" = "http://127.0.0.1:${DEFAULT_MODEL_HUB_QA_HOST_PORT}" ];
+    }; then
+        DEV_OLLAMA_BASE_URL="http://127.0.0.1:11434"
+    fi
+
+    if [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
+        # The host-side Go process must go through the independent proxy so
+        # Model Hub gateway metrics remain visible. Do not replace these with
+        # the upstream container IPs or Ollama's native 11434 port.
+        DEV_MODEL_HUB_QA_BASE_URL="http://127.0.0.1:${DEV_MODEL_HUB_QA_HOST_PORT}/v1"
+        DEV_MODEL_HUB_EMBEDDING_BASE_URL="http://127.0.0.1:${DEV_MODEL_HUB_EMBEDDING_HOST_PORT}/v1"
+        DEV_OLLAMA_BASE_URL="http://127.0.0.1:${DEV_MODEL_HUB_QA_HOST_PORT}"
+        export ICTREK_DEV_MODEL_HUB_QA_BASE_URL="$DEV_MODEL_HUB_QA_BASE_URL"
+        export ICTREK_DEV_MODEL_HUB_EMBEDDING_BASE_URL="$DEV_MODEL_HUB_EMBEDDING_BASE_URL"
+        export ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME="$DEV_MODEL_HUB_QA_MODEL_NAME"
+        export ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME="$DEV_MODEL_HUB_EMBEDDING_MODEL_NAME"
+    fi
+
+    export OLLAMA_BASE_URL="$DEV_OLLAMA_BASE_URL"
+
+    # Empty values written by an Ollama profile must not poison a later
+    # explicit switch back to tc232.
+    DEV_VLLM_PORT="${ICTREK_DEV_VLLM_PORT:-38118}"
+    DEV_BGE_VLLM_PORT="${ICTREK_DEV_BGE_VLLM_PORT:-32223}"
     DEV_RERANK_VLLM_PORT="${ICTREK_DEV_RERANK_VLLM_PORT:-32224}"
-    DEV_RERANK_VLLM_BASE_URL="${ICTREK_DEV_RERANK_VLLM_BASE_URL:-http://127.0.0.1:${DEV_RERANK_VLLM_PORT}}"
-    DEV_RERANK_VLLM_CONTAINER="${ICTREK_DEV_RERANK_VLLM_CONTAINER:-bge-reranker-v2-m3-vllm}"
-    DEV_RERANK_VLLM_MODEL_DIR="${ICTREK_DEV_RERANK_VLLM_MODEL_DIR:-/data/models/bge-reranker-v2-m3}"
-    DEV_RERANK_VLLM_MODEL_NAME="${ICTREK_DEV_RERANK_VLLM_MODEL_NAME:-bge-reranker-v2-m3}"
-    DEV_RERANK_VLLM_MAX_MODEL_LEN="${ICTREK_DEV_RERANK_VLLM_MAX_MODEL_LEN:-8192}"
-    DEV_RERANK_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS:-16}"
-    DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS="${ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS:-8192}"
-    DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
+    DEV_VLLM_STOP_TIMEOUT="${ICTREK_DEV_VLLM_STOP_TIMEOUT:-30}"
+
+    if [ "$DEV_MODEL_BACKEND" = "vllm" ]; then
+        if [ -z "${ICTREK_DEV_VLLM_BASE_URL:-}" ] || [[ "${ICTREK_DEV_VLLM_BASE_URL:-}" == *":/v1" ]]; then
+            DEV_VLLM_BASE_URL="http://127.0.0.1:${DEV_VLLM_PORT}/v1"
+        else
+            DEV_VLLM_BASE_URL="$ICTREK_DEV_VLLM_BASE_URL"
+        fi
+        if [ -z "${ICTREK_DEV_BGE_VLLM_BASE_URL:-}" ] || [[ "${ICTREK_DEV_BGE_VLLM_BASE_URL:-}" == *":/v1" ]]; then
+            DEV_BGE_VLLM_BASE_URL="http://127.0.0.1:${DEV_BGE_VLLM_PORT}/v1"
+        else
+            DEV_BGE_VLLM_BASE_URL="$ICTREK_DEV_BGE_VLLM_BASE_URL"
+        fi
+        DEV_VLLM_CONTAINER="${ICTREK_DEV_VLLM_CONTAINER:-qwen35-9b-awq-vllm}"
+        DEV_VLLM_IMAGE="${ICTREK_DEV_VLLM_IMAGE:-vllm/vllm-openai:v0.18.1-cu130}"
+        DEV_VLLM_MODEL_DIR="${ICTREK_DEV_VLLM_MODEL_DIR:-/data/models/QuantTrio--Qwen3.5-9B-AWQ}"
+        DEV_VLLM_MODEL_NAME="${ICTREK_DEV_VLLM_MODEL_NAME:-qwen3.5-9b-awq}"
+        DEV_VLLM_NETWORK="${ICTREK_DEV_VLLM_NETWORK:-lexai}"
+        DEV_VLLM_HF_HOME="${ICTREK_DEV_VLLM_HF_HOME:-/tmp/hf-home}"
+        DEV_VLLM_SHM_SIZE="${ICTREK_DEV_VLLM_SHM_SIZE:-8g}"
+        DEV_VLLM_SECURITY_OPT="${ICTREK_DEV_VLLM_SECURITY_OPT:-label=disable}"
+        DEV_VLLM_MAX_MODEL_LEN="${ICTREK_DEV_VLLM_MAX_MODEL_LEN:-65536}"
+        DEV_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_VLLM_MAX_NUM_SEQS:-20}"
+        DEV_VLLM_MAX_NUM_BATCHED_TOKENS="${ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS:-4096}"
+        DEV_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION:-0.3}"
+        if [ -z "${ICTREK_DEV_RERANK_VLLM_BASE_URL:-}" ] || [[ "${ICTREK_DEV_RERANK_VLLM_BASE_URL:-}" == *://*: ]]; then
+            DEV_RERANK_VLLM_BASE_URL="http://127.0.0.1:${DEV_RERANK_VLLM_PORT}"
+        else
+            DEV_RERANK_VLLM_BASE_URL="$ICTREK_DEV_RERANK_VLLM_BASE_URL"
+        fi
+        DEV_RERANK_VLLM_CONTAINER="${ICTREK_DEV_RERANK_VLLM_CONTAINER:-bge-reranker-v2-m3-vllm}"
+        DEV_RERANK_VLLM_MODEL_DIR="${ICTREK_DEV_RERANK_VLLM_MODEL_DIR:-/data/models/bge-reranker-v2-m3}"
+        DEV_RERANK_VLLM_MODEL_NAME="${ICTREK_DEV_RERANK_VLLM_MODEL_NAME:-bge-reranker-v2-m3}"
+        DEV_RERANK_VLLM_MAX_MODEL_LEN="${ICTREK_DEV_RERANK_VLLM_MAX_MODEL_LEN:-8192}"
+        DEV_RERANK_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS:-16}"
+        DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS="${ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS:-8192}"
+        DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION:-0.1}"
+    else
+        # Do not leave the x86/tc232 vLLM image and model paths in an Ollama
+        # generated .env. Explicit vLLM use requires the tc232 profile.
+        DEV_VLLM_BASE_URL="${ICTREK_DEV_VLLM_BASE_URL-}"
+        DEV_BGE_VLLM_BASE_URL="${ICTREK_DEV_BGE_VLLM_BASE_URL-}"
+        DEV_VLLM_CONTAINER="${ICTREK_DEV_VLLM_CONTAINER-}"
+        DEV_VLLM_IMAGE="${ICTREK_DEV_VLLM_IMAGE-}"
+        DEV_VLLM_MODEL_DIR="${ICTREK_DEV_VLLM_MODEL_DIR-}"
+        DEV_VLLM_MODEL_NAME="${ICTREK_DEV_VLLM_MODEL_NAME-}"
+        DEV_VLLM_NETWORK="${ICTREK_DEV_VLLM_NETWORK-}"
+        DEV_VLLM_HF_HOME="${ICTREK_DEV_VLLM_HF_HOME-}"
+        DEV_VLLM_SHM_SIZE="${ICTREK_DEV_VLLM_SHM_SIZE-}"
+        DEV_VLLM_SECURITY_OPT="${ICTREK_DEV_VLLM_SECURITY_OPT-}"
+        DEV_VLLM_MAX_MODEL_LEN="${ICTREK_DEV_VLLM_MAX_MODEL_LEN-}"
+        DEV_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_VLLM_MAX_NUM_SEQS-}"
+        DEV_VLLM_MAX_NUM_BATCHED_TOKENS="${ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS-}"
+        DEV_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION-}"
+        DEV_RERANK_VLLM_BASE_URL="${ICTREK_DEV_RERANK_VLLM_BASE_URL-}"
+        DEV_RERANK_VLLM_CONTAINER="${ICTREK_DEV_RERANK_VLLM_CONTAINER-}"
+        DEV_RERANK_VLLM_MODEL_DIR="${ICTREK_DEV_RERANK_VLLM_MODEL_DIR-}"
+        DEV_RERANK_VLLM_MODEL_NAME="${ICTREK_DEV_RERANK_VLLM_MODEL_NAME-}"
+        DEV_RERANK_VLLM_MAX_MODEL_LEN="${ICTREK_DEV_RERANK_VLLM_MAX_MODEL_LEN-}"
+        DEV_RERANK_VLLM_MAX_NUM_SEQS="${ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS-}"
+        DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS="${ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS-}"
+        DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION="${ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION-}"
+    fi
 }
 
 export_compose_env() {
@@ -272,6 +624,172 @@ check_docker() {
     fi
     if ! docker compose version >/dev/null 2>&1; then
         log_error "Docker Compose v2 is not available"
+        return 1
+    fi
+}
+
+model_hub_proxy_container_id() {
+    local container_name="${DEV_MODEL_HUB_PROXY_NAME:-$DEFAULT_MODEL_HUB_PROXY_NAME}"
+
+    command -v docker >/dev/null 2>&1 || return 1
+    docker ps -a --format '{{.ID}}\t{{.Names}}' \
+        | awk -F '\t' -v name="$container_name" '$2 == name { print $1; exit }'
+}
+
+model_hub_proxy_image_available() {
+    command -v docker >/dev/null 2>&1 || return 1
+    docker image inspect "${DEV_MODEL_HUB_PROXY_IMAGE:-$DEFAULT_MODEL_HUB_PROXY_IMAGE}" >/dev/null 2>&1
+}
+
+model_hub_proxy_port_binding() {
+    local container_id="$1"
+    local container_port="$2"
+
+    docker inspect "$container_id" --format \
+        "{{with index .HostConfig.PortBindings \"${container_port}/tcp\"}}{{range .}}{{printf \"%s:%s\" .HostIp .HostPort}}{{end}}{{end}}" \
+        2>/dev/null
+}
+
+model_hub_proxy_env_matches() {
+    local container_id="$1"
+    local expected="$2"
+
+    docker inspect "$container_id" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+        | grep -Fxq "$expected"
+}
+
+model_hub_proxy_config_matches() {
+    local container_id="$1"
+
+    [ "$(docker inspect "$container_id" --format '{{.Config.Image}}' 2>/dev/null)" = "$DEV_MODEL_HUB_PROXY_IMAGE" ] || return 1
+    [ "$(docker inspect "$container_id" --format '{{.HostConfig.NetworkMode}}' 2>/dev/null)" = "$DEV_MODEL_HUB_NETWORK" ] || return 1
+    [ "$(docker inspect "$container_id" --format '{{.HostConfig.RestartPolicy.Name}}' 2>/dev/null)" = "unless-stopped" ] || return 1
+    [ "$(docker inspect "$container_id" --format '{{json .Config.Entrypoint}}' 2>/dev/null)" = '["python3"]' ] || return 1
+    [ "$(docker inspect "$container_id" --format '{{json .Config.Cmd}}' 2>/dev/null)" = '["/app/proxy.py"]' ] || return 1
+    [ "$(model_hub_proxy_port_binding "$container_id" 11535)" = "127.0.0.1:${DEV_MODEL_HUB_QA_HOST_PORT}" ] || return 1
+    [ "$(model_hub_proxy_port_binding "$container_id" 11536)" = "127.0.0.1:${DEV_MODEL_HUB_EMBEDDING_HOST_PORT}" ] || return 1
+    model_hub_proxy_env_matches "$container_id" "MODEL_HUB_QA_UPSTREAM=$DEV_MODEL_HUB_QA_UPSTREAM" || return 1
+    model_hub_proxy_env_matches "$container_id" "MODEL_HUB_EMBEDDING_UPSTREAM=$DEV_MODEL_HUB_EMBEDDING_UPSTREAM" || return 1
+    model_hub_proxy_env_matches "$container_id" "MODEL_HUB_QA_LISTEN_PORT=11535" || return 1
+    model_hub_proxy_env_matches "$container_id" "MODEL_HUB_EMBEDDING_LISTEN_PORT=11536" || return 1
+}
+
+require_model_hub_profile() {
+    if [ "${DEV_MODEL_BACKEND:-}" != "model-hub" ]; then
+        log_error "Current profile ${DEV_PROFILE:-unknown} does not use VOS Model Hub"
+        log_error "Use --profile jetson-model-hub before managing the Model Hub proxy"
+        return 1
+    fi
+}
+
+model_hub_proxy_import_hint() {
+    log_error "Missing proxy image: $DEV_MODEL_HUB_PROXY_IMAGE"
+    log_error "Build it on this host before starting Model Hub proxy:"
+    log_error "  docker build --platform linux/arm64 -t $DEV_MODEL_HUB_PROXY_IMAGE -f $SCRIPT_DIR/model-hub-proxy/Dockerfile $SCRIPT_DIR/model-hub-proxy"
+    log_error "Or import it from a prepared host:"
+    log_error "  gunzip -c /tmp/weknora-ictrek-model-hub-proxy-dev.tar.gz | docker load"
+    log_error "Or export it from a prepared host with:"
+    log_error "  docker save $DEV_MODEL_HUB_PROXY_IMAGE | gzip > /tmp/weknora-ictrek-model-hub-proxy-dev.tar.gz"
+}
+
+ensure_model_hub_proxy() {
+    local container_id
+    local state
+
+    require_model_hub_profile || return 1
+    docker network inspect "$DEV_MODEL_HUB_NETWORK" >/dev/null 2>&1 || {
+        log_error "Model Hub Docker network does not exist: $DEV_MODEL_HUB_NETWORK"
+        return 1
+    }
+    model_hub_available "$DEV_MODEL_HUB_NETWORK" || {
+        log_error "Model Hub QA/Embedding upstreams are not both running on $DEV_MODEL_HUB_NETWORK"
+        log_error "Expected upstreams: $DEV_MODEL_HUB_QA_UPSTREAM and $DEV_MODEL_HUB_EMBEDDING_UPSTREAM"
+        return 1
+    }
+
+    container_id="$(model_hub_proxy_container_id)"
+    if [ -n "$container_id" ]; then
+        if ! model_hub_proxy_config_matches "$container_id"; then
+            log_error "Existing proxy container has unexpected configuration: $DEV_MODEL_HUB_PROXY_NAME"
+            log_error "Inspect it before changing or removing it: docker inspect $DEV_MODEL_HUB_PROXY_NAME"
+            log_error "Use ICTREK_DEV_MODEL_HUB_PROXY_NAME for a separate container if needed"
+            return 1
+        fi
+        state="$(docker inspect "$container_id" --format '{{.State.Status}}' 2>/dev/null || true)"
+        case "$state" in
+            running)
+                log_info "Reusing Model Hub proxy container: $DEV_MODEL_HUB_PROXY_NAME"
+                ;;
+            created|exited|dead)
+                docker start "$container_id" >/dev/null
+                log_success "Started Model Hub proxy container: $DEV_MODEL_HUB_PROXY_NAME"
+                ;;
+            *)
+                log_error "Model Hub proxy container is in unexpected state: $state"
+                return 1
+                ;;
+        esac
+    else
+        if ! model_hub_proxy_image_available; then
+            model_hub_proxy_import_hint
+            return 1
+        fi
+        docker run -d \
+            --name "$DEV_MODEL_HUB_PROXY_NAME" \
+            --restart unless-stopped \
+            --network "$DEV_MODEL_HUB_NETWORK" \
+            -p "127.0.0.1:${DEV_MODEL_HUB_QA_HOST_PORT}:11535" \
+            -p "127.0.0.1:${DEV_MODEL_HUB_EMBEDDING_HOST_PORT}:11536" \
+            -e "MODEL_HUB_QA_UPSTREAM=$DEV_MODEL_HUB_QA_UPSTREAM" \
+            -e "MODEL_HUB_EMBEDDING_UPSTREAM=$DEV_MODEL_HUB_EMBEDDING_UPSTREAM" \
+            -e "MODEL_HUB_QA_LISTEN_PORT=11535" \
+            -e "MODEL_HUB_EMBEDDING_LISTEN_PORT=11536" \
+            --entrypoint python3 \
+            "$DEV_MODEL_HUB_PROXY_IMAGE" /app/proxy.py >/dev/null
+        log_success "Created Model Hub proxy container: $DEV_MODEL_HUB_PROXY_NAME"
+    fi
+
+    wait_for_url "Model Hub QA proxy" "${DEV_MODEL_HUB_QA_BASE_URL%/}/models" 60 "$DEV_MODEL_HUB_PROXY_NAME" || return 1
+    wait_for_url "Model Hub embedding proxy" "${DEV_MODEL_HUB_EMBEDDING_BASE_URL%/}/models" 60 "$DEV_MODEL_HUB_PROXY_NAME" || return 1
+}
+
+start_model_hub_proxy() {
+    cd "$PROJECT_ROOT"
+    load_env || { log_error "Missing $ENV_FILE; run: $0 setup --profile jetson-model-hub"; return 1; }
+    refresh_config
+    require_model_hub_profile || return 1
+    check_docker || return 1
+    ensure_model_hub_proxy
+}
+
+stop_model_hub_proxy() {
+    cd "$PROJECT_ROOT"
+    load_env || { log_warning "Missing $ENV_FILE; no Model Hub proxy to stop"; return 0; }
+    refresh_config
+    check_docker || return 1
+    local container_id
+    container_id="$(model_hub_proxy_container_id)"
+    if [ -z "$container_id" ]; then
+        log_info "Model Hub proxy container is not present"
+        return 0
+    fi
+    if [ "$(docker inspect "$container_id" --format '{{.State.Status}}' 2>/dev/null || true)" = "running" ]; then
+        docker stop "$container_id" >/dev/null
+        log_success "Stopped Model Hub proxy container: $DEV_MODEL_HUB_PROXY_NAME"
+    else
+        log_info "Model Hub proxy container is already stopped: $DEV_MODEL_HUB_PROXY_NAME"
+    fi
+}
+
+restart_model_hub_proxy() {
+    stop_model_hub_proxy
+    start_model_hub_proxy
+}
+
+require_vllm_profile() {
+    if [ "${DEV_MODEL_BACKEND:-}" != "vllm" ]; then
+        log_error "Current profile ${DEV_PROFILE:-unknown} uses ${DEV_MODEL_BACKEND:-another model backend}; it does not use local vLLM"
+        log_error "Use --profile tc232 (or ICTREK_DEV_PROFILE=tc232) before starting vLLM"
         return 1
     fi
 }
@@ -305,15 +823,28 @@ wait_for_service() {
 }
 
 setup_env() {
-    local requested_model_config="${ICTREK_DEV_MODEL_CONFIG:-$DEFAULT_MODEL_CONFIG}"
+    local requested_profile="${ICTREK_DEV_PROFILE:-}"
+    local requested_model_config="${ICTREK_DEV_MODEL_CONFIG:-}"
+    local model_config_explicit=0
     local env_created=0
     local config_path
+    local configured_profile
+
+    if [ -n "$requested_model_config" ]; then
+        model_config_explicit=1
+    fi
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
+            --profile|--platform)
+                [ "$#" -ge 2 ] || { log_error "$1 requires a value"; return 1; }
+                requested_profile="$2"
+                shift 2
+                ;;
             --model-config)
                 [ "$#" -ge 2 ] || { log_error "--model-config requires a path"; return 1; }
                 requested_model_config="$2"
+                model_config_explicit=1
                 shift 2
                 ;;
             *)
@@ -328,14 +859,32 @@ setup_env() {
         ensure_env_file
         env_created=1
     fi
+
+    if [ -z "$requested_profile" ]; then
+        configured_profile="$(get_env_value ICTREK_DEV_PROFILE)"
+        requested_profile="${configured_profile:-auto}"
+    fi
+    requested_profile="$(resolve_profile "$requested_profile")"
+
     load_env
+    # Command-line/profile resolution wins over values sourced from an older
+    # .env. This is what lets setup migrate the original tc232-generated .env
+    # on a Jetson without deleting its secrets.
+    ICTREK_DEV_PROFILE="$requested_profile"
+    export ICTREK_DEV_PROFILE
     refresh_config
+    if [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
+        remove_model_hub_bridge_whitelist_entries
+    fi
+
+    if [ "$model_config_explicit" -eq 0 ]; then
+        requested_model_config="$(default_model_config_for_profile "$DEV_PROFILE")"
+    fi
     config_path="$(model_config_file "$requested_model_config")"
     [ -f "$config_path" ] || {
         log_error "Model config not found: $config_path"
         return 1
     }
-
     if [ "$env_created" -eq 1 ]; then
         set_env_value DB_PASSWORD "$(random_secret)"
         set_env_value REDIS_PASSWORD "$(random_secret)"
@@ -385,8 +934,9 @@ setup_env() {
     set_env_value ICTREK_DEV_APP_PORT "$DEV_APP_PORT"
     set_env_value ICTREK_DEV_NEO4J_HTTP_PORT "$DEV_NEO4J_HTTP_PORT"
     set_env_value ICTREK_DEV_NEO4J_BOLT_PORT "$DEV_NEO4J_BOLT_PORT"
-    set_env_value ICTREK_DEV_VLLM_PORT "$DEV_VLLM_PORT"
-    set_env_value ICTREK_DEV_BGE_VLLM_PORT "$DEV_BGE_VLLM_PORT"
+    set_env_value ICTREK_DEV_PROFILE "$DEV_PROFILE"
+    set_env_value ICTREK_DEV_HOST_ARCH "$(host_arch)"
+    set_env_value ICTREK_DEV_MODEL_BACKEND "$DEV_MODEL_BACKEND"
     if [ -z "${LOCAL_STORAGE_BASE_DIR:-}" ] || [ "$LOCAL_STORAGE_BASE_DIR" = "/data/files" ]; then
         set_env_value LOCAL_STORAGE_BASE_DIR "$DEV_DATA_DIR/files"
     else
@@ -411,48 +961,103 @@ setup_env() {
     set_env_value NEO4J_URI "$DEV_NEO4J_URI"
     set_env_value NEO4J_USERNAME "${NEO4J_USERNAME:-neo4j}"
     set_env_value BUILTIN_MODELS_CONFIG "${requested_model_config}"
-    set_env_value ICTREK_DEV_VLLM_BASE_URL "$DEV_VLLM_BASE_URL"
     set_env_value ICTREK_DEV_MODEL_CONFIG "$requested_model_config"
-    set_env_value ICTREK_DEV_VLLM_CONTAINER "$DEV_VLLM_CONTAINER"
-    set_env_value ICTREK_DEV_VLLM_IMAGE "$DEV_VLLM_IMAGE"
-    set_env_value ICTREK_DEV_VLLM_MODEL_DIR "$DEV_VLLM_MODEL_DIR"
-    set_env_value ICTREK_DEV_VLLM_MODEL_NAME "$DEV_VLLM_MODEL_NAME"
-    set_env_value ICTREK_DEV_VLLM_NETWORK "$DEV_VLLM_NETWORK"
-    set_env_value ICTREK_DEV_VLLM_HF_HOME "$DEV_VLLM_HF_HOME"
-    set_env_value ICTREK_DEV_VLLM_SHM_SIZE "$DEV_VLLM_SHM_SIZE"
-    set_env_value ICTREK_DEV_VLLM_SECURITY_OPT "$DEV_VLLM_SECURITY_OPT"
-    set_env_value ICTREK_DEV_VLLM_MAX_MODEL_LEN "$DEV_VLLM_MAX_MODEL_LEN"
-    set_env_value ICTREK_DEV_VLLM_MAX_NUM_SEQS "$DEV_VLLM_MAX_NUM_SEQS"
-    set_env_value ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS "$DEV_VLLM_MAX_NUM_BATCHED_TOKENS"
-    set_env_value ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION "$DEV_VLLM_GPU_MEMORY_UTILIZATION"
-    set_env_value ICTREK_DEV_RERANK_VLLM_PORT "$DEV_RERANK_VLLM_PORT"
-    set_env_value ICTREK_DEV_RERANK_VLLM_BASE_URL "$DEV_RERANK_VLLM_BASE_URL"
-    set_env_value ICTREK_DEV_RERANK_VLLM_CONTAINER "$DEV_RERANK_VLLM_CONTAINER"
-    set_env_value ICTREK_DEV_RERANK_VLLM_MODEL_DIR "$DEV_RERANK_VLLM_MODEL_DIR"
-    set_env_value ICTREK_DEV_RERANK_VLLM_MODEL_NAME "$DEV_RERANK_VLLM_MODEL_NAME"
-    set_env_value ICTREK_DEV_RERANK_VLLM_MAX_MODEL_LEN "$DEV_RERANK_VLLM_MAX_MODEL_LEN"
-    set_env_value ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS "$DEV_RERANK_VLLM_MAX_NUM_SEQS"
-    set_env_value ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS "$DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS"
-    set_env_value ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION "$DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION"
-    set_env_value ICTREK_DEV_BGE_VLLM_BASE_URL "$DEV_BGE_VLLM_BASE_URL"
-    set_env_value ICTREK_DEV_BGE_VLLM_MODEL_NAME "${ICTREK_DEV_BGE_VLLM_MODEL_NAME:-bge-m3}"
+    # This variable belonged to the retired bridge-IP auto-discovery path.
+    # Model Hub now always uses the independent fixed-port proxy below.
+    set_env_value ICTREK_DEV_MODEL_HUB_AUTO_DISCOVER ""
+    if [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
+        set_env_value ICTREK_DEV_MODEL_HUB_NETWORK "$DEV_MODEL_HUB_NETWORK"
+        set_env_value ICTREK_DEV_MODEL_HUB_PROXY_NAME "$DEV_MODEL_HUB_PROXY_NAME"
+        set_env_value ICTREK_DEV_MODEL_HUB_PROXY_IMAGE "$DEV_MODEL_HUB_PROXY_IMAGE"
+        set_env_value ICTREK_DEV_MODEL_HUB_QA_HOST_PORT "$DEV_MODEL_HUB_QA_HOST_PORT"
+        set_env_value ICTREK_DEV_MODEL_HUB_EMBEDDING_HOST_PORT "$DEV_MODEL_HUB_EMBEDDING_HOST_PORT"
+        set_env_value ICTREK_DEV_MODEL_HUB_QA_UPSTREAM "$DEV_MODEL_HUB_QA_UPSTREAM"
+        set_env_value ICTREK_DEV_MODEL_HUB_EMBEDDING_UPSTREAM "$DEV_MODEL_HUB_EMBEDDING_UPSTREAM"
+        set_env_value ICTREK_DEV_MODEL_HUB_QA_BASE_URL "$DEV_MODEL_HUB_QA_BASE_URL"
+        set_env_value ICTREK_DEV_MODEL_HUB_EMBEDDING_BASE_URL "$DEV_MODEL_HUB_EMBEDDING_BASE_URL"
+        set_env_value ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME "$DEV_MODEL_HUB_QA_MODEL_NAME"
+        set_env_value ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME "$DEV_MODEL_HUB_EMBEDDING_MODEL_NAME"
+    else
+        set_env_value ICTREK_DEV_MODEL_HUB_NETWORK ""
+        set_env_value ICTREK_DEV_MODEL_HUB_PROXY_NAME ""
+        set_env_value ICTREK_DEV_MODEL_HUB_PROXY_IMAGE ""
+        set_env_value ICTREK_DEV_MODEL_HUB_QA_HOST_PORT ""
+        set_env_value ICTREK_DEV_MODEL_HUB_EMBEDDING_HOST_PORT ""
+        set_env_value ICTREK_DEV_MODEL_HUB_QA_UPSTREAM ""
+        set_env_value ICTREK_DEV_MODEL_HUB_EMBEDDING_UPSTREAM ""
+        set_env_value ICTREK_DEV_MODEL_HUB_QA_BASE_URL ""
+        set_env_value ICTREK_DEV_MODEL_HUB_EMBEDDING_BASE_URL ""
+        set_env_value ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME ""
+        set_env_value ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME ""
+    fi
+    if [ "$DEV_MODEL_BACKEND" = "vllm" ]; then
+        set_env_value ICTREK_DEV_VLLM_PORT "$DEV_VLLM_PORT"
+        set_env_value ICTREK_DEV_VLLM_BASE_URL "$DEV_VLLM_BASE_URL"
+        set_env_value ICTREK_DEV_VLLM_CONTAINER "$DEV_VLLM_CONTAINER"
+        set_env_value ICTREK_DEV_VLLM_IMAGE "$DEV_VLLM_IMAGE"
+        set_env_value ICTREK_DEV_VLLM_MODEL_DIR "$DEV_VLLM_MODEL_DIR"
+        set_env_value ICTREK_DEV_VLLM_MODEL_NAME "$DEV_VLLM_MODEL_NAME"
+        set_env_value ICTREK_DEV_VLLM_NETWORK "$DEV_VLLM_NETWORK"
+        set_env_value ICTREK_DEV_VLLM_HF_HOME "$DEV_VLLM_HF_HOME"
+        set_env_value ICTREK_DEV_VLLM_SHM_SIZE "$DEV_VLLM_SHM_SIZE"
+        set_env_value ICTREK_DEV_VLLM_SECURITY_OPT "$DEV_VLLM_SECURITY_OPT"
+        set_env_value ICTREK_DEV_VLLM_MAX_MODEL_LEN "$DEV_VLLM_MAX_MODEL_LEN"
+        set_env_value ICTREK_DEV_VLLM_MAX_NUM_SEQS "$DEV_VLLM_MAX_NUM_SEQS"
+        set_env_value ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS "$DEV_VLLM_MAX_NUM_BATCHED_TOKENS"
+        set_env_value ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION "$DEV_VLLM_GPU_MEMORY_UTILIZATION"
+        set_env_value ICTREK_DEV_BGE_VLLM_PORT "$DEV_BGE_VLLM_PORT"
+        set_env_value ICTREK_DEV_BGE_VLLM_BASE_URL "$DEV_BGE_VLLM_BASE_URL"
+        set_env_value ICTREK_DEV_BGE_VLLM_MODEL_NAME "${ICTREK_DEV_BGE_VLLM_MODEL_NAME:-bge-m3}"
+        set_env_value ICTREK_DEV_RERANK_VLLM_PORT "$DEV_RERANK_VLLM_PORT"
+        set_env_value ICTREK_DEV_RERANK_VLLM_BASE_URL "$DEV_RERANK_VLLM_BASE_URL"
+        set_env_value ICTREK_DEV_RERANK_VLLM_CONTAINER "$DEV_RERANK_VLLM_CONTAINER"
+        set_env_value ICTREK_DEV_RERANK_VLLM_MODEL_DIR "$DEV_RERANK_VLLM_MODEL_DIR"
+        set_env_value ICTREK_DEV_RERANK_VLLM_MODEL_NAME "$DEV_RERANK_VLLM_MODEL_NAME"
+        set_env_value ICTREK_DEV_RERANK_VLLM_MAX_MODEL_LEN "$DEV_RERANK_VLLM_MAX_MODEL_LEN"
+        set_env_value ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS "$DEV_RERANK_VLLM_MAX_NUM_SEQS"
+        set_env_value ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS "$DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS"
+        set_env_value ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION "$DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION"
+    else
+        # Remove stale tc232/vLLM values when migrating an existing .env to
+        # Ollama. Keeping them would make the generated file look like
+        # a vLLM deployment even though the active YAML uses Ollama.
+        for key in \
+            ICTREK_DEV_VLLM_PORT ICTREK_DEV_VLLM_BASE_URL \
+            ICTREK_DEV_VLLM_CONTAINER ICTREK_DEV_VLLM_IMAGE \
+            ICTREK_DEV_VLLM_MODEL_DIR ICTREK_DEV_VLLM_MODEL_NAME \
+            ICTREK_DEV_VLLM_NETWORK ICTREK_DEV_VLLM_HF_HOME \
+            ICTREK_DEV_VLLM_SHM_SIZE ICTREK_DEV_VLLM_SECURITY_OPT \
+            ICTREK_DEV_VLLM_MAX_MODEL_LEN ICTREK_DEV_VLLM_MAX_NUM_SEQS \
+            ICTREK_DEV_VLLM_MAX_NUM_BATCHED_TOKENS \
+            ICTREK_DEV_VLLM_GPU_MEMORY_UTILIZATION \
+            ICTREK_DEV_BGE_VLLM_PORT ICTREK_DEV_BGE_VLLM_BASE_URL \
+            ICTREK_DEV_BGE_VLLM_MODEL_NAME ICTREK_DEV_RERANK_VLLM_PORT \
+            ICTREK_DEV_RERANK_VLLM_BASE_URL ICTREK_DEV_RERANK_VLLM_CONTAINER \
+            ICTREK_DEV_RERANK_VLLM_MODEL_DIR ICTREK_DEV_RERANK_VLLM_MODEL_NAME \
+            ICTREK_DEV_RERANK_VLLM_MAX_MODEL_LEN \
+            ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS \
+            ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS \
+            ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION; do
+            set_env_value "$key" ""
+        done
+    fi
     set_env_value ICTREK_DEV_OLLAMA_BASE_URL "$DEV_OLLAMA_BASE_URL"
     set_env_value OLLAMA_BASE_URL "$DEV_OLLAMA_BASE_URL"
-    set_env_value ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME "${ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME:-qwen3.5:2b}"
-    set_env_value ICTREK_DEV_OLLAMA_VLM_MODEL_NAME "${ICTREK_DEV_OLLAMA_VLM_MODEL_NAME:-qwen3.5:2b}"
-    set_env_value ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME "${ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME:-bge-m3}"
-    set_env_value WEKNORA_CHAT_MODEL_CONTEXT_TOKENS "$DEV_VLLM_MAX_MODEL_LEN"
-    set_env_value WEKNORA_MAIN_QA_MODEL_CONCURRENCY "$DEV_VLLM_MAX_NUM_SEQS"
-    set_env_value WEKNORA_MODEL_MAX_CONCURRENCY "${WEKNORA_MODEL_MAX_CONCURRENCY:-6}"
-    set_env_value WEKNORA_CHAT_RESERVED_CONCURRENCY "${WEKNORA_CHAT_RESERVED_CONCURRENCY:-2}"
+    set_env_value ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME "$DEV_OLLAMA_CHAT_MODEL_NAME"
+    set_env_value ICTREK_DEV_OLLAMA_VLM_MODEL_NAME "$DEV_OLLAMA_VLM_MODEL_NAME"
+    set_env_value ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME "$DEV_OLLAMA_EMBEDDING_MODEL_NAME"
+    set_env_value WEKNORA_CHAT_MODEL_CONTEXT_TOKENS "$DEV_CHAT_MODEL_CONTEXT_TOKENS"
+    set_env_value WEKNORA_MAIN_QA_MODEL_CONCURRENCY "$DEV_MAIN_QA_MODEL_CONCURRENCY"
+    set_env_value WEKNORA_MODEL_MAX_CONCURRENCY "$DEV_MODEL_MAX_CONCURRENCY"
+    set_env_value WEKNORA_CHAT_RESERVED_CONCURRENCY "$DEV_CHAT_RESERVED_CONCURRENCY"
     set_env_value WEKNORA_ASYNQ_CORE_CONCURRENCY "${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}"
     set_env_value WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY "${WEKNORA_ASYNQ_POSTPROCESS_CONCURRENCY:-1}"
     set_env_value WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY "${WEKNORA_ASYNQ_ENRICHMENT_CONCURRENCY:-1}"
     set_env_value WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY "${WEKNORA_ASYNQ_MAINTENANCE_CONCURRENCY:-1}"
     set_env_value WEKNORA_ASYNQ_SHARED_CONCURRENCY "${WEKNORA_ASYNQ_SHARED_CONCURRENCY:-0}"
     set_env_value WEKNORA_WIKI_ASYNQ_CONCURRENCY "${WEKNORA_WIKI_ASYNQ_CONCURRENCY:-1}"
-    set_env_value BATCH_EMBED_SIZE "${BATCH_EMBED_SIZE:-4}"
-    set_env_value CONCURRENCY_POOL_SIZE "${CONCURRENCY_POOL_SIZE:-4}"
+    set_env_value BATCH_EMBED_SIZE "$DEV_BATCH_EMBED_SIZE"
+    set_env_value CONCURRENCY_POOL_SIZE "$DEV_CONCURRENCY_POOL_SIZE"
     set_env_value WEKNORA_REPARSE_INCOMPLETE_ON_START false
     set_env_value WEKNORA_TRIGGER_REPARSE_AFTER_DEPLOY false
     ensure_csv_value SSRF_WHITELIST localhost
@@ -460,8 +1065,17 @@ setup_env() {
     ensure_csv_value SSRF_WHITELIST ::1
 
     log_success "Prepared ictrek local-dev environment"
+    log_info "Host architecture: $(host_arch)"
+    log_info "Development profile: $DEV_PROFILE ($DEV_MODEL_BACKEND)"
     log_info "Model config: $requested_model_config"
     log_info "Data directory: $DEV_DATA_DIR"
+    if [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
+        if model_hub_proxy_image_available; then
+            log_info "Model Hub proxy image: $DEV_MODEL_HUB_PROXY_IMAGE"
+        else
+            log_warning "Model Hub proxy image is missing; build or import $DEV_MODEL_HUB_PROXY_IMAGE before running $0 start"
+        fi
+    fi
     log_info "Next: $0 start, then $0 app and make dev-frontend"
 }
 
@@ -484,6 +1098,9 @@ start_services() {
     refresh_config
     export_compose_env
     check_docker
+    if [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
+        ensure_model_hub_proxy || return 1
+    fi
     mkdir -p "$DEV_DATA_DIR/postgres" "$DEV_DATA_DIR/redis" "$DEV_DATA_DIR/docreader" "$DEV_DATA_DIR/neo4j"
     if [ "$include_neo4j" -eq 1 ]; then
         services+=(neo4j)
@@ -540,6 +1157,16 @@ show_status() {
     export_compose_env
     check_docker
     compose ps
+    if [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
+        local proxy_id
+        proxy_id="$(model_hub_proxy_container_id)"
+        if [ -n "$proxy_id" ]; then
+            printf 'Model Hub proxy: %s (%s)\n' "$DEV_MODEL_HUB_PROXY_NAME" \
+                "$(docker inspect "$proxy_id" --format '{{.State.Status}}' 2>/dev/null || printf 'unknown')"
+        else
+            printf 'Model Hub proxy: %s (missing)\n' "$DEV_MODEL_HUB_PROXY_NAME"
+        fi
+    fi
 }
 
 anydoc_archive() {
@@ -568,6 +1195,9 @@ start_app() {
     cd "$PROJECT_ROOT"
     load_env || { log_error "Missing $ENV_FILE; run: $0 setup"; return 1; }
     refresh_config
+    if [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
+        ensure_model_hub_proxy || return 1
+    fi
     command -v go >/dev/null 2>&1 || { log_error "Go is not installed"; return 1; }
 
     export SERVER_PORT="$DEV_APP_PORT"
@@ -659,7 +1289,7 @@ wait_for_url() {
         return 0
     fi
     while [ "$SECONDS" -lt "$deadline" ]; do
-        if curl -fsS --max-time 5 "$url" >/dev/null 2>&1; then
+        if curl --noproxy '*' -fsS --max-time 5 "$url" >/dev/null 2>&1; then
             log_success "$name is ready: $url"
             return 0
         fi
@@ -790,6 +1420,7 @@ start_vllm() {
     cd "$PROJECT_ROOT"
     load_env || { log_error "Missing $ENV_FILE; run: $0 setup"; return 1; }
     refresh_config
+    require_vllm_profile || return 1
     check_docker
     [ -d "$DEV_VLLM_MODEL_DIR" ] || {
         log_error "Model directory not found: $DEV_VLLM_MODEL_DIR"
@@ -925,6 +1556,7 @@ start_rerank_vllm() {
     cd "$PROJECT_ROOT"
     load_env || { log_error "Missing $ENV_FILE; run: $0 setup"; return 1; }
     refresh_config
+    require_vllm_profile || return 1
     check_docker
     validate_rerank_vllm_port || return 1
     [ -d "$DEV_RERANK_VLLM_MODEL_DIR" ] || {
@@ -1040,7 +1672,7 @@ check_url() {
     local url="$2"
     if ! command -v curl >/dev/null 2>&1; then
         log_warning "curl is not installed; skipping $name"
-    elif curl -fsS --max-time 5 "$url" >/dev/null 2>&1; then
+    elif curl --noproxy '*' -fsS --max-time 5 "$url" >/dev/null 2>&1; then
         log_success "$name: ok ($url)"
     else
         log_warning "$name: unavailable ($url)"
@@ -1075,13 +1707,23 @@ check_setup() {
     [ -f "$config_path" ] || { log_error "Missing model config: $config_path"; failed=1; }
     [ -w "$PROJECT_ROOT" ] || { log_error "Project root is not writable"; failed=1; }
 
+    printf '  Host arch:    %s\n' "$(host_arch)"
+    printf '  Profile:      %s (%s)\n' "$DEV_PROFILE" "$DEV_MODEL_BACKEND"
     printf '  Model config: %s\n' "${BUILTIN_MODELS_CONFIG:-<unset>}"
     printf '  Data dir:     %s\n' "$DEV_DATA_DIR"
     printf '  Backend:      http://127.0.0.1:%s\n' "$DEV_APP_PORT"
-    printf '  vLLM:         %s\n' "$DEV_VLLM_BASE_URL"
-    printf '  bge-m3:       %s\n' "$DEV_BGE_VLLM_BASE_URL"
-    printf '  ReRank vLLM:  %s\n' "$DEV_RERANK_VLLM_BASE_URL"
-    printf '  Ollama:       %s\n' "$DEV_OLLAMA_BASE_URL"
+    if [ "$DEV_MODEL_BACKEND" = "vllm" ]; then
+        printf '  vLLM:         %s\n' "$DEV_VLLM_BASE_URL"
+        printf '  bge-m3:       %s\n' "$DEV_BGE_VLLM_BASE_URL"
+        printf '  ReRank vLLM:  %s\n' "$DEV_RERANK_VLLM_BASE_URL"
+    elif [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
+        printf '  Model Hub QA: %s\n' "$DEV_MODEL_HUB_QA_BASE_URL"
+        printf '  Model Hub Emb: %s\n' "$DEV_MODEL_HUB_EMBEDDING_BASE_URL"
+        printf '  Ollama base:   %s\n' "$DEV_OLLAMA_BASE_URL"
+        printf '  Proxy:         %s on %s\n' "$DEV_MODEL_HUB_PROXY_NAME" "$DEV_MODEL_HUB_NETWORK"
+    else
+        printf '  Ollama:       %s\n' "$DEV_OLLAMA_BASE_URL"
+    fi
 
     if check_docker; then
         export_compose_env
@@ -1098,10 +1740,26 @@ check_setup() {
     check_port Redis 127.0.0.1 "$DEV_REDIS_PORT"
     check_port DocReader 127.0.0.1 "$DEV_DOCREADER_PORT"
     check_port Neo4j 127.0.0.1 "$DEV_NEO4J_BOLT_PORT"
-    check_url "vLLM models" "${DEV_VLLM_BASE_URL%/}/models"
-    check_url "bge-m3 vLLM models" "${DEV_BGE_VLLM_BASE_URL%/}/models"
-    check_url "ReRank vLLM health" "${DEV_RERANK_VLLM_BASE_URL%/}/health"
-    check_url "Ollama tags" "${DEV_OLLAMA_BASE_URL%/}/api/tags"
+    if [ "$DEV_MODEL_BACKEND" = "vllm" ]; then
+        check_url "vLLM models" "${DEV_VLLM_BASE_URL%/}/models"
+        check_url "bge-m3 vLLM models" "${DEV_BGE_VLLM_BASE_URL%/}/models"
+        check_url "ReRank vLLM health" "${DEV_RERANK_VLLM_BASE_URL%/}/health"
+    elif [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
+        if [ -n "$(model_hub_proxy_container_id)" ]; then
+            if model_hub_proxy_config_matches "$(model_hub_proxy_container_id)"; then
+                log_success "Model Hub proxy configuration: ok"
+            else
+                log_warning "Model Hub proxy configuration differs from the local-dev profile"
+            fi
+        else
+            log_warning "Model Hub proxy container is missing: $DEV_MODEL_HUB_PROXY_NAME"
+        fi
+        check_url "Model Hub QA Ollama proxy" "${DEV_OLLAMA_BASE_URL%/}/api/tags"
+        check_url "Model Hub QA models" "${DEV_MODEL_HUB_QA_BASE_URL%/}/models"
+        check_url "Model Hub embedding models" "${DEV_MODEL_HUB_EMBEDDING_BASE_URL%/}/models"
+    else
+        check_url "Ollama tags" "${DEV_OLLAMA_BASE_URL%/}/api/tags"
+    fi
     return "$failed"
 }
 
@@ -1122,6 +1780,9 @@ case "$command_name" in
     start-rerank) start_rerank_vllm "$@" ;;
     stop-rerank) stop_rerank_vllm "$@" ;;
     restart-rerank) restart_rerank_vllm "$@" ;;
+    start-model-hub-proxy) start_model_hub_proxy "$@" ;;
+    stop-model-hub-proxy) stop_model_hub_proxy "$@" ;;
+    restart-model-hub-proxy) restart_model_hub_proxy "$@" ;;
     check) check_setup "$@" ;;
     help|-h|--help) show_help ;;
     *) log_error "Unknown command: $command_name"; show_help; exit 1 ;;
