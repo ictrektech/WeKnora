@@ -19,6 +19,7 @@ TARGET="${WEKNORA_BUILD_TARGET:-}"
 TARGET_SHEET_SPEC="${FEISHU_SHEET_TITLE:-}"
 DATE=""
 PROFILE_TAG=""
+BUILD_PLATFORM=""
 TARGET_SHEET_TITLES=()
 
 APP_IMAGE="${REGISTRY_PREFIX}/weknora"
@@ -724,10 +725,12 @@ fi
 case "$TARGET" in
   amd)
     PROFILE_TAG="amd"
+    BUILD_PLATFORM="linux/amd64"
     TARGET_SHEET_SPEC="${TARGET_SHEET_SPEC:-AMD_with_cuda,AMD_with_mxn100}"
     ;;
   arm)
     PROFILE_TAG="arm"
+    BUILD_PLATFORM="linux/arm64"
     TARGET_SHEET_SPEC="${TARGET_SHEET_SPEC:-ARM_without_cuda,l4t,ARM_with_cuda,thor_spark,SOPHON_bm1688}"
     ;;
   *)
@@ -881,7 +884,10 @@ fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_SANDBOX" == "1" ]]; then
   docker_build_with_local_base_fallback docker/Dockerfile.sandbox \
+    --platform "${BUILD_PLATFORM}" \
+    --build-arg "TARGETPLATFORM=${BUILD_PLATFORM}" \
     -f docker/Dockerfile.sandbox \
+    --target sandbox \
     -t "${SANDBOX_IMAGE}:${TAG}" \
     .
 fi
