@@ -184,7 +184,8 @@
         :agent-id="useSettingsStoreInstance.selectedAgentId"
         :agent-source-tenant-id="useSettingsStoreInstance.selectedAgentSourceTenantId"
         :shifted="referencesDrawerVisible"
-        :artifacts="sessionArtifacts" :artifacts-collecting="sessionArtifactsCollecting" />
+        :artifacts="sessionArtifacts" :artifacts-collecting="sessionArtifactsCollecting"
+        @artifact-deleted="handleArtifactDeleted" />
 </template>
 <script setup>
 import { makeSteerClientId } from '@/utils/steerId';
@@ -235,7 +236,7 @@ import { useSessionActivityStore } from '@/stores/sessionActivity';
 import { provideChatSandboxPanel } from '@/composables/useChatSandboxPanel';
 import SandboxSidePanel from '@/components/chat/SandboxSidePanel.vue';
 import BrowserTaskPreview from './components/BrowserTaskPreview.vue';
-import { collectSessionArtifacts } from '@/utils/sessionArtifacts';
+import { collectSessionArtifacts, markSessionArtifactDeleted } from '@/utils/sessionArtifacts';
 import { isCollectingSkillArtifacts } from '@/utils/skillArtifacts';
 const referencesDrawer = provideChatReferencesDrawer();
 provideChatAttachmentPreviewDrawer();
@@ -423,6 +424,11 @@ async function handleFork(messageId) {
 }
 
 const sessionArtifacts = computed(() => collectSessionArtifacts(messagesList));
+// The panel already deleted the file server side; flag it in the loaded
+// history so the computed drops it without reloading the conversation.
+function handleArtifactDeleted({ messageId, index }) {
+    markSessionArtifactDeleted(messagesList, messageId, index);
+}
 const sessionArtifactsCollecting = computed(() =>
     messagesList.some((message) => isCollectingSkillArtifacts(message)),
 );
