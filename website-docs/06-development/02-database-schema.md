@@ -20,14 +20,14 @@ WeKnora 使用版本化迁移维护数据库结构，PostgreSQL 与 SQLite 分�
 
 ```text
 migrations/
-├── versioned/     # PostgreSQL/ParadeDB 版本化迁移：000000-000091 共 92 版（184 个 .up/.down.sql 文件）
+├── versioned/     # PostgreSQL/ParadeDB 版本化迁移：000000-000124 共 125 版（250 个 .up/.down.sql 文件）
 ├── sqlite/        # SQLite 迁移：000000_init（压平的全量 schema）+ 其后的增量版本
 ├── paradedb/      # ParadeDB 附加脚本：00-init-db.sql（扩展初始化）、01-migrate-to-paradedb.sql（存量库切换）
 └── mysql/         # 00-init-db.sql，遗留的一次性 MySQL 建表脚本（未接入代码）
 ```
 
-- PostgreSQL 的 `versioned/` 从 `000000_init` 到 `000091_mcp_tool_enabled`；
-- `sqlite/` 以 `000000_init` 作为压平后的全量初始化（JSONB→TEXT、SERIAL→AUTOINCREMENT 等方言差异已适配），其后按需追加增量版本（当前到 `000013_mcp_tool_enabled`），同样由 golang-migrate 顺序执行；
+- PostgreSQL 的 `versioned/` 从 `000000_init` 到 `000124_messages_session_created_index`；
+- `sqlite/` 以 `000000_init` 作为压平后的全量初始化（JSONB→TEXT、SERIAL→AUTOINCREMENT 等方言差异已适配），其后按需追加增量版本（当前到 `000031_messages_session_created_index`），同样由 golang-migrate 顺序执行；
 - `paradedb/00-init-db.sql` 创建 `pg_search` 等扩展；BM25 索引使用中文 Lindera 分词器建在 `embeddings.content` 上。
 
 ### versioned/ 迁移史概览（按主题） {#_2-1-versioned-迁移史概览-按主题}
@@ -50,12 +50,12 @@ migrations/
 | 000078 | 分块编辑与自定义元数据 | `chunks` 增加 `source_content`/`content_revision`/`index_status`/`last_editor_id`/`context_header`，新增 `chunk_revisions` 表，`knowledges` 增加 `custom_metadata` |
 | 000079 | 知识库文件夹树 | `knowledges` 增加 `folder_path` 列并回填历史目录上传（原先路径塞在 `file_name` 里），新增 `(tenant_id, knowledge_base_id, folder_path)` 索引 |
 
-### 新增迁移（000080–000091） {#_2-2-新增迁移-000080–000091}
+### 新增迁移（000080–000124） {#_2-2-新增迁移-000080–000124}
 
 | 版本 | 变更 |
 | --- | --- |
 | 000080 | knowledge_bases.auto_tag_config |
-| 000081 | messages.artifacts，持久化生成文件 |
+| 000081 | messages.artifacts，持久化生成文件（000121 起改存 `message_artifacts` 表） |
 | 000082 | tenant_sandbox_configs，多命名后端与配置变更租期 |
 | 000083 | sessions.sandbox_config_id |
 | 000084 | 个人记忆六张表、tenants.memory_config、messages.used_memories |
@@ -67,6 +67,10 @@ migrations/
 | 000090 | tenant_skill_catalog；tenant_skills.catalog_id，回填已有安装 |
 | 000091 | mcp_tool_approvals.enabled，默认 true |
 | 000119 | knowledges.profile（文档画像），knowledge_bases.profile_config / generated_profile（AI 知识库描述） |
+| 000121 | `message_artifacts` 表，从 `messages.artifacts` 回填；此后只读写新表。回填后旧列中有内容的行置为 NULL（列保留，兼容滚动升级中的旧实例）；无法解析的 `file_size`/`created_at` 回退为 0 和消息创建时间，不中断迁移。down 迁移会把新表写回旧列 |
+| 000122 | `tenant_skills.served`，保留技能升级进行中或失败时仍在沙箱镜像中运行的版本 |
+| 000123 | `messages.context_checkpoint`，持久化 Agent 压缩摘要，避免重复压缩历史消息 |
+| 000124 | `messages(session_id, created_at DESC, id DESC)` 索引，服务 Agent 历史分页和最新 checkpoint 查询 |
 
 SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 
@@ -79,6 +83,9 @@ SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 | 000009 | 历史 Embed memory 标志列；当前渠道接口不暴露此字段 |
 | 000010–000011 | 多标签关联、principal 模型 |
 | 000012–000013 | 消息 usage、MCP 工具 enabled |
+| 000029 | `message_artifacts` 表，回填并清空旧列（对应 PostgreSQL 000121） |
+| 000030 | `messages.context_checkpoint`，对应 PostgreSQL 000123 |
+| 000031 | `messages(session_id, created_at DESC, id DESC)` 索引，提供 Agent 历史倒序读取（对应 PostgreSQL 000124） |
 
 基线 schema 与后续增量共同决定新建库和已有库的最终结果；不能只看新增迁移文件名判断 Lite 是否有某张表。
 
@@ -120,7 +127,8 @@ SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 | 表 | 用途 | 关键字段 |
 | --- | --- | --- |
 | `sessions` | 会话（对话上下文与检索参数快照） | `id`、`tenant_id`、`title`、`knowledge_base_id`、`agent_id`（FK→custom_agents）、`user_id`、`max_rounds`、`enable_rewrite`、`fallback_strategy`/`fallback_response`、`keyword_threshold`/`vector_threshold`、`embedding_top_k`/`rerank_top_k`/`rerank_threshold`、`rerank_model_id`/`summary_model_id`、`agent_config`/`context_config`（JSONB）、`sandbox_config_id` |
-| `messages` | 消息 | `id`、`request_id`、`session_id`（FK）、`role`、`content`/`rendered_content`、`knowledge_references`（JSONB 引用）、`agent_steps`（JSONB，Agent 推理轨迹）、`mentioned_items`/`images`（JSONB）、`is_completed`/`is_fallback`、`channel`（web/IM 渠道）、`agent_id`+`agent_tenant_id`、`model_id`、`knowledge_id`、`agent_duration_ms`、`execution_context`、`artifacts`/`used_memories`/`usage`（JSONB） |
+| `messages` | 消息 | `id`、`request_id`、`session_id`（FK）、`role`、`content`/`rendered_content`、`knowledge_references`（JSONB 引用）、`agent_steps`（JSONB，Agent 推理轨迹）、`mentioned_items`/`images`（JSONB）、`is_completed`/`is_fallback`、`channel`（web/IM 渠道）、`agent_id`+`agent_tenant_id`、`model_id`、`knowledge_id`、`agent_duration_ms`、`execution_context`、`used_memories`/`usage`（JSONB）。`artifacts` 列自 000121 起不再读写且已清空（仅为回滚与滚动升级保留），生成文件见 `message_artifacts` |
+| `message_artifacts` | 技能生成的文件，一行一个（000121） | `session_id`、`message_id`、`position`（消息内序号，即下载接口的 index；与 `message_id` 唯一）、`url`（存储或 resource:// 引用，不返回客户端）、`file_name`/`file_type`/`file_size`、`content_hash`、`source_path`（同会话同路径视为同一文件的多个版本）、`mod_time`（RFC 3339 文本，保留纳秒精度供采集器比对）、`created_at`。无软删除，随消息软删除一并隐藏 |
 | `message_suggestion_sets` | 建议问题集（000067） | `tenant_id`、`session_id`、`assistant_message_id`、`placement`（starter/follow_up）、`config_hash`+`locale`（缓存键，唯一）、`status`、`questions`（JSONB）、token/延迟统计、`lease_until` |
 | `message_suggestion_events` | 建议问题曝光/点击事件 | `suggestion_set_id`（FK，CASCADE）、`question_id`、`event_type`、`actor_id` |
 | `temporary_documents` | 会话内临时文档（000070） | `tenant_id`、`session_id`、`resource_ref`、`file_name`/`file_type`/`file_size`、`status`（uploaded/processing/ready/expired）、`content`、`chunks`（JSONB）、`expires_at` |
@@ -325,7 +333,7 @@ make migrate-goto version=60       # 迁移/回滚到指定版本
 
 ## 如何新增一个迁移 {#_6-如何新增一个迁移}
 
-1. **创建文件**：`make migrate-create name=add_my_feature`，在 `migrations/versioned/` 下生成下一个版本号（当前最大为 `000091`；创建前再次检查目录，使用下一个空闲版本的 up/down 文件）；
+1. **创建文件**：`make migrate-create name=add_my_feature`，在 `migrations/versioned/` 下生成下一个版本号（当前最大为 `000124`；创建前再次检查目录，使用下一个空闲版本的 up/down 文件）；
 2. **编写 up SQL**：注意 PostgreSQL 方言（JSONB、部分索引、`TIMESTAMP WITH TIME ZONE`）；若涉及 `embeddings` 表，参考既有迁移用 `app.skip_embedding` GUC 做条件门控（`SELECT current_setting('app.skip_embedding', true)`），保证非 postgres 检索引擎部署也能通过迁移；
 3. **编写 down SQL**：必须可逆（drop column/table/index），否则回滚链会断；
 4. **同步 SQLite**：`migrations/sqlite/000000_init.up.sql` 是压平的全量 schema，**新增列/表必须合并进去**（注意方言转换：JSONB→TEXT、SERIAL→INTEGER AUTOINCREMENT、无部分索引语法差异等）。若变更需要在已有 Lite 库上生效（例如删表、删数据），还要在 `migrations/sqlite/` 追加一个增量版本；

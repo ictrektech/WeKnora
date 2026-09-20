@@ -560,6 +560,47 @@ export default {
     "locateWindow": "Show browser",
     "reconnectShort": "Waiting to reconnect",
 },
+  artifactLibrary: {
+    title: 'Artifacts',
+    subtitle: 'Files your agents generated across all of your conversations',
+    typeFilter: 'Filter by type',
+    searchPlaceholder: 'Search filenames',
+    categories: {
+      all: 'All',
+      document: 'Documents',
+      spreadsheet: 'Spreadsheets',
+      presentation: 'Presentations',
+      image: 'Images',
+      web: 'Web pages',
+      data: 'Data'
+    },
+    groups: {
+      today: 'Today',
+      yesterday: 'Yesterday',
+      last7Days: 'Last 7 days',
+      last30Days: 'Last 30 days',
+      earlier: 'Earlier'
+    },
+    total: '{count} files',
+    versions: '{count} versions',
+    preview: 'Preview',
+    download: 'Download',
+    downloadFailed: 'Download failed. Please try again later.',
+    openSession: 'Open conversation',
+    untitledSession: 'Untitled conversation',
+    loadMore: 'Load more',
+    loadFailed: 'Could not load artifacts',
+    retry: 'Retry',
+    clearFilters: 'Clear filters',
+    empty: {
+      title: 'No artifacts yet',
+      description: 'Ask an agent to produce a report, spreadsheet or slide deck and the files will show up here'
+    },
+    noMatches: {
+      title: 'No matching files',
+      description: 'Try a different keyword or file type'
+    }
+  },
   menu: {
     sessionInProgress: "Conversation in progress",
     knowledgeBase: "Knowledge Base",
@@ -587,6 +628,8 @@ export default {
     myChats: "My chats",
     apiChats: "API sessions",
     noSessions: "No conversations yet",
+
+    artifacts: 'Artifacts',
   },
   chatHeader: {
     moreActions: "More conversation actions",
@@ -894,6 +937,7 @@ export default {
   knowledgeBase: {
     title: "Knowledge Base",
     fileContent: "File Content",
+
     accessInfo: {
       myRole: "My role",
       roleOwner: "Owner",
@@ -953,6 +997,10 @@ export default {
       renameFailed: "Could not rename the folder",
       renameInvalid: "A folder cannot be moved inside itself",
       collapseFolder: "Collapse this folder",
+
+      totalDocuments: '{count} documents total',
+      countHint: '{direct} documents in this folder; {total} including subfolders',
+      filteredCount: '{count} matching documents',
     },
     moveToFolder: {
       action: "Move to folder",
@@ -1286,6 +1334,16 @@ export default {
     deleteSuccess: "Knowledge deleted successfully!",
     chunkLoadFailed: "Failed to load chunks",
     deleteFailed: "Delete failed. Please try again later!",
+
+    tagAddAction: 'Add tags',
+    documentCount: '{count} documents',
+    filters: 'Filters',
+    clearFilters: 'Clear filters',
+    tagPickerSelected: 'Selected',
+    tagPickerUnselected: 'Not selected',
+    tagPickerSearch: "Search or create a tag",
+    tagPickerInUse: "This tag is in use. Remove its document associations before deleting it.",
+    tagPickerDeleteConfirm: "Delete tag “{name}”?",
   },
   uploadConfirm: {
     documentSummary: "Document summary",
@@ -1552,6 +1610,8 @@ export default {
       mcpAll: "All services",
       mcpSelected: "{count} selected",
       mcpNone: "None",
+
+      skillSecretsWarning: 'This agent uses skills. When space members use it, the skills run in this workspace\'s sandbox with the environment variables admins configured for them (such as API keys), and members can have the agent reveal those values. Share it only if that is acceptable.',
     },
     delete: {
       confirmTitle: "Delete Agent",
@@ -1720,6 +1780,8 @@ export default {
       skillsInfoTitle: "How Skills and the sandbox work together",
       skillsInfoContent:
         "Skills are knowledge modules whose scripts run in the selected sandbox. The list comes from skills installed there. Once a session sandbox exists, its attachments, artifacts, and teardown stay pinned to the config it was created on — changing the sandbox only affects later sessions.",
+
+      upgradeOnThisSandbox: 'Upgrade this sandbox to the catalog version',
     },
     selector: {
       title: "Select Agent",
@@ -2320,6 +2382,24 @@ export default {
       addRegisteredAs: "Registered as “{name}”",
       installedOn: "Installed on",
       manageOnSandbox: "Manage this skill on “{name}”",
+
+      upgrade: 'Upgrade',
+      upgradeCount: 'Upgrade {count}',
+      upgradeTitle: 'Upgrade skill',
+      upgradeDrawerDesc: 'Upgrade {name} on the selected sandboxes to the catalog version. Each sandbox keeps running its current version until the upgrade finishes, and a failed upgrade leaves it in place.',
+      upgradeAvailable: 'Upgrade available',
+      upgradeFromTo: 'Upgrade {from} → {to}',
+      upgradeAccepted: 'Upgrade started',
+      noSandboxToUpgrade: 'No sandbox needs an upgrade.',
+      upgradeRowTitle: 'New version available',
+      upgradeRowHint: 'This sandbox runs a different version from the catalog. It keeps running it until the upgrade finishes, and a failed upgrade leaves it in place.',
+      upgradeRowHintVersions: 'This sandbox runs {from}; the catalog has {to}. {from} keeps running until the upgrade finishes, and a failed upgrade leaves it in place.',
+      upgradeRowHintFailed: 'The install on this sandbox did not succeed, and the catalog has moved on. Upgrading installs the catalog version instead.',
+      upgradeRowHintFailedVersions: 'Installing {from} on this sandbox did not succeed, and the catalog has {to}. Upgrading installs {to} instead.',
+      servedWhileUpgrading: 'Upgrading; still running {version}',
+      servedWhileUpgradingPlain: 'Upgrading; still running the previous version',
+      servedAfterFailure: 'Upgrade failed; still running {version}',
+      servedAfterFailurePlain: 'Upgrade failed; still running the previous version',
     },
     mcpService: "MCP Service",
     versionInfo: "Version Info",
@@ -3374,6 +3454,7 @@ export default {
       'Agent "{agentName}" is not ready. Please configure: {reasons}',
     sharedAgentNotReadyDetail:
       'Shared agent "{agentName}" is not ready (missing: {reasons}). Ask the sharing organization admin to finish setup.',
+
     webSearch: {
       toggleOn: "Enable Web Search",
       toggleOff: "Disable Web Search",
@@ -3525,6 +3606,7 @@ export default {
       errorTip: "Some files failed to upload. Please check the notifications.",
       unknownKb: "Knowledge Base {id}",
     },
+
   },
   embedPublish: {
     create: "New embed channel",
@@ -3714,6 +3796,9 @@ export default {
         targetId: "Target ID",
         actorId: "Initiator ID",
         details: "Details",
+
+        apiKeyName: 'API key name',
+        apiKeyId: 'API key ID',
       },
       drawer: {
         sectionSummary: "Summary",
@@ -3726,6 +3811,7 @@ export default {
       countItems: "{count} items",
       titleWithCount: "{title} and {count} more",
       importSummary: "Success {success} / Failed {failed} / Skipped {skipped}",
+
       targets: {
         knowledge_base: "Knowledge base",
         knowledge: "Knowledge",
@@ -3815,6 +3901,8 @@ export default {
         append: "Append",
         replace: "Replace",
       },
+      actorWithAPIKey: '{actor} · API Key · {name}',
+      actorAPIKey: 'API Key · {name}',
     },
     titleCreate: "Create Knowledge Base",
     titleEdit: "Knowledge Base Settings",
@@ -4700,6 +4788,8 @@ export default {
     attachmentParseFailed: "Attachment parsing failed",
     attachmentStillProcessing: "Attachment {name} is still being parsed",
     promptLabel: "Prompt",
+
+    questionMinimapPosition: 'Turn {current} of {total}',
   },
   tenant: {
     title: "Workspace Information",
@@ -5509,6 +5599,7 @@ export default {
     missingKbId: "Missing knowledge base ID",
     tokenNotFound: "Login token not found, please log in again",
     streamFailed: "Stream connection failed",
+
     auth: {
       loginFailed: "Login failed",
       registerFailed: "Registration failed",
@@ -5538,6 +5629,7 @@ export default {
       checkFailed: "Check failed",
       testFailed: "Test failed",
     },
+    requestTimeout: 'Request timed out. Large files or slow connections may need another try.',
   },
   model: {
     modelName: "Model Name",
@@ -5931,6 +6023,55 @@ export default {
     uploadFolder: "Upload Folder",
     onlineEdit: "Online Edit",
     deleteRecord: "Delete Record",
+  },
+  uploadTasks: {
+    panelLabel: 'Uploads',
+    titleUploading: 'Uploading {done} of {total}',
+    titleParsing: 'Parsing {done} of {total}',
+    titleDone: 'All done',
+    titleDoneWithIssues: '{ok} done, {bad} not completed',
+    titleCancelled: 'Upload cancelled',
+    destination: 'Destination: {name}',
+    destinationMany: 'Destination: {count} knowledge bases',
+    remaining: 'about {time} left',
+    eta: {
+      seconds: '{n} sec',
+      minutes: '{n} min',
+      hours: '{n} hr'
+    },
+    hintUploading: 'Keep this page open until the upload finishes',
+    hintParsing: 'All files are uploaded. Parsing continues in the background, so you can leave this page',
+    legend: {
+      ready: 'Searchable',
+      active: 'In progress',
+      waiting: 'Queued',
+      failed: 'Failed',
+      duplicate: 'Already exists'
+    },
+    filterAll: 'All',
+    filterIssues: 'Not completed',
+    phaseWaiting: 'Queued',
+    phaseSaving: 'Saving…',
+    phasePending: 'Waiting to parse',
+    phaseParsing: 'Parsing',
+    phaseFinalizing: 'Searchable, still optimizing',
+    phaseReady: 'Done',
+    phaseUploadFailed: 'Upload failed',
+    phaseParseFailed: 'Parsing failed',
+    phaseDuplicate: 'Same file already in this knowledge base',
+    phaseCancelled: 'Cancelled',
+    phaseDeleted: 'Deleted',
+    cancel: 'Cancel',
+    cancelAll: 'Cancel all',
+    retry: 'Retry',
+    retryFailed: 'Retry ({count})',
+    open: 'Open',
+    collapse: 'Collapse',
+    expand: 'Expand',
+    close: 'Close',
+    closeConfirm: 'Closing stops the unfinished uploads ({count})',
+    closeConfirmOk: 'Cancel upload',
+    closeConfirmKeep: 'Keep uploading'
   },
   agentSettings: {
     modelRecommendation: {
@@ -6756,6 +6897,10 @@ export default {
     queryKnowledgeGraph: "Query Knowledge Graph",
     think: "Deep Thinking",
     todoWrite: "Make Plan",
+
+    searchKnowledge: 'Search knowledge',
+    readDocument: 'Read document',
+    listDocuments: 'List documents',
   },
   vectorStoreBadge: {
     systemDefault: "System default",
@@ -6925,6 +7070,9 @@ export default {
       dataAnalysis: "Data Analysis",
       dataSchema: "Data Schema",
       databaseQuery: "Database Query",
+
+      readDocument: 'Read document',
+      listDocuments: 'List documents',
     },
     skillFiles: {
       heading: "Skill files",
@@ -6989,6 +7137,10 @@ export default {
     knowledgeChunksList: {
       chunkRange: "Loaded {fetched} / {total} chunks",
       page: "Page {page}, {pageSize} per page",
+
+      offsetRange: 'Chunks {from}–{to}',
+      queryMatches: '{count} matches for "{query}" in this document',
+      queryNoMatch: 'No matches for "{query}" in this document',
     },
     attachmentParsing: {
       parsedSummary: "Parsed {count} attachment(s)",
@@ -7278,6 +7430,13 @@ export default {
         "Computed from the current config — these are the tools the agent will actually be able to call",
       effectiveEmpty:
         "No tool available — the agent will fall back to plain model chat",
+
+      searchKnowledge: 'Search knowledge',
+      searchKnowledgeDesc: 'Semantic, keyword or hybrid search over knowledge-base chunks',
+      readDocument: 'Read document',
+      readDocumentDesc: 'Read a document\'s metadata and chunks, with paging and in-document search',
+      listDocuments: 'List documents',
+      listDocumentsDesc: 'Page through the documents of a knowledge base',
     },
     embed: {
       title: "Web Page Embed",

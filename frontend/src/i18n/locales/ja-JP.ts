@@ -561,6 +561,47 @@ export default {
     "locateWindow": "ブラウザーを表示",
     "reconnectShort": "再接続を待機中",
 },
+  artifactLibrary: {
+    title: '成果物',
+    subtitle: 'すべての会話でエージェントが生成したファイルをまとめて表示します',
+    typeFilter: '種類で絞り込む',
+    searchPlaceholder: 'ファイル名を検索',
+    categories: {
+      all: 'すべて',
+      document: 'ドキュメント',
+      spreadsheet: 'スプレッドシート',
+      presentation: 'プレゼンテーション',
+      image: '画像',
+      web: 'Web ページ',
+      data: 'データ'
+    },
+    groups: {
+      today: '今日',
+      yesterday: '昨日',
+      last7Days: '過去 7 日間',
+      last30Days: '過去 30 日間',
+      earlier: 'それ以前'
+    },
+    total: '{count} 件のファイル',
+    versions: '{count} バージョン',
+    preview: 'プレビュー',
+    download: 'ダウンロード',
+    downloadFailed: 'ダウンロードに失敗しました。しばらくしてから再試行してください',
+    openSession: '会話を開く',
+    untitledSession: '無題の会話',
+    loadMore: 'さらに読み込む',
+    loadFailed: '成果物を読み込めませんでした',
+    retry: '再試行',
+    clearFilters: '絞り込みを解除',
+    empty: {
+      title: '成果物はまだありません',
+      description: '会話でエージェントにレポートや表、スライドを作成させると、ここに表示されます'
+    },
+    noMatches: {
+      title: '一致するファイルがありません',
+      description: '別のキーワードや種類をお試しください'
+    }
+  },
   menu: {
     sessionInProgress: "会話中",
     knowledgeBase: "ナレッジベース",
@@ -591,6 +632,8 @@ export default {
     myChats: "マイチャット",
     apiChats: "APIセッション",
     noSessions: "会話はまだありません",
+
+    artifacts: '成果物',
   },
   chatHeader: {
     moreActions: "その他の会話操作",
@@ -899,6 +942,7 @@ export default {
   knowledgeBase: {
     title: "ナレッジベース",
     fileContent: "ファイル内容",
+
     accessInfo: {
       myRole: "自分のロール",
       roleOwner: "オーナー",
@@ -959,6 +1003,10 @@ export default {
       renameFailed: "フォルダ名を変更できませんでした",
       renameInvalid: "フォルダを自身の配下に移動することはできません",
       collapseFolder: "このフォルダを折りたたむ",
+
+      totalDocuments: '全 {count} 件',
+      countHint: 'このフォルダ内 {direct} 件、サブフォルダを含めて {total} 件',
+      filteredCount: '{count} 件一致',
     },
     moveToFolder: {
       action: "フォルダに移動",
@@ -1291,6 +1339,16 @@ export default {
     deleteSuccess: "ナレッジを削除しました。",
     chunkLoadFailed: "チャンクの読み込みに失敗しました",
     deleteFailed: "削除に失敗しました。しばらくしてから再試行してください。",
+
+    tagAddAction: 'タグを追加',
+    documentCount: '{count} 件のドキュメント',
+    filters: '絞り込み',
+    clearFilters: '絞り込みをクリア',
+    tagPickerSelected: '選択済み',
+    tagPickerUnselected: '未選択',
+    tagPickerSearch: "タグを検索または作成",
+    tagPickerInUse: "使用中のタグです。先にドキュメントとの関連付けを解除してください。",
+    tagPickerDeleteConfirm: "タグ「{name}」を削除しますか？",
   },
   uploadConfirm: {
     documentSummary: "ドキュメントの要約",
@@ -1560,6 +1618,8 @@ export default {
       mcpAll: "すべてのサービス",
       mcpSelected: "{count}件を指定",
       mcpNone: "使用しない",
+
+      skillSecretsWarning: 'このエージェントはスキルを使用します。スペースのメンバーが利用すると、スキルはこのワークスペースのサンドボックスで、管理者が設定した環境変数（API キーなど）とともに実行され、メンバーはエージェントにその値を出力させることができます。これを許容できる場合にのみ共有してください。',
     },
     delete: {
       confirmTitle: "エージェントを削除",
@@ -1731,6 +1791,8 @@ export default {
       skillsInfoTitle: "スキルとサンドボックスの連携について",
       skillsInfoContent:
         "スキルは知識モジュールで、そのスクリプトは選択したサンドボックスで実行されます。一覧にはそこにインストール済みのスキルが表示されます。セッションのサンドボックスが一度作成されると、以降の添付ファイル、生成物、破棄はすべて作成時の設定に固定されます。そのため、サンドボックスを変更しても影響するのは以降に新規作成されるセッションだけです。",
+
+      upgradeOnThisSandbox: 'このサンドボックスのスキルをカタログのバージョンにアップグレード',
     },
     selector: {
       title: "エージェントを選択",
@@ -2340,6 +2402,24 @@ export default {
       addRegisteredAs: "「{name}」として登録しました",
       installedOn: "インストール先",
       manageOnSandbox: "サンドボックス「{name}」でこのスキルを管理",
+
+      upgrade: 'アップグレード',
+      upgradeCount: '{count} 件をアップグレード',
+      upgradeTitle: 'スキルをアップグレード',
+      upgradeDrawerDesc: '選択したサンドボックス上の{name}をカタログのバージョンにアップグレードします。完了するまで各サンドボックスは現在のバージョンを使い続け、失敗しても影響はありません。',
+      upgradeAvailable: 'アップグレード可能',
+      upgradeFromTo: 'アップグレード可能 {from} → {to}',
+      upgradeAccepted: 'アップグレードを開始しました',
+      noSandboxToUpgrade: 'アップグレードが必要なサンドボックスはありません。',
+      upgradeRowTitle: '新しいバージョンがあります',
+      upgradeRowHint: 'このサンドボックスのバージョンはカタログと異なります。アップグレードが完了するまで現在のバージョンを使い続け、失敗しても影響はありません。',
+      upgradeRowHintVersions: 'このサンドボックスは {from}、カタログは {to} です。アップグレードが完了するまで {from} を使い続け、失敗しても影響はありません。',
+      upgradeRowHintFailed: 'このサンドボックスへのインストールは成功しておらず、カタログは別のバージョンになっています。アップグレードするとカタログのバージョンをインストールします。',
+      upgradeRowHintFailedVersions: 'このサンドボックスへの {from} のインストールは成功しておらず、カタログは {to} です。アップグレードすると {to} をインストールします。',
+      servedWhileUpgrading: 'アップグレード中。{version} を使用中',
+      servedWhileUpgradingPlain: 'アップグレード中。以前のバージョンを使用中',
+      servedAfterFailure: 'アップグレード失敗。{version} を使用中',
+      servedAfterFailurePlain: 'アップグレード失敗。以前のバージョンを使用中',
     },
     mcpService: "MCPサービス",
     versionInfo: "バージョン情報",
@@ -3399,6 +3479,7 @@ export default {
       "エージェント「{agentName}」は準備できていません。次の項目を設定してください: {reasons}",
     sharedAgentNotReadyDetail:
       "共有エージェント「{agentName}」は準備できていません（不足: {reasons}）。共有元スペースの管理者に設定の完了を依頼してください。",
+
     webSearch: {
       toggleOn: "Web検索を有効化",
       toggleOff: "Web検索を無効化",
@@ -3556,6 +3637,7 @@ export default {
         "一部のファイルのアップロードに失敗しました。通知を確認してください。",
       unknownKb: "ナレッジベース{id}",
     },
+
   },
   embedPublish: {
     create: "埋め込みチャネルを作成",
@@ -3749,6 +3831,9 @@ export default {
         targetId: "対象ID",
         actorId: "実行者ID",
         details: "詳細",
+
+        apiKeyName: 'APIキー名',
+        apiKeyId: 'APIキーID',
       },
       drawer: {
         sectionSummary: "概要",
@@ -3761,6 +3846,7 @@ export default {
       countItems: "{count}件",
       titleWithCount: "{title}ほか{count}件",
       importSummary: "成功{success} / 失敗{failed} / スキップ{skipped}",
+
       targets: {
         knowledge_base: "ナレッジベース",
         knowledge: "ナレッジ",
@@ -3850,6 +3936,8 @@ export default {
         append: "追加",
         replace: "上書き",
       },
+      actorWithAPIKey: '{actor} · API Key · {name}',
+      actorAPIKey: 'API Key · {name}',
     },
     titleCreate: "ナレッジベースを作成",
     titleEdit: "ナレッジベース設定",
@@ -4728,6 +4816,8 @@ export default {
     attachmentParseFailed: "添付ファイルの解析に失敗しました",
     attachmentStillProcessing: "添付ファイル{name}は解析中です",
     promptLabel: "プロンプト",
+
+    questionMinimapPosition: '全 {total} ターン中 {current} ターン目',
   },
   tenant: {
     title: "ワークスペース情報",
@@ -5551,6 +5641,7 @@ export default {
     missingKbId: "ナレッジベースIDがありません",
     tokenNotFound: "ログイントークンが見つかりません。再度ログインしてください",
     streamFailed: "ストリーム接続に失敗しました",
+
     auth: {
       loginFailed: "ログインに失敗しました",
       registerFailed: "登録に失敗しました",
@@ -5581,6 +5672,7 @@ export default {
       checkFailed: "チェックに失敗しました",
       testFailed: "テストに失敗しました",
     },
+    requestTimeout: 'リクエストがタイムアウトしました。大きなファイルや低速な回線では再試行してください',
   },
   model: {
     modelName: "モデル名",
@@ -5971,6 +6063,55 @@ export default {
     uploadFolder: "フォルダをアップロード",
     onlineEdit: "オンライン編集",
     deleteRecord: "記録を削除",
+  },
+  uploadTasks: {
+    panelLabel: 'アップロード',
+    titleUploading: 'アップロード中 {done}/{total}',
+    titleParsing: '解析中 {done}/{total}',
+    titleDone: 'すべて完了',
+    titleDoneWithIssues: '{ok}件完了、{bad}件未完了',
+    titleCancelled: 'アップロードをキャンセルしました',
+    destination: 'アップロード先：{name}',
+    destinationMany: 'アップロード先：{count}件のナレッジベース',
+    remaining: '残り約{time}',
+    eta: {
+      seconds: '{n}秒',
+      minutes: '{n}分',
+      hours: '{n}時間'
+    },
+    hintUploading: 'アップロードが完了するまでページを閉じたり再読み込みしたりしないでください',
+    hintParsing: 'すべてのファイルをアップロードしました。解析はバックグラウンドで続くため、このページを離れても問題ありません',
+    legend: {
+      ready: '検索可能',
+      active: '処理中',
+      waiting: '待機中',
+      failed: '失敗',
+      duplicate: '既存'
+    },
+    filterAll: 'すべて',
+    filterIssues: '未完了',
+    phaseWaiting: 'アップロード待ち',
+    phaseSaving: '保存中…',
+    phasePending: '解析待ち',
+    phaseParsing: '解析中',
+    phaseFinalizing: '検索可能・バックグラウンドで最適化中',
+    phaseReady: '完了',
+    phaseUploadFailed: 'アップロード失敗',
+    phaseParseFailed: '解析失敗',
+    phaseDuplicate: '同じファイルが既にあります',
+    phaseCancelled: 'キャンセル済み',
+    phaseDeleted: '削除済み',
+    cancel: 'キャンセル',
+    cancelAll: 'すべてキャンセル',
+    retry: '再試行',
+    retryFailed: '{count}件を再試行',
+    open: '開く',
+    collapse: '折りたたむ',
+    expand: '展開',
+    close: '閉じる',
+    closeConfirm: '閉じると、残り{count}件のアップロードがキャンセルされます',
+    closeConfirmOk: 'アップロードをキャンセル',
+    closeConfirmKeep: 'アップロードを続ける'
   },
   agentSettings: {
     modelRecommendation: {
@@ -6801,6 +6942,10 @@ export default {
     queryKnowledgeGraph: "ナレッジグラフの照会",
     think: "深い思考",
     todoWrite: "計画の作成",
+
+    searchKnowledge: 'ナレッジベースを検索',
+    readDocument: 'ドキュメントを読む',
+    listDocuments: 'ドキュメント一覧',
   },
   vectorStoreBadge: {
     systemDefault: "システムデフォルト",
@@ -6971,6 +7116,9 @@ export default {
       dataAnalysis: "データ分析",
       dataSchema: "データスキーマ",
       databaseQuery: "データベース照会",
+
+      readDocument: 'ドキュメントを読む',
+      listDocuments: 'ドキュメント一覧',
     },
     skillFiles: {
       heading: "スキルファイル",
@@ -7037,6 +7185,10 @@ export default {
     knowledgeChunksList: {
       chunkRange: "{fetched} / {total}チャンクを読み込みました",
       page: "{page}ページ目、1ページあたり{pageSize}件",
+
+      offsetRange: 'チャンク {from}–{to}',
+      queryMatches: '文書内検索「{query}」: {count}件一致',
+      queryNoMatch: '文書内検索「{query}」: 一致なし',
     },
     attachmentParsing: {
       parsedSummary: "{count}件の添付ファイルを解析しました",
@@ -7327,6 +7479,13 @@ export default {
         "現在の設定から算出された、エージェントが実際に呼び出せるツールです",
       effectiveEmpty:
         "利用可能なツールがありません。エージェントは通常のモデル対話にフォールバックします",
+
+      searchKnowledge: 'ナレッジベースを検索',
+      searchKnowledgeDesc: 'セマンティック・キーワード・ハイブリッド検索でナレッジベースのチャンクを検索します',
+      readDocument: 'ドキュメントを読む',
+      readDocumentDesc: 'ドキュメントのメタデータとチャンク内容を読み取ります。ページングと文書内検索に対応',
+      listDocuments: 'ドキュメント一覧',
+      listDocumentsDesc: 'ナレッジベース内のドキュメントをページ単位で一覧表示します',
     },
     embed: {
       title: "Webページ埋め込み",

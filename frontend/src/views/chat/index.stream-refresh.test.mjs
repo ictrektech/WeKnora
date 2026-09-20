@@ -61,7 +61,8 @@ test('answer stream chunks merge snapshots without duplicating the same answer',
   assert.match(handlerSource, /if \(incoming\.startsWith\(current\)\) return incoming/)
   assert.match(handlerSource, /if \(current\.endsWith\(incoming\)\) return current/)
   assert.match(handlerSource, /answerEvent\.content = mergeStreamText\(answerEvent\.content,\s*data\.content\)/)
-  assert.match(handlerSource, /if \(data\.content\) \{[\s\S]*\} else if \(!answerEvent\.content && message\.content/)
+  assert.match(handlerSource, /const hasLivePriorAnswer = stream\.some\(/)
+  assert.match(handlerSource, /if \(!hasLivePriorAnswer\) \{[\s\S]*answerEvent\.content = message\.content/)
 })
 
 test('chat view renders a deduped message list', () => {

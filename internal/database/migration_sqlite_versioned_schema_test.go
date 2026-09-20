@@ -14,10 +14,11 @@ import (
 // versionedSQLiteTables is the set of tables that SQLite migrations must
 // create to stay in sync with the versioned (PostgreSQL) migrations:
 // 000041 task queue, 000053 system settings, 000055 processing spans,
-// 000063 knowledge multi-tags, 000111 browser authorization, 000112/000113 memory
-// consistency and vector search. The fork snapshot lease, knowledge profile and
-// MCP endpoint migrations are appended after the local ictrek migrations so
-// their SQLite version numbers remain unique.
+// 000063 knowledge multi-tags, browser authorization, memory consistency and
+// vector search. The fork snapshot lease, knowledge profile, MCP endpoint,
+// message artifact, context checkpoint, session index, and local ictrek
+// migrations are appended after the base migrations so their SQLite version
+// numbers remain unique.
 var versionedSQLiteTables = []string{
 	"memory_extraction_sessions",
 	"task_pending_ops",
@@ -45,6 +46,7 @@ var versionedSQLiteTables = []string{
 	"document_parse_artifacts",
 	"fork_snapshot_leases",
 	"mcp_endpoints",
+	"message_artifacts",
 }
 
 // versionedSQLiteColumns maps each existing table to the columns that the
@@ -57,7 +59,7 @@ var versionedSQLiteColumns = map[string][]string{
 	"users":                   {"is_system_admin"},
 	"knowledges":              {"pending_subtasks_count", "profile"},
 	"knowledge_bases":         {"profile_config", "generated_profile"},
-	"messages":                {"attachments", "usage", "sandbox_checkpoint"},
+	"messages":                {"attachments", "usage", "sandbox_checkpoint", "context_checkpoint"},
 	"tenant_invitations":      {"token", "accepted_count"},
 	"embed_channels":          {"allow_memory"},
 	"mcp_oauth_tokens":        {"principal_type", "principal_id"},
@@ -67,7 +69,9 @@ var versionedSQLiteColumns = map[string][]string{
 	"contract_review_issues":  {"category", "finding_type", "evidence_refs"},
 }
 
-const expectedSQLiteMigrationVersion = 28
+// expectedSQLiteMigrationVersion includes both upstream migrations and the
+// fork's appended SQLite migrations.
+const expectedSQLiteMigrationVersion = 31
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)
@@ -95,6 +99,10 @@ func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 			)
 		}
 	}
+
+	require.True(t, sqliteIndexExists(t, db, "idx_messages_session_created_id"),
+		"SQLite migrations must add the session/created_at index") // 000124
+	assertSQLiteAgentHistoryQueriesUseTheIndex(t, db)
 
 	assertSQLiteShareLinkInvitationsWork(t, db)
 	assertSQLiteMCPOAuthPrincipalUpsertWorks(t, db)
@@ -235,6 +243,45 @@ func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {
 	require.NoError(t, db.QueryRow(
 		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
 		table,
+	).Scan(&n))
+	return n == 1
+}
+
+// assertSQLiteAgentHistoryQueriesUseTheIndex checks the two per-turn agent
+// history queries walk idx_messages_session_created_id in order instead of
+// sorting every message of the session.
+func assertSQLiteAgentHistoryQueriesUseTheIndex(t *testing.T, db *sql.DB) {
+	t.Helper()
+	for name, query := range map[string]string{
+		"backwards page": `SELECT * FROM messages WHERE session_id = 's'
+			AND (created_at < '2026-01-01' OR (created_at = '2026-01-01' AND id < 'x'))
+			AND deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200`,
+		"newest checkpoint": `SELECT id FROM messages WHERE session_id = 's' AND role = 'assistant'
+			AND context_checkpoint IS NOT NULL AND deleted_at IS NULL
+			ORDER BY created_at DESC, id DESC LIMIT 1`,
+	} {
+		rows, err := db.Query("EXPLAIN QUERY PLAN " + query)
+		require.NoError(t, err, name)
+		var plan strings.Builder
+		for rows.Next() {
+			var id, parent, unused int
+			var detail string
+			require.NoError(t, rows.Scan(&id, &parent, &unused, &detail), name)
+			plan.WriteString(detail + "\n")
+		}
+		require.NoError(t, rows.Err(), name)
+		require.NoError(t, rows.Close(), name)
+		require.Contains(t, plan.String(), "idx_messages_session_created_id", "%s plan:\n%s", name, plan.String())
+		require.NotContains(t, plan.String(), "TEMP B-TREE", "%s must not sort:\n%s", name, plan.String())
+	}
+}
+
+func sqliteIndexExists(t *testing.T, db *sql.DB, index string) bool {
+	t.Helper()
+	var n int
+	require.NoError(t, db.QueryRow(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?",
+		index,
 	).Scan(&n))
 	return n == 1
 }

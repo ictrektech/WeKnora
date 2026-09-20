@@ -371,6 +371,7 @@ export interface SuggestedQuestion {
   question: string;
   source: 'faq' | 'document' | 'agent_config' | 'wiki';
   knowledge_base_id?: string;
+  knowledge_id?: string;
 }
 
 // 获取智能体推荐问题

@@ -1133,12 +1133,27 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           stream.push(answerEvent)
           if (eventId) eventMap.set(eventId, answerEvent)
         }
+        if (!answerEvent.content && message.content && String(message.content).trim()) {
+          // Seeding exists for resume paths where message.content holds text no
+          // stream event carries. When a live prior answer event exists, its
+          // text is already counted by recomposeAgentAnswer, so seeding the new
+          // event would duplicate every prior round on the next recompose.
+          const hasLivePriorAnswer = stream.some(
+            (e) =>
+              e !== answerEvent &&
+              e.type === 'answer' &&
+              !e.superseded &&
+              e.content &&
+              String(e.content).trim(),
+          )
+          if (!hasLivePriorAnswer) {
+            answerEvent.content = message.content
+          }
+        }
         if (data.content) {
           answerEvent.content = mergeStreamText(answerEvent.content, data.content)
           message.content = recomposeAgentAnswer(message)
           fullContent.value = String(message.content || '')
-        } else if (!answerEvent.content && message.content && String(message.content).trim()) {
-          answerEvent.content = message.content
         }
         if (dataPayload?.is_fallback) {
           answerEvent.is_fallback = true
