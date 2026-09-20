@@ -18,6 +18,17 @@ import (
 	"gorm.io/gorm"
 )
 
+func streamEventTermination(evt interfaces.StreamEvent) (terminal, completed bool) {
+	switch {
+	case evt.Type == types.ResponseTypeComplete:
+		return true, true
+	case evt.Type == types.ResponseTypeError && evt.Done:
+		return true, false
+	default:
+		return false, false
+	}
+}
+
 // ContinueStream godoc
 // @Summary      继续流式响应
 // @Description  继续获取正在进行的流式响应
@@ -142,11 +153,12 @@ func (h *Handler) ContinueStream(c *gin.Context) {
 	setSSEHeaders(c)
 
 	// Check if stream is already completed
+	streamTerminal := false
 	streamCompleted := false
 	for _, evt := range events {
-		if evt.Type == "complete" {
-			streamCompleted = true
-			break
+		if terminal, completed := streamEventTermination(evt); terminal {
+			streamTerminal = true
+			streamCompleted = streamCompleted || completed
 		}
 	}
 
@@ -158,7 +170,10 @@ func (h *Handler) ContinueStream(c *gin.Context) {
 	}
 
 	// If stream is already completed, send final event and return
-	if streamCompleted {
+	if streamTerminal {
+		if !streamCompleted {
+			return
+		}
 		logger.Infof(ctx, "Stream already completed, session ID: %s, message ID: %s", sessionID, messageID)
 		sendCompletionEvent(c, message.RequestID)
 		return
@@ -185,11 +200,12 @@ func (h *Handler) ContinueStream(c *gin.Context) {
 			}
 
 			// Send new events
+			streamTerminalNow := false
 			streamCompletedNow := false
 			for _, evt := range newEvents {
-				// Check for completion event
-				if evt.Type == "complete" {
-					streamCompletedNow = true
+				if terminal, completed := streamEventTermination(evt); terminal {
+					streamTerminalNow = true
+					streamCompletedNow = streamCompletedNow || completed
 				}
 
 				emitStreamEvent(ctx, c, evt, message.RequestID, resourceRewriter)
@@ -199,7 +215,10 @@ func (h *Handler) ContinueStream(c *gin.Context) {
 			currentOffset = newOffset
 
 			// If stream completed, send final event and exit
-			if streamCompletedNow {
+			if streamTerminalNow {
+				if !streamCompletedNow {
+					return
+				}
 				logger.Infof(ctx, "Stream completed, session ID: %s, message ID: %s", sessionID, messageID)
 				sendCompletionEvent(c, message.RequestID)
 				return
@@ -372,6 +391,7 @@ func (h *Handler) handleAgentEventsForSSE(
 			}
 
 			// Send any new events
+			streamTerminal := false
 			streamCompleted := false
 			titleReceived := false
 			for _, evt := range events {
@@ -409,9 +429,9 @@ func (h *Handler) handleAgentEventsForSSE(
 					return
 				}
 
-				// Check for completion event
-				if evt.Type == "complete" {
-					streamCompleted = true
+				if terminal, completed := streamEventTermination(evt); terminal {
+					streamTerminal = true
+					streamCompleted = streamCompleted || completed
 				}
 
 				// Check for title event
@@ -435,7 +455,10 @@ func (h *Handler) handleAgentEventsForSSE(
 			lastOffset = newOffset
 
 			// Check if stream is completed - wait for title event only if needed and not already received
-			if streamCompleted {
+			if streamTerminal {
+				if !streamCompleted {
+					return
+				}
 				if waitForTitle && !titleReceived {
 					log.Infof("Stream completed for session=%s, message=%s, waiting for title event", sessionID, assistantMessageID)
 					// Wait up to 3 seconds for title event after completion

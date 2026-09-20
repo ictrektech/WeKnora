@@ -663,6 +663,23 @@ func (h *AgentStreamHandler) handleError(ctx context.Context, evt event.Event) e
 		logger.GetLogger(h.ctx).Error("Append error event to stream failed", "error", err)
 	}
 
+	// Error is a terminal event. Persist that state immediately so failed
+	// quick-answer turns do not remain as permanently incomplete messages.
+	if h.assistantMessage != nil && h.messageService != nil {
+		h.mu.Lock()
+		h.assistantMessage.UpdatedAt = time.Now()
+		h.assistantMessage.IsCompleted = true
+		updateCtx := context.WithValue(
+			context.WithoutCancel(h.ctx),
+			types.TenantIDContextKey,
+			h.tenantID,
+		)
+		if err := h.messageService.UpdateMessage(updateCtx, h.assistantMessage); err != nil {
+			logger.GetLogger(h.ctx).Error("Persist terminal error state failed", "error", err)
+		}
+		h.mu.Unlock()
+	}
+
 	return nil
 }
 

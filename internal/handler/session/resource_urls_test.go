@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -238,6 +239,23 @@ func TestHandleAgentEventsForSSE_FlushesHeldContentOnStop(t *testing.T) {
 		indexOf(body, `"response_type":"stop"`),
 		"held content must precede the stop notification",
 	)
+}
+
+func TestHandleAgentEventsForSSE_ReturnsOnTerminalError(t *testing.T) {
+	h := &Handler{streamManager: &stubStreamManager{events: []interfaces.StreamEvent{
+		{ID: "err-1", Type: types.ResponseTypeError, Content: "upstream failed", Done: true},
+	}}}
+	c, recorder := newTestGinContext(t, "")
+	requestCtx, cancel := context.WithTimeout(c.Request.Context(), time.Second)
+	defer cancel()
+	c.Request = c.Request.WithContext(requestCtx)
+
+	h.handleAgentEventsForSSE(
+		context.Background(), c, "sess1", "msg1", "req-1", nil, false, nil)
+
+	assert.NoError(t, requestCtx.Err(), "terminal error must close SSE before request timeout")
+	assert.Contains(t, recorder.Body.String(), `"response_type":"error"`)
+	assert.NotContains(t, recorder.Body.String(), `"response_type":"complete"`)
 }
 
 func TestHoldbackKeyRoundTrip(t *testing.T) {

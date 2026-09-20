@@ -274,7 +274,7 @@ go install github.com/air-verse/air@latest
 | `ICTREK_DEV_RERANK_VLLM_MAX_NUM_SEQS` | `16` | vLLM `--max-num-seqs`。 |
 | `ICTREK_DEV_RERANK_VLLM_MAX_NUM_BATCHED_TOKENS` | `8192` | vLLM `--max-num-batched-tokens`；不能小于 `max_model_len`。 |
 | `ICTREK_DEV_RERANK_VLLM_GPU_MEMORY_UTILIZATION` | `0.1` | vLLM `--gpu-memory-utilization`。 |
-| `ICTREK_DEV_OLLAMA_BASE_URL` | Ollama profile 为 `http://127.0.0.1:11434`；Model Hub profile 为 `http://127.0.0.1:31535` | Ollama 兼容/管理接口；Model Hub profile 必须走独立代理。 |
+| `ICTREK_DEV_OLLAMA_BASE_URL` | Ollama profile 为 `http://127.0.0.1:11434`；Model Hub profile 为 `http://127.0.0.1:31535` | Ollama 兼容/管理接口；Model Hub profile 必须走独立代理。tc232 可显式设为 `http://127.0.0.1:31535`，供非默认 Ollama fallback 模型复用已运行的代理。 |
 | `ICTREK_DEV_CHAT_MODEL_CONTEXT_TOKENS` | Ollama `24000`，Model Hub `24000`，tc232 `65536` | profile 默认的应用侧上下文预算。 |
 | `ICTREK_DEV_MAIN_QA_MODEL_CONCURRENCY` | Ollama `4`，Model Hub `3`，tc232 `20` | profile 默认的主 QA 并发。 |
 | `ICTREK_DEV_MODEL_MAX_CONCURRENCY` | Ollama `2`，Model Hub `1`，tc232 `6` | 后台模型总并发上限。 |

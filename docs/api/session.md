@@ -453,7 +453,7 @@ curl --location --request DELETE 'http://localhost:8080/api/v1/sessions/ceb9babb
 
 ## GET `/sessions/continue-stream/:session_id` - 继续未完成的流式响应
 
-用于在 SSE 连接断开后重新连接正在进行的流式响应：先回放该消息已产生的所有事件，再继续推送后续事件，直至 `complete`。
+用于在 SSE 连接断开后重新连接正在进行的流式响应：先回放该消息已产生的所有事件，再继续推送后续事件，直至成功终态 `complete`，或失败终态 `error` 且 `done=true`。失败终态会在回放后立即关闭连接，不会继续轮询。
 
 **路径参数**:
 

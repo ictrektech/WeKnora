@@ -20,6 +20,16 @@ type capturingStreamManager struct {
 	events []interfaces.StreamEvent
 }
 
+type terminalErrorMessageService struct {
+	interfaces.MessageService
+	updated []*types.Message
+}
+
+func (s *terminalErrorMessageService) UpdateMessage(_ context.Context, message *types.Message) error {
+	s.updated = append(s.updated, message)
+	return nil
+}
+
 func (s *capturingStreamManager) AppendEvent(
 	_ context.Context, _, _ string, evt interfaces.StreamEvent,
 ) error {
@@ -126,9 +136,11 @@ func TestAgentStreamHandlerToolResultFailureKeepsToolResultType(t *testing.T) {
 // can still distinguish a crashed run from a failed tool call.
 func TestAgentStreamHandlerInternalErrorKeepsErrorType(t *testing.T) {
 	streams := &capturingStreamManager{}
+	messages := &terminalErrorMessageService{}
+	message := &types.Message{ID: "msg-1"}
 	h := NewAgentStreamHandler(
 		context.Background(), "sess-1", "msg-1", "req-1", 1, time.Now(),
-		&types.Message{}, streams, nil, nil, nil, nil, nil,
+		message, streams, messages, nil, nil, nil, nil,
 	)
 
 	err := h.handleError(context.Background(), event.Event{
@@ -141,4 +153,6 @@ func TestAgentStreamHandlerInternalErrorKeepsErrorType(t *testing.T) {
 	evt := streams.events[0]
 	require.Equal(t, types.ResponseTypeError, evt.Type)
 	require.True(t, evt.Done)
+	require.True(t, message.IsCompleted)
+	require.Len(t, messages.updated, 1)
 }

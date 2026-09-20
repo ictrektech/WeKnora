@@ -505,13 +505,11 @@ refresh_config() {
     DEV_MODEL_HUB_EMBEDDING_UPSTREAM="${ICTREK_DEV_MODEL_HUB_EMBEDDING_UPSTREAM:-$DEFAULT_MODEL_HUB_EMBEDDING_UPSTREAM}"
 
     # A previous Model Hub setup writes the proxy endpoint into the shared
-    # Ollama variable. When switching back to tc232 or a normal Ollama
-    # profile, restore the historical native-Ollama default instead of
-    # leaving the old 31535 endpoint active.
-    if [ "$DEV_MODEL_BACKEND" != "model-hub" ] && {
-        [ "${ICTREK_DEV_MODEL_BACKEND:-}" = "model-hub" ] ||
-        [ "$DEV_OLLAMA_BASE_URL" = "http://127.0.0.1:${DEFAULT_MODEL_HUB_QA_HOST_PORT}" ];
-    }; then
+    # Ollama variable. When setup switches away from that profile, restore
+    # native Ollama. Do not infer staleness from port 31535 alone: tc232 may
+    # intentionally use that proxy for its optional Ollama fallback models.
+    if [ "$DEV_MODEL_BACKEND" != "model-hub" ] && \
+        [ "${ICTREK_DEV_MODEL_BACKEND:-}" = "model-hub" ]; then
         DEV_OLLAMA_BASE_URL="http://127.0.0.1:11434"
     fi
 

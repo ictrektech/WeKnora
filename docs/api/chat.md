@@ -55,6 +55,8 @@ curl --location 'http://localhost:8080/api/v1/knowledge-chat/ceb9babb-1e30-41d7-
 **响应格式**:
 服务器端事件流（Server-Sent Events，Content-Type: text/event-stream）
 
+正常生成以 `response_type="complete"` 结束；模型或管道失败时以 `response_type="error"`、`done=true` 结束。两者都是终态，服务端会关闭 SSE，并将助手消息标记为已完成，客户端不应继续重连该消息。
+
 **响应**:
 
 ```
