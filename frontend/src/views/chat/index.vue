@@ -108,8 +108,7 @@
                         :value="session.created_at" />
 
                     <div v-if="session.role == 'user'" class="message-row"
-                        :data-message-id="session.id || undefined"
-                        :class="{ 'is-minimap-target': session.id && session.id === minimapTargetId }">
+                        :data-message-id="session.id || undefined">
                         <usermsg :content="session.content" :mentioned_items="session.mentioned_items"
                             :images="session.images" :attachments="session.attachments" :embeddedMode="embeddedMode"
                             :session-id="session_id"
@@ -2112,7 +2111,6 @@ const clearData = (abortStreams = true) => {
     if (!hasActiveStream(session_id.value)) {
         fullContent.value = '';
     }
-    clearMinimapFlash();
     // Stop any IM-reply recovery poll for the session we're leaving/switching.
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
     if (continueStreamRetryTimer) { clearTimeout(continueStreamRetryTimer); continueStreamRetryTimer = null; }
@@ -2124,7 +2122,6 @@ onUnmounted(() => {
     activitySessionId.value = '';
     window.removeEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);
     clearInFlightTurnAnchor();
-    clearMinimapFlash();
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
 });
 onBeforeRouteLeave((to, from, next) => {

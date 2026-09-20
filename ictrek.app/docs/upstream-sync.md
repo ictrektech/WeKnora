@@ -33,6 +33,15 @@ git checkout main
 git merge upstream/main
 ```
 
+无冲突的 merge 也必须做语义检查。先列出 fork 与 upstream 自共同基线以来都修改过的文件，逐个审查：
+
+```bash
+base=$(git merge-base main upstream/main)
+comm -12 \
+  <(git diff --name-only "$base"..main | sort) \
+  <(git diff --name-only "$base"..upstream/main | sort)
+```
+
 冲突处理原则：
 
 - 保留当前 VOS app 文档和配置：`ictrek.app/`；
@@ -50,10 +59,22 @@ rg -n "Vivibit|www.vivibit.com|ictrektech/WeKnora|host.docker.internal|builtin_m
   frontend config ictrek.app docker-compose.yml docker-compose.override.yml
 ```
 
-再看状态：
+前端源码或路由发生变化时，提交前必须完成类型检查；运行时代码、构建配置或依赖发生变化时，再执行构建。测试按受影响范围运行，全量测试交给大范围同步或 CI：
+
+```bash
+cd frontend
+npm run type-check
+cd ..
+```
+
+UI 或路由发生变化时，再登录验证聊天页到知识库、智能体、设置、新对话及其他会话的跳转，并确认控制台没有未处理的 `ReferenceError` 或 Vue 错误；运行时代码、构建配置或依赖发生变化时执行 `npm run build-only`。
+
+验证通过后再看状态并提交：
 
 ```bash
 git status --short
+git diff --check
+git commit
 ```
 
 如需构建镜像，按 [build-images.md](build-images.md) 走构建和飞书更新流程。部署和发布以 [../README.md](../README.md) 的 VOS app 流程为准；旧独立部署文档只在 [legacy](legacy/) 中备查。
@@ -127,6 +148,16 @@ Before merging, inspect what upstream changed:
 git log --oneline --decorate --graph --max-count=30 --all
 git diff --stat main..upstream/main
 git diff --name-status main..upstream/main
+```
+
+Even a conflict-free merge needs a semantic review. List files changed by both
+sides since their common base and review them one by one:
+
+```bash
+base=$(git merge-base main upstream/main)
+comm -12 \
+  <(git diff --name-only "$base"..main | sort) \
+  <(git diff --name-only "$base"..upstream/main | sort)
 ```
 
 Pay special attention to files that overlap with ictrek changes:
@@ -211,10 +242,11 @@ The checker rejects duplicate numbers, missing pairs, mismatched `.up.sql` /
 commit the merge while either checker fails. When practical, also execute the
 PostgreSQL migrations from an empty database.
 
-Complete the merge:
+After resolving conflicts, stage and inspect the result. Do not commit before
+the verification gates pass:
 
 ```bash
-git commit
+git status --short
 ```
 
 ## Verification
@@ -231,12 +263,34 @@ For code-level verification, use the build path documented in
 `build-images.md`. Build and deployment should run on the selected remote host,
 not locally, unless the task explicitly asks for a local check.
 
+If frontend source or routing changed, run before committing:
+
+```bash
+cd frontend
+npm run type-check
+cd ..
+```
+
+Run `npm run build-only` when runtime code, build configuration, or dependencies
+changed. Run affected tests; reserve the full suite for broad syncs or CI. For
+UI or routing changes, log in and smoke-test navigation from chat to knowledge
+bases, agents, settings, new chat, and another session. The browser console
+must have no unhandled `ReferenceError` or Vue error.
+
 The VOS migration workflow runs only for matching `pull_request` events or
 after a push to remote `main`; a local merge or local commit does not trigger
 GitHub Actions. It runs the versioned migration checker and a full PostgreSQL
 empty-database migration, but it does not validate SQLite migrations or the
 current local development database. Always run the local checker commands
 before starting a local backend and before committing the merge.
+
+After verification passes, commit the merge:
+
+```bash
+git status --short --branch
+git diff --check
+git commit
+```
 
 ## Push And Parent Repo Update
 
