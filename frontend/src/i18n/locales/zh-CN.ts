@@ -7905,6 +7905,10 @@ export default {
     notifications: "站内通知",
     markRead: "标为已读",
     refresh: "刷新",
+    cancelExtraction: "取消解析",
+    cancelExtractionConfirm: "确定取消“{name}”的解析吗？已产生的部分结果会保留。",
+    cancelExtractionSuccess: "已取消解析。",
+    cancelExtractionFailed: "取消解析失败。",
     reidentify: "重新识别",
     retryMirror: "重试同步",
     mirrorRetryStarted: "已重新提交镜像同步。",
@@ -7964,6 +7968,7 @@ export default {
       needs_review: "待复核",
       completed: "已完成",
       failed: "失败",
+      canceled: "已取消",
     },
     mirrorStatuses: {
       not_started: "未开始",

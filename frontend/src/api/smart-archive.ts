@@ -5,7 +5,7 @@ import { del, get, getDown, patch, post, postUpload } from '@/utils/request'
 export const MANAGED_SMART_ARCHIVE_KB_MARKER = '[weknora-managed-smart-archive]'
 
 export type ArchiveDocumentType = 'contract' | 'loan_agreement' | 'outbound_order' | 'return_order' | 'renewal' | 'payment' | 'delivery' | 'other'
-export type ArchiveExtractionStatus = 'uploading' | 'parsing' | 'extracting' | 'linking' | 'needs_review' | 'completed' | 'failed'
+export type ArchiveExtractionStatus = 'uploading' | 'parsing' | 'extracting' | 'linking' | 'needs_review' | 'completed' | 'failed' | 'canceled'
 export type ArchiveMirrorStatus = 'not_started' | 'pending' | 'processing' | 'submitted' | 'failed'
 export type ArchiveReminderStatus = 'draft' | 'active' | 'snoozed' | 'handled' | 'canceled'
 export type ArchiveBulkAction = 'archive' | 'restore' | 'delete' | 'purge' | 'ignore'
@@ -44,6 +44,7 @@ export const getArchiveBatch = (id: string) => get<ArchiveApiResponse<ArchiveBat
 export const getArchiveDocument = (id: string) => get<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}`)
 export const updateArchiveDocument = (id: string, data: Record<string, unknown>) => patch<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}`, data)
 export const retryArchiveDocumentExtraction = (id: string) => post<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/retry-extraction`)
+export const cancelArchiveDocumentExtraction = (id: string) => post<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/cancel-extraction`)
 export const retryArchiveDocumentMirror = (id: string) => post<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/retry-mirror`)
 export const archiveDocument = (id: string) => post<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/archive`)
 export const restoreDocument = (id: string) => post<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/restore`)

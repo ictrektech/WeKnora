@@ -189,6 +189,40 @@ func (r *smartArchiveRepository) ClaimImportItem(ctx context.Context, tenantID u
 	return r.GetImportItem(ctx, tenantID, id)
 }
 
+func (r *smartArchiveRepository) CancelImportItem(ctx context.Context, tenantID uint64, itemID, errorMessage string) error {
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var item types.ArchiveImportItem
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND id = ?", tenantID, itemID).First(&item).Error; err != nil {
+			return err
+		}
+		if item.Status == types.ArchiveImportItemCompleted {
+			return gorm.ErrInvalidData
+		}
+		if item.Status == types.ArchiveImportItemCanceled {
+			return nil
+		}
+		if err := tx.Model(&types.ArchiveImportItem{}).Where("tenant_id = ? AND id = ?", tenantID, itemID).Updates(map[string]any{
+			"status": types.ArchiveImportItemCanceled, "error_message": errorMessage, "failure_counted": true,
+			"available_at": nil, "run_id": "", "claimed_at": nil, "lease_until": nil, "updated_at": now,
+		}).Error; err != nil {
+			return err
+		}
+		if item.BatchID == "" || item.FailureCounted {
+			return nil
+		}
+		var batch types.ArchiveImportBatch
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND id = ?", tenantID, item.BatchID).First(&batch).Error; err != nil {
+			return err
+		}
+		batch.Failed++
+		setImportBatchStatus(&batch)
+		return tx.Model(&types.ArchiveImportBatch{}).Where("tenant_id = ? AND id = ?", tenantID, item.BatchID).Updates(map[string]any{
+			"completed": batch.Completed, "failed": batch.Failed, "status": batch.Status, "updated_at": now,
+		}).Error
+	})
+}
+
 func (r *smartArchiveRepository) MarkImportItemCompleted(ctx context.Context, tenantID uint64, itemID, documentID string) error {
 	now := time.Now().UTC()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -654,21 +688,117 @@ func (r *smartArchiveRepository) ListTrashedDocuments(ctx context.Context) ([]*t
 	return rows, err
 }
 
-func (r *smartArchiveRepository) ClaimMirrorDocument(ctx context.Context, tenantID uint64, id string) (*types.ArchiveDocument, error) {
-	result := r.db.WithContext(ctx).Model(&types.ArchiveDocument{}).
-		Where("tenant_id = ? AND id = ? AND trashed_at IS NULL AND mirror_status IN ?", tenantID, id, []types.ArchiveMirrorStatus{types.ArchiveMirrorPending, types.ArchiveMirrorProcessing}).
-		Updates(map[string]any{
+func (r *smartArchiveRepository) ClaimMirrorDocument(ctx context.Context, tenantID uint64, id, runID string, now time.Time) (*types.ArchiveDocument, error) {
+	if strings.TrimSpace(runID) == "" {
+		return nil, gorm.ErrInvalidData
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	leaseUntil := now.Add(11 * time.Minute)
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var doc types.ArchiveDocument
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND id = ? AND trashed_at IS NULL", tenantID, id).First(&doc).Error; err != nil {
+			return err
+		}
+		pending := doc.MirrorStatus == types.ArchiveMirrorPending
+		leaseExpired := doc.MirrorStatus == types.ArchiveMirrorProcessing && (doc.MirrorLeaseUntil == nil || !doc.MirrorLeaseUntil.After(now))
+		if !pending && !leaseExpired {
+			return gorm.ErrRecordNotFound
+		}
+		return tx.Model(&types.ArchiveDocument{}).Where("tenant_id = ? AND id = ?", tenantID, id).Updates(map[string]any{
 			"mirror_status":        types.ArchiveMirrorProcessing,
 			"mirror_error_message": "",
+			"mirror_run_id":        runID,
+			"mirror_lease_until":   leaseUntil,
+			"updated_at":           now,
+		}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.GetDocument(ctx, tenantID, id)
+}
+
+func (r *smartArchiveRepository) CompleteMirrorDocument(ctx context.Context, tenantID uint64, id, runID, knowledgeID string) error {
+	result := r.db.WithContext(ctx).Model(&types.ArchiveDocument{}).
+		Where("tenant_id = ? AND id = ? AND mirror_status = ? AND mirror_run_id = ?", tenantID, id, types.ArchiveMirrorProcessing, runID).
+		Updates(map[string]any{
+			"knowledge_id":         knowledgeID,
+			"mirror_status":        types.ArchiveMirrorSubmitted,
+			"mirror_error_message": "",
+			"mirror_run_id":        "",
+			"mirror_lease_until":   nil,
 			"updated_at":           time.Now().UTC(),
 		})
 	if result.Error != nil {
-		return nil, result.Error
+		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return nil, gorm.ErrRecordNotFound
+		return gorm.ErrRecordNotFound
 	}
-	return r.GetDocument(ctx, tenantID, id)
+	return nil
+}
+
+func (r *smartArchiveRepository) FailMirrorDocument(ctx context.Context, tenantID uint64, id, runID, errorMessage string, retry bool) error {
+	status := types.ArchiveMirrorFailed
+	storedRunID := ""
+	if retry {
+		status = types.ArchiveMirrorPending
+		storedRunID = runID
+	}
+	result := r.db.WithContext(ctx).Model(&types.ArchiveDocument{}).
+		Where("tenant_id = ? AND id = ? AND mirror_status = ? AND mirror_run_id = ?", tenantID, id, types.ArchiveMirrorProcessing, runID).
+		Updates(map[string]any{
+			"mirror_status":        status,
+			"mirror_error_message": errorMessage,
+			"mirror_run_id":        storedRunID,
+			"mirror_lease_until":   nil,
+			"updated_at":           time.Now().UTC(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *smartArchiveRepository) RetryMirrorDocument(ctx context.Context, tenantID uint64, id string) error {
+	result := r.db.WithContext(ctx).Model(&types.ArchiveDocument{}).
+		Where("tenant_id = ? AND id = ? AND trashed_at IS NULL AND mirror_status = ?", tenantID, id, types.ArchiveMirrorFailed).
+		Updates(map[string]any{
+			"mirror_status":        types.ArchiveMirrorPending,
+			"mirror_error_message": "",
+			"mirror_run_id":        "",
+			"mirror_lease_until":   nil,
+			"updated_at":           time.Now().UTC(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrInvalidData
+	}
+	return nil
+}
+
+func (r *smartArchiveRepository) RollbackMirrorRetry(ctx context.Context, tenantID uint64, id, errorMessage string) error {
+	result := r.db.WithContext(ctx).Model(&types.ArchiveDocument{}).
+		Where("tenant_id = ? AND id = ? AND mirror_status = ? AND mirror_run_id = '' AND mirror_lease_until IS NULL", tenantID, id, types.ArchiveMirrorPending).
+		Updates(map[string]any{
+			"mirror_status":        types.ArchiveMirrorFailed,
+			"mirror_error_message": errorMessage,
+			"updated_at":           time.Now().UTC(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *smartArchiveRepository) ListPendingMirrorDocuments(ctx context.Context, _ time.Time, limit int) ([]*types.ArchiveDocument, error) {

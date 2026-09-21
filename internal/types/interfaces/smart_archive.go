@@ -25,6 +25,7 @@ type ArchiveRepository interface {
 	UpdateImportItem(context.Context, *types.ArchiveImportItem) error
 	ListPendingImportItems(context.Context, time.Time, int) ([]*types.ArchiveImportItem, error)
 	ClaimImportItem(context.Context, uint64, string, string, time.Time) (*types.ArchiveImportItem, error)
+	CancelImportItem(context.Context, uint64, string, string) error
 	// MarkImportItemCompleted and MarkImportItemFailed atomically change item
 	// state and reconcile ArchiveImportBatch.Completed/Failed and Status.
 	MarkImportItemCompleted(context.Context, uint64, string, string) error
@@ -58,7 +59,11 @@ type ArchiveRepository interface {
 	DeliverReminder(context.Context, *types.ArchiveReminder, *types.ArchiveReminderOccurrence, *types.ArchiveNotification) error
 
 	ListTrashedDocuments(context.Context) ([]*types.ArchiveDocument, error)
-	ClaimMirrorDocument(context.Context, uint64, string) (*types.ArchiveDocument, error)
+	ClaimMirrorDocument(context.Context, uint64, string, string, time.Time) (*types.ArchiveDocument, error)
+	CompleteMirrorDocument(context.Context, uint64, string, string, string) error
+	FailMirrorDocument(context.Context, uint64, string, string, string, bool) error
+	RetryMirrorDocument(context.Context, uint64, string) error
+	RollbackMirrorRetry(context.Context, uint64, string, string) error
 	ListPendingMirrorDocuments(context.Context, time.Time, int) ([]*types.ArchiveDocument, error)
 	HardDeleteDocument(context.Context, uint64, string) error
 	CreateNotification(context.Context, *types.ArchiveNotification) error
@@ -86,6 +91,7 @@ type SmartArchiveService interface {
 	ListDocuments(context.Context, uint64, string, bool) ([]*types.ArchiveDocument, error)
 	UpdateDocument(context.Context, uint64, string, map[string]any) (*types.ArchiveDocument, error)
 	RetryExtraction(context.Context, uint64, string, string) (*types.ArchiveDocument, error)
+	CancelExtraction(context.Context, uint64, string) (*types.ArchiveDocument, error)
 	RetryMirror(context.Context, uint64, string) (*types.ArchiveDocument, error)
 	ArchiveDocument(context.Context, uint64, string, bool) (*types.ArchiveDocument, error)
 	DeleteDocument(context.Context, uint64, string) error

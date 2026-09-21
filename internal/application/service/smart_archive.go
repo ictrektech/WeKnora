@@ -351,9 +351,10 @@ func (s *smartArchiveService) enqueueImportItem(ctx context.Context, item *types
 	if s.task == nil || item == nil {
 		return errors.New("smart archive task queue is unavailable")
 	}
+	runID := uuid.NewString()
 	payload, err := json.Marshal(types.ArchiveImportTaskPayload{
 		TenantID: item.TenantID, BatchID: item.BatchID, ItemID: item.ID,
-		RunID: uuid.NewString(), FileHash: item.FileHash, ExtractionVersion: item.ExtractionVersion,
+		RunID: runID, FileHash: item.FileHash, ExtractionVersion: item.ExtractionVersion,
 	})
 	if err != nil {
 		return err
@@ -362,9 +363,12 @@ func (s *smartArchiveService) enqueueImportItem(ctx context.Context, item *types
 	if !ok {
 		queue = types.QueueDefault
 	}
+	// The durable item ID is the worker's idempotency key, but it cannot also
+	// be the Asynq task ID: a canceled task may still exist in Redis when the
+	// user immediately retries the same document.
 	_, err = s.task.Enqueue(asynq.NewTask(types.TypeSmartArchiveDocumentProcess, payload),
 		asynq.Queue(queue), asynq.MaxRetry(2), asynq.Timeout(10*time.Minute),
-		asynq.TaskID("smart-archive-"+item.ID))
+		asynq.TaskID("smart-archive-"+item.ID+"-"+runID))
 	return err
 }
 
@@ -375,7 +379,8 @@ func (s *smartArchiveService) enqueueMirrorTask(ctx context.Context, doc *types.
 	if doc == nil || doc.TenantID == 0 || strings.TrimSpace(doc.ID) == "" {
 		return errors.New("invalid smart archive mirror document")
 	}
-	payload, err := json.Marshal(types.ArchiveMirrorTaskPayload{TenantID: doc.TenantID, DocumentID: doc.ID})
+	runID := uuid.NewString()
+	payload, err := json.Marshal(types.ArchiveMirrorTaskPayload{TenantID: doc.TenantID, DocumentID: doc.ID, RunID: runID})
 	if err != nil {
 		return err
 	}
@@ -383,9 +388,16 @@ func (s *smartArchiveService) enqueueMirrorTask(ctx context.Context, doc *types.
 	if !ok {
 		queue = types.QueueDefault
 	}
-	_, err = s.task.Enqueue(asynq.NewTask(types.TypeSmartArchiveMirrorProcess, payload),
-		asynq.Queue(queue), asynq.MaxRetry(2), asynq.Timeout(10*time.Minute),
-		asynq.TaskID("smart-archive-mirror-"+doc.ID))
+	// The document ID is the durable idempotency key. Keep the Asynq task ID
+	// unique per attempt so a failed or archived task cannot block a retry.
+	opts := []asynq.Option{
+		asynq.Queue(queue), asynq.MaxRetry(2), asynq.Timeout(10 * time.Minute),
+		asynq.TaskID("smart-archive-mirror-" + doc.ID + "-" + runID),
+	}
+	if doc.MirrorStatus == types.ArchiveMirrorProcessing && doc.MirrorLeaseUntil != nil && doc.MirrorLeaseUntil.After(time.Now().UTC()) {
+		opts = append(opts, asynq.ProcessAt(*doc.MirrorLeaseUntil))
+	}
+	_, err = s.task.Enqueue(asynq.NewTask(types.TypeSmartArchiveMirrorProcess, payload), opts...)
 	return err
 }
 
@@ -432,6 +444,11 @@ func (s *smartArchiveService) ProcessDocument(ctx context.Context, task *asynq.T
 		}
 		return fmt.Errorf("%w: smart archive task scope mismatch", asynq.SkipRetry)
 	}
+	if canceled, cancelErr := s.finishCanceledArchiveImport(ctx, payload.TenantID, item.ID); cancelErr != nil {
+		return cancelErr
+	} else if canceled {
+		return nil
+	}
 	doc, err := s.repo.GetDocument(ctx, payload.TenantID, item.DocumentID)
 	if errors.Is(err, gorm.ErrRecordNotFound) || doc == nil {
 		return s.finishArchiveTaskFailure(ctx, payload.TenantID, payload.ItemID, ErrArchiveNotFound, true)
@@ -445,7 +462,15 @@ func (s *smartArchiveService) ProcessDocument(ctx context.Context, task *asynq.T
 				logger.Warnf(ctx, "smart archive: mirror enqueue deferred for %s: %v", doc.ID, enqueueErr)
 			}
 		}
-		return s.repo.MarkImportItemCompleted(ctx, payload.TenantID, item.ID, doc.ID)
+		if err := s.repo.MarkImportItemCompleted(ctx, payload.TenantID, item.ID, doc.ID); err != nil {
+			if canceled, cancelErr := s.finishCanceledArchiveImport(ctx, payload.TenantID, item.ID); cancelErr != nil {
+				return cancelErr
+			} else if canceled {
+				return nil
+			}
+			return err
+		}
+		return nil
 	}
 	filePath := strings.TrimSpace(item.FilePath)
 	if filePath == "" {
@@ -484,10 +509,48 @@ func (s *smartArchiveService) ProcessDocument(ctx context.Context, task *asynq.T
 	if err := s.processOneWithDocument(workerCtx, payload.TenantID, userID, batchID, upload, doc); err != nil {
 		return s.finishArchiveTaskFailure(ctx, payload.TenantID, payload.ItemID, err, false)
 	}
+	if canceled, cancelErr := s.finishCanceledArchiveImport(ctx, payload.TenantID, item.ID); cancelErr != nil {
+		return cancelErr
+	} else if canceled {
+		return nil
+	}
 	if err := s.repo.MarkImportItemCompleted(ctx, payload.TenantID, item.ID, doc.ID); err != nil {
+		if canceled, cancelErr := s.finishCanceledArchiveImport(ctx, payload.TenantID, item.ID); cancelErr != nil {
+			return cancelErr
+		} else if canceled {
+			return nil
+		}
 		return err
 	}
 	return nil
+}
+
+const archiveExtractionCanceledMessage = "用户已取消解析"
+
+// finishCanceledArchiveImport turns a concurrent user cancellation into a
+// durable terminal document state and prevents the worker from retrying it.
+func (s *smartArchiveService) finishCanceledArchiveImport(ctx context.Context, tenantID uint64, itemID string) (bool, error) {
+	item, err := s.repo.GetImportItem(ctx, tenantID, itemID)
+	if err != nil {
+		return false, err
+	}
+	if item == nil || item.Status != types.ArchiveImportItemCanceled {
+		return false, nil
+	}
+	doc, err := s.repo.GetDocument(ctx, tenantID, item.DocumentID)
+	if errors.Is(err, gorm.ErrRecordNotFound) || doc == nil {
+		return true, nil
+	}
+	if err != nil {
+		return true, err
+	}
+	doc.ExtractionStatus = types.ArchiveExtractionCanceled
+	doc.ErrorMessage = archiveExtractionCanceledMessage
+	if doc.MirrorStatus == types.ArchiveMirrorPending || doc.MirrorStatus == types.ArchiveMirrorProcessing {
+		doc.MirrorStatus = types.ArchiveMirrorNotStarted
+		doc.MirrorErrorMessage = ""
+	}
+	return true, s.repo.UpdateDocument(ctx, doc)
 }
 
 // ProcessMirror creates or re-submits the managed knowledge mirror from the
@@ -498,7 +561,7 @@ func (s *smartArchiveService) ProcessMirror(ctx context.Context, task *asynq.Tas
 		return fmt.Errorf("smart archive mirror task is nil: %w", asynq.SkipRetry)
 	}
 	var payload types.ArchiveMirrorTaskPayload
-	if err := json.Unmarshal(task.Payload(), &payload); err != nil || payload.TenantID == 0 || strings.TrimSpace(payload.DocumentID) == "" {
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil || payload.TenantID == 0 || strings.TrimSpace(payload.DocumentID) == "" || strings.TrimSpace(payload.RunID) == "" {
 		return fmt.Errorf("invalid smart archive mirror task payload: %w", asynq.SkipRetry)
 	}
 	doc, err := s.repo.GetDocument(ctx, payload.TenantID, payload.DocumentID)
@@ -506,7 +569,7 @@ func (s *smartArchiveService) ProcessMirror(ctx context.Context, task *asynq.Tas
 		return nil
 	}
 	if err != nil {
-		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+		return err
 	}
 	if doc.MirrorStatus == types.ArchiveMirrorSubmitted && strings.TrimSpace(doc.KnowledgeID) != "" {
 		return nil
@@ -514,15 +577,23 @@ func (s *smartArchiveService) ProcessMirror(ctx context.Context, task *asynq.Tas
 	if doc.ExtractionStatus != types.ArchiveExtractionCompleted && doc.ExtractionStatus != types.ArchiveExtractionReview {
 		return nil
 	}
-	if s.knowledge == nil || s.parseArtifacts == nil || s.files == nil {
-		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, errors.New("smart archive mirror dependencies are unavailable"))
-	}
-	doc, err = s.repo.ClaimMirrorDocument(ctx, payload.TenantID, payload.DocumentID)
+	doc, err = s.repo.ClaimMirrorDocument(ctx, payload.TenantID, payload.DocumentID, payload.RunID, time.Now().UTC())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Another run owns the live lease. Schedule a fresh wake-up at lease
+		// expiry so a lost worker is recovered without overlapping it.
+		current, getErr := s.repo.GetDocument(ctx, payload.TenantID, payload.DocumentID)
+		if getErr == nil && current != nil && current.MirrorStatus == types.ArchiveMirrorProcessing && current.MirrorLeaseUntil != nil && current.MirrorLeaseUntil.After(time.Now().UTC()) {
+			if enqueueErr := s.enqueueMirrorTask(ctx, current); enqueueErr != nil {
+				return enqueueErr
+			}
+		}
 		return nil
 	}
 	if err != nil {
-		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+		return err
+	}
+	if s.knowledge == nil || s.parseArtifacts == nil || s.files == nil {
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, errors.New("smart archive mirror dependencies are unavailable"))
 	}
 	mirrorCtx := archiveContextWithTenant(ctx, payload.TenantID)
 	if s.tenantRepo != nil {
@@ -535,22 +606,22 @@ func (s *smartArchiveService) ProcessMirror(ctx context.Context, task *asynq.Tas
 		if err == nil {
 			err = errors.New("smart archive parse artifact is unavailable")
 		}
-		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, err)
 	}
 	settings, err := s.GetSettings(mirrorCtx, payload.TenantID)
 	if err != nil || settings == nil || strings.TrimSpace(settings.ManagedKnowledgeBaseID) == "" {
 		if err == nil {
 			err = errors.New("smart archive managed knowledge base is unavailable")
 		}
-		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, err)
 	}
 	managedKB, err := s.resolveManagedArchiveKnowledgeBase(mirrorCtx, settings.ManagedKnowledgeBaseID, payload.TenantID)
 	if err != nil {
-		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, err)
 	}
 	mutationCtx, err := withSmartArchiveKnowledgeWrite(mirrorCtx, managedKB, payload.TenantID)
 	if err != nil {
-		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, err)
 	}
 	var knowledge *types.Knowledge
 	if strings.TrimSpace(doc.KnowledgeID) != "" {
@@ -563,36 +634,47 @@ func (s *smartArchiveService) ProcessMirror(ctx context.Context, task *asynq.Tas
 	} else {
 		file, fileErr := s.files.GetFile(mirrorCtx, doc.FilePath)
 		if fileErr != nil {
-			return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, fileErr)
+			return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, fileErr)
 		}
 		max := int64(secutils.GetMaxFileSizeMB()) * 1024 * 1024
 		data, readErr := io.ReadAll(io.LimitReader(file, max+1))
 		_ = file.Close()
 		if readErr != nil {
-			return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, readErr)
+			return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, readErr)
 		}
 		if int64(len(data)) > max {
-			return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, fmt.Errorf("file exceeds size limit of %dMB", secutils.GetMaxFileSizeMB()))
+			return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, fmt.Errorf("file exceeds size limit of %dMB", secutils.GetMaxFileSizeMB()))
 		}
 		upload := storedArchiveUpload{name: doc.FileName, mime: archiveImageMIME(doc.FileType), size: int64(len(data)), data: data}
 		knowledge, err = s.createManagedKnowledge(mutationCtx, settings.ManagedKnowledgeBaseID, upload, doc.ID, artifact.ID)
+		if err != nil {
+			// CreateKnowledgeFromFile reports an existing file as a duplicate.
+			// A previous mirror attempt may have created the managed row before
+			// the archive link was persisted; safely adopt it only when its
+			// metadata proves it belongs to this archive document.
+			var duplicate *types.DuplicateKnowledgeError
+			if errors.As(err, &duplicate) && managedArchiveMirrorMatches(duplicate.Knowledge, doc.ID) {
+				knowledge = duplicate.Knowledge
+				err = nil
+			}
+		}
 	}
 	if err != nil || knowledge == nil {
 		if err == nil {
 			err = errors.New("managed knowledge mirror was not created")
 		}
-		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, err)
 	}
-	doc.KnowledgeID = knowledge.ID
-	doc.MirrorStatus = types.ArchiveMirrorSubmitted
-	doc.MirrorErrorMessage = ""
-	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
-		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+	if err := s.repo.CompleteMirrorDocument(ctx, payload.TenantID, payload.DocumentID, payload.RunID, knowledge.ID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, payload.RunID, err)
 	}
 	return nil
 }
 
-func (s *smartArchiveService) finishMirrorTaskFailure(ctx context.Context, tenantID uint64, documentID string, taskErr error) error {
+func (s *smartArchiveService) finishMirrorTaskFailure(ctx context.Context, tenantID uint64, documentID, runID string, taskErr error) error {
 	if taskErr == nil {
 		taskErr = errors.New("smart archive mirror task failed")
 	}
@@ -606,20 +688,11 @@ func (s *smartArchiveService) finishMirrorTaskFailure(ctx context.Context, tenan
 	if !retryOK || !maxOK || maxRetry <= 0 {
 		maxRetry = 2
 	}
-	doc, getErr := s.repo.GetDocument(ctx, tenantID, documentID)
-	if getErr != nil && !errors.Is(getErr, gorm.ErrRecordNotFound) {
-		return getErr
-	}
-	if doc != nil && doc.TrashedAt == nil {
-		doc.MirrorErrorMessage = taskErr.Error()
-		if retryCount < maxRetry {
-			doc.MirrorStatus = types.ArchiveMirrorPending
-		} else {
-			doc.MirrorStatus = types.ArchiveMirrorFailed
+	if err := s.repo.FailMirrorDocument(ctx, tenantID, documentID, runID, taskErr.Error(), retryCount < maxRetry); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
 		}
-		if updateErr := s.repo.UpdateDocument(ctx, doc); updateErr != nil {
-			return updateErr
-		}
+		return err
 	}
 	if retryCount < maxRetry {
 		return taskErr
@@ -630,6 +703,11 @@ func (s *smartArchiveService) finishMirrorTaskFailure(ctx context.Context, tenan
 func (s *smartArchiveService) finishArchiveTaskFailure(ctx context.Context, tenantID uint64, itemID string, taskErr error, terminal bool) error {
 	if taskErr == nil {
 		taskErr = errors.New("smart archive task failed")
+	}
+	if canceled, err := s.finishCanceledArchiveImport(ctx, tenantID, itemID); err != nil {
+		return err
+	} else if canceled {
+		return nil
 	}
 	retryCount, retryOK := asynq.GetRetryCount(ctx)
 	maxRetry, maxOK := asynq.GetMaxRetry(ctx)
@@ -664,8 +742,8 @@ func (s *smartArchiveService) finishArchiveTaskFailure(ctx context.Context, tena
 }
 
 // RecoverPendingImports re-arms queued and expired-lease items after a
-// restart. The database lease and deterministic task ID make this safe to run
-// on every instance; an already-enqueued task is simply left in place.
+// restart. Database leases keep duplicate deliveries from doing the work
+// concurrently even though each enqueue attempt has its own task ID.
 func (s *smartArchiveService) RecoverPendingImports(ctx context.Context) error {
 	if s.task == nil {
 		return errors.New("smart archive task queue is unavailable")
@@ -686,8 +764,9 @@ func (s *smartArchiveService) RecoverPendingImports(ctx context.Context) error {
 	return firstErr
 }
 
-// RecoverPendingMirrors re-enqueues mirror work that was left pending or
-// processing by a process restart. The archive row remains the durable queue.
+// RecoverPendingMirrors re-enqueues pending mirror work and schedules a
+// wake-up at the lease deadline for processing work. The archive row remains
+// the durable queue.
 func (s *smartArchiveService) RecoverPendingMirrors(ctx context.Context) error {
 	if s.task == nil {
 		return errors.New("smart archive task queue is unavailable")
@@ -1760,7 +1839,9 @@ func (s *smartArchiveService) RetryExtraction(ctx context.Context, tenantID uint
 	if err != nil {
 		return nil, err
 	}
-	if doc.ExtractionStatus != types.ArchiveExtractionFailed && doc.ExtractionStatus != types.ArchiveExtractionReview {
+	if doc.ExtractionStatus != types.ArchiveExtractionFailed &&
+		doc.ExtractionStatus != types.ArchiveExtractionReview &&
+		doc.ExtractionStatus != types.ArchiveExtractionCanceled {
 		return nil, ErrArchiveInvalidState
 	}
 	// Look up the durable queue row before changing the document state. A
@@ -1825,6 +1906,44 @@ func (s *smartArchiveService) RetryExtraction(ctx context.Context, tenantID uint
 	return doc, nil
 }
 
+func (s *smartArchiveService) CancelExtraction(ctx context.Context, tenantID uint64, id string) (*types.ArchiveDocument, error) {
+	doc, err := s.repo.GetDocument(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	switch doc.ExtractionStatus {
+	case types.ArchiveExtractionUploading, types.ArchiveExtractionParsing, types.ArchiveExtractionExtracting, types.ArchiveExtractionLinking:
+	default:
+		return nil, ErrArchiveInvalidState
+	}
+	item, err := s.repo.GetImportItemByFingerprint(ctx, tenantID, doc.FileHash, doc.ExtractionVersion)
+	if errors.Is(err, gorm.ErrRecordNotFound) || item == nil {
+		return nil, ErrArchiveInvalidState
+	}
+	if err != nil {
+		return nil, err
+	}
+	if item.Status == types.ArchiveImportItemCompleted {
+		return nil, ErrArchiveInvalidState
+	}
+	if err := s.repo.CancelImportItem(ctx, tenantID, item.ID, archiveExtractionCanceledMessage); err != nil {
+		if errors.Is(err, gorm.ErrInvalidData) {
+			return nil, ErrArchiveInvalidState
+		}
+		return nil, err
+	}
+	doc.ExtractionStatus = types.ArchiveExtractionCanceled
+	doc.ErrorMessage = archiveExtractionCanceledMessage
+	if doc.MirrorStatus == types.ArchiveMirrorPending || doc.MirrorStatus == types.ArchiveMirrorProcessing {
+		doc.MirrorStatus = types.ArchiveMirrorNotStarted
+		doc.MirrorErrorMessage = ""
+	}
+	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
 func (s *smartArchiveService) RetryMirror(ctx context.Context, tenantID uint64, id string) (*types.ArchiveDocument, error) {
 	doc, err := s.GetDocument(ctx, tenantID, id)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1836,6 +1955,9 @@ func (s *smartArchiveService) RetryMirror(ctx context.Context, tenantID uint64, 
 	if doc.TrashedAt != nil || (doc.ExtractionStatus != types.ArchiveExtractionCompleted && doc.ExtractionStatus != types.ArchiveExtractionReview) {
 		return nil, ErrArchiveInvalidState
 	}
+	if doc.MirrorStatus != types.ArchiveMirrorFailed {
+		return nil, ErrArchiveInvalidState
+	}
 	if s.knowledge == nil || s.parseArtifacts == nil {
 		return nil, errors.New("smart archive mirror service is unavailable")
 	}
@@ -1845,12 +1967,20 @@ func (s *smartArchiveService) RetryMirror(ctx context.Context, tenantID uint64, 
 	if _, err := s.parseArtifacts.GetByFingerprint(archiveContextWithTenant(ctx, tenantID), tenantID, doc.FileHash, types.DocumentParseArtifactVersion); err != nil {
 		return nil, ErrArchiveInvalidState
 	}
-	doc.MirrorStatus = types.ArchiveMirrorPending
-	doc.MirrorErrorMessage = ""
-	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+	if err := s.repo.RetryMirrorDocument(ctx, tenantID, id); err != nil {
+		if errors.Is(err, gorm.ErrInvalidData) || errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrArchiveInvalidState
+		}
 		return nil, err
 	}
+	doc.MirrorStatus = types.ArchiveMirrorPending
+	doc.MirrorErrorMessage = ""
+	doc.MirrorRunID = ""
+	doc.MirrorLeaseUntil = nil
 	if err := s.enqueueMirrorTask(ctx, doc); err != nil {
+		if rollbackErr := s.repo.RollbackMirrorRetry(ctx, tenantID, id, err.Error()); rollbackErr != nil && !errors.Is(rollbackErr, gorm.ErrRecordNotFound) {
+			return nil, errors.Join(err, rollbackErr)
+		}
 		return nil, err
 	}
 	return doc, nil
@@ -1980,10 +2110,10 @@ func (s *smartArchiveService) permanentlyDeleteDocument(ctx context.Context, ten
 	if err != nil {
 		return err
 	}
-	// Purge is exposed from the archived view, so keep the same state
-	// restriction in the service layer as well. This prevents a caller from
-	// turning the endpoint into a general-purpose destructive delete API.
-	if row.ArchivedAt == nil || row.TrashedAt != nil {
+	// Keep trashed documents out of this path; the recycle-bin retention job
+	// owns their eventual removal. The admin-only endpoint may purge either an
+	// active or an archived document explicitly selected by the operator.
+	if row.TrashedAt != nil {
 		return ErrArchiveInvalidState
 	}
 

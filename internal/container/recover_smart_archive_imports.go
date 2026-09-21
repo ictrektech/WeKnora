@@ -20,9 +20,9 @@ func recoverPendingSmartArchiveImports(svc interfaces.SmartArchiveService) {
 	}
 }
 
-// recoverPendingSmartArchiveMirrors re-arms mirror work left pending or
-// processing by a restart. The archive row is the durable queue; enqueueing is
-// idempotent through the document-based task ID.
+// recoverPendingSmartArchiveMirrors re-arms pending work and schedules a
+// wake-up at the lease deadline for in-flight work. The archive row is the
+// durable queue.
 func recoverPendingSmartArchiveMirrors(svc interfaces.SmartArchiveService) {
 	if svc == nil {
 		return

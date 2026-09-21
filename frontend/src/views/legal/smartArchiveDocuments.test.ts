@@ -64,6 +64,7 @@ test('maps extraction states to stable status tones', () => {
   assert.equal(archiveDocumentStatusTone('linking'), 'running')
   assert.equal(archiveDocumentStatusTone('completed'), 'completed')
   assert.equal(archiveDocumentStatusTone('failed'), 'failed')
+  assert.equal(archiveDocumentStatusTone('canceled'), 'canceled')
   assert.equal(archiveDocumentStatusTone('needs_review'), 'review')
 })
 
@@ -87,5 +88,10 @@ test('exposes one user-facing status across extraction and mirror stages', () =>
     status: 'needs_review',
     source: 'extraction',
     tone: 'review',
+  })
+  assert.deepEqual(archiveDocumentDisplayStatus({ extraction_status: 'canceled', mirror_status: 'not_started' }), {
+    status: 'canceled',
+    source: 'extraction',
+    tone: 'canceled',
   })
 })

@@ -7915,6 +7915,10 @@ export default {
     notifications: "알림",
     markRead: "읽음 처리",
     refresh: "새로 고침",
+    cancelExtraction: "파싱 취소",
+    cancelExtractionConfirm: "“{name}” 파싱을 취소하시겠습니까? 일부 결과는 보존됩니다.",
+    cancelExtractionSuccess: "파싱을 취소했습니다.",
+    cancelExtractionFailed: "파싱을 취소하지 못했습니다.",
     reidentify: "다시 인식",
     retryMirror: "동기화 재시도",
     mirrorRetryStarted: "미러 동기화를 다시 대기열에 추가했습니다.",
@@ -7975,6 +7979,7 @@ export default {
       needs_review: "검토 필요",
       completed: "완료",
       failed: "실패",
+      canceled: "취소됨",
     },
     mirrorStatuses: {
       not_started: "시작되지 않음",

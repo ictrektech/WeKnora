@@ -130,3 +130,15 @@ func TestDeleteManagedKnowledgeMirrorRejectsUnmanagedKnowledgeBase(t *testing.T)
 	require.Empty(t, knowledge.deletedID)
 	require.Equal(t, knowledge.knowledge.ID, doc.KnowledgeID)
 }
+
+func TestManagedArchiveMirrorMatchesOnlyItsArchiveDocument(t *testing.T) {
+	knowledge := &types.Knowledge{
+		Metadata: types.JSON([]byte(`{"source":"smart_archive","archive_document_id":"archive-1"}`)),
+	}
+
+	require.True(t, managedArchiveMirrorMatches(knowledge, "archive-1"))
+	require.False(t, managedArchiveMirrorMatches(knowledge, "archive-2"))
+	require.False(t, managedArchiveMirrorMatches(&types.Knowledge{
+		Metadata: types.JSON([]byte(`{"source":"manual","archive_document_id":"archive-1"}`)),
+	}, "archive-1"))
+}

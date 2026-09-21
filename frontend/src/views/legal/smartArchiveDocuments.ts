@@ -35,10 +35,11 @@ export function hasMoreArchiveDocuments(documents: ArchiveDocument[], total: num
   return documents.length < total
 }
 
-export function archiveDocumentStatusTone(status: ArchiveExtractionStatus): 'queued' | 'running' | 'completed' | 'failed' | 'review' {
+export function archiveDocumentStatusTone(status: ArchiveExtractionStatus): 'queued' | 'running' | 'completed' | 'failed' | 'review' | 'canceled' {
   if (status === 'uploading') return 'queued'
   if (status === 'completed') return 'completed'
   if (status === 'failed') return 'failed'
+  if (status === 'canceled') return 'canceled'
   if (status === 'needs_review') return 'review'
   return 'running'
 }
@@ -46,7 +47,7 @@ export function archiveDocumentStatusTone(status: ArchiveExtractionStatus): 'que
 export interface ArchiveDocumentDisplayStatus {
   status: ArchiveExtractionStatus | ArchiveMirrorStatus
   source: 'extraction' | 'mirror'
-  tone: 'queued' | 'running' | 'completed' | 'failed' | 'review'
+  tone: 'queued' | 'running' | 'completed' | 'failed' | 'review' | 'canceled'
 }
 
 /**

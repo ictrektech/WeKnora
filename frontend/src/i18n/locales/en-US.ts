@@ -92,6 +92,10 @@ export default {
     notifications: "Notifications",
     markRead: "Mark read",
     refresh: "Refresh",
+    cancelExtraction: "Cancel parsing",
+    cancelExtractionConfirm: "Cancel parsing “{name}”? Partial results will be kept.",
+    cancelExtractionSuccess: "Parsing canceled.",
+    cancelExtractionFailed: "Could not cancel parsing.",
     reidentify: "Re-identify",
     retryMirror: "Retry sync",
     mirrorRetryStarted: "Mirror sync was queued again.",
@@ -152,6 +156,7 @@ export default {
       needs_review: "Needs review",
       completed: "Completed",
       failed: "Failed",
+      canceled: "Canceled",
     },
     mirrorStatuses: {
       not_started: "Not started",

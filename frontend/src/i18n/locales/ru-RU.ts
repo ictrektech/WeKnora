@@ -7921,6 +7921,10 @@ export default {
     notifications: "Уведомления",
     markRead: "Прочитано",
     refresh: "Обновить",
+    cancelExtraction: "Отменить разбор",
+    cancelExtractionConfirm: "Отменить разбор «{name}»? Частичные результаты будут сохранены.",
+    cancelExtractionSuccess: "Разбор отменен.",
+    cancelExtractionFailed: "Не удалось отменить разбор.",
     reidentify: "Распознать снова",
     retryMirror: "Повторить синхронизацию",
     mirrorRetryStarted: "Синхронизация зеркала поставлена в очередь повторно.",
@@ -7981,6 +7985,7 @@ export default {
       needs_review: "Проверка",
       completed: "Готово",
       failed: "Ошибка",
+      canceled: "Отменено",
     },
     mirrorStatuses: {
       not_started: "Не начато",

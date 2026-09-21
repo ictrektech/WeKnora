@@ -148,6 +148,99 @@ func TestSmartArchiveRepositoryClaimsAndCompletesImportAtomically(t *testing.T) 
 	require.Equal(t, types.ArchiveImportBatchCompleted, gotBatch.Status)
 }
 
+func TestSmartArchiveRepositoryMirrorLeaseRejectsOverlappingAndStaleRuns(t *testing.T) {
+	f := newSmartArchiveRepositoryFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	doc := newArchiveDocument(1, "mirror-lease", "v1")
+	doc.ExtractionStatus = types.ArchiveExtractionCompleted
+	doc.MirrorStatus = types.ArchiveMirrorPending
+	require.NoError(t, f.repo.CreateDocument(ctx, doc))
+
+	claimed, err := f.repo.ClaimMirrorDocument(ctx, 1, doc.ID, "run-1", now)
+	require.NoError(t, err)
+	require.Equal(t, types.ArchiveMirrorProcessing, claimed.MirrorStatus)
+	require.Equal(t, "run-1", claimed.MirrorRunID)
+	require.NotNil(t, claimed.MirrorLeaseUntil)
+
+	_, err = f.repo.ClaimMirrorDocument(ctx, 1, doc.ID, "run-2", now.Add(time.Minute))
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	_, err = f.repo.ClaimMirrorDocument(ctx, 1, doc.ID, "run-1", now.Add(time.Minute))
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound, "even the same task must not bypass a live lease")
+	require.ErrorIs(t, f.repo.RetryMirrorDocument(ctx, 1, doc.ID), gorm.ErrInvalidData, "an HTTP retry must not reset an active lease")
+	pending, err := f.repo.ListPendingMirrorDocuments(ctx, now.Add(time.Minute), 10)
+	require.NoError(t, err)
+	require.Len(t, pending, 1, "startup recovery must schedule a wake-up for the lease deadline")
+
+	recoveryAt := now.Add(12 * time.Minute)
+	pending, err = f.repo.ListPendingMirrorDocuments(ctx, recoveryAt, 10)
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
+	_, err = f.repo.ClaimMirrorDocument(ctx, 1, doc.ID, "run-2", recoveryAt)
+	require.NoError(t, err)
+	require.ErrorIs(t, f.repo.CompleteMirrorDocument(ctx, 1, doc.ID, "run-1", "stale-knowledge"), gorm.ErrRecordNotFound)
+	require.NoError(t, f.repo.CompleteMirrorDocument(ctx, 1, doc.ID, "run-2", "knowledge-2"))
+
+	completed, err := f.repo.GetDocument(ctx, 1, doc.ID)
+	require.NoError(t, err)
+	require.Equal(t, types.ArchiveMirrorSubmitted, completed.MirrorStatus)
+	require.Equal(t, "knowledge-2", completed.KnowledgeID)
+	require.Empty(t, completed.MirrorRunID)
+	require.Nil(t, completed.MirrorLeaseUntil)
+}
+
+func TestSmartArchiveRepositoryMirrorRetryTransitionIsAtomic(t *testing.T) {
+	f := newSmartArchiveRepositoryFixture(t)
+	ctx := context.Background()
+	doc := newArchiveDocument(1, "mirror-retry", "v1")
+	doc.ExtractionStatus = types.ArchiveExtractionCompleted
+	doc.MirrorStatus = types.ArchiveMirrorFailed
+	doc.MirrorErrorMessage = "temporary failure"
+	require.NoError(t, f.repo.CreateDocument(ctx, doc))
+
+	require.NoError(t, f.repo.RetryMirrorDocument(ctx, 1, doc.ID))
+	require.NoError(t, f.repo.RollbackMirrorRetry(ctx, 1, doc.ID, "redis unavailable"))
+	rolledBack, err := f.repo.GetDocument(ctx, 1, doc.ID)
+	require.NoError(t, err)
+	require.Equal(t, types.ArchiveMirrorFailed, rolledBack.MirrorStatus)
+	require.Equal(t, "redis unavailable", rolledBack.MirrorErrorMessage)
+
+	require.NoError(t, f.repo.RetryMirrorDocument(ctx, 1, doc.ID), "retry must remain available after enqueue rollback")
+	require.ErrorIs(t, f.repo.RetryMirrorDocument(ctx, 1, doc.ID), gorm.ErrInvalidData)
+	queued, err := f.repo.GetDocument(ctx, 1, doc.ID)
+	require.NoError(t, err)
+	require.Equal(t, types.ArchiveMirrorPending, queued.MirrorStatus)
+	require.Empty(t, queued.MirrorErrorMessage)
+}
+
+func TestSmartArchiveRepositoryCancelImportItemStopsRecovery(t *testing.T) {
+	f := newSmartArchiveRepositoryFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	batch := &types.ArchiveImportBatch{TenantID: 1, UserID: "user-1", Total: 1}
+	require.NoError(t, f.repo.CreateBatch(ctx, batch))
+	item := &types.ArchiveImportItem{
+		TenantID: 1, BatchID: batch.ID, FileName: "contract.pdf", FileHash: "cancel-bytes",
+		ExtractionVersion: "v1", FilePath: "/tmp/contract.pdf", AvailableAt: &now,
+	}
+	require.NoError(t, f.repo.CreateImportItem(ctx, item))
+	require.NoError(t, f.repo.CancelImportItem(ctx, 1, item.ID, "user canceled extraction"))
+	require.NoError(t, f.repo.CancelImportItem(ctx, 1, item.ID, "user canceled extraction"), "cancellation must be idempotent")
+
+	canceled, err := f.repo.GetImportItem(ctx, 1, item.ID)
+	require.NoError(t, err)
+	require.Equal(t, types.ArchiveImportItemCanceled, canceled.Status)
+	require.Empty(t, canceled.RunID)
+	require.Equal(t, "user canceled extraction", canceled.ErrorMessage)
+	pending, err := f.repo.ListPendingImportItems(ctx, now.Add(time.Hour), 10)
+	require.NoError(t, err)
+	require.Empty(t, pending)
+	gotBatch, err := f.repo.GetBatch(ctx, 1, batch.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, gotBatch.Failed)
+	require.Equal(t, types.ArchiveImportBatchFailed, gotBatch.Status)
+}
+
 func TestSmartArchiveRepositoryFailureRetryReconcilesBatchCounters(t *testing.T) {
 	f := newSmartArchiveRepositoryFixture(t)
 	ctx := context.Background()

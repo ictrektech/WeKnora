@@ -20,6 +20,7 @@ func RegisterSmartArchiveRoutes(r *gin.RouterGroup, h *handler.SmartArchiveHandl
 	archive.GET("/documents/:id", g.Viewer(), h.GetDocument)
 	archive.PATCH("/documents/:id", g.Contributor(), h.UpdateDocument)
 	archive.POST("/documents/:id/retry-extraction", g.Contributor(), h.RetryExtraction)
+	archive.POST("/documents/:id/cancel-extraction", g.Contributor(), h.CancelExtraction)
 	archive.POST("/documents/:id/retry-mirror", g.Contributor(), h.RetryMirror)
 	archive.POST("/documents/:id/archive", g.Contributor(), h.ArchiveDocument)
 	archive.POST("/documents/:id/restore", g.Admin(), h.RestoreDocument)

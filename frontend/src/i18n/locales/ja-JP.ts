@@ -91,6 +91,10 @@ export default {
     notifications: "通知",
     markRead: "既読にする",
     refresh: "更新",
+    cancelExtraction: "解析をキャンセル",
+    cancelExtractionConfirm: "「{name}」の解析をキャンセルしますか？途中結果は保持されます。",
+    cancelExtractionSuccess: "解析をキャンセルしました。",
+    cancelExtractionFailed: "解析をキャンセルできませんでした。",
     reidentify: "再認識",
     retryMirror: "同期を再試行",
     mirrorRetryStarted: "ミラー同期を再キューしました。",
@@ -151,6 +155,7 @@ export default {
       needs_review: "要確認",
       completed: "完了",
       failed: "失敗",
+      canceled: "キャンセル済み",
     },
     mirrorStatuses: {
       not_started: "未開始",

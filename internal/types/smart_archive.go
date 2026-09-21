@@ -52,6 +52,7 @@ const (
 	ArchiveExtractionReview     ArchiveExtractionStatus = "needs_review"
 	ArchiveExtractionCompleted  ArchiveExtractionStatus = "completed"
 	ArchiveExtractionFailed     ArchiveExtractionStatus = "failed"
+	ArchiveExtractionCanceled   ArchiveExtractionStatus = "canceled"
 
 	ArchiveLinkPending   ArchiveLinkStatus = "pending"
 	ArchiveLinkConfirmed ArchiveLinkStatus = "confirmed"
@@ -221,6 +222,7 @@ type ArchiveImportTaskPayload struct {
 type ArchiveMirrorTaskPayload struct {
 	TenantID   uint64 `json:"tenant_id"`
 	DocumentID string `json:"document_id"`
+	RunID      string `json:"run_id"`
 }
 
 type ArchiveDocument struct {
@@ -254,6 +256,8 @@ type ArchiveDocument struct {
 	ErrorMessage       string                  `json:"error_message,omitempty" gorm:"type:text"`
 	MirrorStatus       ArchiveMirrorStatus     `json:"mirror_status" gorm:"type:varchar(24);not null;default:'not_started';index"`
 	MirrorErrorMessage string                  `json:"mirror_error_message,omitempty" gorm:"type:text"`
+	MirrorRunID        string                  `json:"-" gorm:"type:varchar(64);not null;default:'';index"`
+	MirrorLeaseUntil   *time.Time              `json:"-" gorm:"index"`
 	ArchivedAt         *time.Time              `json:"archived_at,omitempty" gorm:"index"`
 	TrashedAt          *time.Time              `json:"trashed_at,omitempty" gorm:"index"`
 	CreatedBy          string                  `json:"created_by" gorm:"type:varchar(64);not null;index"`
