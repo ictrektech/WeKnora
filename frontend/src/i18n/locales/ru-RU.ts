@@ -2393,6 +2393,8 @@ export default {
       }
     },
     debug: {
+      reasoningEffort: 'Интенсивность размышлений',
+      reasoningEffortDesc: 'Отправляет reasoning_effort с уровнями, которые сообщает каталог модели',
       title: 'Тест модели',
       description: 'Запрос с сохранёнными настройками модели. Перед проверкой сохраните изменения.',
       groupModel: 'Выбор модели',
@@ -2422,8 +2424,8 @@ export default {
       run: 'Запустить тест',
       copyResult: 'Копировать результат',
       history: 'История',
-      thinkOn: 'Размышление вкл.',
-      thinkOff: 'Размышление выкл.',
+      thinkOn: 'Размышление включено',
+      thinkOff: 'Размышление выключено',
       runLabel: 'Запуск №{n}',
       success: 'Запрос выполнен',
       failed: 'Запрос не выполнен',
@@ -2431,6 +2433,9 @@ export default {
       requestPreview: 'Просмотр запроса',
       requestFailed: 'Не удалось выполнить тест модели',
       metrics: {
+        api: 'Протокол',
+        thinkingFormat: 'Формат размышлений',
+        requestedReasoningEffort: 'Запрошенная интенсивность',
         dimension: 'Размерность вектора',
         resultCount: 'Количество результатов',
         answerChars: 'Символов в ответе',
@@ -2773,6 +2778,28 @@ export default {
     languageSaved: 'Настройки языка сохранены'
   },
   model: {
+    reasoning: {
+      levels: {
+        off: 'Выкл',
+        auto: 'Авто',
+        minimal: 'Минимальный',
+        low: 'Низкий',
+        medium: 'Средний',
+        high: 'Высокий',
+        xhigh: 'Очень высокий',
+        max: 'Максимальный',
+      },
+      levelDescriptions: {
+        off: 'Размышления отключены, параметры размышления не отправляются',
+        auto: 'Интенсивность по умолчанию поставщика; модель сама решает, сколько думать',
+        minimal: 'Минимум размышлений, самые быстрые ответы',
+        low: 'Лёгкие размышления',
+        medium: 'Умеренные размышления',
+        high: 'Глубокие размышления, ответы медленнее',
+        xhigh: 'Очень большой бюджет размышлений (только некоторые модели)',
+        max: 'Максимальный бюджет размышлений (только некоторые модели)',
+      },
+    },
     modelName: 'Название модели',
     defaultTag: 'По умолчанию',
     addModelInSettings: 'Перейти в общие настройки для добавления моделей',
@@ -2781,6 +2808,53 @@ export default {
     searchPlaceholder: 'Поиск моделей...',
     builtinTag: 'Built-in',
     editor: {
+      maxOutputTokensLabel: 'Макс. выходных токенов',
+      maxOutputTokensPlaceholder: 'Пусто — значение из каталога',
+      maxOutputTokensDesc: 'Лимит вывода на один ответ. Оставьте пустым, чтобы использовать значение каталога для этой модели.',
+      catalog: {
+        reasoning: 'Рассуждение',
+        vision: 'Зрение',
+        hint: 'Выберите модель из каталога поставщика или введите своё имя модели.',
+      },
+      resolved: {
+        title: 'Как вызывается модель',
+        empty: 'Укажите поставщика и имя модели, чтобы увидеть, как она будет вызвана',
+        failed: 'Не удалось определить',
+        protocol: 'Протокол запроса',
+        catalog: 'Источник возможностей',
+        catalogedYes: 'Встроенный профиль модели',
+        catalogedNo: 'Настройки поставщика (модели нет в каталоге)',
+        endpoint: 'Адрес запроса',
+        thinkingFormat: 'Переключатель размышлений',
+        thinkingLevels: 'Доступная интенсивность',
+        noThinking: 'Модель не умеет размышлять',
+      },
+      advanced: {
+        toggle: 'Дополнительно',
+        api: {
+          label: 'Переопределение протокола',
+          auto: 'Авто (по поставщику / URL)',
+          desc: 'Принудительно задать протокол запросов; обычно не требуется.',
+        },
+        remoteModelName: {
+          label: 'Имя модели у поставщика',
+          placeholder: 'Пусто — совпадает с именем модели',
+          desc: 'ID модели, который реально отправляется поставщику, если отличается от имени выше.',
+        },
+        legacyThinking: {
+          label: 'Формат параметров размышления (устаревший)',
+          catalog: 'Следовать каталогу (рекомендуется)',
+          none: 'Не отправлять параметры размышления',
+          desc: 'У этой модели сохранилась устаревшая настройка thinking_control. Выберите «Следовать каталогу», чтобы решение принимал каталог.',
+        },
+        compat: {
+          label: 'Переопределение совместимости протокола (JSON)',
+          placeholder: "{'{'} \"max_tokens_field\": \"max_tokens\" {'}'}",
+          desc: 'Переключатели совместимости, накладываемые на значения каталога для определённого протокола; см. catalog/compat.go на бэкенде. Пусто — без переопределения.',
+          invalid: 'Некорректный JSON',
+          mustBeObject: 'Должен быть JSON-объект',
+        },
+      },
       addTitle: 'Добавить модель',
       editTitle: 'Редактировать модель',
       sectionType: 'Тип модели',
@@ -2837,10 +2911,28 @@ export default {
       contextWindowTokens: '{count} токенов',
       maxConcurrencyLabel: 'Лимит фоновой параллельности',
       maxConcurrencyPlaceholder: '0 — использовать глобальное значение',
-      maxConcurrencyDesc: 'Ограничивает число одновременных фоновых вызовов (индексация/обогащение) к этой модели, общее для модели по всем репликам. 0 или пусто — используется глобальное значение по умолчанию; интерактивный чат не затрагивается.',
-      thinkingControlLabel: 'Формат параметров режима размышления',
-      thinkingControlDesc: 'Определяет, как переключатель «Режим размышления» агента записывается в API. При возможности выбирается по поставщику/модели; при несоответствии измените по документации API. При выборе «Не отправлять» переключатель «Режим размышления» агента не действует.',
-      dimensionHint: 'Модель выбрана. Нажмите «Определить размерность», чтобы автоматически получить значение.',
+    maxConcurrencyDesc: 'Ограничивает число одновременных фоновых вызовов (индексация/обогащение) к этой модели, общее для модели по всем репликам. 0 или пусто — используется глобальное значение по умолчанию; интерактивный чат не затрагивается.',
+      thinkingControlLabel: 'Thinking mode request format',
+      thinkingControlDesc: 'Controls how the agent thinking-mode switch is written to the API.',
+      thinkingControl: {
+        none: {
+          label: 'Do not send thinking fields',
+          hint: 'Thinking parameters are not sent in requests.',
+        },
+        chatTemplateKwargs: {
+          label: 'chat_template_kwargs',
+          hint: 'Custom OpenAI-compatible gateways, NVIDIA NIM, vLLM / local Qwen',
+        },
+        enableThinking: {
+          label: 'enable_thinking',
+          hint: 'Alibaba DashScope thinking parameter',
+        },
+        thinkingType: {
+          label: 'thinking.type',
+          hint: 'Volcengine Ark and Tencent LKEAP thinking parameter',
+        },
+      },
+    dimensionHint: 'Модель выбрана. Нажмите «Определить размерность», чтобы автоматически получить значение.',
       loadModelListFailed: 'Не удалось загрузить список моделей',
       listRefreshed: 'Список обновлён',
       fillModelAndUrl: 'Сначала заполните идентификатор модели и Base URL',
@@ -2862,144 +2954,119 @@ export default {
       goToOllamaSettings: 'Открыть настройки',
       providerLabel: 'Провайдер',
       providerPlaceholder: 'Выберите провайдера модели',
+      providerDocs: 'Документация моделей {provider}',
       providers: {
-        novita: {
-          label: 'Novita AI',
-          description: 'moonshotai/kimi-k2.5, zai-org/glm-5, minimax/minimax-m2.7, qwen/qwen3-embedding-0.6b, etc.'
-        },
-        nvidia: {
-          label: 'NVIDIA',
-          description: 'deepseek-ai-deepseek-v3_1, nv-embed-v1, rerank-qa-mistral-4b, etc.'
-        },
-        lkeap: {
-          label: 'Tencent Cloud LKEAP',
-          description: 'DeepSeek-R1, DeepSeek-V3, lke-reranker-base и др.'
-        },
-        longcat: {
-          label: 'LongCat AI',
-          description: 'LongCat-Flash-Chat, LongCat-Flash-Thinking, etc.'
-        },
-        qianfan: {
-          label: 'Baidu Qianfan',
-          description: 'ernie-5.0-thinking-preview, embedding-v1, bce-reranker-base, etc.'
-        },
-        moonshot: {
-          label: 'Moonshot',
-          description: 'kimi-k2-turbo-preview, moonshot-v1-8k-vision-preview, etc.'
-        },
-        qiniu: {
-          label: 'Qiniu Cloud',
-          description: 'deepseek/deepseek-v3.2-251201, z-ai/glm-4.7, etc.'
-        },
-        modelscope: {
-          label: 'ModelScope',
-          description: 'Qwen/Qwen3-8B, Qwen/Qwen3-Embedding-8B, etc.'
-        },
-        gpustack: {
-          label: 'GPUStack',
-          description: 'Choose your deployed model on GPUStack'
-        },
-        gemini: {
-          label: 'Google Gemini',
-          description: 'gemini-3-flash-preview, gemini-2.5-pro, etc.'
-        },
-        mimo: {
-          label: 'MiMo',
-          description: 'mimo-v2-flash'
-        },
-        minimax: {
-          label: 'MiniMax',
-          description: 'MiniMax-M3, MiniMax-M2.7, MiniMax-M2.7-highspeed, etc.'
-        },
-        hunyuan: {
-          label: 'Hunyuan',
-          description: 'hunyuan-pro, hunyuan-standard, hunyuan-embedding, etc.'
-        },
-        deepseek: {
-          label: 'DeepSeek',
-          description: 'deepseek-chat, deepseek-reasoner, etc.'
-        },
-        volcengine: {
-          label: 'Volcengine',
-          description: 'doubao-1-5-pro-32k-250115, doubao-embedding-vision-250615, etc.'
-        },
-        jina: {
-          label: 'Jina',
-          description: 'jina-clip-v1, jina-embeddings-v2-base-zh, etc.'
-        },
-        siliconflow: {
-          label: 'SiliconFlow',
-          description: 'deepseek-ai/DeepSeek-V3.1, etc.'
-        },
-        generic: {
-          label: 'Пользовательский (OpenAI-совместимый)',
-          description: 'Generic API endpoint'
-        },
-        requesty: {
-          label: 'Requesty',
-          description: 'openai/gpt-4o-mini, anthropic/claude-sonnet-4-5, etc.'
-        },
-        openrouter: {
-          label: 'OpenRouter',
-          description: 'openai/gpt-5.2-chat, google/gemini-3-flash-preview, etc.'
-        },
-        litellm: {
-          label: 'LiteLLM',
-          description: 'Self-hosted прокси к 100+ провайдерам (OpenAI, Anthropic, Gemini, Bedrock и др.). Замените URL-заглушку; localhost нужно добавить в SSRF_WHITELIST.'
-        },
-        zhipu: {
-          label: 'Zhipu BigModel',
-          description: 'glm-4.7, embedding-3, rerank, etc.'
-        },
-        aliyun: {
-          label: 'Aliyun DashScope',
-          description: 'qwen-plus, tongyi-embedding-vision-plus, qwen3-rerank, etc.'
-        },
-        azure_openai: {
-          label: 'Azure OpenAI',
-          description: 'Сервис OpenAI на платформе Microsoft Azure'
+        openai: {
+          label: 'OpenAI',
+          description: 'gpt-5.2, gpt-5-mini, etc.',
         },
         anthropic: {
           label: 'Anthropic',
-          description: 'Claude models via native Anthropic Messages API'
+          description: 'Claude models via native Anthropic Messages API',
         },
-        openai: {
-          label: 'OpenAI',
-          description: 'gpt-5.2, gpt-5-mini, etc.'
-        }
-      },
-      validation: {
-        modelNameRequired: 'Введите название модели',
-        modelNameEmpty: 'Название модели не может быть пустым',
-        modelNameMax: 'Название модели не может превышать 100 символов',
-        baseUrlRequired: 'Введите Base URL',
-        baseUrlEmpty: 'Base URL не может быть пустым',
-        baseUrlInvalid: 'Недопустимый Base URL, введите корректный адрес'
-      },
-      thinkingControl: {
-        thinkingType: {
-          label: 'thinking.type',
-          hint: 'Volcengine Ark; Tencent LKEAP (DeepSeek V3 и др.; по умолчанию для LKEAP; для R1 — «Не отправлять»)'
+        azure_openai: {
+          label: 'Azure OpenAI',
+          description: 'OpenAI service hosted on Microsoft Azure',
         },
-        enableThinking: {
-          label: 'enable_thinking',
-          hint: 'Alibaba DashScope: qwen3, qwen-plus, qwen-max, qwen-turbo'
+        aliyun: {
+          label: 'Aliyun DashScope',
+          description: 'qwen-plus, tongyi-embedding-vision-plus, qwen3-rerank, etc.',
         },
-        chatTemplateKwargs: {
-          label: 'chat_template_kwargs',
-          hint: 'Пользовательские OpenAI-совместимые шлюзы, NVIDIA NIM, vLLM / локальный Qwen'
+        zhipu: {
+          label: 'Zhipu BigModel',
+          description: 'glm-4.7, embedding-3, rerank, etc.',
         },
-        none: {
-          label: 'Не отправлять параметры размышления',
-          hint: 'Переключатель «Режим размышления» агента не действует; параметры размышления не отправляются в запросе'
-        }
+        openrouter: {
+          label: 'OpenRouter',
+          description: 'openai/gpt-5.2-chat, google/gemini-3-flash-preview, etc.',
+        },
+        litellm: {
+          label: 'LiteLLM',
+          description: 'Self-hosted proxy to 100+ providers.',
+        },
+        requesty: {
+          label: 'Requesty',
+          description: 'openai/gpt-4o-mini, anthropic/claude-sonnet-4-5, etc.',
+        },
+        generic: {
+          label: 'Custom (OpenAI-compatible)',
+          description: 'Generic API endpoint',
+        },
+        siliconflow: {
+          label: 'SiliconFlow',
+          description: 'deepseek-ai/DeepSeek-V3.1, etc.',
+        },
+        jina: {
+          label: 'Jina',
+          description: 'jina-clip-v1, jina-embeddings-v2-base-zh, etc.',
+        },
+        volcengine: {
+          label: 'Volcengine',
+          description: 'doubao-1-5-pro-32k-250115, doubao-embedding-vision-250615, etc.',
+        },
+        deepseek: {
+          label: 'DeepSeek',
+          description: 'deepseek-chat, deepseek-reasoner, etc.',
+        },
+        hunyuan: {
+          label: 'Hunyuan',
+          description: 'hunyuan-pro, hunyuan-standard, hunyuan-embedding, etc.',
+        },
+        minimax: {
+          label: 'MiniMax',
+          description: 'MiniMax-M3, MiniMax-M2.7, MiniMax-M2.7-highspeed, etc.',
+        },
+        mimo: {
+          label: 'MiMo',
+          description: 'mimo-v2-flash',
+        },
+        gemini: {
+          label: 'Google Gemini',
+          description: 'gemini-3-flash-preview, gemini-2.5-pro, etc.',
+        },
+        gpustack: {
+          label: 'GPUStack',
+          description: 'Choose your deployed model on GPUStack',
+        },
+        modelscope: {
+          label: 'ModelScope',
+          description: 'Qwen/Qwen3-8B, Qwen/Qwen3-Embedding-8B, etc.',
+        },
+        qiniu: {
+          label: 'Qiniu Cloud',
+          description: 'deepseek/deepseek-v3.2-251201, z-ai/glm-4.7, etc.',
+        },
+        moonshot: {
+          label: 'Moonshot',
+          description: 'kimi-k2-turbo-preview, moonshot-v1-8k-vision-preview, etc.',
+        },
+        qianfan: {
+          label: 'Baidu Qianfan',
+          description: 'ernie-5.0-thinking-preview, embedding-v1, bce-reranker-base, etc.',
+        },
+        longcat: {
+          label: 'LongCat AI',
+          description: 'LongCat-Flash-Chat, LongCat-Flash-Thinking, etc.',
+        },
+        lkeap: {
+          label: 'Tencent Cloud LKEAP',
+          description: 'DeepSeek-R1, DeepSeek-V3, lke-reranker-base, etc.',
+        },
+        nvidia: {
+          label: 'NVIDIA',
+          description: 'deepseek-ai-deepseek-v3_1, nv-embed-v1, rerank-qa-mistral-4b, etc.',
+        },
+        novita: {
+          label: 'Novita AI',
+          description: 'moonshotai/kimi-k2.5, zai-org/glm-5, minimax/minimax-m2.7, qwen/qwen3-embedding-0.6b, etc.',
+        },
       },
       volcengine: {
         accessKeyLabel: 'Access Key ID',
         accessKeyPlaceholder: 'Volcengine Access Key ID',
         secretKeyLabel: 'Secret Access Key',
         secretKeyPlaceholder: 'Volcengine Secret Access Key',
-        rerankCredentialHint: 'Rerank использует подпись VikingDB AK/SK, а не Ark API key. Рекомендуемая модель: doubao-seed-rerank.'
+        rerankCredentialHint: 'Rerank uses VikingDB AK/SK signing, not an Ark API key.',
       },
       lkeap: {
         secretIdLabel: 'SecretId',
@@ -3009,7 +3076,16 @@ export default {
         regionLabel: 'Region',
         regionPlaceholder: 'ap-guangzhou',
         regionDesc: 'RunRerank supports ap-beijing, ap-guangzhou, etc. Default: ap-guangzhou',
-        rerankCredentialHint: 'Rerank uses Tencent Cloud API signature (not the OpenAI-style LKEAP API key). Create SecretId/SecretKey in the CAM console.'
+        rerankCredentialHint: 'Rerank uses Tencent Cloud API signature. Create SecretId/SecretKey in the CAM console.',
+      },
+      validation: {
+        extraFieldRequired: 'Заполните {name}',
+        modelNameRequired: 'Введите название модели',
+        modelNameEmpty: 'Название модели не может быть пустым',
+        modelNameMax: 'Название модели не может превышать 100 символов',
+        baseUrlRequired: 'Введите Base URL',
+        baseUrlEmpty: 'Base URL не может быть пустым',
+        baseUrlInvalid: 'Недопустимый Base URL, введите корректный адрес'
       },
       modelNamePlaceholder: {
         local: 'например: llama2:latest',
@@ -3870,6 +3946,21 @@ export default {
     referenceChunkCount: '{count} фрагмент(ов)',
     fallbackHint: 'В базе знаний не найдено релевантного содержимого. Выше представлен прямой ответ модели.',
     truncatedHint: 'Ответ обрезан на лимите вывода модели за один ответ. Выше — то, что было создано до обрыва.',
+    rewind: {
+      tooltip: 'Откатить сюда',
+      confirmBody: 'Сообщения после этой точки будут удалены. Откат от вопроса также убирает сам вопрос и возвращает его во ввод. Рабочая область откатится, если есть контрольная точка. Отменить действие нельзя.',
+      confirmButton: 'Откатить',
+      cancelButton: 'Отмена',
+      success: 'Сессия откачена',
+      busy: 'Дождитесь окончания текущего ответа, прежде чем откатывать',
+      noCheckpoint: 'Нельзя откатить: есть живая рабочая область, но нет достижимой контрольной точки',
+      sandboxReplaced: 'Нельзя откатить: песочница заменена, старая контрольная точка недоступна',
+      reloadFailed: 'Диалог откачен, но историю не удалось перезагрузить. Обновите страницу, если пропали более ранние сообщения',
+      failed: 'Не удалось откатить. Попробуйте ещё раз',
+      skipped: 'Диалог откачен, рабочая область не изменена',
+      skipNoSandbox: 'Диалог откачен, рабочая область не изменена (нет привязанной песочницы)',
+      skipNoCheckpoint: 'Диалог откачен, рабочая область не изменена (нет контрольной точки для отката)',
+    },
     requestInfoTitle: 'Request info',
     requestInfoRequestId: 'Request ID',
     requestInfoMessageId: 'Message ID',
@@ -3965,6 +4056,7 @@ export default {
     processError: 'Ошибка обработки',
     sessionExcerpt: 'Выдержка из сессии',
     noAnswerContent: '(Нет содержимого ответа)',
+    manualSourcesHeading: 'Источники',
     noMatchFound: 'Совпадений не найдено',
     deleteSessionFailed: 'Ошибка удаления, попробуйте позже!',
     imageTooMany: 'Максимум 5 изображений',
@@ -4355,6 +4447,9 @@ export default {
       revisionDiffContent: 'Содержимое',
       revisionDiffEmpty: 'Нет различий в заголовке, резюме и содержимом с текущей версией',
       revisionLoadFailed: 'Не удалось загрузить историю версий',
+      revisionNotRetained: 'Снимок этой версии не сохранён или был очищен',
+      revisionNotRetainedRange: 'v{ver} · полное содержимое',
+      revisionNotRetainedHint: 'Снимок предыдущей версии (v{prev}) не сохранён — для версий до обновления снимки не записывались, а старые могли быть очищены. Показано полное содержимое v{ver} с нуля.',
       revertBtn: 'Откатить к этой версии',
       revertConfirm: 'Откатить к v{ver}? Текущее содержимое сначала будет сохранено в историю.',
       revertSuccess: 'Выполнен откат к v{ver}',
@@ -4993,12 +5088,13 @@ export default {
     status: {
       draftTag: 'Статус: Черновик',
       publishedTag: 'Статус: Опубликовано',
-      lastUpdated: 'Последнее обновление: {time}'
+      lastUpdated: 'Последнее обновление: {time}',
+      counter: 'Символов: {chars} · Строк: {lines}'
     },
     form: {
-      knowledgeBaseLabel: 'Целевая база знаний',
       knowledgeBasePlaceholder: 'Выберите базу знаний',
       titleLabel: 'Заголовок знания',
+      knowledgeBaseLabel: 'Целевая база знаний',
       titlePlaceholder: 'Введите заголовок',
       contentPlaceholder: 'Поддерживается Markdown. Используйте # заголовки, списки, блоки кода и т.д.'
     },
@@ -5030,9 +5126,19 @@ export default {
     preview: {
       empty: 'Пока нет содержимого'
     },
+    shortcuts: {
+      title: 'Горячие клавиши',
+      continueList: 'Продолжить список',
+      indent: 'Отступ / Shift+Tab — назад'
+    },
     view: {
       editLabel: 'Вернуться к редактированию',
-      previewLabel: 'Предпросмотр'
+      previewLabel: 'Предпросмотр',
+      edit: 'Редактор',
+      split: 'Разделить',
+      preview: 'Предпросмотр',
+      splitUnavailable: 'Расширьте панель или включите полный экран, чтобы разделить вид',
+      groupLabel: 'Вид редактора'
     },
     toolbar: {
       bold: 'Жирный',
@@ -5050,7 +5156,9 @@ export default {
       link: 'Вставить ссылку',
       image: 'Вставить изображение',
       table: 'Вставить таблицу',
-      horizontalRule: 'Горизонтальная линия'
+      horizontalRule: 'Горизонтальная линия',
+      headingGroup: 'Заголовок',
+      insertGroup: 'Вставить'
     },
     table: {
       column1: 'Колонка 1',
@@ -5096,6 +5204,8 @@ export default {
       discard: 'Отменить изменения',
       keepEditing: 'Продолжить редактирование',
     },
+    fullscreen: 'Полный экран',
+    exitFullscreen: 'Выйти из полного экрана',
     save: 'Сохранить',
     delete: 'Удалить',
     edit: 'Редактировать',
@@ -6424,6 +6534,8 @@ export default {
       capabilityUnconfigured: 'Not set'
     },
     editor: {
+      reasoningEffortUnsupported: 'Выбранная модель не поддерживает размышления; все варианты, кроме «Выкл», игнорируются.',
+      reasoningEffortAlwaysOn: 'Выбранная модель всегда размышляет, её нельзя отключить — можно менять только уровень усилий.',
       createTitle: 'Create Agent',
       editTitle: 'Edit Agent',
       buttons: {
@@ -6670,6 +6782,7 @@ export default {
     minutesAgo: '{n}m ago',
     noActivity: 'Нет активности парсинга',
     totalDuration: 'Всего: {d}',
+    total: 'Всего {d}',
     errorCode: {
       UNKNOWN_SUGGESTION: 'Проверьте логи приложения для подробностей.'
     },
@@ -6724,6 +6837,8 @@ export default {
     head: {
       stagesDone: 'Main stages',
       stagesProgress: 'Current stage',
+      postprocessTasks: 'Постобработка: выполняется {running} / ошибок {failed} / готово {completed}',
+      completedWithActiveTrace: 'Обработка завершена, но активны задачи Trace: {n}',
       attempt: 'Attempt',
       updated: 'Updated'
     },

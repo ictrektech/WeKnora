@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/models/api"
 	"github.com/Tencent/WeKnora/internal/types"
 	secutils "github.com/Tencent/WeKnora/internal/utils"
 )
@@ -211,7 +212,7 @@ func (w *desensitizeChat) sanitizeImageRef(ctx context.Context, ref string) (str
 	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") {
 		return ref, nil
 	}
-	mimeType, decoded, ok := splitDataURI(resolveImageURLForLLM(ref))
+	mimeType, decoded, ok := splitDataURI(api.ResolveImageURLForLLM(ref))
 	if !ok {
 		return ref, nil
 	}

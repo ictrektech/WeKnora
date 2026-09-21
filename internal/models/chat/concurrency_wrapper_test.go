@@ -13,6 +13,13 @@ import (
 // so we can exercise the concurrency wrapper's slot lifecycle.
 type fakeChat struct{ id string }
 
+type keyedChat struct {
+	fakeChat
+	key string
+}
+
+func (c *keyedChat) GetLimiterKey() string { return c.key }
+
 func (f *fakeChat) GetModelName() string { return f.id }
 func (f *fakeChat) GetModelID() string   { return f.id }
 
@@ -93,8 +100,8 @@ func TestConcurrencyChatStreamReleasesOnAbandon(t *testing.T) {
 }
 
 func TestModelLimiterKeyUsesProviderEndpoint(t *testing.T) {
-	a := &RemoteAPIChat{modelID: "qa-model", baseURL: "http://qwen35-9b-vllm:22222/v1/", modelName: "Qwen3.5-9B-AWQ"}
-	b := &RemoteAPIChat{modelID: "vlm-model", baseURL: "http://qwen35-9b-vllm:22222/v1", modelName: "Qwen3.5-9B-AWQ"}
+	a := &keyedChat{fakeChat: fakeChat{id: "qa-model"}, key: "http://qwen35-9b-vllm:22222/v1|Qwen3.5-9B-AWQ"}
+	b := &keyedChat{fakeChat: fakeChat{id: "vlm-model"}, key: "http://qwen35-9b-vllm:22222/v1|Qwen3.5-9B-AWQ"}
 
 	if modelLimiterKey(a) != modelLimiterKey(b) {
 		t.Fatalf("same endpoint/model should share limiter key: %q != %q", modelLimiterKey(a), modelLimiterKey(b))

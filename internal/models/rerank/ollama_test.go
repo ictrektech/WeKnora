@@ -10,6 +10,8 @@ import (
 )
 
 func TestOllamaRerankerUsesEmbedEndpointAndSortsScores(t *testing.T) {
+	withRerankSSRFWhitelist(t, "127.0.0.1")
+
 	var receivedPath string
 	var receivedRequest ollamaEmbedRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +56,8 @@ func TestOllamaRerankerUsesEmbedEndpointAndSortsScores(t *testing.T) {
 }
 
 func TestOllamaRerankerSelectedByProvider(t *testing.T) {
+	withRerankSSRFWhitelist(t, "127.0.0.1")
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/embed" {
 			t.Errorf("path = %q, want /api/embed", r.URL.Path)
@@ -78,6 +82,8 @@ func TestOllamaRerankerSelectedByProvider(t *testing.T) {
 }
 
 func TestOllamaRerankerSupportsCustomInputTemplate(t *testing.T) {
+	withRerankSSRFWhitelist(t, "127.0.0.1")
+
 	var receivedRequest ollamaEmbedRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&receivedRequest); err != nil {

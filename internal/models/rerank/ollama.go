@@ -37,6 +37,9 @@ type ollamaEmbedResponse struct {
 }
 
 func NewOllamaReranker(config *RerankerConfig) (*OllamaReranker, error) {
+	if config == nil {
+		return nil, fmt.Errorf("ollama rerank config is nil")
+	}
 	modelName := strings.TrimSpace(config.ModelName)
 	if modelName == "" {
 		return nil, fmt.Errorf("ollama rerank model name is required")
@@ -48,6 +51,9 @@ func NewOllamaReranker(config *RerankerConfig) (*OllamaReranker, error) {
 	}
 	if baseURL == "" {
 		baseURL = "http://localhost:11434"
+	}
+	if err := validateRerankBaseURL(baseURL); err != nil {
+		return nil, err
 	}
 
 	template := defaultOllamaRerankTemplate
@@ -62,7 +68,7 @@ func NewOllamaReranker(config *RerankerConfig) (*OllamaReranker, error) {
 		modelID:   config.ModelID,
 		baseURL:   baseURL,
 		template:  template,
-		client:    &http.Client{Timeout: 60 * time.Second},
+		client:    newRerankHTTPClient(60 * time.Second),
 	}, nil
 }
 

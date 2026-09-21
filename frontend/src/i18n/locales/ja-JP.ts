@@ -1678,6 +1678,8 @@ export default {
       enabled: "エージェントを有効化しました",
     },
     editor: {
+      reasoningEffortUnsupported: '選択中のモデルは思考に対応していません。「オフ」以外は無視されます。',
+      reasoningEffortAlwaysOn: '選択中のモデルは常に思考します。オフにはできず、強度のみ調整できます。',
       createTitle: "エージェントを作成",
       editTitle: "エージェントを編集",
       buttons: {
@@ -3330,6 +3332,8 @@ export default {
       discard: '変更を破棄',
       keepEditing: '編集を続ける',
     },
+    fullscreen: '全画面',
+    exitFullscreen: '全画面を終了',
     save: '保存',
     delete: '削除',
     edit: '編集',
@@ -3435,10 +3439,22 @@ export default {
       image: "画像を挿入",
       table: "表を挿入",
       horizontalRule: "水平線",
+      headingGroup: "見出し",
+      insertGroup: "挿入",
+    },
+    shortcuts: {
+      title: "ショートカット",
+      continueList: "リストを続ける",
+      indent: "インデント / Shift+Tab で解除",
     },
     view: {
       editLabel: "編集に戻る",
       previewLabel: "内容をプレビュー",
+      edit: '編集',
+      split: '分割',
+      preview: 'プレビュー',
+      splitUnavailable: '幅が足りません。ドロワーを広げるか全画面にすると分割できます',
+      groupLabel: 'エディタ表示',
     },
     preview: {
       empty: "まだ内容がありません",
@@ -3484,6 +3500,7 @@ export default {
       draftTag: "ステータス: 下書き",
       publishedTag: "ステータス: 公開済み",
       lastUpdated: "最終更新: {time}",
+      counter: "{chars} 文字 · {lines} 行",
     },
     loading: {
       content: "内容を読み込み中...",
@@ -4125,23 +4142,39 @@ export default {
       newPageSuccess: "ページを作成しました",
       newPageFailed: "ページの作成に失敗しました",
       revisionCurrent: "現在",
+      revisionCurrentHint:
+        "これが現在の版です。左側で過去の版を選ぶと、差分の確認や復元ができます。",
       revisionSelectHint: "左側で版を選択してください",
       revisionEmpty:
         "履歴はまだありません。内容が変更されると自動的にスナップショットが記録されます",
+      revisionDiff: "現在との差分",
       revisionRaw: "原文",
+      revisionDiffCaption: "v{from} → v{to}（赤はその版、緑は現在）",
       revisionDiffIncremental: "版の変更",
       revisionDiffCumulative: "現在との比較",
+      revisionDiffBasisLabel: "比較モード",
       revisionViewModeLabel: "表示モード",
       revisionLatestChangeHint: "前の版から現在までの変更",
       revisionIncrementalHint: "v{ver}を生成した変更",
       revisionInitialRange: "初版 → v{ver}",
       revisionInitialCreationHint: "作成時の初期内容",
       revisionCumulativeHint: "この版から現在までのすべての変更",
+      revisionDiffIncrementalCaption:
+        "v{from} → v{to}（隣接する版。赤は旧、緑は新）",
+      revisionDiffCumulativeCaption:
+        "v{from} → v{to}（現在までの累積変更）",
+      revisionFirstVersionHint:
+        "これは最初の版のため、比較できる前の版がありません。",
       revisionDiffTitle: "タイトル",
       revisionDiffSummary: "要約",
       revisionDiffContent: "本文",
       revisionDiffEmpty: "現在の版とタイトル・要約・本文に差分はありません",
       revisionLoadFailed: "改訂履歴の読み込みに失敗しました",
+      revisionNotRetained:
+        "このバージョンのスナップショットは保持されていないか、整理済みです",
+      revisionNotRetainedRange: "v{ver} · 全体の内容",
+      revisionNotRetainedHint:
+        "前の版（v{prev}）のスナップショットは保持されていません（アップグレード前の版はスナップショットが記録されず、古いスナップショットは自動整理される場合があります）。v{ver}の全体の内容を最初から表示しています。",
       revertBtn: "このバージョンに戻す",
       revertConfirm:
         "v{ver}に戻しますか？現在の内容は先にスナップショットとして保存されるため、この復元自体も取り消せます。",
@@ -4271,16 +4304,6 @@ export default {
         "ページ [[{slug}]] の問題（ID: {id}）を修正してください。",
       issueFixPromptAutoStart:
         "ページ [[{slug}]] の次の問題を修正してください:",
-      revisionCurrentHint:
-        "これが現在の版です。左側で過去の版を選ぶと、差分の確認や復元ができます。",
-      revisionDiff: "現在との差分",
-      revisionDiffCaption: "v{from} → v{to}（赤はその版、緑は現在）",
-      revisionDiffBasisLabel: "比較モード",
-      revisionDiffIncrementalCaption:
-        "v{from} → v{to}（隣接する版。赤は旧、緑は新）",
-      revisionDiffCumulativeCaption: "v{from} → v{to}（現在までの累積変更）",
-      revisionFirstVersionHint:
-        "これは最初の版のため、比較できる前の版がありません。",
     },
     buttons: {
       create: "ナレッジベースを作成",
@@ -4859,6 +4882,22 @@ export default {
     promptLabel: "プロンプト",
 
     questionMinimapPosition: '全 {total} ターン中 {current} ターン目',
+    rewind: {
+      tooltip: 'ここに巻き戻す',
+      confirmBody: 'これより後の会話を削除します。質問から巻き戻すとその質問自体も消え、入力欄に戻します。チェックポイントがあればワークスペースも戻します。この操作は元に戻せません。',
+      confirmButton: '巻き戻す',
+      cancelButton: 'キャンセル',
+      success: '巻き戻しました',
+      busy: 'このターンの回答が終わるまで待ってから巻き戻してください',
+      noCheckpoint: '巻き戻せません。ライブのワークスペースはありますが、到達できるチェックポイントがありません',
+      sandboxReplaced: '巻き戻せません。サンドボックスが置き換わったため、古いチェックポイントに到達できません',
+      reloadFailed: '会話は巻き戻しましたが、履歴を再読み込みできませんでした。古いメッセージが欠けている場合は更新してください',
+      failed: '巻き戻しに失敗しました。もう一度お試しください',
+      skipped: '会話は巻き戻しましたが、ワークスペースは変更していません',
+      skipNoSandbox: '会話は巻き戻しましたが、ワークスペースは変更していません（サンドボックスがありません）',
+      skipNoCheckpoint: '会話は巻き戻しましたが、ワークスペースは変更していません（戻せるチェックポイントがありません）',
+    },
+    manualSourcesHeading: '参照元',
   },
   tenant: {
     title: "ワークスペース情報",
@@ -5716,6 +5755,28 @@ export default {
     requestTimeout: 'リクエストがタイムアウトしました。大きなファイルや低速な回線では再試行してください',
   },
   model: {
+    reasoning: {
+      levels: {
+        off: 'オフ',
+        auto: '自動',
+        minimal: '最小',
+        low: '低',
+        medium: '中',
+        high: '高',
+        xhigh: '超高',
+        max: '最大',
+      },
+      levelDescriptions: {
+        off: '思考を無効化し、思考パラメータを送信しません',
+        auto: 'ベンダー既定の強度。思考量はモデルが決めます',
+        minimal: '最小限の思考、最速の応答',
+        low: '軽い思考',
+        medium: '中程度の思考',
+        high: '深い思考、応答は遅くなります',
+        xhigh: '超高の思考予算（一部モデルのみ）',
+        max: '最大の思考予算（一部モデルのみ）',
+      },
+    },
     modelName: "モデル名",
     defaultTag: "デフォルト",
     addModelInSettings: "モデルを追加するにはシステム設定を開いてください",
@@ -5733,6 +5794,53 @@ export default {
       sourceLabel: "モデルのソース",
       sourceLocal: "Ollama",
       sourceRemote: "API",
+      maxOutputTokensLabel: '最大出力トークン',
+      maxOutputTokensPlaceholder: '空欄でカタログ既定値',
+      maxOutputTokensDesc: '1 回の応答の出力上限。空欄ならこのモデルのカタログ既定値を使用します。',
+      catalog: {
+        reasoning: '推論',
+        vision: '画像',
+        hint: 'ベンダーのカタログから選ぶか、カスタムのモデル名を入力できます。',
+      },
+      resolved: {
+        title: '実際の呼び出し方',
+        empty: 'ベンダーとモデル名を入力すると、このモデルの呼び出し方を表示します',
+        failed: '解決に失敗',
+        protocol: 'リクエストプロトコル',
+        catalog: '能力の取得元',
+        catalogedYes: '内蔵モデルプロファイル',
+        catalogedNo: 'ベンダー既定（カタログ未収録）',
+        endpoint: 'リクエスト先',
+        thinkingFormat: '思考切替の送り方',
+        thinkingLevels: '選択できる思考強度',
+        noThinking: 'このモデルは思考できません',
+      },
+      advanced: {
+        toggle: '詳細設定',
+        api: {
+          label: 'プロトコル上書き',
+          auto: '自動（ベンダー / URL から推定）',
+          desc: 'リクエストプロトコルを強制します。通常は変更不要です。',
+        },
+        remoteModelName: {
+          label: 'リモートモデル名',
+          placeholder: '空欄でモデル名と同じ',
+          desc: '上のモデル名と異なる場合に、実際にベンダーへ送るモデル ID。',
+        },
+        legacyThinking: {
+          label: '思考パラメータ形式（旧設定）',
+          catalog: 'カタログ既定に従う（推奨）',
+          none: '思考パラメータを送信しない',
+          desc: 'このモデルには旧版の thinking_control 設定が残っています。「カタログ既定に従う」を選ぶとカタログが決定します。',
+        },
+        compat: {
+          label: 'プロトコル互換上書き（JSON）',
+          placeholder: "{'{'} \"max_tokens_field\": \"max_tokens\" {'}'}",
+          desc: '解決されたプロトコルのカタログ既定値に上書きマージされる互換スイッチ。バックエンドの catalog/compat.go を参照。空欄で上書きなし。',
+          invalid: 'JSON が不正です',
+          mustBeObject: 'JSON オブジェクトが必要です',
+        },
+      },
       description: {
         chat: "会話用の大規模言語モデルを設定します",
         embedding: "テキストのベクトル化に使う埋め込みモデルを設定します",
@@ -5870,6 +5978,7 @@ export default {
         "Ollamaサービスを利用できないため、ローカルモデルを選択できません",
       goToOllamaSettings: "設定を開く",
       validation: {
+        extraFieldRequired: "{name} を入力してください",
         modelNameRequired: "モデル名を入力してください",
         modelNameEmpty: "モデル名は空にできません",
         modelNameMax: "モデル名は100文字以内で入力してください",
@@ -5879,6 +5988,7 @@ export default {
       },
       providerLabel: "プロバイダ",
       providerPlaceholder: "モデルプロバイダを選択",
+      providerDocs: "{provider} のモデルドキュメントを見る",
       providers: {
         openai: {
           label: "OpenAI",
@@ -6373,6 +6483,8 @@ export default {
       },
     },
     debug: {
+      reasoningEffort: '思考強度',
+      reasoningEffortDesc: 'モデルカタログが報告するレベルで reasoning_effort を送信します',
       title: "モデルテスト",
       description:
         "保存済みのモデル設定でリクエストを送信します。編集中の変更は保存後に反映されます。",
@@ -6413,6 +6525,9 @@ export default {
       requestPreview: "リクエストのプレビュー",
       requestFailed: "モデルテストのリクエストに失敗しました",
       metrics: {
+        api: 'プロトコル',
+        thinkingFormat: '思考形式',
+        requestedReasoningEffort: '要求した強度',
         dimension: "次元数",
         resultCount: "結果件数",
         answerChars: "回答文字数",

@@ -54,7 +54,7 @@ var versionedSQLiteTables = []string{
 var versionedSQLiteColumns = map[string][]string{
 	"memory_subjects":         {"extraction_state"},
 	"memory_items":            {"replaces_id"},
-	"sessions":                {"workspace_mode", "parent_session_id", "forked_from_message_id", "fork_bootstrap"},
+	"sessions":                {"workspace_mode", "parent_session_id", "forked_from_message_id", "fork_bootstrap", "sandbox_config_tenant_id"},
 	"tenants":                 {"api_principal_config", "legal_workspace_config"},
 	"users":                   {"is_system_admin"},
 	"knowledges":              {"pending_subtasks_count", "profile"},
@@ -73,7 +73,7 @@ var versionedSQLiteColumns = map[string][]string{
 
 // expectedSQLiteMigrationVersion includes both upstream migrations and the
 // fork's appended SQLite migrations.
-const expectedSQLiteMigrationVersion = 36
+const expectedSQLiteMigrationVersion = 37
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)
