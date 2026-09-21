@@ -7930,6 +7930,7 @@ export default {
     deleteConfirm: "确定删除“{name}”吗？删除后将进入回收站。",
     deleteFailed: "删除档案失败。",
     documentDetail: "文档详情",
+    taskProgress: "解析进度",
     fileName: "文件名",
     fileSize: "文件大小",
     importedAt: "导入时间",

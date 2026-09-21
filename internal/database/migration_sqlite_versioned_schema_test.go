@@ -68,11 +68,12 @@ var versionedSQLiteColumns = map[string][]string{
 	"contract_review_clauses": {"evidence_id"},
 	"contract_review_issues":  {"category", "finding_type", "evidence_refs"},
 	"message_artifacts":       {"deleted_at"},
+	"archive_documents":       {"extraction_progress"},
 }
 
 // expectedSQLiteMigrationVersion includes both upstream migrations and the
 // fork's appended SQLite migrations.
-const expectedSQLiteMigrationVersion = 35
+const expectedSQLiteMigrationVersion = 36
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

@@ -23,11 +23,14 @@ DB_NAME=${DB_NAME:-WeKnora}
 # Use versioned migrations directory
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-migrations/versioned}"
 
-# Check if migrate tool is installed
-if ! command -v migrate &> /dev/null; then
-    echo "Error: migrate tool is not installed"
-    echo "Install it with: go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest"
-    exit 1
+# Use the installed binary when available. Otherwise run the exact version
+# already pinned by this repository, so a fresh checkout does not require a
+# separate global migrate installation.
+if command -v migrate &> /dev/null; then
+    MIGRATE_CMD=(migrate)
+else
+    MIGRATE_CMD=(go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1)
+    echo "migrate is not installed; using the project-pinned v4.19.1 via go run"
 fi
 
 # Construct the database URL
@@ -70,11 +73,11 @@ case "$1" in
         echo "DB_PORT: ${DB_PORT}"
         echo "DB_NAME: ${DB_NAME}"
         echo "MIGRATIONS_DIR: ${MIGRATIONS_DIR}"
-        migrate -path ${MIGRATIONS_DIR} -database ${DB_URL} up
+        "${MIGRATE_CMD[@]}" -path "${MIGRATIONS_DIR}" -database "${DB_URL}" up
         ;;
     down)
         echo "Running migrations down..."
-        migrate -path ${MIGRATIONS_DIR} -database ${DB_URL} down
+        "${MIGRATE_CMD[@]}" -path "${MIGRATIONS_DIR}" -database "${DB_URL}" down
         ;;
     create)
         if [ -z "$2" ]; then
@@ -83,14 +86,14 @@ case "$1" in
             exit 1
         fi
         echo "Creating migration files for $2..."
-        migrate create -ext sql -dir ${MIGRATIONS_DIR} -seq $2
+        "${MIGRATE_CMD[@]}" create -ext sql -dir "${MIGRATIONS_DIR}" -seq "$2"
         echo "Created:"
         echo "  - ${MIGRATIONS_DIR}/$(ls -t ${MIGRATIONS_DIR} | head -1)"
         echo "  - ${MIGRATIONS_DIR}/$(ls -t ${MIGRATIONS_DIR} | head -2 | tail -1)"
         ;;
     version)
         echo "Checking current migration version..."
-        migrate -path ${MIGRATIONS_DIR} -database ${DB_URL} version
+        "${MIGRATE_CMD[@]}" -path "${MIGRATIONS_DIR}" -database "${DB_URL}" version
         ;;
     force)
         if [ -z "$2" ]; then
@@ -102,7 +105,7 @@ case "$1" in
         VERSION="$2"
         echo "Forcing migration version to $VERSION..."
         # Use env to pass the command, avoiding shell flag parsing issues with negative numbers
-        env migrate -path "${MIGRATIONS_DIR}" -database "${DB_URL}" force -- "$VERSION"
+        "${MIGRATE_CMD[@]}" -path "${MIGRATIONS_DIR}" -database "${DB_URL}" force -- "$VERSION"
         ;;
     goto)
         if [ -z "$2" ]; then
@@ -111,7 +114,7 @@ case "$1" in
             exit 1
         fi
         echo "Migrating to version $2..."
-        migrate -path ${MIGRATIONS_DIR} -database ${DB_URL} goto $2
+        "${MIGRATE_CMD[@]}" -path "${MIGRATIONS_DIR}" -database "${DB_URL}" goto "$2"
         ;;
     *)
         echo "Usage: $0 {up|down|create <migration_name>|version|force <version>|goto <version>}"
@@ -119,4 +122,4 @@ case "$1" in
         ;;
 esac
 
-echo "Migration command completed successfully" 
+echo "Migration command completed successfully"

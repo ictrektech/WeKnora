@@ -7946,6 +7946,7 @@ export default {
     deleteConfirm: "Удалить «{name}»? Запись будет перемещена в корзину.",
     deleteFailed: "Не удалось удалить архивную запись.",
     documentDetail: "Детали документа",
+    taskProgress: "Прогресс разбора",
     fileName: "Имя файла",
     fileSize: "Размер файла",
     importedAt: "Импортировано",

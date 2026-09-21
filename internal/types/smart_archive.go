@@ -252,6 +252,7 @@ type ArchiveDocument struct {
 	ExtractedFields    JSON                    `json:"extracted_fields" gorm:"type:json"`
 	Metadata           JSON                    `json:"metadata" gorm:"type:json"`
 	ExtractionStatus   ArchiveExtractionStatus `json:"extraction_status" gorm:"type:varchar(24);not null;default:'uploading';index"`
+	ExtractionProgress int                     `json:"extraction_progress" gorm:"not null;default:0"`
 	ExtractionVersion  string                  `json:"extraction_version" gorm:"type:varchar(32);not null;default:'1.0'"`
 	ErrorMessage       string                  `json:"error_message,omitempty" gorm:"type:text"`
 	MirrorStatus       ArchiveMirrorStatus     `json:"mirror_status" gorm:"type:varchar(24);not null;default:'not_started';index"`

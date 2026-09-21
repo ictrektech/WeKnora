@@ -66,6 +66,10 @@ type ArchiveRepository interface {
 	RollbackMirrorRetry(context.Context, uint64, string, string) error
 	ListPendingMirrorDocuments(context.Context, time.Time, int) ([]*types.ArchiveDocument, error)
 	HardDeleteDocument(context.Context, uint64, string) error
+	// PurgeDocument removes the archive parent and its durable import item in
+	// one database transaction. The optional item ID pins cleanup to the queue
+	// row that belongs to this document.
+	PurgeDocument(context.Context, uint64, string, string) error
 	CreateNotification(context.Context, *types.ArchiveNotification) error
 	ListNotifications(context.Context, uint64, string, bool) ([]*types.ArchiveNotification, error)
 	MarkNotificationRead(context.Context, uint64, string, string) error

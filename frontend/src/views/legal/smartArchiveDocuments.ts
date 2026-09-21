@@ -35,6 +35,14 @@ export function hasMoreArchiveDocuments(documents: ArchiveDocument[], total: num
   return documents.length < total
 }
 
+/** The API persists per-document milestones; clamp legacy or bad values at the UI boundary. */
+export function archiveDocumentProgress(document: Pick<ArchiveDocument, 'extraction_progress' | 'extraction_status'>): number {
+  if (document.extraction_status === 'completed') return 100
+  const value = Number(document.extraction_progress)
+  if (!Number.isFinite(value)) return 0
+  return Math.min(100, Math.max(0, Math.round(value)))
+}
+
 export function archiveDocumentStatusTone(status: ArchiveExtractionStatus): 'queued' | 'running' | 'completed' | 'failed' | 'review' | 'canceled' {
   if (status === 'uploading') return 'queued'
   if (status === 'completed') return 'completed'

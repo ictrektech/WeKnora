@@ -5,6 +5,7 @@ import type { ArchiveDocument } from '@/api/smart-archive'
 import {
   archiveDocumentStatusTone,
   archiveDocumentDisplayStatus,
+  archiveDocumentProgress,
   buildArchiveSearchFilters,
   hasMoreArchiveDocuments,
   mergeArchiveDocuments,
@@ -24,6 +25,7 @@ function document(id: string, title = id): ArchiveDocument {
     currency: '',
     extracted_fields: {},
     extraction_status: 'completed',
+    extraction_progress: 100,
     created_at: '2026-08-19T00:00:00Z',
     updated_at: '2026-08-19T00:00:00Z',
   }
@@ -66,6 +68,15 @@ test('maps extraction states to stable status tones', () => {
   assert.equal(archiveDocumentStatusTone('failed'), 'failed')
   assert.equal(archiveDocumentStatusTone('canceled'), 'canceled')
   assert.equal(archiveDocumentStatusTone('needs_review'), 'review')
+})
+
+test('uses persisted progress for one archive document', () => {
+  assert.equal(archiveDocumentProgress({ extraction_status: 'parsing', extraction_progress: 10 }), 10)
+  assert.equal(archiveDocumentProgress({ extraction_status: 'extracting', extraction_progress: 45 }), 45)
+  assert.equal(archiveDocumentProgress({ extraction_status: 'linking', extraction_progress: 75 }), 75)
+  assert.equal(archiveDocumentProgress({ extraction_status: 'completed', extraction_progress: 0 }), 100)
+  assert.equal(archiveDocumentProgress({ extraction_status: 'needs_review', extraction_progress: 10 }), 10)
+  assert.equal(archiveDocumentProgress({ extraction_status: 'failed', extraction_progress: 130 }), 100)
 })
 
 test('exposes one user-facing status across extraction and mirror stages', () => {

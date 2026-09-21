@@ -115,10 +115,21 @@ func (r *smartArchiveRepository) GetImportItemByFingerprint(ctx context.Context,
 }
 
 func (r *smartArchiveRepository) UpdateImportItem(ctx context.Context, row *types.ArchiveImportItem) error {
-	if row == nil {
+	if row == nil || strings.TrimSpace(row.ID) == "" {
 		return gorm.ErrInvalidData
 	}
-	return r.db.WithContext(ctx).Save(row).Error
+	result := r.db.WithContext(ctx).
+		Model(&types.ArchiveImportItem{}).
+		Where("tenant_id = ? AND id = ?", row.TenantID, row.ID).
+		Select("*").
+		Updates(row)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *smartArchiveRepository) ListPendingImportItems(ctx context.Context, now time.Time, limit int) ([]*types.ArchiveImportItem, error) {
@@ -376,7 +387,22 @@ func (r *smartArchiveRepository) ListDocuments(ctx context.Context, tenantID uin
 }
 
 func (r *smartArchiveRepository) UpdateDocument(ctx context.Context, row *types.ArchiveDocument) error {
-	return r.db.WithContext(ctx).Omit("Customer", "Links", "Evidence").Save(row).Error
+	if row == nil || strings.TrimSpace(row.ID) == "" {
+		return gorm.ErrInvalidData
+	}
+	result := r.db.WithContext(ctx).
+		Model(&types.ArchiveDocument{}).
+		Omit("Customer", "Links", "Evidence").
+		Where("tenant_id = ? AND id = ?", row.TenantID, row.ID).
+		Select("*").
+		Updates(row)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 func (r *smartArchiveRepository) DeleteDocument(ctx context.Context, tenantID uint64, id string) error {
 	return r.db.WithContext(ctx).Where("tenant_id = ? AND id = ?", tenantID, id).Delete(&types.ArchiveDocument{}).Error
@@ -418,12 +444,38 @@ func (r *smartArchiveRepository) ListDocumentLinks(ctx context.Context, tenantID
 }
 
 func (r *smartArchiveRepository) ReplaceEvidence(ctx context.Context, tenantID uint64, documentID string, rows []*types.ArchiveFieldEvidence) error {
+	documentID = strings.TrimSpace(documentID)
+	if documentID == "" {
+		return gorm.ErrInvalidData
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock the parent through a no-op update before replacing children. This
+		// keeps a concurrent permanent purge from deleting the document between
+		// the evidence delete and insert, which would otherwise surface as a
+		// foreign-key violation halfway through extraction.
+		parent := tx.Model(&types.ArchiveDocument{}).
+			Where("tenant_id = ? AND id = ?", tenantID, documentID).
+			UpdateColumn("updated_at", gorm.Expr("updated_at"))
+		if parent.Error != nil {
+			return parent.Error
+		}
+		if parent.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
 		if err := tx.Where("tenant_id = ? AND document_id = ?", tenantID, documentID).Delete(&types.ArchiveFieldEvidence{}).Error; err != nil {
 			return err
 		}
 		if len(rows) == 0 {
 			return nil
+		}
+		for _, row := range rows {
+			if row == nil {
+				return gorm.ErrInvalidData
+			}
+			// The method target is authoritative. A stale or hand-built evidence
+			// row must not be allowed to point at another document or tenant.
+			row.TenantID = tenantID
+			row.DocumentID = documentID
 		}
 		return tx.Create(&rows).Error
 	})
@@ -814,6 +866,61 @@ func (r *smartArchiveRepository) ListPendingMirrorDocuments(ctx context.Context,
 
 func (r *smartArchiveRepository) HardDeleteDocument(ctx context.Context, tenantID uint64, id string) error {
 	return r.db.WithContext(ctx).Unscoped().Where("tenant_id = ? AND id = ?", tenantID, id).Delete(&types.ArchiveDocument{}).Error
+}
+
+// PurgeDocument removes a document and its queue row together. Locking the
+// parent first makes this operation serialize with ReplaceEvidence's parent
+// lock, so a worker can finish its current write or observe the missing parent
+// without producing a foreign-key violation.
+func (r *smartArchiveRepository) PurgeDocument(ctx context.Context, tenantID uint64, documentID, itemID string) error {
+	documentID = strings.TrimSpace(documentID)
+	itemID = strings.TrimSpace(itemID)
+	if documentID == "" {
+		return gorm.ErrInvalidData
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var document types.ArchiveDocument
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("tenant_id = ? AND id = ?", tenantID, documentID).
+			First(&document).Error; err != nil {
+			return err
+		}
+		switch document.ExtractionStatus {
+		case types.ArchiveExtractionUploading, types.ArchiveExtractionParsing, types.ArchiveExtractionExtracting, types.ArchiveExtractionLinking:
+			return gorm.ErrInvalidData
+		}
+
+		var item types.ArchiveImportItem
+		itemQuery := tx.Where("tenant_id = ?", tenantID)
+		if itemID != "" {
+			itemQuery = itemQuery.Where("id = ?", itemID)
+		} else {
+			itemQuery = itemQuery.Where("document_id = ?", documentID)
+		}
+		itemErr := itemQuery.First(&item).Error
+		if itemErr == nil {
+			if item.DocumentID != "" && item.DocumentID != documentID {
+				return gorm.ErrInvalidData
+			}
+			if item.Status == types.ArchiveImportItemProcessing {
+				return gorm.ErrInvalidData
+			}
+			if err := tx.Where("tenant_id = ? AND id = ?", tenantID, item.ID).Delete(&types.ArchiveImportItem{}).Error; err != nil {
+				return err
+			}
+		} else if !errors.Is(itemErr, gorm.ErrRecordNotFound) {
+			return itemErr
+		}
+
+		result := tx.Unscoped().Where("tenant_id = ? AND id = ?", tenantID, documentID).Delete(&types.ArchiveDocument{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 func (r *smartArchiveRepository) CreateNotification(ctx context.Context, row *types.ArchiveNotification) error {
 	return r.db.WithContext(ctx).Create(row).Error

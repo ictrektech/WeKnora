@@ -17,6 +17,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -291,7 +292,7 @@ func (s *smartArchiveService) Import(ctx context.Context, tenantID uint64, userI
 			TenantID: tenantID, ImportBatchID: batch.ID, Title: upload.name,
 			FileName: upload.name, FileType: strings.ToLower(filepath.Ext(upload.name)),
 			FileSize: upload.size, FileHash: hash, FilePath: ref, CreatedBy: userID,
-			ExtractionStatus: types.ArchiveExtractionParsing, ExtractionVersion: version,
+			ExtractionStatus: types.ArchiveExtractionParsing, ExtractionProgress: 5, ExtractionVersion: version,
 		}
 		if err := s.repo.CreateDocument(ctx, doc); err != nil {
 			_ = s.files.DeleteFile(ctx, ref)
@@ -883,6 +884,14 @@ func (s *smartArchiveService) processOneWithDocument(ctx context.Context, tenant
 	if doc == nil {
 		return errors.New("smart archive document is required")
 	}
+	// Persist real milestones so the detail drawer can show progress for this
+	// one document instead of deriving a misleading percentage from a batch.
+	doc.ExtractionStatus = types.ArchiveExtractionParsing
+	doc.ExtractionProgress = 10
+	doc.ErrorMessage = ""
+	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+		return err
+	}
 	// Parse/OCR exactly once and persist the normalized result before any
 	// downstream consumer starts. The managed Knowledge Base receives the
 	// artifact ID below and reuses it for indexing rather than parsing bytes a
@@ -917,6 +926,10 @@ func (s *smartArchiveService) processOneWithDocument(ctx context.Context, tenant
 	content := parseResult.MarkdownContent
 	doc.ExtractedText = content
 	doc.ExtractionStatus = types.ArchiveExtractionExtracting
+	doc.ExtractionProgress = 45
+	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+		return err
+	}
 	fields, evidence := extractArchiveFields(doc, content)
 	fieldJSON, _ := json.Marshal(fields)
 	doc.ExtractedFields = types.JSON(fieldJSON)
@@ -929,6 +942,10 @@ func (s *smartArchiveService) processOneWithDocument(ctx context.Context, tenant
 		}
 	}
 	doc.ExtractionStatus = types.ArchiveExtractionLinking
+	doc.ExtractionProgress = 75
+	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+		return err
+	}
 	if err := s.linkCustomer(ctx, doc, fields); err != nil {
 		doc.ExtractionStatus = types.ArchiveExtractionFailed
 		doc.ErrorMessage = err.Error()
@@ -936,11 +953,16 @@ func (s *smartArchiveService) processOneWithDocument(ctx context.Context, tenant
 		return err
 	}
 	_ = s.linkRelatedDocuments(ctx, doc)
+	doc.ExtractionProgress = 90
+	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+		return err
+	}
 	doc.ExtractionStatus = types.ArchiveExtractionCompleted
 	if fields["customer"] == "" && fields["agreement_number"] == "" && len(evidence) == 0 {
 		doc.ExtractionStatus = types.ArchiveExtractionReview
 		doc.ErrorMessage = "未识别到可验证字段，请检查图片清晰度或点击重新识别"
 	}
+	doc.ExtractionProgress = 100
 	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
 		return err
 	}
@@ -1869,6 +1891,7 @@ func (s *smartArchiveService) RetryExtraction(ctx context.Context, tenantID uint
 		return nil, fmt.Errorf("file exceeds size limit of %dMB", secutils.GetMaxFileSizeMB())
 	}
 	doc.ExtractionStatus = types.ArchiveExtractionParsing
+	doc.ExtractionProgress = 5
 	doc.ErrorMessage = ""
 	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
 		return nil, err
@@ -2110,10 +2133,25 @@ func (s *smartArchiveService) permanentlyDeleteDocument(ctx context.Context, ten
 	if err != nil {
 		return err
 	}
+	switch row.ExtractionStatus {
+	case types.ArchiveExtractionUploading, types.ArchiveExtractionParsing, types.ArchiveExtractionExtracting, types.ArchiveExtractionLinking:
+		// A worker may still be holding this document in memory. Removing the
+		// parent row here would make its later evidence insert violate the FK.
+		return ErrArchiveInvalidState
+	}
 	// Keep trashed documents out of this path; the recycle-bin retention job
 	// owns their eventual removal. The admin-only endpoint may purge either an
 	// active or an archived document explicitly selected by the operator.
 	if row.TrashedAt != nil {
+		return ErrArchiveInvalidState
+	}
+	item, itemErr := s.repo.GetImportItemByFingerprint(ctx, tenantID, row.FileHash, row.ExtractionVersion)
+	if itemErr != nil && !errors.Is(itemErr, gorm.ErrRecordNotFound) {
+		return itemErr
+	}
+	if itemErr == nil && item != nil && item.Status == types.ArchiveImportItemProcessing {
+		// A durable processing row means a worker may still be holding the
+		// document. Let it finish (or be canceled) before removing the parent.
 		return ErrArchiveInvalidState
 	}
 
@@ -2140,7 +2178,11 @@ func (s *smartArchiveService) permanentlyDeleteDocument(ctx context.Context, ten
 			return err
 		}
 	}
-	return s.repo.HardDeleteDocument(ctx, tenantID, id)
+	itemID := ""
+	if itemErr == nil && item != nil {
+		itemID = item.ID
+	}
+	return s.repo.PurgeDocument(ctx, tenantID, id, itemID)
 }
 
 // deleteArchiveSourceFile releases the archive owner before deleting the
@@ -2156,13 +2198,40 @@ func (s *smartArchiveService) deleteArchiveSourceFile(ctx context.Context, doc *
 	if s.resources != nil {
 		remaining, err := s.resources.Release(ctx, doc.FilePath, types.ResourceOwnerSmartArchive, doc.ID)
 		if err != nil {
+			// A previous purge may have released and deleted the resource before
+			// its database cleanup failed. Treat that half-completed state as
+			// already cleaned so the next purge can remove the durable row.
+			if isArchiveSourceAlreadyGone(err) {
+				return nil
+			}
 			return err
 		}
 		if remaining > 0 {
 			return nil
 		}
 	}
-	return s.files.DeleteFile(ctx, doc.FilePath)
+	if err := s.files.DeleteFile(ctx, doc.FilePath); err != nil {
+		// Physical deletion is intentionally idempotent too. This covers a
+		// legacy/raw path that was removed before the archive row was purged.
+		if isArchiveSourceAlreadyGone(err) {
+			if s.resources != nil {
+				_ = s.resources.MarkDeleted(ctx, doc.FilePath)
+			}
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+func isArchiveSourceAlreadyGone(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, gorm.ErrRecordNotFound) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "resource not found")
 }
 
 func (s *smartArchiveService) BatchDocumentAction(ctx context.Context, tenantID uint64, ids []string, action types.ArchiveBulkAction) (*types.ArchiveBulkActionResult, error) {
@@ -2571,6 +2640,13 @@ func (s *smartArchiveService) cleanupExpiredTrash(ctx context.Context) error {
 		if row == nil || row.TrashedAt == nil {
 			continue
 		}
+		switch row.ExtractionStatus {
+		case types.ArchiveExtractionUploading, types.ArchiveExtractionParsing, types.ArchiveExtractionExtracting, types.ArchiveExtractionLinking:
+			// Keep the parent alive while an extraction worker may still write
+			// evidence. The next retention pass can remove it after the worker
+			// reaches a terminal state.
+			continue
+		}
 		retention := 30
 		if settings, settingsErr := s.repo.GetSettings(ctx, row.TenantID); settingsErr == nil && settings.TrashRetentionDays > 0 {
 			retention = settings.TrashRetentionDays
@@ -2603,7 +2679,9 @@ func (s *smartArchiveService) cleanupExpiredTrash(ctx context.Context) error {
 				logger.Warnf(ctx, "smart archive: parse artifact cleanup failed for %s: %v", row.ID, err)
 			}
 		}
-		_ = s.repo.HardDeleteDocument(ctx, row.TenantID, row.ID)
+		if err := s.repo.PurgeDocument(ctx, row.TenantID, row.ID, ""); err != nil {
+			logger.Warnf(ctx, "smart archive: document purge failed for %s: %v", row.ID, err)
+		}
 	}
 	return nil
 }

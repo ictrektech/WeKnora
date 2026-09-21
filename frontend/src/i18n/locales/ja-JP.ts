@@ -116,6 +116,7 @@ export default {
     deleteConfirm: "「{name}」を削除しますか？ごみ箱へ移動します。",
     deleteFailed: "アーカイブ記録を削除できませんでした。",
     documentDetail: "文書の詳細",
+    taskProgress: "解析の進捗",
     fileName: "ファイル名",
     fileSize: "ファイルサイズ",
     importedAt: "インポート日時",

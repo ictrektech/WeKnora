@@ -7940,6 +7940,7 @@ export default {
     deleteConfirm: "“{name}”을 삭제하시겠습니까? 휴지통으로 이동합니다.",
     deleteFailed: "아카이브를 삭제하지 못했습니다.",
     documentDetail: "문서 상세",
+    taskProgress: "파싱 진행률",
     fileName: "파일 이름",
     fileSize: "파일 크기",
     importedAt: "가져온 시간",

@@ -386,3 +386,83 @@ func TestSmartArchiveRepositoryDocumentFingerprintAndHydration(t *testing.T) {
 	_, err = f.repo.FindDocumentByHash(ctx, 2, "document-bytes", "v1")
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
+
+func TestSmartArchiveRepositoryReplaceEvidenceUsesExistingTargetDocument(t *testing.T) {
+	f := newSmartArchiveRepositoryFixture(t)
+	ctx := context.Background()
+	doc := newArchiveDocument(1, "evidence-target", "v1")
+	require.NoError(t, f.repo.CreateDocument(ctx, doc))
+
+	row := &types.ArchiveFieldEvidence{
+		TenantID: 99, DocumentID: "stale-document", FieldName: "agreement_number", Value: "A-1", Quote: "A-1",
+	}
+	require.NoError(t, f.repo.ReplaceEvidence(ctx, 1, doc.ID, []*types.ArchiveFieldEvidence{row}))
+
+	stored, err := f.repo.ListEvidence(ctx, 1, doc.ID)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	require.Equal(t, uint64(1), stored[0].TenantID)
+	require.Equal(t, doc.ID, stored[0].DocumentID)
+
+	err = f.repo.ReplaceEvidence(ctx, 1, "missing-document", []*types.ArchiveFieldEvidence{row})
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestSmartArchiveRepositoryUpdateDocumentDoesNotRecreateDeletedParent(t *testing.T) {
+	f := newSmartArchiveRepositoryFixture(t)
+	ctx := context.Background()
+	doc := newArchiveDocument(1, "deleted-parent", "v1")
+	require.NoError(t, f.repo.CreateDocument(ctx, doc))
+	require.NoError(t, f.repo.HardDeleteDocument(ctx, 1, doc.ID))
+
+	doc.ErrorMessage = "stale worker result"
+	require.ErrorIs(t, f.repo.UpdateDocument(ctx, doc), gorm.ErrRecordNotFound)
+	_, err := f.repo.GetDocument(ctx, 1, doc.ID)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestSmartArchiveRepositoryPurgeDocumentRemovesQueueItemAtomically(t *testing.T) {
+	f := newSmartArchiveRepositoryFixture(t)
+	ctx := context.Background()
+	doc := newArchiveDocument(1, "purge-document", "v1")
+	doc.ExtractionStatus = types.ArchiveExtractionFailed
+	require.NoError(t, f.repo.CreateDocument(ctx, doc))
+	batch := &types.ArchiveImportBatch{TenantID: 1, UserID: "user-1", Total: 1}
+	require.NoError(t, f.repo.CreateBatch(ctx, batch))
+	item := &types.ArchiveImportItem{TenantID: 1, BatchID: batch.ID, DocumentID: doc.ID, FileName: doc.FileName, FileHash: doc.FileHash, FilePath: doc.FilePath, ExtractionVersion: doc.ExtractionVersion, Status: types.ArchiveImportItemFailed}
+	require.NoError(t, f.repo.CreateImportItem(ctx, item))
+
+	require.NoError(t, f.repo.PurgeDocument(ctx, 1, doc.ID, item.ID))
+	_, err := f.repo.GetDocument(ctx, 1, doc.ID)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	_, err = f.repo.GetImportItem(ctx, 1, item.ID)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestSmartArchiveRepositoryPurgeDocumentRejectsProcessingItem(t *testing.T) {
+	f := newSmartArchiveRepositoryFixture(t)
+	ctx := context.Background()
+	doc := newArchiveDocument(1, "purge-processing", "v1")
+	doc.ExtractionStatus = types.ArchiveExtractionParsing
+	require.NoError(t, f.repo.CreateDocument(ctx, doc))
+	item := &types.ArchiveImportItem{TenantID: 1, BatchID: "", DocumentID: doc.ID, FileName: doc.FileName, FileHash: doc.FileHash, FilePath: doc.FilePath, ExtractionVersion: doc.ExtractionVersion, Status: types.ArchiveImportItemProcessing}
+	require.NoError(t, f.repo.CreateImportItem(ctx, item))
+
+	require.ErrorIs(t, f.repo.PurgeDocument(ctx, 1, doc.ID, item.ID), gorm.ErrInvalidData)
+	_, err := f.repo.GetDocument(ctx, 1, doc.ID)
+	require.NoError(t, err)
+	_, err = f.repo.GetImportItem(ctx, 1, item.ID)
+	require.NoError(t, err)
+}
+
+func TestSmartArchiveRepositoryUpdateImportItemDoesNotRecreateDeletedRow(t *testing.T) {
+	f := newSmartArchiveRepositoryFixture(t)
+	ctx := context.Background()
+	item := &types.ArchiveImportItem{TenantID: 1, FileName: "deleted.pdf", FileHash: "deleted-item", FilePath: "/tmp/deleted-item", ExtractionVersion: "v1"}
+	require.NoError(t, f.repo.CreateImportItem(ctx, item))
+	require.NoError(t, f.db.Delete(&types.ArchiveImportItem{}, "tenant_id = ? AND id = ?", item.TenantID, item.ID).Error)
+	item.ErrorMessage = "stale worker result"
+	require.ErrorIs(t, f.repo.UpdateImportItem(ctx, item), gorm.ErrRecordNotFound)
+	_, err := f.repo.GetImportItem(ctx, 1, item.ID)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}

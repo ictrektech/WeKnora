@@ -117,6 +117,7 @@ export default {
     deleteConfirm: "Delete “{name}”? It will be moved to the trash.",
     deleteFailed: "Could not delete the archive record.",
     documentDetail: "Document detail",
+    taskProgress: "Parsing progress",
     fileName: "File name",
     fileSize: "File size",
     importedAt: "Imported",

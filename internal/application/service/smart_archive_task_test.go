@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -11,6 +12,59 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/stretchr/testify/require"
 )
+
+type smartArchiveSourceCleanupCatalog struct {
+	interfaces.ResourceCatalog
+	releaseErr       error
+	markDeletedCalls int
+}
+
+func (c *smartArchiveSourceCleanupCatalog) Release(context.Context, string, string, string) (int64, error) {
+	return 0, c.releaseErr
+}
+
+func (c *smartArchiveSourceCleanupCatalog) MarkDeleted(context.Context, string) error {
+	c.markDeletedCalls++
+	return nil
+}
+
+type smartArchiveSourceCleanupFiles struct {
+	interfaces.FileService
+	deleteErr  error
+	deletedRef []string
+}
+
+func (f *smartArchiveSourceCleanupFiles) DeleteFile(_ context.Context, reference string) error {
+	f.deletedRef = append(f.deletedRef, reference)
+	return f.deleteErr
+}
+
+func TestSmartArchiveSourceCleanupTreatsMissingResourceAsAlreadyDeleted(t *testing.T) {
+	files := &smartArchiveSourceCleanupFiles{}
+	service := &smartArchiveService{
+		files: files,
+		resources: &smartArchiveSourceCleanupCatalog{
+			releaseErr: errors.New("resource not found"),
+		},
+	}
+
+	require.NoError(t, service.deleteArchiveSourceFile(context.Background(), &types.ArchiveDocument{
+		ID: "document-1", FilePath: "resource://gone",
+	}))
+	require.Empty(t, files.deletedRef)
+}
+
+func TestSmartArchiveSourceCleanupTreatsMissingPhysicalFileAsAlreadyDeleted(t *testing.T) {
+	files := &smartArchiveSourceCleanupFiles{deleteErr: os.ErrNotExist}
+	catalog := &smartArchiveSourceCleanupCatalog{}
+	service := &smartArchiveService{files: files, resources: catalog}
+
+	require.NoError(t, service.deleteArchiveSourceFile(context.Background(), &types.ArchiveDocument{
+		ID: "document-1", FilePath: "resource://gone",
+	}))
+	require.Equal(t, []string{"resource://gone"}, files.deletedRef)
+	require.Equal(t, 1, catalog.markDeletedCalls)
+}
 
 type smartArchiveTaskRecorder struct {
 	taskIDs   []string
