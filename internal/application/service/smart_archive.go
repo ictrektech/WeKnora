@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -107,9 +108,6 @@ func (s *smartArchiveService) GetSettings(ctx context.Context, tenantID uint64) 
 		if err := s.repo.SaveSettings(ctx, row); err != nil {
 			return nil, err
 		}
-		// Continue through the normal repair path below. A newly-created settings
-		// row may already have a managed KB and should use the same artifact
-		// backfill safeguards as an existing row.
 		err = nil
 	}
 	if row != nil && row.ManagedKnowledgeBaseID == "" {
@@ -117,13 +115,6 @@ func (s *smartArchiveService) GetSettings(ctx context.Context, tenantID uint64) 
 		if row.ManagedKnowledgeBaseID != "" {
 			_ = s.repo.SaveSettings(ctx, row)
 		}
-	}
-	if row != nil && row.ManagedKnowledgeBaseID != "" {
-		_ = s.ensureManagedKnowledgeBaseEmbedding(ctx, tenantID, row.ManagedKnowledgeBaseID)
-		// Repair older archive rows that predate the shared parser artifact and
-		// link them to the managed KB without re-running OCR when extracted text
-		// is already available.
-		_ = s.syncUnlinkedManagedKnowledge(ctx, tenantID, row.ManagedKnowledgeBaseID)
 	}
 	return row, err
 }
@@ -176,34 +167,6 @@ func (s *smartArchiveService) defaultEmbeddingModelID(ctx context.Context) (stri
 		return fallback, nil
 	}
 	return "", errors.New("no active embedding model is configured for smart archive")
-}
-
-func (s *smartArchiveService) ensureManagedKnowledgeBaseEmbedding(ctx context.Context, tenantID uint64, kbID string) error {
-	if s.kbRepo == nil || strings.TrimSpace(kbID) == "" {
-		return nil
-	}
-	kb, err := s.kbRepo.GetKnowledgeBaseByIDAndTenant(ctx, kbID, tenantID)
-	if err != nil {
-		return err
-	}
-	legacyName := strings.TrimSpace(kb.Name) == "合同与资产档案"
-	if legacyName {
-		kb.Name = "合同智能档案"
-		kb.UpdatedAt = time.Now()
-	}
-	if strings.TrimSpace(kb.EmbeddingModelID) != "" {
-		if legacyName {
-			return s.kbRepo.UpdateKnowledgeBase(ctx, kb)
-		}
-		return nil
-	}
-	modelID, err := s.defaultEmbeddingModelID(ctx)
-	if err != nil {
-		return err
-	}
-	kb.EmbeddingModelID = modelID
-	kb.UpdatedAt = time.Now()
-	return s.kbRepo.UpdateKnowledgeBase(ctx, kb)
 }
 
 func (s *smartArchiveService) UpdateSettings(ctx context.Context, tenantID uint64, input *types.ArchiveSettings) (*types.ArchiveSettings, error) {
@@ -294,7 +257,11 @@ func (s *smartArchiveService) Import(ctx context.Context, tenantID uint64, userI
 	// carries only durable identifiers; workers reopen the source from storage,
 	// so multipart/request cancellation cannot strand an in-memory goroutine.
 	for _, upload := range stored {
-		hashBytes := sha256.Sum256(upload.data)
+		// Keep Smart Archive's file fingerprint aligned with the Knowledge
+		// service's existing MD5-based duplicate check. This is a content
+		// identity used for deduplication and artifact lookup, not a security
+		// signature.
+		hashBytes := md5.Sum(upload.data)
 		hash := hex.EncodeToString(hashBytes[:])
 		existing, findErr := s.repo.FindDocumentByHash(ctx, tenantID, hash, version)
 		if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
@@ -401,6 +368,27 @@ func (s *smartArchiveService) enqueueImportItem(ctx context.Context, item *types
 	return err
 }
 
+func (s *smartArchiveService) enqueueMirrorTask(ctx context.Context, doc *types.ArchiveDocument) error {
+	if s.task == nil {
+		return errors.New("smart archive task queue is unavailable")
+	}
+	if doc == nil || doc.TenantID == 0 || strings.TrimSpace(doc.ID) == "" {
+		return errors.New("invalid smart archive mirror document")
+	}
+	payload, err := json.Marshal(types.ArchiveMirrorTaskPayload{TenantID: doc.TenantID, DocumentID: doc.ID})
+	if err != nil {
+		return err
+	}
+	queue, ok := types.QueueForTaskType(types.TypeSmartArchiveMirrorProcess)
+	if !ok {
+		queue = types.QueueDefault
+	}
+	_, err = s.task.Enqueue(asynq.NewTask(types.TypeSmartArchiveMirrorProcess, payload),
+		asynq.Queue(queue), asynq.MaxRetry(2), asynq.Timeout(10*time.Minute),
+		asynq.TaskID("smart-archive-mirror-"+doc.ID))
+	return err
+}
+
 // ProcessDocument is the durable worker entry point for one archive import
 // item. It claims a short lease before reading storage, reuses the shared
 // parser artifact pipeline, and reconciles batch counters only through the
@@ -452,6 +440,11 @@ func (s *smartArchiveService) ProcessDocument(ctx context.Context, task *asynq.T
 		return s.finishArchiveTaskFailure(ctx, payload.TenantID, payload.ItemID, err, false)
 	}
 	if doc.ExtractionStatus == types.ArchiveExtractionCompleted || doc.ExtractionStatus == types.ArchiveExtractionReview {
+		if doc.MirrorStatus == types.ArchiveMirrorPending || doc.MirrorStatus == types.ArchiveMirrorProcessing {
+			if enqueueErr := s.enqueueMirrorTask(ctx, doc); enqueueErr != nil {
+				logger.Warnf(ctx, "smart archive: mirror enqueue deferred for %s: %v", doc.ID, enqueueErr)
+			}
+		}
 		return s.repo.MarkImportItemCompleted(ctx, payload.TenantID, item.ID, doc.ID)
 	}
 	filePath := strings.TrimSpace(item.FilePath)
@@ -495,6 +488,143 @@ func (s *smartArchiveService) ProcessDocument(ctx context.Context, task *asynq.T
 		return err
 	}
 	return nil
+}
+
+// ProcessMirror creates or re-submits the managed knowledge mirror from the
+// durable archive source and parse artifact. It deliberately does not parse
+// the source document; parsing and indexing are separate retry domains.
+func (s *smartArchiveService) ProcessMirror(ctx context.Context, task *asynq.Task) error {
+	if task == nil {
+		return fmt.Errorf("smart archive mirror task is nil: %w", asynq.SkipRetry)
+	}
+	var payload types.ArchiveMirrorTaskPayload
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil || payload.TenantID == 0 || strings.TrimSpace(payload.DocumentID) == "" {
+		return fmt.Errorf("invalid smart archive mirror task payload: %w", asynq.SkipRetry)
+	}
+	doc, err := s.repo.GetDocument(ctx, payload.TenantID, payload.DocumentID)
+	if errors.Is(err, gorm.ErrRecordNotFound) || doc == nil || doc.TrashedAt != nil {
+		return nil
+	}
+	if err != nil {
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+	}
+	if doc.MirrorStatus == types.ArchiveMirrorSubmitted && strings.TrimSpace(doc.KnowledgeID) != "" {
+		return nil
+	}
+	if doc.ExtractionStatus != types.ArchiveExtractionCompleted && doc.ExtractionStatus != types.ArchiveExtractionReview {
+		return nil
+	}
+	if s.knowledge == nil || s.parseArtifacts == nil || s.files == nil {
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, errors.New("smart archive mirror dependencies are unavailable"))
+	}
+	doc, err = s.repo.ClaimMirrorDocument(ctx, payload.TenantID, payload.DocumentID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+	}
+	mirrorCtx := archiveContextWithTenant(ctx, payload.TenantID)
+	if s.tenantRepo != nil {
+		if enriched, contextErr := s.archiveTenantContext(mirrorCtx, payload.TenantID); contextErr == nil {
+			mirrorCtx = enriched
+		}
+	}
+	artifact, err := s.parseArtifacts.GetByFingerprint(mirrorCtx, payload.TenantID, doc.FileHash, types.DocumentParseArtifactVersion)
+	if err != nil || artifact == nil {
+		if err == nil {
+			err = errors.New("smart archive parse artifact is unavailable")
+		}
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+	}
+	settings, err := s.GetSettings(mirrorCtx, payload.TenantID)
+	if err != nil || settings == nil || strings.TrimSpace(settings.ManagedKnowledgeBaseID) == "" {
+		if err == nil {
+			err = errors.New("smart archive managed knowledge base is unavailable")
+		}
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+	}
+	managedKB, err := s.resolveManagedArchiveKnowledgeBase(mirrorCtx, settings.ManagedKnowledgeBaseID, payload.TenantID)
+	if err != nil {
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+	}
+	mutationCtx, err := withSmartArchiveKnowledgeWrite(mirrorCtx, managedKB, payload.TenantID)
+	if err != nil {
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+	}
+	var knowledge *types.Knowledge
+	if strings.TrimSpace(doc.KnowledgeID) != "" {
+		overrides := &types.KnowledgeProcessOverrides{ParseArtifactID: artifact.ID}
+		if archiveImageExtension(filepath.Ext(doc.FileName)) {
+			enableMultimodel := true
+			overrides.EnableMultimodel = &enableMultimodel
+		}
+		knowledge, err = s.knowledge.ReparseKnowledge(mutationCtx, doc.KnowledgeID, overrides)
+	} else {
+		file, fileErr := s.files.GetFile(mirrorCtx, doc.FilePath)
+		if fileErr != nil {
+			return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, fileErr)
+		}
+		max := int64(secutils.GetMaxFileSizeMB()) * 1024 * 1024
+		data, readErr := io.ReadAll(io.LimitReader(file, max+1))
+		_ = file.Close()
+		if readErr != nil {
+			return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, readErr)
+		}
+		if int64(len(data)) > max {
+			return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, fmt.Errorf("file exceeds size limit of %dMB", secutils.GetMaxFileSizeMB()))
+		}
+		upload := storedArchiveUpload{name: doc.FileName, mime: archiveImageMIME(doc.FileType), size: int64(len(data)), data: data}
+		knowledge, err = s.createManagedKnowledge(mutationCtx, settings.ManagedKnowledgeBaseID, upload, doc.ID, artifact.ID)
+	}
+	if err != nil || knowledge == nil {
+		if err == nil {
+			err = errors.New("managed knowledge mirror was not created")
+		}
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+	}
+	doc.KnowledgeID = knowledge.ID
+	doc.MirrorStatus = types.ArchiveMirrorSubmitted
+	doc.MirrorErrorMessage = ""
+	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+		return s.finishMirrorTaskFailure(ctx, payload.TenantID, payload.DocumentID, err)
+	}
+	return nil
+}
+
+func (s *smartArchiveService) finishMirrorTaskFailure(ctx context.Context, tenantID uint64, documentID string, taskErr error) error {
+	if taskErr == nil {
+		taskErr = errors.New("smart archive mirror task failed")
+	}
+	retryCount, retryOK := asynq.GetRetryCount(ctx)
+	maxRetry, maxOK := asynq.GetMaxRetry(ctx)
+	if !retryOK || !maxOK {
+		if liteRetry, liteMax, liteOK := types.TaskRetryMetadataFromContext(ctx); liteOK {
+			retryCount, maxRetry, retryOK, maxOK = liteRetry, liteMax, true, true
+		}
+	}
+	if !retryOK || !maxOK || maxRetry <= 0 {
+		maxRetry = 2
+	}
+	doc, getErr := s.repo.GetDocument(ctx, tenantID, documentID)
+	if getErr != nil && !errors.Is(getErr, gorm.ErrRecordNotFound) {
+		return getErr
+	}
+	if doc != nil && doc.TrashedAt == nil {
+		doc.MirrorErrorMessage = taskErr.Error()
+		if retryCount < maxRetry {
+			doc.MirrorStatus = types.ArchiveMirrorPending
+		} else {
+			doc.MirrorStatus = types.ArchiveMirrorFailed
+		}
+		if updateErr := s.repo.UpdateDocument(ctx, doc); updateErr != nil {
+			return updateErr
+		}
+	}
+	if retryCount < maxRetry {
+		return taskErr
+	}
+	return fmt.Errorf("%w: %v", asynq.SkipRetry, taskErr)
 }
 
 func (s *smartArchiveService) finishArchiveTaskFailure(ctx context.Context, tenantID uint64, itemID string, taskErr error, terminal bool) error {
@@ -550,6 +680,28 @@ func (s *smartArchiveService) RecoverPendingImports(ctx context.Context) error {
 			continue
 		}
 		if err := s.enqueueImportItem(ctx, item); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// RecoverPendingMirrors re-enqueues mirror work that was left pending or
+// processing by a process restart. The archive row remains the durable queue.
+func (s *smartArchiveService) RecoverPendingMirrors(ctx context.Context) error {
+	if s.task == nil {
+		return errors.New("smart archive task queue is unavailable")
+	}
+	docs, err := s.repo.ListPendingMirrorDocuments(ctx, time.Now().UTC(), 500)
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, doc := range docs {
+		if doc == nil || doc.TenantID == 0 || strings.TrimSpace(doc.ID) == "" {
+			continue
+		}
+		if err := s.enqueueMirrorTask(ctx, doc); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -646,68 +798,11 @@ func validateArchiveUploadContent(ext string, data []byte) error {
 	return nil
 }
 
-func (s *smartArchiveService) processBatch(ctx context.Context, tenantID uint64, userID, batchID string, uploads []storedArchiveUpload) {
-	for _, upload := range uploads {
-		if err := s.processOne(ctx, tenantID, userID, batchID, upload); err != nil {
-			batch, getErr := s.repo.GetBatch(ctx, tenantID, batchID)
-			if getErr == nil {
-				batch.Failed++
-				batch.UpdatedAt = time.Now()
-				if batch.Completed+batch.Failed >= batch.Total {
-					batch.Status = "completed"
-					if batch.Completed == 0 && batch.Failed > 0 {
-						batch.Status = "failed"
-					}
-				}
-				_ = s.repo.UpdateBatch(ctx, batch)
-			}
-		}
-	}
-	batch, err := s.repo.GetBatch(ctx, tenantID, batchID)
-	if err == nil {
-		batch.Status = "completed"
-		if batch.Completed == 0 && batch.Failed > 0 {
-			batch.Status = "failed"
-		}
-		batch.UpdatedAt = time.Now()
-		_ = s.repo.UpdateBatch(ctx, batch)
-	}
-}
-
-func (s *smartArchiveService) processOne(ctx context.Context, tenantID uint64, userID, batchID string, upload storedArchiveUpload) error {
-	if err := s.processOneWithDocument(ctx, tenantID, userID, batchID, upload, nil); err != nil {
-		return err
-	}
-	return s.incrementBatch(ctx, tenantID, batchID, true)
-}
-
-// processOneWithDocument runs the shared extraction pipeline. A nil document
-// creates a new import row (the legacy in-process path used by focused tests);
-// a non-nil document is an already durable queue item and must not be treated
-// as a duplicate of itself.
+// processOneWithDocument runs the shared extraction pipeline for an already
+// durable archive import item.
 func (s *smartArchiveService) processOneWithDocument(ctx context.Context, tenantID uint64, userID, batchID string, upload storedArchiveUpload, doc *types.ArchiveDocument) error {
 	if doc == nil {
-		hashBytes := sha256.Sum256(upload.data)
-		hash := hex.EncodeToString(hashBytes[:])
-		if existing, err := s.repo.FindDocumentByHash(ctx, tenantID, hash, types.ArchiveDefaultExtractionVersion); err == nil && existing != nil && existing.ID != "" {
-			return nil
-		}
-		ref, err := s.files.SaveBytes(ctx, upload.data, tenantID, "smart_archive_"+uuid.NewString()[:12]+strings.ToLower(filepath.Ext(upload.name)), false)
-		if err != nil {
-			return err
-		}
-		doc = &types.ArchiveDocument{TenantID: tenantID, ImportBatchID: batchID, Title: upload.name, FileName: upload.name, FileType: strings.ToLower(filepath.Ext(upload.name)), FileSize: upload.size, FileHash: hash, FilePath: ref, CreatedBy: userID, ExtractionStatus: types.ArchiveExtractionParsing}
-		if err := s.repo.CreateDocument(ctx, doc); err != nil {
-			_ = s.files.DeleteFile(ctx, ref)
-			return err
-		}
-		if s.resources != nil {
-			if err := s.resources.Bind(ctx, ref, types.ResourceOwnerSmartArchive, doc.ID, types.ResourceRelationSourceFile); err != nil {
-				_ = s.repo.HardDeleteDocument(ctx, tenantID, doc.ID)
-				_ = s.files.DeleteFile(ctx, ref)
-				return err
-			}
-		}
+		return errors.New("smart archive document is required")
 	}
 	// Parse/OCR exactly once and persist the normalized result before any
 	// downstream consumer starts. The managed Knowledge Base receives the
@@ -733,7 +828,7 @@ func (s *smartArchiveService) processOneWithDocument(ctx context.Context, tenant
 		return errors.New("document parser returned no result")
 	}
 	parseResult.MarkdownContent = common.CleanInvalidUTF8(parseResult.MarkdownContent)
-	artifact, artifactErr := s.upsertParseArtifact(ctx, tenantID, doc, upload, parseResult)
+	_, artifactErr := s.upsertParseArtifact(ctx, tenantID, doc, upload, parseResult)
 	if artifactErr != nil {
 		doc.ExtractionStatus = types.ArchiveExtractionFailed
 		doc.ErrorMessage = artifactErr.Error()
@@ -776,19 +871,17 @@ func (s *smartArchiveService) processOneWithDocument(ctx context.Context, tenant
 		_ = s.repo.UpdateDocument(ctx, doc)
 		return err
 	}
-	// Keep the source in the managed Knowledge Base as well. It is deliberately
-	// created only after the parse artifact is durable, so the indexing worker
-	// can consume the same text/OCR output. Mirror failures remain best effort;
-	// the archive row can be repaired later without parsing the source again.
+	// The archive row and parse artifact are the durable source of truth. Mirror
+	// creation is a separate idempotent task so a mirror outage never hides or
+	// rolls back an otherwise usable archive document.
 	if s.knowledge != nil {
-		if settings, settingsErr := s.GetSettings(ctx, tenantID); settingsErr == nil && settings.ManagedKnowledgeBaseID != "" {
-			mirrorCtx := archiveContextWithTenant(ctx, tenantID)
-			if knowledge, knowledgeErr := s.createManagedKnowledge(mirrorCtx, settings.ManagedKnowledgeBaseID, upload, doc.ID, artifact.ID); knowledge != nil {
-				doc.KnowledgeID = knowledge.ID
-				_ = s.repo.UpdateDocument(ctx, doc)
-			} else if knowledgeErr != nil {
-				logger.Warnf(ctx, "smart archive: managed knowledge mirror skipped for %s: %v", doc.ID, knowledgeErr)
-			}
+		doc.MirrorStatus = types.ArchiveMirrorPending
+		doc.MirrorErrorMessage = ""
+		if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.enqueueMirrorTask(ctx, doc); err != nil {
+			logger.Warnf(ctx, "smart archive: mirror enqueue deferred for %s: %v", doc.ID, err)
 		}
 	}
 	return nil
@@ -814,6 +907,9 @@ func (s *smartArchiveService) linkRelatedDocuments(ctx context.Context, doc *typ
 }
 
 func (s *smartArchiveService) createManagedKnowledge(ctx context.Context, kbID string, upload storedArchiveUpload, documentID, artifactID string) (*types.Knowledge, error) {
+	if strings.TrimSpace(artifactID) == "" {
+		return nil, errors.New("smart archive parse artifact is required for managed knowledge")
+	}
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	part, err := writer.CreateFormFile("file", upload.name)
@@ -835,29 +931,10 @@ func (s *smartArchiveService) createManagedKnowledge(ctx context.Context, kbID s
 	if len(files) == 0 {
 		return nil, errors.New("managed knowledge multipart file missing")
 	}
-	var processOverrides *types.KnowledgeProcessOverrides
-	if strings.TrimSpace(artifactID) != "" {
-		// A durable parse artifact means the managed KB must consume the
-		// already-normalized text/OCR result. Image mirrors still need the
-		// multimodal flag to pass the legacy image gate, but they do not need to
-		// invoke a vision model a second time.
-		processOverrides = &types.KnowledgeProcessOverrides{ParseArtifactID: artifactID}
-		if archiveImageExtension(filepath.Ext(upload.name)) {
-			enableMultimodel := true
-			processOverrides.EnableMultimodel = &enableMultimodel
-		}
-	} else if archiveImageExtension(filepath.Ext(upload.name)) {
-		// The managed KB is intentionally read-only and does not expose its
-		// parser settings in the UI. Pass the archive's active vision model as a
-		// per-import override so image mirrors are accepted even for legacy KBs
-		// whose stored VLMConfig is empty. EnableMultimodel is separate from the
-		// VLM model setting: the document worker checks both before parsing image
-		// files.
-		var modelErr error
-		processOverrides, modelErr = s.archiveImageProcessOverrides(ctx)
-		if modelErr != nil {
-			return nil, modelErr
-		}
+	processOverrides := &types.KnowledgeProcessOverrides{ParseArtifactID: artifactID}
+	if archiveImageExtension(filepath.Ext(upload.name)) {
+		enableMultimodel := true
+		processOverrides.EnableMultimodel = &enableMultimodel
 	}
 	tenantID, ok := types.TenantIDFromContext(ctx)
 	if !ok || tenantID == 0 {
@@ -872,124 +949,6 @@ func (s *smartArchiveService) createManagedKnowledge(ctx context.Context, kbID s
 		return nil, err
 	}
 	return s.knowledge.CreateKnowledgeFromFile(mutationCtx, managedKB.ID, files[0], map[string]string{"source": "smart_archive", "archive_document_id": documentID}, nil, "", nil, "smart_archive", processOverrides)
-}
-
-func (s *smartArchiveService) archiveImageProcessOverrides(ctx context.Context) (*types.KnowledgeProcessOverrides, error) {
-	modelID, err := s.archiveImageModelID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	enableMultimodel := true
-	return &types.KnowledgeProcessOverrides{
-		EnableMultimodel: &enableMultimodel,
-		VLMConfig:        &types.VLMConfig{Enabled: true, ModelID: modelID},
-	}, nil
-}
-
-// syncUnlinkedManagedKnowledge repairs best-effort mirrors for documents
-// imported before shared parse artifacts existed. It backfills an artifact
-// from stored extraction text when possible, links unlinked archive rows and
-// repairs linked image rows that failed at the old multimodal gate.
-// CreateKnowledgeFromFile is hash idempotent, so repeated settings reads
-// cannot create duplicate records.
-func (s *smartArchiveService) syncUnlinkedManagedKnowledge(ctx context.Context, tenantID uint64, kbID string) error {
-	if s.repo == nil || s.files == nil || s.knowledge == nil || strings.TrimSpace(kbID) == "" {
-		return nil
-	}
-	managedKB, err := s.resolveManagedArchiveKnowledgeBase(archiveContextWithTenant(ctx, tenantID), kbID, tenantID)
-	if err != nil {
-		return err
-	}
-	rows, err := s.repo.ListDocuments(ctx, tenantID, "", false)
-	if err != nil {
-		return err
-	}
-	for _, doc := range rows {
-		if doc == nil {
-			continue
-		}
-		mirrorCtx := archiveContextWithTenant(ctx, tenantID)
-		artifact, _ := s.ensureExistingParseArtifact(ctx, tenantID, doc)
-		if doc.KnowledgeID != "" {
-			// A previous mirror may have been created before the worker received
-			// the explicit multimodal override. Repair only that known terminal
-			// image failure; pending or completed knowledge must not be restarted
-			// every time the archive page is opened.
-			if archiveImageExtension(doc.FileType) && s.knowledge != nil {
-				knowledge, knowledgeErr := s.knowledge.GetKnowledgeByID(mirrorCtx, doc.KnowledgeID)
-				if knowledgeErr != nil || knowledge == nil || knowledge.ParseStatus != "failed" ||
-					!strings.Contains(strings.ToLower(knowledge.ErrorMessage), strings.ToLower(ErrImageNotParse.Error())) {
-					continue
-				}
-				var overrides *types.KnowledgeProcessOverrides
-				if artifact != nil {
-					enableMultimodel := true
-					overrides = &types.KnowledgeProcessOverrides{ParseArtifactID: artifact.ID, EnableMultimodel: &enableMultimodel}
-				} else {
-					var overrideErr error
-					overrides, overrideErr = s.archiveImageProcessOverrides(mirrorCtx)
-					if overrideErr != nil {
-						logger.Warnf(ctx, "smart archive: cannot repair image mirror %s: %v", doc.ID, overrideErr)
-						continue
-					}
-				}
-				mutationCtx, mutationErr := withSmartArchiveKnowledgeWrite(mirrorCtx, managedKB, tenantID)
-				if mutationErr != nil {
-					logger.Warnf(ctx, "smart archive: image mirror write context unavailable for %s: %v", doc.ID, mutationErr)
-					continue
-				}
-				if _, reparseErr := s.knowledge.ReparseKnowledge(mutationCtx, doc.KnowledgeID, overrides); reparseErr != nil {
-					logger.Warnf(ctx, "smart archive: image mirror reparse failed for %s: %v", doc.ID, reparseErr)
-				}
-			}
-			continue
-		}
-		switch doc.ExtractionStatus {
-		case types.ArchiveExtractionCompleted, types.ArchiveExtractionReview:
-		default:
-			continue
-		}
-		file, fileErr := s.files.GetFile(ctx, doc.FilePath)
-		if fileErr != nil {
-			logger.Warnf(ctx, "smart archive: cannot read source for mirror backfill %s: %v", doc.ID, fileErr)
-			continue
-		}
-		data, readErr := io.ReadAll(file)
-		_ = file.Close()
-		if readErr != nil {
-			logger.Warnf(ctx, "smart archive: cannot read source for mirror backfill %s: %v", doc.ID, readErr)
-			continue
-		}
-		upload := storedArchiveUpload{
-			name: doc.FileName,
-			mime: archiveImageMIME(doc.FileType),
-			size: int64(len(data)),
-			data: data,
-		}
-		if artifact == nil {
-			parseResult, parseErr := s.parseForArtifact(mirrorCtx, upload)
-			if parseErr == nil && parseResult != nil {
-				artifact, parseErr = s.upsertParseArtifact(ctx, tenantID, doc, upload, parseResult)
-			}
-			if parseErr != nil {
-				logger.Warnf(ctx, "smart archive: parse artifact backfill skipped for %s: %v", doc.ID, parseErr)
-			}
-		}
-		artifactID := ""
-		if artifact != nil {
-			artifactID = artifact.ID
-		}
-		knowledge, createErr := s.createManagedKnowledge(mirrorCtx, kbID, upload, doc.ID, artifactID)
-		if knowledge == nil {
-			logger.Warnf(ctx, "smart archive: mirror backfill skipped for %s: %v", doc.ID, createErr)
-			continue
-		}
-		doc.KnowledgeID = knowledge.ID
-		if updateErr := s.repo.UpdateDocument(ctx, doc); updateErr != nil {
-			logger.Warnf(ctx, "smart archive: mirror link update failed for %s: %v", doc.ID, updateErr)
-		}
-	}
-	return nil
 }
 
 func (s *smartArchiveService) incrementBatch(ctx context.Context, tenantID uint64, batchID string, completed bool) error {
@@ -1078,23 +1037,6 @@ func (s *smartArchiveService) upsertParseArtifact(ctx context.Context, tenantID 
 		return nil, err
 	}
 	return artifact, nil
-}
-
-// ensureExistingParseArtifact backfills a normalized artifact from text that
-// was already extracted by an older Smart Archive import. It never re-runs
-// OCR, so opening the archive page cannot trigger a second expensive parse.
-func (s *smartArchiveService) ensureExistingParseArtifact(ctx context.Context, tenantID uint64, doc *types.ArchiveDocument) (*types.DocumentParseArtifact, error) {
-	if s.parseArtifacts == nil || doc == nil || strings.TrimSpace(doc.FileHash) == "" {
-		return nil, errors.New("document parse artifact repository is unavailable")
-	}
-	if artifact, err := s.parseArtifacts.GetByFingerprint(ctx, tenantID, doc.FileHash, types.DocumentParseArtifactVersion); err == nil && artifact != nil {
-		return artifact, nil
-	}
-	if strings.TrimSpace(doc.ExtractedText) == "" {
-		return nil, errors.New("no existing extracted text to backfill parse artifact")
-	}
-	result := &types.ReadResult{MarkdownContent: doc.ExtractedText}
-	return s.upsertParseArtifact(ctx, tenantID, doc, storedArchiveUpload{name: doc.FileName, data: []byte(doc.ExtractedText)}, result)
 }
 
 func archiveContextWithTenant(ctx context.Context, tenantID uint64) context.Context {
@@ -1634,18 +1576,10 @@ func (s *smartArchiveService) OpenDocument(ctx context.Context, tenantID uint64,
 }
 
 func (s *smartArchiveService) openArchiveFile(ctx context.Context, doc *types.ArchiveDocument) (io.ReadCloser, error) {
-	file, err := s.files.GetFile(ctx, doc.FilePath)
-	if err == nil || doc.KnowledgeID == "" || s.knowledge == nil {
-		return file, err
+	if doc == nil || s.files == nil {
+		return nil, errors.New("smart archive source file is unavailable")
 	}
-	// Older imports briefly replaced the archive-owned resource reference
-	// with the managed knowledge file. Let the knowledge service resolve that
-	// KB-specific storage backend so those files remain previewable/retryable.
-	file, _, knowledgeErr := s.knowledge.GetKnowledgeFile(ctx, doc.KnowledgeID)
-	if knowledgeErr != nil {
-		return nil, err
-	}
-	return file, nil
+	return s.files.GetFile(ctx, doc.FilePath)
 }
 
 // archiveTenantContext supplies the tenant and (when running from the
@@ -1725,55 +1659,6 @@ func (s *smartArchiveService) deleteManagedKnowledgeMirror(ctx context.Context, 
 		return err
 	}
 	doc.KnowledgeID = ""
-	return nil
-}
-
-// restoreManagedKnowledgeMirror rebuilds a deleted mirror from the durable
-// archive file and shared parse artifact. It never needs to invoke OCR when
-// the artifact from the original import is still present.
-func (s *smartArchiveService) restoreManagedKnowledgeMirror(ctx context.Context, tenantID uint64, doc *types.ArchiveDocument) error {
-	if doc == nil || s.knowledge == nil {
-		return nil
-	}
-	settings, err := s.repo.GetSettings(ctx, tenantID)
-	if err != nil {
-		return err
-	}
-	if settings == nil || strings.TrimSpace(settings.ManagedKnowledgeBaseID) == "" {
-		return nil
-	}
-	mirrorCtx, err := s.archiveTenantContext(ctx, tenantID)
-	if err != nil {
-		return err
-	}
-	file, err := s.openArchiveFile(mirrorCtx, doc)
-	if err != nil {
-		return err
-	}
-	data, err := io.ReadAll(file)
-	_ = file.Close()
-	if err != nil {
-		return err
-	}
-	upload := storedArchiveUpload{name: doc.FileName, mime: archiveImageMIME(doc.FileType), size: int64(len(data)), data: data}
-	artifact, artifactErr := s.ensureExistingParseArtifact(mirrorCtx, tenantID, doc)
-	if artifactErr != nil {
-		// Very old rows may have neither an artifact nor extracted text. Parse
-		// once now so the restored mirror still enters the unified pipeline.
-		parseResult, parseErr := s.parseForArtifact(mirrorCtx, upload)
-		if parseErr != nil {
-			return parseErr
-		}
-		artifact, artifactErr = s.upsertParseArtifact(mirrorCtx, tenantID, doc, upload, parseResult)
-		if artifactErr != nil {
-			return artifactErr
-		}
-	}
-	knowledge, createErr := s.createManagedKnowledge(mirrorCtx, settings.ManagedKnowledgeBaseID, upload, doc.ID, artifact.ID)
-	if knowledge == nil {
-		return createErr
-	}
-	doc.KnowledgeID = knowledge.ID
 	return nil
 }
 
@@ -1940,103 +1825,35 @@ func (s *smartArchiveService) RetryExtraction(ctx context.Context, tenantID uint
 	return doc, nil
 }
 
-func (s *smartArchiveService) processRetry(ctx context.Context, tenantID uint64, userID string, upload storedArchiveUpload, doc *types.ArchiveDocument) {
-	parseCtx := archiveContextWithTenant(ctx, tenantID)
-	parseResult, err := s.parseForArtifact(parseCtx, upload)
+func (s *smartArchiveService) RetryMirror(ctx context.Context, tenantID uint64, id string) (*types.ArchiveDocument, error) {
+	doc, err := s.GetDocument(ctx, tenantID, id)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrArchiveNotFound
+	}
 	if err != nil {
-		if errors.Is(err, ErrArchiveImageOCRNeedsReview) {
-			doc.ExtractionStatus = types.ArchiveExtractionReview
-			doc.ErrorMessage = err.Error()
-			_ = s.repo.UpdateDocument(ctx, doc)
-			return
-		}
-		doc.ExtractionStatus = types.ArchiveExtractionFailed
-		doc.ErrorMessage = err.Error()
-		_ = s.repo.UpdateDocument(ctx, doc)
-		return
+		return nil, err
 	}
-	if parseResult == nil {
-		doc.ExtractionStatus = types.ArchiveExtractionFailed
-		doc.ErrorMessage = "document parser returned no result"
-		_ = s.repo.UpdateDocument(ctx, doc)
-		return
+	if doc.TrashedAt != nil || (doc.ExtractionStatus != types.ArchiveExtractionCompleted && doc.ExtractionStatus != types.ArchiveExtractionReview) {
+		return nil, ErrArchiveInvalidState
 	}
-	parseResult.MarkdownContent = common.CleanInvalidUTF8(parseResult.MarkdownContent)
-	artifact, artifactErr := s.upsertParseArtifact(ctx, tenantID, doc, upload, parseResult)
-	if artifactErr != nil {
-		doc.ExtractionStatus = types.ArchiveExtractionFailed
-		doc.ErrorMessage = artifactErr.Error()
-		_ = s.repo.UpdateDocument(ctx, doc)
-		return
+	if s.knowledge == nil || s.parseArtifacts == nil {
+		return nil, errors.New("smart archive mirror service is unavailable")
 	}
-	content := parseResult.MarkdownContent
-	doc.ExtractedText = content
-	doc.ExtractionStatus = types.ArchiveExtractionExtracting
-	fields, evidence := extractArchiveFields(doc, content)
-	fieldJSON, _ := json.Marshal(fields)
-	doc.ExtractedFields = types.JSON(fieldJSON)
-	if err := s.repo.ReplaceEvidence(ctx, tenantID, doc.ID, evidence); err != nil {
-		doc.ExtractionStatus = types.ArchiveExtractionFailed
-		doc.ErrorMessage = err.Error()
-		_ = s.repo.UpdateDocument(ctx, doc)
-		return
+	if strings.TrimSpace(doc.FileHash) == "" {
+		return nil, ErrArchiveInvalidState
 	}
-	doc.ExtractionStatus = types.ArchiveExtractionLinking
-	if err := s.linkCustomer(ctx, doc, fields); err != nil {
-		doc.ExtractionStatus = types.ArchiveExtractionFailed
-		doc.ErrorMessage = err.Error()
-		_ = s.repo.UpdateDocument(ctx, doc)
-		return
+	if _, err := s.parseArtifacts.GetByFingerprint(archiveContextWithTenant(ctx, tenantID), tenantID, doc.FileHash, types.DocumentParseArtifactVersion); err != nil {
+		return nil, ErrArchiveInvalidState
 	}
-	_ = s.linkRelatedDocuments(ctx, doc)
-	doc.ExtractionStatus = types.ArchiveExtractionCompleted
-	if fields["customer"] == "" && fields["agreement_number"] == "" && len(evidence) == 0 {
-		doc.ExtractionStatus = types.ArchiveExtractionReview
-		doc.ErrorMessage = "未识别到可验证字段，请检查图片清晰度或点击重新识别"
+	doc.MirrorStatus = types.ArchiveMirrorPending
+	doc.MirrorErrorMessage = ""
+	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+		return nil, err
 	}
-	if err := s.repo.UpdateDocument(ctx, doc); err == nil {
-		if candidateErr := s.detectReminderCandidates(ctx, doc, fields, evidence, userID); candidateErr != nil {
-			doc.ExtractionStatus = types.ArchiveExtractionFailed
-			doc.ErrorMessage = candidateErr.Error()
-			_ = s.repo.UpdateDocument(ctx, doc)
-			return
-		}
-		if s.knowledge != nil {
-			if doc.KnowledgeID != "" {
-				overrides := &types.KnowledgeProcessOverrides{ParseArtifactID: artifact.ID}
-				if archiveImageExtension(filepath.Ext(upload.name)) {
-					enableMultimodel := true
-					overrides.EnableMultimodel = &enableMultimodel
-				}
-				settings, settingsErr := s.repo.GetSettings(parseCtx, tenantID)
-				if settingsErr != nil || settings == nil {
-					if settingsErr == nil {
-						settingsErr = errors.New("smart archive settings are unavailable")
-					}
-					logger.Warnf(ctx, "smart archive: managed mirror reparse context unavailable for %s: %v", doc.ID, settingsErr)
-					return
-				}
-				managedKB, resolveErr := s.resolveManagedArchiveKnowledgeBase(parseCtx, settings.ManagedKnowledgeBaseID, tenantID)
-				if resolveErr != nil {
-					logger.Warnf(ctx, "smart archive: managed mirror reparse target unavailable for %s: %v", doc.ID, resolveErr)
-					return
-				}
-				mutationCtx, mutationErr := withSmartArchiveKnowledgeWrite(parseCtx, managedKB, tenantID)
-				if mutationErr != nil {
-					logger.Warnf(ctx, "smart archive: managed mirror reparse context unavailable for %s: %v", doc.ID, mutationErr)
-					return
-				}
-				_, _ = s.knowledge.ReparseKnowledge(mutationCtx, doc.KnowledgeID, overrides)
-			} else if settings, settingsErr := s.GetSettings(ctx, tenantID); settingsErr == nil && settings.ManagedKnowledgeBaseID != "" {
-				if knowledge, createErr := s.createManagedKnowledge(parseCtx, settings.ManagedKnowledgeBaseID, upload, doc.ID, artifact.ID); knowledge != nil {
-					doc.KnowledgeID = knowledge.ID
-					_ = s.repo.UpdateDocument(ctx, doc)
-				} else if createErr != nil {
-					logger.Warnf(ctx, "smart archive: managed knowledge mirror retry skipped for %s: %v", doc.ID, createErr)
-				}
-			}
-		}
+	if err := s.enqueueMirrorTask(ctx, doc); err != nil {
+		return nil, err
 	}
+	return doc, nil
 }
 
 func (s *smartArchiveService) ArchiveDocument(ctx context.Context, tenantID uint64, id string, archive bool) (*types.ArchiveDocument, error) {
@@ -2044,6 +1861,7 @@ func (s *smartArchiveService) ArchiveDocument(ctx context.Context, tenantID uint
 	if err != nil {
 		return nil, err
 	}
+	wasTrashed := false
 	if archive {
 		switch row.ExtractionStatus {
 		case types.ArchiveExtractionUploading, types.ArchiveExtractionParsing, types.ArchiveExtractionExtracting, types.ArchiveExtractionLinking:
@@ -2052,17 +1870,24 @@ func (s *smartArchiveService) ArchiveDocument(ctx context.Context, tenantID uint
 		now := time.Now()
 		row.ArchivedAt = &now
 	} else {
-		wasTrashed := row.TrashedAt != nil
+		wasTrashed = row.TrashedAt != nil
 		if wasTrashed {
-			if err := s.restoreManagedKnowledgeMirror(ctx, tenantID, row); err != nil {
-				return nil, err
-			}
 			row.TrashedAt = nil
 		}
 		row.ArchivedAt = nil
 	}
+	if !archive && wasTrashed && s.knowledge != nil &&
+		(row.ExtractionStatus == types.ArchiveExtractionCompleted || row.ExtractionStatus == types.ArchiveExtractionReview) {
+		row.MirrorStatus = types.ArchiveMirrorPending
+		row.MirrorErrorMessage = ""
+	}
 	if err := s.repo.UpdateDocument(ctx, row); err != nil {
 		return nil, err
+	}
+	if !archive && wasTrashed && row.MirrorStatus == types.ArchiveMirrorPending {
+		if err := s.enqueueMirrorTask(ctx, row); err != nil {
+			logger.Warnf(ctx, "smart archive: mirror restore enqueue failed for %s: %v", row.ID, err)
+		}
 	}
 	return row, nil
 }
@@ -2454,173 +2279,6 @@ func (s *smartArchiveService) CreateReminderFromCandidate(ctx context.Context, t
 	return reminder, nil
 }
 
-func (s *smartArchiveService) BackfillReminderCandidates(ctx context.Context) error {
-	docs, err := s.repo.ListCompletedDocuments(ctx)
-	if err != nil {
-		return err
-	}
-	for _, doc := range docs {
-		if doc == nil || !s.legalWorkspaceEnabled(ctx, doc.TenantID) {
-			continue
-		}
-		fields := map[string]string{}
-		_ = json.Unmarshal(doc.ExtractedFields, &fields)
-		evidence, evidenceErr := s.repo.ListEvidence(ctx, doc.TenantID, doc.ID)
-		if evidenceErr != nil {
-			continue
-		}
-		// Older completed image imports could contain perfectly usable OCR text
-		// but miss a field because the source used Markdown emphasis (for
-		// example **2025 年 11 月 1 日**). Re-run the deterministic field parser
-		// during the one-time/startup backfill so a parser fix repairs those rows
-		// without sending the image to the VLM again.
-		if strings.TrimSpace(doc.ExtractedText) != "" {
-			manualFields := make(map[string]bool)
-			markdownEvidence := false
-			for _, row := range evidence {
-				if row == nil {
-					continue
-				}
-				if row.IsManual {
-					manualFields[row.FieldName] = true
-				}
-				if strings.Contains(row.Value, "**") || strings.Contains(row.Quote, "**") {
-					markdownEvidence = true
-				}
-			}
-			parseText := doc.ExtractedText
-			textChanged := false
-			if archiveImageExtension(doc.FileType) {
-				parseText = normalizeArchiveOCRText(parseText)
-				textChanged = parseText != doc.ExtractedText
-			}
-			previousType, previousBusiness := doc.DocumentType, doc.BusinessType
-			parsed, parsedEvidence := extractArchiveFields(doc, parseText)
-			changed := previousType != doc.DocumentType || previousBusiness != doc.BusinessType || textChanged
-			for _, field := range []string{"customer", "borrower", "lender"} {
-				if manualFields[field] {
-					continue
-				}
-				current := fields[field]
-				cleaned := cleanArchiveEntityName(current)
-				if cleaned == current {
-					continue
-				}
-				changed = true
-				if cleaned == "" {
-					delete(fields, field)
-					if field == "customer" {
-						doc.CustomerID = ""
-					}
-				} else {
-					fields[field] = cleaned
-				}
-			}
-			if textChanged {
-				doc.ExtractedText = parseText
-			}
-			if archiveImageExtension(doc.FileType) {
-				for key, value := range fields {
-					if manualFields[key] {
-						continue
-					}
-					cleaned := normalizeArchiveOCRText(value)
-					if cleaned != value {
-						fields[key] = cleaned
-						changed = true
-					}
-				}
-			}
-			replacedEvidenceFields := make(map[string]bool)
-			for key, value := range parsed {
-				if manualFields[key] || strings.TrimSpace(value) == "" {
-					continue
-				}
-				if strings.TrimSpace(fields[key]) == "" || strings.Contains(fields[key], "**") || fields[key] != value {
-					replacedEvidenceFields[key] = true
-					fields[key] = value
-					changed = true
-				}
-			}
-			if len(parsedEvidence) > 0 {
-				if archiveImageExtension(doc.FileType) && (textChanged || markdownEvidence) {
-					// Rebuild AI evidence against the normalized OCR text so the
-					// quote shown in the UI and its character range stay aligned.
-					cleanEvidence := make([]*types.ArchiveFieldEvidence, 0, len(parsedEvidence))
-					for _, row := range evidence {
-						if row != nil && row.IsManual {
-							cleanEvidence = append(cleanEvidence, row)
-						}
-					}
-					cleanEvidence = append(cleanEvidence, parsedEvidence...)
-					evidence = cleanEvidence
-					changed = true
-				} else {
-					if len(replacedEvidenceFields) > 0 || len(parsed) > 0 {
-						cleanEvidence := evidence[:0]
-						for _, row := range evidence {
-							if row == nil {
-								cleanEvidence = append(cleanEvidence, row)
-								continue
-							}
-							expected := parsed[row.FieldName]
-							staleParsedValue := !row.IsManual && expected != "" && cleanArchiveEntityName(row.Value) != cleanArchiveEntityName(expected)
-							if row.IsManual || (!replacedEvidenceFields[row.FieldName] && !staleParsedValue) {
-								cleanEvidence = append(cleanEvidence, row)
-							} else {
-								changed = true
-							}
-						}
-						evidence = cleanEvidence
-					}
-					seenEvidence := make(map[string]bool, len(evidence))
-					for _, row := range evidence {
-						if row != nil {
-							seenEvidence[row.FieldName+"\x00"+row.Value+"\x00"+row.Quote] = true
-						}
-					}
-					for _, row := range parsedEvidence {
-						if row == nil {
-							continue
-						}
-						key := row.FieldName + "\x00" + row.Value + "\x00" + row.Quote
-						if seenEvidence[key] {
-							continue
-						}
-						evidence = append(evidence, row)
-						seenEvidence[key] = true
-						changed = true
-					}
-				}
-			}
-			previousCustomerID := doc.CustomerID
-			if linkErr := s.linkCustomer(ctx, doc, fields); linkErr != nil {
-				return linkErr
-			}
-			if doc.CustomerID != previousCustomerID {
-				changed = true
-			}
-			if changed {
-				if encoded, marshalErr := json.Marshal(fields); marshalErr == nil {
-					doc.ExtractedFields = types.JSON(encoded)
-					if doc.ExtractionStatus == types.ArchiveExtractionReview && len(evidence) > 0 {
-						doc.ExtractionStatus = types.ArchiveExtractionCompleted
-					}
-					if updateErr := s.repo.UpdateDocument(ctx, doc); updateErr != nil {
-						return updateErr
-					}
-					if evidenceErr := s.repo.ReplaceEvidence(ctx, doc.TenantID, doc.ID, evidence); evidenceErr != nil {
-						return evidenceErr
-					}
-				}
-			}
-		}
-		if err := s.detectReminderCandidates(ctx, doc, fields, evidence, doc.CreatedBy); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 func (s *smartArchiveService) CreateReminder(ctx context.Context, tenantID uint64, userID string, row *types.ArchiveReminder) (*types.ArchiveReminder, error) {
 	row.TenantID = tenantID
 	if row.AssigneeID == "" {

@@ -146,6 +146,7 @@ func RegisterSyncHandlers(params SyncTaskParams) {
 	params.Executor.RegisterHandler(types.TypeContractReviewDocumentProcess, params.ContractReview.ProcessDocument)
 	params.Executor.RegisterHandler(types.TypeContractReviewAnalyze, params.ContractReview.ProcessReview)
 	params.Executor.RegisterHandler(types.TypeSmartArchiveDocumentProcess, params.SmartArchive.ProcessDocument)
+	params.Executor.RegisterHandler(types.TypeSmartArchiveMirrorProcess, params.SmartArchive.ProcessMirror)
 	params.Executor.RegisterHandler(types.TypeManualProcess, params.KnowledgeService.ProcessManualUpdate)
 	params.Executor.RegisterHandler(types.TypeFAQImport, params.KnowledgeService.ProcessFAQImport)
 	params.Executor.RegisterHandler(types.TypeQuestionGeneration, params.KnowledgeService.ProcessQuestionGeneration)

@@ -589,6 +589,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	// them only after the matching handlers are ready.
 	must(container.Invoke(recoverPendingWikiTasks))
 	must(container.Invoke(recoverPendingSmartArchiveImports))
+	must(container.Invoke(recoverPendingSmartArchiveMirrors))
 	must(container.Invoke(startSmartArchiveReminderRunner))
 
 	logger.Infof(ctx, "[Container] Container initialization completed successfully")
@@ -2278,9 +2279,6 @@ func startSmartArchiveReminderRunner(svc interfaces.SmartArchiveService, cleaner
 	}
 	stop := make(chan struct{})
 	go func() {
-		if err := svc.BackfillReminderCandidates(context.Background()); err != nil {
-			logger.Warnf(context.Background(), "[SmartArchive] reminder candidate backfill failed: %v", err)
-		}
 		const compensationInterval = 5 * time.Minute
 		run := func() {
 			if err := svc.RunDueReminders(context.Background()); err != nil {

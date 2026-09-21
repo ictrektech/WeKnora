@@ -19,3 +19,15 @@ func recoverPendingSmartArchiveImports(svc interfaces.SmartArchiveService) {
 		logger.Warnf(context.Background(), "[SmartArchive] pending import recovery failed: %v", err)
 	}
 }
+
+// recoverPendingSmartArchiveMirrors re-arms mirror work left pending or
+// processing by a restart. The archive row is the durable queue; enqueueing is
+// idempotent through the document-based task ID.
+func recoverPendingSmartArchiveMirrors(svc interfaces.SmartArchiveService) {
+	if svc == nil {
+		return
+	}
+	if err := svc.RecoverPendingMirrors(context.Background()); err != nil {
+		logger.Warnf(context.Background(), "[SmartArchive] pending mirror recovery failed: %v", err)
+	}
+}

@@ -58,6 +58,8 @@ type ArchiveRepository interface {
 	DeliverReminder(context.Context, *types.ArchiveReminder, *types.ArchiveReminderOccurrence, *types.ArchiveNotification) error
 
 	ListTrashedDocuments(context.Context) ([]*types.ArchiveDocument, error)
+	ClaimMirrorDocument(context.Context, uint64, string) (*types.ArchiveDocument, error)
+	ListPendingMirrorDocuments(context.Context, time.Time, int) ([]*types.ArchiveDocument, error)
 	HardDeleteDocument(context.Context, uint64, string) error
 	CreateNotification(context.Context, *types.ArchiveNotification) error
 	ListNotifications(context.Context, uint64, string, bool) ([]*types.ArchiveNotification, error)
@@ -73,7 +75,6 @@ type ArchiveRepository interface {
 	CreateReminderFromCandidate(context.Context, *types.ArchiveReminderCandidate, *types.ArchiveReminder) error
 
 	Search(context.Context, uint64, *types.ArchiveSearchRequest) (*types.ArchiveSearchResponse, error)
-	ListCompletedDocuments(context.Context) ([]*types.ArchiveDocument, error)
 }
 
 type SmartArchiveService interface {
@@ -85,6 +86,7 @@ type SmartArchiveService interface {
 	ListDocuments(context.Context, uint64, string, bool) ([]*types.ArchiveDocument, error)
 	UpdateDocument(context.Context, uint64, string, map[string]any) (*types.ArchiveDocument, error)
 	RetryExtraction(context.Context, uint64, string, string) (*types.ArchiveDocument, error)
+	RetryMirror(context.Context, uint64, string) (*types.ArchiveDocument, error)
 	ArchiveDocument(context.Context, uint64, string, bool) (*types.ArchiveDocument, error)
 	DeleteDocument(context.Context, uint64, string) error
 	BatchDocumentAction(context.Context, uint64, []string, types.ArchiveBulkAction) (*types.ArchiveBulkActionResult, error)
@@ -101,7 +103,6 @@ type SmartArchiveService interface {
 	ListReminderCandidates(context.Context, uint64, string) ([]*types.ArchiveReminderCandidate, error)
 	CreateReminderFromCandidate(context.Context, uint64, string, string, int, string, string) (*types.ArchiveReminder, error)
 	BatchIgnoreReminderCandidates(context.Context, uint64, []string) (*types.ArchiveBulkActionResult, error)
-	BackfillReminderCandidates(context.Context) error
 	ListNotifications(context.Context, uint64, string, bool) ([]*types.ArchiveNotification, error)
 	MarkNotificationRead(context.Context, uint64, string, string) error
 	DeleteNotification(context.Context, uint64, string, string) error
@@ -114,5 +115,9 @@ type SmartArchiveService interface {
 	// startup; both operations are tenant-aware and idempotent at repository
 	// boundaries.
 	ProcessDocument(context.Context, *asynq.Task) error
+	// ProcessMirror consumes one durable ArchiveMirrorTaskPayload. It only
+	// creates or re-submits the derived managed-knowledge mirror.
+	ProcessMirror(context.Context, *asynq.Task) error
 	RecoverPendingImports(context.Context) error
+	RecoverPendingMirrors(context.Context) error
 }

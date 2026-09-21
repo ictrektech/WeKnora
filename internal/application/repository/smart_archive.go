@@ -206,7 +206,7 @@ func (r *smartArchiveRepository) MarkImportItemCompleted(ctx context.Context, te
 			"status":          types.ArchiveImportItemCompleted,
 			"document_id":     documentID,
 			"completed_at":    now,
-			"run_id":          nil,
+			"run_id":          "",
 			"claimed_at":      nil,
 			"lease_until":     nil,
 			"error_message":   "",
@@ -254,7 +254,7 @@ func (r *smartArchiveRepository) MarkImportItemFailed(ctx context.Context, tenan
 			"error_message":   errorMessage,
 			"failure_counted": true,
 			"available_at":    retryAt,
-			"run_id":          nil,
+			"run_id":          "",
 			"claimed_at":      nil,
 			"lease_until":     nil,
 			"updated_at":      now,
@@ -341,13 +341,6 @@ func (r *smartArchiveRepository) ListDocuments(ctx context.Context, tenantID uin
 	return rows, nil
 }
 
-func (r *smartArchiveRepository) ListCompletedDocuments(ctx context.Context) ([]*types.ArchiveDocument, error) {
-	var rows []*types.ArchiveDocument
-	if err := r.db.WithContext(ctx).Where("extraction_status IN ? AND trashed_at IS NULL", []types.ArchiveExtractionStatus{types.ArchiveExtractionCompleted, types.ArchiveExtractionReview}).Order("updated_at ASC").Limit(10000).Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	return rows, nil
-}
 func (r *smartArchiveRepository) UpdateDocument(ctx context.Context, row *types.ArchiveDocument) error {
 	return r.db.WithContext(ctx).Omit("Customer", "Links", "Evidence").Save(row).Error
 }
@@ -660,6 +653,35 @@ func (r *smartArchiveRepository) ListTrashedDocuments(ctx context.Context) ([]*t
 	err := r.db.WithContext(ctx).Where("trashed_at IS NOT NULL").Order("trashed_at ASC").Limit(1000).Find(&rows).Error
 	return rows, err
 }
+
+func (r *smartArchiveRepository) ClaimMirrorDocument(ctx context.Context, tenantID uint64, id string) (*types.ArchiveDocument, error) {
+	result := r.db.WithContext(ctx).Model(&types.ArchiveDocument{}).
+		Where("tenant_id = ? AND id = ? AND trashed_at IS NULL AND mirror_status IN ?", tenantID, id, []types.ArchiveMirrorStatus{types.ArchiveMirrorPending, types.ArchiveMirrorProcessing}).
+		Updates(map[string]any{
+			"mirror_status":        types.ArchiveMirrorProcessing,
+			"mirror_error_message": "",
+			"updated_at":           time.Now().UTC(),
+		})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return r.GetDocument(ctx, tenantID, id)
+}
+
+func (r *smartArchiveRepository) ListPendingMirrorDocuments(ctx context.Context, _ time.Time, limit int) ([]*types.ArchiveDocument, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	var rows []*types.ArchiveDocument
+	err := r.db.WithContext(ctx).
+		Where("trashed_at IS NULL AND mirror_status IN ?", []types.ArchiveMirrorStatus{types.ArchiveMirrorPending, types.ArchiveMirrorProcessing}).
+		Order("updated_at ASC").Limit(limit).Find(&rows).Error
+	return rows, err
+}
+
 func (r *smartArchiveRepository) HardDeleteDocument(ctx context.Context, tenantID uint64, id string) error {
 	return r.db.WithContext(ctx).Unscoped().Where("tenant_id = ? AND id = ?", tenantID, id).Delete(&types.ArchiveDocument{}).Error
 }
@@ -725,14 +747,12 @@ func (r *smartArchiveRepository) Search(ctx context.Context, tenantID uint64, re
 	if req.Filters.Model != "" {
 		model := strings.ToLower(strings.TrimSpace(req.Filters.Model))
 		like := "%\"asset_model\"%" + model + "%"
-		legacyLike := "%\"model\"%" + model + "%"
-		q = q.Where("LOWER(CAST(extracted_fields AS TEXT)) LIKE ? OR LOWER(CAST(extracted_fields AS TEXT)) LIKE ?", like, legacyLike)
+		q = q.Where("LOWER(CAST(extracted_fields AS TEXT)) LIKE ?", like)
 	}
 	if req.Filters.SerialNumber != "" {
 		serial := strings.ToLower(strings.TrimSpace(req.Filters.SerialNumber))
 		like := "%\"serial_number\"%" + serial + "%"
-		legacyLike := "%\"serial\"%" + serial + "%"
-		q = q.Where("LOWER(CAST(extracted_fields AS TEXT)) LIKE ? OR LOWER(CAST(extracted_fields AS TEXT)) LIKE ?", like, legacyLike)
+		q = q.Where("LOWER(CAST(extracted_fields AS TEXT)) LIKE ?", like)
 	}
 	if req.Filters.AgreementNumber != "" {
 		q = q.Where("agreement_number = ?", req.Filters.AgreementNumber)

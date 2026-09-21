@@ -73,10 +73,14 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useMarqueeSelect } from '@/hooks/useMarqueeSelect';
 import type { ParserEngineInfo } from '@/api/system';
+import { MANAGED_SMART_ARCHIVE_KB_MARKER } from '@/api/smart-archive';
 const route = useRoute();
 const { t } = useI18n();
 const kbId = computed(() => (route.params as any).kbId as string || '');
 const kbInfo = ref<any>(null);
+const isManagedSmartArchive = computed(() =>
+  String(kbInfo.value?.description || '').trim().startsWith(MANAGED_SMART_ARCHIVE_KB_MARKER),
+);
 const uploadSourceRef = ref<InstanceType<typeof KbUploadSourceDropdown> | null>(null);
 const kbLoading = ref(false);
 const docListLoading = ref(true);
@@ -228,6 +232,7 @@ const unsupportedFileTypes = computed<string[]>(() => {
 })
 
 const goToParserSettings = () => {
+  if (isManagedSmartArchive.value) return;
   if (kbId.value) {
     uiStore.openKBSettings(kbId.value, 'parser')
   }
@@ -281,6 +286,7 @@ const isViaShare = computed(() => !!currentSharedKb.value);
 // hasRole('contributor') is intentionally NOT here — being a Contributor
 // in a tenant does not by itself grant edit on someone else's KB.
 const canEdit = computed(() => {
+  if (isManagedSmartArchive.value) return false;
   if (isViaShare.value) return orgStore.canEditKB(kbId.value, false);
   if (isOwner.value) return true;
   if (authStore.hasRole('admin')) return true;
@@ -291,6 +297,7 @@ const canEdit = computed(() => {
 // shared KBs only an 'admin' share grant qualifies — editor/viewer (and
 // even being the creator viewed via share) never grant delete/settings.
 const canManage = computed(() => {
+  if (isManagedSmartArchive.value) return false;
   if (isViaShare.value) return orgStore.canManageKB(kbId.value, false);
   if (isOwner.value) return true;
   if (authStore.hasRole('admin')) return true;
@@ -1794,6 +1801,7 @@ const handleManualCreate = () => {
 };
 
 const handleOpenKBSettings = () => {
+  if (isManagedSmartArchive.value) return;
   if (!kbId.value) {
     MessagePlugin.warning(t('knowledgeEditor.messages.missingId'));
     return;
@@ -2328,7 +2336,7 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
             </div>
           </div>
           <p v-if="kbInfo?.description" class="document-subtitle">{{ kbInfo.description }}</p>
-          <p v-if="unsupportedFileTypes.length" class="parser-hint" @click="goToParserSettings">
+          <p v-if="unsupportedFileTypes.length && !isManagedSmartArchive" class="parser-hint" @click="goToParserSettings">
             <t-icon name="info-circle" class="parser-hint-icon" />
             <span>{{$t('knowledgeBase.unsupportedTypesHint', {
               types: unsupportedFileTypes.map(t => '.' + t).join('、')
@@ -2336,7 +2344,7 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
               }}</span>
             <span class="parser-hint-link">{{ $t('knowledgeBase.goToParserSettings') }} →</span>
           </p>
-          <p v-if="missingStorageEngine" class="storage-engine-warning" @click="handleOpenKBSettings">
+          <p v-if="missingStorageEngine && !isManagedSmartArchive" class="storage-engine-warning" @click="handleOpenKBSettings">
             <t-icon name="info-circle" class="warning-icon" />
             <span>{{ $t('knowledgeBase.missingStorageEngine') }}</span>
             <span class="warning-link">{{ $t('knowledgeBase.goToStorageSettings') }} →</span>

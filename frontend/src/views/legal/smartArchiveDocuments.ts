@@ -1,4 +1,4 @@
-import type { ArchiveDocument, ArchiveExtractionStatus, ArchiveSearchFilters } from '@/api/smart-archive'
+import type { ArchiveDocument, ArchiveExtractionStatus, ArchiveMirrorStatus, ArchiveSearchFilters } from '@/api/smart-archive'
 
 export interface ArchiveDocumentFilterState {
   dateFrom: string
@@ -41,4 +41,35 @@ export function archiveDocumentStatusTone(status: ArchiveExtractionStatus): 'que
   if (status === 'failed') return 'failed'
   if (status === 'needs_review') return 'review'
   return 'running'
+}
+
+export interface ArchiveDocumentDisplayStatus {
+  status: ArchiveExtractionStatus | ArchiveMirrorStatus
+  source: 'extraction' | 'mirror'
+  tone: 'queued' | 'running' | 'completed' | 'failed' | 'review'
+}
+
+/**
+ * A document has two backend states (extraction and knowledge-base mirror),
+ * but the list should expose one status that answers "can I use it now?".
+ * Once extraction is complete, mirror work becomes the only relevant state;
+ * a submitted mirror is therefore represented by the single final "completed"
+ * state instead of showing two successful labels side by side.
+ */
+export function archiveDocumentDisplayStatus(document: Pick<ArchiveDocument, 'extraction_status' | 'mirror_status'>): ArchiveDocumentDisplayStatus {
+  if (document.extraction_status !== 'completed') {
+    return { status: document.extraction_status, source: 'extraction', tone: archiveDocumentStatusTone(document.extraction_status) }
+  }
+
+  switch (document.mirror_status) {
+    case 'not_started':
+    case 'pending':
+      return { status: 'pending', source: 'mirror', tone: 'review' }
+    case 'processing':
+      return { status: 'processing', source: 'mirror', tone: 'running' }
+    case 'failed':
+      return { status: 'failed', source: 'mirror', tone: 'failed' }
+    default:
+      return { status: 'completed', source: 'extraction', tone: 'completed' }
+  }
 }

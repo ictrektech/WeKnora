@@ -21,6 +21,7 @@ type ArchiveReminderCandidateStatus string
 type ArchiveReminderOccurrenceStatus string
 type ArchiveSourceLocatorKind string
 type ArchiveBulkAction string
+type ArchiveMirrorStatus string
 
 const ArchiveDefaultExtractionVersion = "1.0"
 
@@ -29,12 +30,6 @@ const ArchiveDefaultExtractionVersion = "1.0"
 // prevent a normal KB edit/delete request from breaking the archive's source
 // of truth; archive imports remain the only supported write path.
 const ManagedSmartArchiveKnowledgeBaseMarker = "[weknora-managed-smart-archive]"
-
-// LegacyManagedSmartArchiveKnowledgeBaseMarker protects installations that
-// were upgraded from the standalone LexAI implementation. It is accepted only
-// for read/guard purposes; newly-created mirrors always use the neutral marker
-// above.
-const LegacyManagedSmartArchiveKnowledgeBaseMarker = "[lexai-managed-smart-archive]"
 
 const (
 	ArchiveDocumentContract      ArchiveDocumentType = "contract"
@@ -99,6 +94,12 @@ const (
 	ArchiveBulkDelete  ArchiveBulkAction = "delete"
 	ArchiveBulkPurge   ArchiveBulkAction = "purge"
 	ArchiveBulkIgnore  ArchiveBulkAction = "ignore"
+
+	ArchiveMirrorNotStarted ArchiveMirrorStatus = "not_started"
+	ArchiveMirrorPending    ArchiveMirrorStatus = "pending"
+	ArchiveMirrorProcessing ArchiveMirrorStatus = "processing"
+	ArchiveMirrorSubmitted  ArchiveMirrorStatus = "submitted"
+	ArchiveMirrorFailed     ArchiveMirrorStatus = "failed"
 )
 
 type ArchiveSettings struct {
@@ -180,7 +181,7 @@ type ArchiveImportItem struct {
 	Status            ArchiveImportItemStatus `json:"status" gorm:"type:varchar(24);not null;default:'queued';index"`
 	AttemptCount      int                     `json:"attempt_count" gorm:"not null;default:0"`
 	FailureCounted    bool                    `json:"-" gorm:"not null;default:false"`
-	RunID             string                  `json:"run_id,omitempty" gorm:"type:varchar(64);index"`
+	RunID             string                  `json:"run_id,omitempty" gorm:"type:varchar(64);not null;default:'';index"`
 	AvailableAt       *time.Time              `json:"available_at,omitempty" gorm:"index"`
 	ClaimedAt         *time.Time              `json:"claimed_at,omitempty"`
 	LeaseUntil        *time.Time              `json:"lease_until,omitempty" gorm:"index"`
@@ -214,43 +215,53 @@ type ArchiveImportTaskPayload struct {
 	ExtractionVersion string `json:"extraction_version,omitempty"`
 }
 
+// ArchiveMirrorTaskPayload carries only durable identifiers. The archive row
+// and parse artifact remain the source of truth; the worker creates or
+// re-submits the derived managed-knowledge mirror from those records.
+type ArchiveMirrorTaskPayload struct {
+	TenantID   uint64 `json:"tenant_id"`
+	DocumentID string `json:"document_id"`
+}
+
 type ArchiveDocument struct {
-	ID                string                  `json:"id" gorm:"type:varchar(36);primaryKey"`
-	TenantID          uint64                  `json:"tenant_id" gorm:"not null;index"`
-	ImportBatchID     string                  `json:"import_batch_id" gorm:"type:varchar(36);index"`
-	KnowledgeID       string                  `json:"knowledge_id" gorm:"type:varchar(36);index"`
-	Title             string                  `json:"title" gorm:"type:varchar(512);not null"`
-	FileName          string                  `json:"file_name" gorm:"type:varchar(1024);not null"`
-	FileType          string                  `json:"file_type" gorm:"type:varchar(16);not null"`
-	FileSize          int64                   `json:"file_size" gorm:"not null;default:0"`
-	FileHash          string                  `json:"file_hash" gorm:"type:varchar(64);not null;index"`
-	FilePath          string                  `json:"-" gorm:"type:text;not null"`
-	DocumentType      ArchiveDocumentType     `json:"document_type" gorm:"type:varchar(32);not null;default:'other';index"`
-	BusinessType      ArchiveBusinessType     `json:"business_type" gorm:"type:varchar(16);not null;default:'other';index"`
-	CustomerID        string                  `json:"customer_id" gorm:"type:varchar(36);index"`
-	AgreementNumber   string                  `json:"agreement_number" gorm:"type:varchar(256);index"`
-	SignedAt          *time.Time              `json:"signed_at,omitempty"`
-	EffectiveAt       *time.Time              `json:"effective_at,omitempty"`
-	ExpiresAt         *time.Time              `json:"expires_at,omitempty"`
-	ReturnDueAt       *time.Time              `json:"return_due_at,omitempty" gorm:"-"`
-	ReturnedAt        *time.Time              `json:"returned_at,omitempty"`
-	RenewedAt         *time.Time              `json:"renewed_at,omitempty"`
-	Amount            float64                 `json:"amount"`
-	Currency          string                  `json:"currency" gorm:"type:varchar(16)"`
-	ExtractedText     string                  `json:"-" gorm:"type:text"`
-	ExtractedFields   JSON                    `json:"extracted_fields" gorm:"type:json"`
-	Metadata          JSON                    `json:"metadata" gorm:"type:json"`
-	ExtractionStatus  ArchiveExtractionStatus `json:"extraction_status" gorm:"type:varchar(24);not null;default:'uploading';index"`
-	ExtractionVersion string                  `json:"extraction_version" gorm:"type:varchar(32);not null;default:'1.0'"`
-	ErrorMessage      string                  `json:"error_message,omitempty" gorm:"type:text"`
-	ArchivedAt        *time.Time              `json:"archived_at,omitempty" gorm:"index"`
-	TrashedAt         *time.Time              `json:"trashed_at,omitempty" gorm:"index"`
-	CreatedBy         string                  `json:"created_by" gorm:"type:varchar(64);not null;index"`
-	CreatedAt         time.Time               `json:"created_at"`
-	UpdatedAt         time.Time               `json:"updated_at"`
-	Customer          *ArchiveCustomer        `json:"customer,omitempty" gorm:"-"`
-	Links             []*ArchiveDocumentLink  `json:"links,omitempty" gorm:"-"`
-	Evidence          []*ArchiveFieldEvidence `json:"evidence,omitempty" gorm:"-"`
+	ID                 string                  `json:"id" gorm:"type:varchar(36);primaryKey"`
+	TenantID           uint64                  `json:"tenant_id" gorm:"not null;index"`
+	ImportBatchID      string                  `json:"import_batch_id" gorm:"type:varchar(36);index"`
+	KnowledgeID        string                  `json:"knowledge_id" gorm:"type:varchar(36);index"`
+	Title              string                  `json:"title" gorm:"type:varchar(512);not null"`
+	FileName           string                  `json:"file_name" gorm:"type:varchar(1024);not null"`
+	FileType           string                  `json:"file_type" gorm:"type:varchar(16);not null"`
+	FileSize           int64                   `json:"file_size" gorm:"not null;default:0"`
+	FileHash           string                  `json:"file_hash" gorm:"type:varchar(64);not null;index"`
+	FilePath           string                  `json:"-" gorm:"type:text;not null"`
+	DocumentType       ArchiveDocumentType     `json:"document_type" gorm:"type:varchar(32);not null;default:'other';index"`
+	BusinessType       ArchiveBusinessType     `json:"business_type" gorm:"type:varchar(16);not null;default:'other';index"`
+	CustomerID         string                  `json:"customer_id" gorm:"type:varchar(36);index"`
+	AgreementNumber    string                  `json:"agreement_number" gorm:"type:varchar(256);index"`
+	SignedAt           *time.Time              `json:"signed_at,omitempty"`
+	EffectiveAt        *time.Time              `json:"effective_at,omitempty"`
+	ExpiresAt          *time.Time              `json:"expires_at,omitempty"`
+	ReturnDueAt        *time.Time              `json:"return_due_at,omitempty" gorm:"-"`
+	ReturnedAt         *time.Time              `json:"returned_at,omitempty"`
+	RenewedAt          *time.Time              `json:"renewed_at,omitempty"`
+	Amount             float64                 `json:"amount"`
+	Currency           string                  `json:"currency" gorm:"type:varchar(16)"`
+	ExtractedText      string                  `json:"-" gorm:"type:text"`
+	ExtractedFields    JSON                    `json:"extracted_fields" gorm:"type:json"`
+	Metadata           JSON                    `json:"metadata" gorm:"type:json"`
+	ExtractionStatus   ArchiveExtractionStatus `json:"extraction_status" gorm:"type:varchar(24);not null;default:'uploading';index"`
+	ExtractionVersion  string                  `json:"extraction_version" gorm:"type:varchar(32);not null;default:'1.0'"`
+	ErrorMessage       string                  `json:"error_message,omitempty" gorm:"type:text"`
+	MirrorStatus       ArchiveMirrorStatus     `json:"mirror_status" gorm:"type:varchar(24);not null;default:'not_started';index"`
+	MirrorErrorMessage string                  `json:"mirror_error_message,omitempty" gorm:"type:text"`
+	ArchivedAt         *time.Time              `json:"archived_at,omitempty" gorm:"index"`
+	TrashedAt          *time.Time              `json:"trashed_at,omitempty" gorm:"index"`
+	CreatedBy          string                  `json:"created_by" gorm:"type:varchar(64);not null;index"`
+	CreatedAt          time.Time               `json:"created_at"`
+	UpdatedAt          time.Time               `json:"updated_at"`
+	Customer           *ArchiveCustomer        `json:"customer,omitempty" gorm:"-"`
+	Links              []*ArchiveDocumentLink  `json:"links,omitempty" gorm:"-"`
+	Evidence           []*ArchiveFieldEvidence `json:"evidence,omitempty" gorm:"-"`
 }
 
 func (d *ArchiveDocument) BeforeCreate(_ *gorm.DB) error {
@@ -265,6 +276,9 @@ func (d *ArchiveDocument) BeforeCreate(_ *gorm.DB) error {
 	}
 	if d.ExtractionStatus == "" {
 		d.ExtractionStatus = ArchiveExtractionUploading
+	}
+	if d.MirrorStatus == "" {
+		d.MirrorStatus = ArchiveMirrorNotStarted
 	}
 	if d.ExtractionVersion == "" {
 		d.ExtractionVersion = "1.0"

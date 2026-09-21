@@ -211,6 +211,18 @@ func (h *SmartArchiveHandler) RetryExtraction(c *gin.Context) {
 	}
 	c.JSON(http.StatusAccepted, gin.H{"success": true, "data": row})
 }
+func (h *SmartArchiveHandler) RetryMirror(c *gin.Context) {
+	_, tenant, ok := archiveContext(c)
+	if !ok {
+		return
+	}
+	row, err := h.service.RetryMirror(c.Request.Context(), tenant, c.Param("id"))
+	if err != nil {
+		archiveError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{"success": true, "data": row})
+}
 func (h *SmartArchiveHandler) ArchiveDocument(c *gin.Context) {
 	_, tenant, ok := archiveContext(c)
 	if !ok {

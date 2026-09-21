@@ -2,14 +2,17 @@ import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { getApiBaseUrl } from '@/utils/api-base'
 import { del, get, getDown, patch, post, postUpload } from '@/utils/request'
 
+export const MANAGED_SMART_ARCHIVE_KB_MARKER = '[weknora-managed-smart-archive]'
+
 export type ArchiveDocumentType = 'contract' | 'loan_agreement' | 'outbound_order' | 'return_order' | 'renewal' | 'payment' | 'delivery' | 'other'
 export type ArchiveExtractionStatus = 'uploading' | 'parsing' | 'extracting' | 'linking' | 'needs_review' | 'completed' | 'failed'
+export type ArchiveMirrorStatus = 'not_started' | 'pending' | 'processing' | 'submitted' | 'failed'
 export type ArchiveReminderStatus = 'draft' | 'active' | 'snoozed' | 'handled' | 'canceled'
 export type ArchiveBulkAction = 'archive' | 'restore' | 'delete' | 'purge' | 'ignore'
 
 export interface ArchiveEvidence { id: string; document_id: string; knowledge_id?: string; chunk_id?: string; field_name: string; value: string; confidence: number; quote: string; locator_kind: string; locator: Record<string, unknown>; source_start: number; source_end: number; is_manual: boolean }
 export interface ArchiveCustomer { id: string; name: string; normalized: string; aliases: string[]; notes?: string }
-export interface ArchiveDocument { id: string; import_batch_id?: string; title: string; file_name: string; file_type: string; file_size: number; document_type: ArchiveDocumentType; business_type: string; customer_id?: string; agreement_number: string; signed_at?: string; effective_at?: string; expires_at?: string; return_due_at?: string; returned_at?: string; renewed_at?: string; amount: number; currency: string; extracted_fields: Record<string, string>; extraction_status: ArchiveExtractionStatus; error_message?: string; archived_at?: string; trashed_at?: string; created_at: string; updated_at: string; customer?: ArchiveCustomer; links?: Array<{ id: string; from_document_id: string; to_document_id: string; relation: string; link_status: string }>; evidence?: ArchiveEvidence[] }
+export interface ArchiveDocument { id: string; import_batch_id?: string; title: string; file_name: string; file_type: string; file_size: number; document_type: ArchiveDocumentType; business_type: string; customer_id?: string; agreement_number: string; signed_at?: string; effective_at?: string; expires_at?: string; return_due_at?: string; returned_at?: string; renewed_at?: string; amount: number; currency: string; extracted_fields: Record<string, string>; extraction_status: ArchiveExtractionStatus; error_message?: string; mirror_status?: ArchiveMirrorStatus; mirror_error_message?: string; archived_at?: string; trashed_at?: string; created_at: string; updated_at: string; customer?: ArchiveCustomer; links?: Array<{ id: string; from_document_id: string; to_document_id: string; relation: string; link_status: string }>; evidence?: ArchiveEvidence[] }
 export interface ArchiveBatch { id: string; total: number; completed: number; failed: number; status: string; created_at: string; updated_at: string }
 export interface ArchiveReminder { id: string; document_id?: string; customer_id?: string; assignee_id: string; type: string; title: string; description: string; rule: Record<string, unknown>; status: ArchiveReminderStatus; confidence: number; due_at?: string; snoozed_until?: string; created_at: string }
 export interface ArchiveReminderCandidate { id: string; document_id: string; document_title: string; customer_id?: string; assignee_id?: string; type: string; source_field: string; event_at: string; suggested_offset_days: number; title: string; description: string; confidence: number; quote: string; locator: Record<string, unknown>; rule: Record<string, unknown>; needs_review: boolean; status: 'pending' | 'created' | 'superseded' | 'ignored'; reminder_id?: string; created_at: string; updated_at: string }
@@ -41,6 +44,7 @@ export const getArchiveBatch = (id: string) => get<ArchiveApiResponse<ArchiveBat
 export const getArchiveDocument = (id: string) => get<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}`)
 export const updateArchiveDocument = (id: string, data: Record<string, unknown>) => patch<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}`, data)
 export const retryArchiveDocumentExtraction = (id: string) => post<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/retry-extraction`)
+export const retryArchiveDocumentMirror = (id: string) => post<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/retry-mirror`)
 export const archiveDocument = (id: string) => post<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/archive`)
 export const restoreDocument = (id: string) => post<ArchiveApiResponse<ArchiveDocument>>(`/api/v1/archive/documents/${id}/restore`)
 export const bulkArchiveDocuments = (ids: string[]) => post<ArchiveApiResponse<ArchiveBulkActionResult>>('/api/v1/archive/documents/bulk/archive', { ids })

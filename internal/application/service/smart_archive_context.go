@@ -75,8 +75,7 @@ func isManagedSmartArchiveKnowledgeBase(kb *types.KnowledgeBase) bool {
 		return false
 	}
 	description := strings.TrimSpace(kb.Description)
-	return strings.HasPrefix(description, types.ManagedSmartArchiveKnowledgeBaseMarker) ||
-		strings.HasPrefix(description, types.LegacyManagedSmartArchiveKnowledgeBaseMarker)
+	return strings.HasPrefix(description, types.ManagedSmartArchiveKnowledgeBaseMarker)
 }
 
 func rejectManagedSmartArchiveMutation(ctx context.Context, kb *types.KnowledgeBase) error {

@@ -731,6 +731,7 @@ import { useTenantModelReadiness } from '@/composables/useTenantModelReadiness'
 import { useI18n } from 'vue-i18n'
 import { useListUrlState } from '@/composables/useListUrlState'
 import { useResourcePins } from '@/composables/useResourcePins'
+import { MANAGED_SMART_ARCHIVE_KB_MARKER } from '@/api/smart-archive'
 
 const router = useRouter()
 const route = useRoute()
@@ -1229,12 +1230,14 @@ const handleSettings = (kb: KB) => {
 // those as tenant-owned (Admin+ may manage) so existing KBs aren't
 // suddenly unmanageable for everyone.
 function canManageKBCard(kb: KB): boolean {
+  if ((kb.description || '').trim().startsWith(MANAGED_SMART_ARCHIVE_KB_MARKER)) return false
   const userId = authStore.user?.id || ''
   if (kb.creator_id && userId && kb.creator_id === userId) return true
   return authStore.hasRole('admin')
 }
 
 function canDuplicateKBCard(kb: any): boolean {
+  if ((kb.description || '').trim().startsWith(MANAGED_SMART_ARCHIVE_KB_MARKER)) return false
   return authStore.hasRole('contributor') && kb.isMine !== false
 }
 
@@ -1413,6 +1416,10 @@ const requestDelete = (kb: KB) => {
 }
 
 const isInitialized = (kb: KB) => {
+  // The smart-archive mirror is intentionally read-only and has no summary
+  // model. It is still a valid detail page, so do not route its card to KB
+  // settings just because the normal editor readiness check is false.
+  if ((kb.description || '').trim().startsWith(MANAGED_SMART_ARCHIVE_KB_MARKER)) return true
   // LLM (summary) model is always required
   if (!kb.summary_model_id || kb.summary_model_id === '') return false
   // Embedding model only required when RAG indexing is enabled (vector or keyword)

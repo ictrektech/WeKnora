@@ -47,8 +47,11 @@ function json(route: Route, data: unknown, status = 200) {
   })
 }
 
-test('keeps archive usable when settings fail and retains partial bulk failures', async ({ page }) => {
+test('loads documents while settings are blocked and retains partial bulk failures', async ({ page }) => {
   let bulkActionDone = false
+  let settingsReleased = false
+  let releaseSettings!: () => void
+  const settingsGate = new Promise<void>((resolve) => { releaseSettings = () => { settingsReleased = true; resolve() } })
   const searchBodies: Array<{ query?: string }> = []
 
   await page.addInitScript(() => {
@@ -113,6 +116,7 @@ test('keeps archive usable when settings fail and retains partial bulk failures'
       return json(route, { success: true, data: { enabled: true } })
     }
     if (path.endsWith('/archive/settings')) {
+      await settingsGate
       return json(route, { success: false, message: 'settings unavailable' }, 503)
     }
     if (path.endsWith('/tenants/1/members')) {
@@ -167,6 +171,8 @@ test('keeps archive usable when settings fail and retains partial bulk failures'
   await expect(page.getByRole('heading', { name: 'Contract Archive' })).toBeVisible()
   await expect(page.getByTestId('archive-row-archive-1')).toBeVisible()
   await expect(page.getByTestId('archive-row-archive-failed')).toBeVisible()
+  expect(settingsReleased).toBe(false)
+  releaseSettings()
 
   await page.getByTestId('archive-search').fill('AG-001')
   await page.getByTestId('archive-search').press('Enter')

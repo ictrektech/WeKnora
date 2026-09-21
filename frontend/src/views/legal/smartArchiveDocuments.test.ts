@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import type { ArchiveDocument } from '@/api/smart-archive'
 import {
   archiveDocumentStatusTone,
+  archiveDocumentDisplayStatus,
   buildArchiveSearchFilters,
   hasMoreArchiveDocuments,
   mergeArchiveDocuments,
@@ -64,4 +65,27 @@ test('maps extraction states to stable status tones', () => {
   assert.equal(archiveDocumentStatusTone('completed'), 'completed')
   assert.equal(archiveDocumentStatusTone('failed'), 'failed')
   assert.equal(archiveDocumentStatusTone('needs_review'), 'review')
+})
+
+test('exposes one user-facing status across extraction and mirror stages', () => {
+  assert.deepEqual(archiveDocumentDisplayStatus({ extraction_status: 'completed', mirror_status: 'submitted' }), {
+    status: 'completed',
+    source: 'extraction',
+    tone: 'completed',
+  })
+  assert.deepEqual(archiveDocumentDisplayStatus({ extraction_status: 'completed', mirror_status: 'processing' }), {
+    status: 'processing',
+    source: 'mirror',
+    tone: 'running',
+  })
+  assert.deepEqual(archiveDocumentDisplayStatus({ extraction_status: 'completed', mirror_status: 'not_started' }), {
+    status: 'pending',
+    source: 'mirror',
+    tone: 'review',
+  })
+  assert.deepEqual(archiveDocumentDisplayStatus({ extraction_status: 'needs_review', mirror_status: 'submitted' }), {
+    status: 'needs_review',
+    source: 'extraction',
+    tone: 'review',
+  })
 })

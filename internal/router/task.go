@@ -272,6 +272,7 @@ func RunAsynqServer(params AsynqTaskParams) *asynq.ServeMux {
 	mux.HandleFunc(types.TypeContractReviewDocumentProcess, params.ContractReview.ProcessDocument)
 	mux.HandleFunc(types.TypeContractReviewAnalyze, params.ContractReview.ProcessReview)
 	mux.HandleFunc(types.TypeSmartArchiveDocumentProcess, params.SmartArchive.ProcessDocument)
+	mux.HandleFunc(types.TypeSmartArchiveMirrorProcess, params.SmartArchive.ProcessMirror)
 
 	// Register manual knowledge processing handler (cleanup + re-indexing)
 	mux.HandleFunc(types.TypeManualProcess, params.KnowledgeService.ProcessManualUpdate)
