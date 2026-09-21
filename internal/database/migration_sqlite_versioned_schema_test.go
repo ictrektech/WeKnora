@@ -72,7 +72,7 @@ var versionedSQLiteColumns = map[string][]string{
 
 // expectedSQLiteMigrationVersion includes both upstream migrations and the
 // fork's appended SQLite migrations.
-const expectedSQLiteMigrationVersion = 32
+const expectedSQLiteMigrationVersion = 35
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

@@ -10,8 +10,9 @@ import (
 )
 
 // The fork has already published the migration range 000097-000120, so
-// upstream additions are appended as 000121-000124. Loading each directory
-// catches any future duplicate version before deployment.
+// upstream additions are appended as 000121-000125 and local ictrek
+// migrations continue at 000126. Loading each directory catches any future
+// duplicate version before deployment.
 func TestMigrationDirectoriesLoad(t *testing.T) {
 	root := sqliteRepoRoot(t)
 	for _, dir := range []string{"versioned", "sqlite"} {

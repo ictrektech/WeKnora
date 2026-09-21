@@ -56,8 +56,8 @@ API 前缀为 `/api/v1/archive`。`Viewer+` 可读取文档、证据、客户、
 
 ## 迁移与验证
 
-- PostgreSQL 使用 `migrations/versioned/000121_smart_archive_mirror_status.up.sql` 增加镜像状态字段和待处理索引。
-- SQLite/Lite 使用 `migrations/sqlite/000029_smart_archive_mirror_status.up.sql` 增加镜像状态字段和待处理索引。
+- PostgreSQL 使用 `migrations/versioned/000126_smart_archive_mirror_status.up.sql` 增加镜像状态字段和待处理索引。
+- SQLite/Lite 使用 `migrations/sqlite/000033_smart_archive_mirror_status.up.sql` 增加镜像状态字段和待处理索引。
 - 解析共享结果存储在 `document_parse_artifacts`；回滚迁移会按依赖顺序删除智能档案表。
 - 已验证：`go test ./internal/types ./internal/application/repository -count=1`、智能档案受管镜像写授权聚焦测试、后端路由/服务/容器编译、SQLite migration 聚焦测试，以及前端 `npm run type-check`、`npm run check-i18n`、智能档案状态测试和生产构建。
 - 待验证：目标部署的真实 OCR/模型调用、Redis 重启后的任务恢复、VOS 包升级后的迁移和资源共享删除行为。
