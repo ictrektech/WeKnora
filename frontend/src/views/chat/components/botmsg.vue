@@ -154,6 +154,7 @@ import { useArtifactArriveMotion } from '@/composables/useArtifactArriveMotion';
 import { useChatSandboxPanel } from '@/composables/useChatSandboxPanel';
 import { persistedAssistantId } from '@/utils/steerStreamFork';
 import { sanitizeMarkdownHTML, safeMarkdownToHTML, createSafeImage, isValidImageURL, hydrateProtectedFileImages } from '@/utils/security';
+import { useProtectedImageRecovery } from '@/composables/useProtectedImageRecovery';
 import {
     artifactIndexFromEventTarget,
     hydrateArtifactImages,
@@ -327,6 +328,14 @@ const artifactRefContext = computed(() => {
     return { sessionId: props.sessionId, messageId };
 });
 
+// Shared replies must authorize files through the persisted message, just as
+// AgentStreamDisplay does. The default embed plane still takes precedence.
+const protectedFileAccess = computed(() => {
+    const messageId = persistedAssistantId(props.session);
+    if (!props.sessionId || !messageId) return undefined;
+    return { mode: 'message', sessionId: props.sessionId, messageId };
+});
+
 const artifactRefLabels = computed(() => ({
     previewHint: t('agent.artifactDrawer.inlinePreviewHint'),
     missingHint: t('agent.artifactDrawer.inlineMissing'),
@@ -390,6 +399,8 @@ const { displayed: typedAnswer } = useTypewriter(
 const answerFullyRendered = computed(() =>
     Boolean(props.session?.is_completed) && typedAnswer.value.length >= answerText.value.length
 );
+useProtectedImageRecovery(() => parentMd.value, () => protectedFileAccess.value,
+    () => !props.session?.isAgentMode && !props.session?.persistence_error && answerFullyRendered.value);
 
 watch(
     answerFullyRendered,
@@ -486,7 +497,7 @@ watch(renderedHTML, () => {
 // 渲染 Mermaid 图表的函数
 onUpdated(() => {
     nextTick(async () => {
-        await hydrateProtectedFileImages(parentMd.value);
+        await hydrateProtectedFileImages(parentMd.value, protectedFileAccess.value);
         await hydrateArtifactImages(parentMd.value, artifactRefContext.value);
         refreshMarkdownEnhancements(parentMd.value);
         if (props.session?.is_completed) {
@@ -502,7 +513,7 @@ onMounted(async () => {
             parentMd.value.addEventListener('click', handleMarkdownImageClick, true);
         }
         rebindCitations();
-        await hydrateProtectedFileImages(parentMd.value);
+        await hydrateProtectedFileImages(parentMd.value, protectedFileAccess.value);
         await hydrateArtifactImages(parentMd.value, artifactRefContext.value);
         await enhanceMarkdownContainer(parentMd.value);
     });

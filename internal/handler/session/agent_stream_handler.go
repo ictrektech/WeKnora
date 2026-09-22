@@ -43,6 +43,7 @@ type AgentStreamHandler struct {
 	assistantMessage   *types.Message
 	streamManager      interfaces.StreamManager
 	messageService     interfaces.MessageService
+	completionEvent    *interfaces.StreamEvent // Published only after the final message is persisted.
 
 	eventBus *event.EventBus
 
@@ -910,7 +911,9 @@ func (h *AgentStreamHandler) handleComplete(ctx context.Context, evt event.Event
 		}
 	}
 
-	// Send completion event to stream manager so SSE can detect completion
+	// Prepare completion metadata. Publishing must wait for the caller to save
+	// Content/AgentSteps/Artifacts: message-scoped file requests authorize against
+	// that persisted output as soon as the client receives this event.
 	completeData := map[string]interface{}{
 		"total_steps":       data.TotalSteps,
 		"total_duration_ms": data.TotalDurationMs,
@@ -931,7 +934,7 @@ func (h *AgentStreamHandler) handleComplete(ctx context.Context, evt event.Event
 	if turnUsage != nil {
 		completeData["usage"] = turnUsage
 	}
-	if err := h.streamManager.AppendEvent(h.ctx, h.sessionID, h.assistantMessageID, interfaces.StreamEvent{
+	h.completionEvent = &interfaces.StreamEvent{
 		ID:        evt.ID,
 		Type:      types.ResponseTypeComplete,
 		Content:   "",
@@ -939,10 +942,24 @@ func (h *AgentStreamHandler) handleComplete(ctx context.Context, evt event.Event
 		Timestamp: time.Now(),
 		Data:      completeData,
 		Usage:     turnUsage,
-	}); err != nil {
-		logger.GetLogger(h.ctx).Errorf("Append complete event to stream failed: %v", err)
 	}
 
+	return nil
+}
+
+// publishCompletion is called only after UpdateMessage succeeds. Keep it
+// separate from handleComplete so steering handoff and final persistence retain
+// their existing order, including on cancellation and quick-answer turns.
+func (h *AgentStreamHandler) publishCompletion(ctx context.Context) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.completionEvent == nil {
+		return nil
+	}
+	if err := h.streamManager.AppendEvent(ctx, h.sessionID, h.assistantMessageID, *h.completionEvent); err != nil {
+		return err
+	}
+	h.completionEvent = nil
 	return nil
 }
 

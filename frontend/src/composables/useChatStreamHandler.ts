@@ -1180,15 +1180,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           answerEvent.done = true
           message.__stream_active = false
           onAgentAnswerDone?.(message)
-          // Agent turns may continue after a finishing-round inject. Closing
-          // isReplying here lets the composer start a second AgentQA. Wait
-          // for `complete` (or a non-agent answer) to mark the session idle.
-          if (!isAgentStreamSession()) {
-            loading.value = false
-            isReplying.value = false
-            fullContent.value = ''
-            currentAssistantMessageId.value = ''
-          }
+          // This closes only the answer segment. Both Agent and quick-answer
+          // turns still have to collect artifacts/checkpoint/persist before
+          // `complete` makes their files readable and marks the session idle.
         }
         break
       }
@@ -1328,6 +1322,28 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       session_id: data.session_id,
       assistant_message_id: data.assistant_message_id,
     })
+
+    // Persistence can fail after the entire answer has streamed. Surface the
+    // failure separately; the generic error path replaces the answer content.
+    if (data.response_type === 'error' && (data.data as ChatMessage | undefined)?.stage === 'message_persistence') {
+      const message = resolveActiveAssistantMessage(data)
+      const errorMsg = String(data.content || t('chat.processError'))
+      if (message) {
+        message.persistence_error = errorMsg
+        message.is_completed = true
+        message.thinking = false
+        message.artifactsCollecting = false
+        emitMessageUpdated(message)
+      }
+      loading.value = false
+      isReplying.value = false
+      fullContent.value = ''
+      currentAssistantMessageId.value = ''
+      if (data.id) replaySegments.delete(String(data.id))
+      reportError(errorMsg)
+      scrollToBottom()
+      return
+    }
 
     if (data.response_type === 'agent_query') {
       const streamSessionId = String(
@@ -1490,6 +1506,26 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       if (item.request_id === data.id) return true
       return item.id === data.id
     })
+    if (data.response_type === 'complete' && existingMessage) {
+      if (existingMessage.is_completed) return
+      const metadata = data.data as ChatMessage | undefined
+      applyFinalArtifactContent(existingMessage, metadata?.final_content)
+      if (Array.isArray(metadata?.artifacts)) existingMessage.artifacts = metadata.artifacts
+      const usage = metadata?.usage || data.usage
+      if (usage) existingMessage.usage = usage
+      existingMessage.artifactsCollecting = false
+      existingMessage.thinking = false
+      existingMessage.is_completed = true
+      loading.value = false
+      isReplying.value = false
+      fullContent.value = ''
+      currentAssistantMessageId.value = ''
+      emitMessageUpdated(existingMessage, { ...data, is_completed: true })
+      onReplyComplete?.(String(existingMessage.content || ''))
+      onTurnComplete?.(existingMessage)
+      scrollToBottom()
+      return
+    }
     if (existingMessage?.is_completed && data.done && !data.content) {
       log('[Non-Agent] Ignoring duplicate completion event for completed message')
       return
@@ -1525,7 +1561,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     if (!existingMessage) loading.value = false
 
-    if (data.done) {
+    // answer.done closes the token stream, not the persisted turn. In
+    // particular the final image retry must wait for the subsequent complete.
+    // Untyped legacy streams retain their original done behavior.
+    const turnDone = data.done && data.response_type !== 'answer'
+    if (turnDone) {
       obj.is_completed = true
       obj.__stream_active = false
       onReplyComplete?.(String(obj.content || ''))
@@ -1534,7 +1574,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       currentAssistantMessageId.value = ''
     }
     updateAssistantSession(obj)
-    if (data.done) {
+    if (turnDone) {
       const completed = resolveActiveAssistantMessage(data) || obj
       onTurnComplete?.(completed)
     }
