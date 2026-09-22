@@ -2,7 +2,7 @@
 
 本目录是 ictrek 维护 HybRAG 的唯一当前部署入口。HybRAG 不再维护独立 compose 部署流程，只作为 VOS app `com.ictrek.hybrag` 打包、安装和升级。
 
-当前只发布 pull 模式安装包：本地 `update_version.sh` 只创建触发 tag，GitHub Actions 负责读取飞书和依赖 release、打包并发布正式 release。
+当前只发布 pull 模式安装包：本地 `update_version.sh` 负责更新版本、创建 release commit 和触发 tag，GitHub Actions 负责读取飞书和依赖 release、打包并发布正式 release。需要把 VOS changelog 随版本一起提交时，先用 `$cl` 准备并审核 `ictrek.app/CHANGELOG.md`，再使用 `--with-changelog`。
 
 系统设置的“版本信息”会同时显示代码构建版本、VOS App 版本以及当前 profile 使用的 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 镜像 tag。VOS App 版本由 `package.sh` 将 `__APP_VERSION__` 渲染为发布版本；四个镜像引用由 GitHub Actions 打包时从飞书读取并写入 compose，随后作为环境变量传给后端。普通非 VOS 部署不设置这些变量时不会显示对应行，也不影响启动。
 
@@ -26,7 +26,7 @@
 
 ## 打包
 
-正式发布入口是 `scripts/update_version.sh`。它只负责自增 `VERSION`、提交版本 commit、创建并推送 `vos-hybrag-v${VERSION}` 触发 tag；GitHub Actions 收到 tag 后会读取飞书组件版本、生成 pull 包并发布 release。
+正式发布入口是 `scripts/update_version.sh`。默认模式只负责自增 `VERSION`、提交版本 commit、创建并推送 `vos-hybrag-v${VERSION}` 触发 tag；使用 `--with-changelog` 时，还会把已准备好的 `ictrek.app/CHANGELOG.md` 放入同一个 release commit。GitHub Actions 收到 tag 后会读取飞书组件版本、生成 pull 包并发布 release。
 
 本地 `package.sh` 只用于调试模板或手动验证。未设置 `PACKAGE_VERSION` 时读取当前 `ictrek.app/VERSION`，CI 会显式传入 tag 中解析出的 `PACKAGE_VERSION`。
 
@@ -344,6 +344,12 @@ Model Hub 预热、常驻和 Gateway 检查见 [docs/vos-ollama-prewarm.md](docs
 ./scripts/update_version.sh patch
 ```
 
+如果要让 VOS changelog 和版本号形成同一个 commit，先让 `$cl` 按目标版本归档并审核 `ictrek.app/CHANGELOG.md`，例如输入 `$cl 0.1.59`，然后执行：
+
+```bash
+./scripts/update_version.sh patch --with-changelog
+```
+
 可选参数：
 
 | 参数 | 行为 |
@@ -351,13 +357,16 @@ Model Hub 预热、常驻和 Gateway 检查见 [docs/vos-ollama-prewarm.md](docs
 | `patch` | `0.0.1 -> 0.0.2`，默认值 |
 | `minor` | `0.0.1 -> 0.1.0` |
 | `major` | `0.0.1 -> 1.0.0` |
+| `--with-changelog` | 将已准备的 `ictrek.app/CHANGELOG.md` 与 `VERSION` 放入同一个 release commit；除 changelog 外不允许有其他未提交改动 |
 
 脚本会：
 
 1. 自增 `ictrek.app/VERSION`。
-2. 提交 `VERSION`，提交信息为 `chore: release VOS hybrag ${VERSION}`。
+2. 默认只提交 `VERSION`；使用 `--with-changelog` 时，同时提交 `ictrek.app/CHANGELOG.md`。提交信息为 `chore: release VOS hybrag ${VERSION}`。
 3. 创建并推送 `vos-hybrag-v${VERSION}` 触发 tag。
 4. GitHub Actions 收到 tag 后执行 `.github/workflows/vos-release.yml`。
+
+`--with-changelog` 不会调用或生成 changelog；它要求 `$cl` 已经写入下一版本标题 `## [${VERSION}] - YYYY-MM-DD`，并且工作区除 `ictrek.app/CHANGELOG.md` 外没有其他改动。应用代码必须在执行发布脚本前单独提交。
 
 GitHub Actions 会：
 
@@ -378,7 +387,7 @@ git fetch --tags origin
 
 要求：
 
-- HybRAG 工作区必须干净；脚本会在存在未提交改动时退出。
+- 默认发布模式要求 HybRAG 工作区干净；`--with-changelog` 只允许待提交的 `ictrek.app/CHANGELOG.md`，其他改动仍会使脚本退出。
 - `origin` 应指向发布目标仓库，例如 `git@github.com:ictrektech/WeKnora.git`。
 - 本地只需要能向 HybRAG push 分支和 tag；不需要本地读取飞书，也不需要本地创建 GitHub Release。
 - GitHub Actions 需要能读取飞书发布表，并能写 HybRAG release。

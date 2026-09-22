@@ -1,0 +1,4 @@
+interface:
+  display_name: "VOS HybRAG Changelog"
+  short_description: "审计 VOS HybRAG 提交并维护项目级中文 CHANGELOG"
+  default_prompt: "使用 $cl 审计最近 VOS release tag 到 HEAD，并将缺失的 VOS HybRAG 变更补充到 Unreleased；发布时使用 $cl X.Y.Z 归档。"
