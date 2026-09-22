@@ -833,8 +833,9 @@ if [[ "$UPDATE_FEISHU" == "1" ]]; then
   require_cmd curl
 fi
 
+# The runtime installs hundreds of packages; Aliyun is more reliable on mainland build hosts.
 APP_BUILD_ARGS=(
-  --build-arg "APK_MIRROR_ARG=${APK_MIRROR_ARG:-mirrors.tuna.tsinghua.edu.cn}"
+  --build-arg "APK_MIRROR_ARG=${APK_MIRROR_ARG:-mirrors.aliyun.com}"
   --build-arg "GOPROXY_ARG=${GOPROXY_ARG:-https://goproxy.cn,direct}"
   --build-arg "GOPRIVATE_ARG=${GOPRIVATE_ARG:-}"
   --build-arg "GOSUMDB_ARG=${GOSUMDB_ARG:-off}"

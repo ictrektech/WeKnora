@@ -11,7 +11,13 @@ COPY scripts/build_browserskill.sh scripts/browserskill-release.json ./scripts/
 COPY patches/browserskill ./patches/browserskill
 ARG TARGETOS
 ARG TARGETARCH
-RUN bash scripts/build_browserskill.sh /opt/weknora/browserskill "${TARGETOS}/${TARGETARCH}"
+RUN --mount=type=cache,target=/root/.npm \
+    --mount=type=cache,target=/root/.local/share/pnpm/store \
+    --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/cargo-target \
+    CARGO_TARGET_DIR=/build/cargo-target \
+    bash scripts/build_browserskill.sh /opt/weknora/browserskill "${TARGETOS}/${TARGETARCH}"
 
 # Build stage
 FROM golang:1.26-bookworm AS builder
@@ -53,18 +59,6 @@ RUN go run cmd/download/duckdb/duckdb.go
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod bash ./scripts/copy-licenses.sh /license-bundle
 
-# Get version and commit info for build injection
-ARG VERSION_ARG
-ARG COMMIT_ID_ARG
-ARG BUILD_TIME_ARG
-ARG GO_VERSION_ARG
-
-# Set build-time variables
-ENV VERSION=${VERSION_ARG}
-ENV COMMIT_ID=${COMMIT_ID_ARG}
-ENV BUILD_TIME=${BUILD_TIME_ARG}
-ENV GO_VERSION=${GO_VERSION_ARG}
-
 # Link the anydoc parser engine (office docs converted in-process, no
 # Python docreader). Default on so Hub / compose images ship a working
 # engine; pass WITH_ANYDOC=0 to skip the Rust toolchain (~few minutes and
@@ -74,14 +68,26 @@ ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo
 ENV PATH=/usr/local/cargo/bin:$PATH
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/third_party/anydoc-go/target \
     if [ "$WITH_ANYDOC" = "1" ]; then \
         curl --http1.1 --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 3 --retry-all-errors --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
             | sh -s -- -y --profile minimal --default-toolchain stable && \
         ./scripts/build-anydoc-lib.sh; \
     fi
 
+# Keep volatile release metadata below the reusable anydoc build layer.
+ARG VERSION_ARG
+ARG COMMIT_ID_ARG
+ARG BUILD_TIME_ARG
+ARG GO_VERSION_ARG
+ENV VERSION=${VERSION_ARG} \
+    COMMIT_ID=${COMMIT_ID_ARG} \
+    BUILD_TIME=${BUILD_TIME_ARG} \
+    GO_VERSION=${GO_VERSION_ARG}
+
 # Build the application with version info
 RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
     if [ "$WITH_ANYDOC" = "1" ]; then \
         make build-prod GO_BUILD_TAGS=anydoc; \
     else \
@@ -102,7 +108,6 @@ ARG DOCKER_COMPOSE_VERSION=v2.40.3
 # Pairing derives the gateway URL from the user's page origin by default.
 ENV BROWSERSKILL_BINARY=/opt/weknora/browserskill/bsk \
     BROWSERSKILL_EXTENSION_PATH=/opt/weknora/browserskill/browser-skill-weknora-0.3.0.zip
-COPY --from=browserskill /opt/weknora/browserskill /opt/weknora/browserskill
 
 # Create a non-root user first
 RUN useradd -m -s /bin/bash appuser
@@ -157,6 +162,9 @@ RUN set -eux; \
 # Create data directories and set permissions
 RUN mkdir -p /data/files && \
     chown -R appuser:appuser /app /data/files
+
+# BrowserSkill changes must not invalidate the expensive runtime dependency layer.
+COPY --from=browserskill /opt/weknora/browserskill /opt/weknora/browserskill
 
 # Copy migrate tool from builder stage
 COPY --from=builder /go/bin/migrate /usr/local/bin/

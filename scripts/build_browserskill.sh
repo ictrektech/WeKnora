@@ -32,8 +32,22 @@ output_dir="$(cd "$output_dir" && pwd)"
 build_dir="$(mktemp -d /tmp/weknora-bsk-build.XXXXXX)"
 trap 'rm -rf "$build_dir"' EXIT
 
-git clone --no-checkout https://github.com/Tencent/BrowserSkill.git "$build_dir/source"
-git -C "$build_dir/source" checkout --detach "$source_commit"
+git init -q "$build_dir/source"
+git -C "$build_dir/source" remote add origin https://github.com/Tencent/BrowserSkill.git
+fetched=0
+# Keep GitHub as the source of truth, but mainland builders need a TLS fallback.
+for source_url in \
+  https://github.com/Tencent/BrowserSkill.git \
+  https://ghfast.top/https://github.com/Tencent/BrowserSkill.git; do
+  git -C "$build_dir/source" remote set-url origin "$source_url"
+  if git -c http.version=HTTP/1.1 -C "$build_dir/source" fetch --depth=1 origin "$source_commit"; then
+    fetched=1
+    break
+  fi
+  echo "BrowserSkill fetch failed via $source_url; trying the next source" >&2
+done
+[ "$fetched" = "1" ] || { echo "Failed to fetch BrowserSkill commit $source_commit" >&2; exit 1; }
+git -C "$build_dir/source" checkout -q --detach FETCH_HEAD
 for patch in "$repo_root"/patches/browserskill/*.patch; do
   git -C "$build_dir/source" apply --check "$patch"
   git -C "$build_dir/source" apply "$patch"
@@ -55,7 +69,15 @@ cargo_target_dir="$(cd "$cargo_target_dir" && pwd)"
   cd "$build_dir/source"
   # Use the installed toolchain; do not let the checkout's moving "stable"
   # override force a network update during each application build.
-  RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable}" cargo build --locked --release -p bsk --target-dir "$cargo_target_dir"
+  cargo_args=(build --locked --release -p bsk --target-dir "$cargo_target_dir")
+  # Keep the mirror command-local: static.crates.io often times out in mainland builds.
+  if ! RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable}" cargo \
+    --config 'source.crates-io.replace-with="rsproxy-sparse"' \
+    --config 'source.rsproxy-sparse.registry="sparse+https://rsproxy.cn/index/"' \
+    "${cargo_args[@]}"; then
+    echo "RsProxy Cargo build failed; retrying with crates.io" >&2
+    RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable}" cargo "${cargo_args[@]}"
+  fi
 )
 # Replace atomically: overwriting an executing inode can invalidate macOS code pages.
 staged_binary="$(mktemp "$output_dir/.bsk-XXXXXX")"
