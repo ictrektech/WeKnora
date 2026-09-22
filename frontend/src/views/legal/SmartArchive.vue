@@ -60,7 +60,20 @@
     <t-drawer :visible="selected !== null" :size="drawerSize" :footer="false" :close-btn="true" class="archive-detail-drawer" @close="closeSelectedDocument">
       <template #header><div v-if="selected" class="archive-drawer-header"><span class="file-icon"><t-icon name="file-paste" /></span><div><strong>{{ selected.title }}</strong><small>{{ t('smartArchive.documentDetail') }}</small></div></div></template>
       <div v-if="selected && canContribute && selected.extraction_status === 'canceled'" class="detail-actions"><button class="secondary-button" type="button" @click="retryExtraction(selected)">{{ t('smartArchive.reidentify') }}</button></div>
-      <div v-if="selected" class="detail-scroll"><div class="detail-status"><span class="archive-document-status" :class="`archive-document-status--${documentStatus(selected).tone}`"><i />{{ documentStatusLabel(selected) }}</span><span>{{ documentTypeLabel(selected.document_type) }}</span><time>{{ formatDate(selected.updated_at) }}</time></div><div class="detail-progress" data-testid="archive-detail-progress"><div class="detail-progress__heading"><span>{{ t('smartArchive.taskProgress') }}</span><strong>{{ selectedProgress }}%</strong></div><div class="detail-progress__track" :class="{ 'detail-progress__track--active': selectedProgressActive }" role="progressbar" :aria-label="t('smartArchive.taskProgress')" :aria-valuenow="selectedProgress" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: `${selectedProgress}%` }" /></div><small>{{ extractionStatusLabel(selected.extraction_status) }}</small></div><div class="detail-actions"><button data-testid="archive-preview" class="secondary-button" type="button" @click="previewDocument"><t-icon name="browse" /> {{ t('smartArchive.openOriginal') }}</button><button v-if="canContribute && ['uploading', 'parsing', 'extracting', 'linking'].includes(selected.extraction_status)" data-testid="archive-cancel-extraction" class="secondary-button secondary-button--danger" type="button" @click="cancelExtraction(selected)"><t-icon name="close" /> {{ t('smartArchive.cancelExtraction') }}</button><button v-if="canContribute && (selected.extraction_status === 'failed' || selected.extraction_status === 'needs_review')" class="secondary-button" type="button" @click="retryExtraction(selected)">{{ t('smartArchive.reidentify') }}</button><button v-if="canContribute && selected.mirror_status === 'failed'" data-testid="archive-retry-mirror" class="secondary-button" type="button" @click="retryMirror(selected)">{{ t('smartArchive.retryMirror') }}</button><template v-if="selected.archived_at && canAdmin"><button data-testid="archive-restore" class="secondary-button" type="button" @click="restoreArchivedDocument(selected)">{{ t('smartArchive.restore') }}</button><button data-testid="archive-delete" class="secondary-button secondary-button--danger" type="button" @click="deleteArchivedDocument(selected)">{{ t('smartArchive.delete') }}</button></template><button v-else-if="canContribute" data-testid="archive-archive" class="secondary-button" type="button" @click="archiveDocument(selected)">{{ t('smartArchive.archive') }}</button></div><dl class="field-list"><div><dt>{{ t('smartArchive.fileName') }}</dt><dd>{{ selected.file_name }}</dd></div><div><dt>{{ t('smartArchive.fileSize') }}</dt><dd>{{ formatSize(selected.file_size) }}</dd></div><div><dt>{{ t('smartArchive.importedAt') }}</dt><dd>{{ formatDate(selected.created_at) }}</dd></div><div><dt>{{ t('smartArchive.type') }}</dt><dd>{{ documentTypeLabel(selected.document_type) }}</dd></div><div v-if="selected.customer?.name"><dt>{{ t('smartArchive.relatedParty') }}</dt><dd>{{ selected.customer.name }}</dd></div><div><dt>{{ t('smartArchive.agreementNumber') }}</dt><dd class="mono">{{ selected.agreement_number || '—' }}</dd></div><div><dt>{{ t('smartArchive.expiry') }}</dt><dd>{{ selected.expires_at ? formatDate(selected.expires_at, true) : '—' }}</dd></div><div v-if="selected.return_due_at"><dt>{{ t('smartArchive.returnDue') }}</dt><dd>{{ formatDate(selected.return_due_at, true) }}</dd></div><div><dt>{{ t('smartArchive.amount') }}</dt><dd>{{ selected.amount ? `${selected.currency || ''} ${selected.amount}` : '—' }}</dd></div></dl><div v-if="selected.error_message" class="archive-detail-error"><strong>{{ t('smartArchive.errorDetails') }}</strong><p>{{ selected.error_message }}</p></div><div v-if="selected.mirror_error_message" class="archive-detail-error"><strong>{{ t('smartArchive.mirrorErrorDetails') }}</strong><p>{{ selected.mirror_error_message }}</p></div><h3 class="detail-section-title">{{ t('smartArchive.evidence') }}</h3><article v-for="evidence in selected.evidence" :key="evidence.id" class="evidence-row"><div><b>{{ evidence.field_name }}</b><span>{{ evidence.value }}</span><small>{{ evidence.quote }}</small></div><em>{{ Math.round(evidence.confidence * 100) }}%</em></article><p v-if="!selected.evidence?.length" class="muted">{{ t('smartArchive.noEvidence') }}</p></div>
+      <div v-if="selected" class="detail-scroll"><div class="detail-status"><span class="archive-document-status" :class="`archive-document-status--${documentStatus(selected).tone}`"><i />{{ documentStatusLabel(selected) }}</span><span>{{ documentTypeLabel(selected.document_type) }}</span><time>{{ formatDate(selected.updated_at) }}</time></div>
+        <div class="detail-stages" data-testid="archive-detail-stages">
+          <div class="detail-stages__heading"><span>{{ t('smartArchive.taskProgress') }}</span><strong role="status">{{ extractionStatusLabel(selected.extraction_status) }}</strong></div>
+          <ol class="detail-stage-list" :aria-label="t('smartArchive.taskProgress')">
+            <li v-for="stage in selectedStages" :key="stage.id" class="detail-stage-list__item" :class="`detail-stage-list__item--${stage.state}`" :aria-current="stage.state === 'pending' || stage.state === 'completed' ? undefined : 'step'">
+              <span class="detail-stage-list__marker" aria-hidden="true"><i /></span>
+              <span class="detail-stage-list__label">{{ archiveStageLabel(stage.id) }}</span>
+              <span class="detail-stage-list__state">{{ archiveStageStateLabel(stage.state) }}</span>
+            </li>
+          </ol>
+          <div v-if="selectedOpaqueParsing" class="detail-stage-activity"><span class="detail-stage-activity__indicator" aria-hidden="true"><i /></span><span>{{ t('smartArchive.taskProgressElapsed', { seconds: selectedParseElapsed }) }}</span></div>
+          <div v-if="selected.extraction_status === 'completed' && selected.mirror_status" class="detail-stage-sync"><span>{{ t('smartArchive.taskMirrorStatus') }}</span><strong>{{ t(`smartArchive.mirrorStatuses.${selected.mirror_status}`) }}</strong></div>
+        </div>
+        <div class="detail-actions"><button data-testid="archive-preview" class="secondary-button" type="button" @click="previewDocument"><t-icon name="browse" /> {{ t('smartArchive.openOriginal') }}</button><button v-if="canContribute && ['uploading', 'parsing', 'extracting', 'linking'].includes(selected.extraction_status)" data-testid="archive-cancel-extraction" class="secondary-button secondary-button--danger" type="button" @click="cancelExtraction(selected)"><t-icon name="close" /> {{ t('smartArchive.cancelExtraction') }}</button><button v-if="canContribute && (selected.extraction_status === 'failed' || selected.extraction_status === 'needs_review')" class="secondary-button" type="button" @click="retryExtraction(selected)">{{ t('smartArchive.reidentify') }}</button><button v-if="canContribute && selected.mirror_status === 'failed'" data-testid="archive-retry-mirror" class="secondary-button" type="button" @click="retryMirror(selected)">{{ t('smartArchive.retryMirror') }}</button><template v-if="selected.archived_at && canAdmin"><button data-testid="archive-restore" class="secondary-button" type="button" @click="restoreArchivedDocument(selected)">{{ t('smartArchive.restore') }}</button><button data-testid="archive-delete" class="secondary-button secondary-button--danger" type="button" @click="deleteArchivedDocument(selected)">{{ t('smartArchive.delete') }}</button></template><button v-else-if="canContribute" data-testid="archive-archive" class="secondary-button" type="button" @click="archiveDocument(selected)">{{ t('smartArchive.archive') }}</button></div><dl class="field-list"><div><dt>{{ t('smartArchive.fileName') }}</dt><dd>{{ selected.file_name }}</dd></div><div><dt>{{ t('smartArchive.fileSize') }}</dt><dd>{{ formatSize(selected.file_size) }}</dd></div><div><dt>{{ t('smartArchive.importedAt') }}</dt><dd>{{ formatDate(selected.created_at) }}</dd></div><div><dt>{{ t('smartArchive.type') }}</dt><dd>{{ documentTypeLabel(selected.document_type) }}</dd></div><div v-if="selected.customer?.name"><dt>{{ t('smartArchive.relatedParty') }}</dt><dd>{{ selected.customer.name }}</dd></div><div><dt>{{ t('smartArchive.agreementNumber') }}</dt><dd class="mono">{{ selected.agreement_number || '—' }}</dd></div><div><dt>{{ t('smartArchive.expiry') }}</dt><dd>{{ selected.expires_at ? formatDate(selected.expires_at, true) : '—' }}</dd></div><div v-if="selected.return_due_at"><dt>{{ t('smartArchive.returnDue') }}</dt><dd>{{ formatDate(selected.return_due_at, true) }}</dd></div><div><dt>{{ t('smartArchive.amount') }}</dt><dd>{{ selected.amount ? `${selected.currency || ''} ${selected.amount}` : '—' }}</dd></div></dl><div v-if="selected.error_message" class="archive-detail-error"><strong>{{ t('smartArchive.errorDetails') }}</strong><p>{{ selected.error_message }}</p></div><div v-if="selected.mirror_error_message" class="archive-detail-error"><strong>{{ t('smartArchive.mirrorErrorDetails') }}</strong><p>{{ selected.mirror_error_message }}</p></div><h3 class="detail-section-title">{{ t('smartArchive.evidence') }}</h3><article v-for="evidence in selected.evidence" :key="evidence.id" class="evidence-row"><div><b>{{ evidence.field_name }}</b><span>{{ evidence.value }}</span><small>{{ evidence.quote }}</small></div><em>{{ Math.round(evidence.confidence * 100) }}%</em></article><p v-if="!selected.evidence?.length" class="muted">{{ t('smartArchive.noEvidence') }}</p></div>
     </t-drawer>
   </section>
 </template>
@@ -74,7 +87,7 @@ import { getArchiveDocumentPreview } from '@/api/smart-archive'
 import { listMembers, type TenantMember } from '@/api/tenant/members'
 import { useAuthStore } from '@/stores/auth'
 import type { ArchiveDocument, ArchiveExtractionStatus, ArchiveNotification, ArchiveReminder, ArchiveReminderCandidate, ArchiveReminderStatus } from '@/api/smart-archive'
-import { archiveDocumentDisplayStatus, archiveDocumentProgress, archiveDocumentStatusTone, buildArchiveSearchFilters, hasMoreArchiveDocuments } from './smartArchiveDocuments'
+import { archiveDocumentDisplayStatus, archiveDocumentStages, archiveDocumentStatusTone, buildArchiveSearchFilters, hasMoreArchiveDocuments, type ArchiveDocumentStageId, type ArchiveDocumentStageState } from './smartArchiveDocuments'
 
 const { t, locale } = useI18n(); const store = useSmartArchiveStore(); const authStore = useAuthStore(); const tab = ref('documents'); const query = ref(''); const appliedQuery = ref(''); const dateFrom = ref(''); const dateTo = ref(''); const documentTypeFilter = ref(''); const statusFilters = ref<ArchiveExtractionStatus[]>([]); const archiveView = ref<'active' | 'archived'>('active'); const selected = ref<ArchiveDocument | null>(null); const selectedIds = ref<string[]>([]); const reminderSelectedIds = ref<string[]>([]); const candidateSelectedIds = ref<string[]>([]); const bulkWorking = ref(false); const reminderBulkWorking = ref(false); const candidateBulkWorking = ref(false); const fileInput = ref<HTMLInputElement | null>(null); const uploading = ref(false); const documentLoading = ref(true); const loadingMore = ref(false); const documentError = ref(''); const viewportWidth = ref(typeof window === 'undefined' ? 1200 : window.innerWidth); const candidateDraft = ref<ArchiveReminderCandidate | null>(null); const candidateOffset = ref(0); const candidateTime = ref('09:00'); const candidateAssignee = ref(''); const members = ref<TenantMember[]>([])
 const statusFilterDetails = ref<HTMLDetailsElement | null>(null)
@@ -92,8 +105,15 @@ const hasDocumentFilters = computed(() => Boolean(appliedQuery.value || dateFrom
 const hasMoreDocuments = computed(() => hasMoreArchiveDocuments(store.documents, store.searchTotal))
 const statusFilterLabel = computed(() => statusFilters.value.length ? t('smartArchive.selectedStatuses', { count: statusFilters.value.length }) : t('smartArchive.allStatuses'))
 const drawerSize = computed(() => viewportWidth.value <= 700 ? '100%' : '560px')
-const selectedProgress = computed(() => selected.value ? archiveDocumentProgress(selected.value) : 0)
-const selectedProgressActive = computed(() => Boolean(selected.value && ['uploading', 'parsing', 'extracting', 'linking'].includes(selected.value.extraction_status)))
+const selectedStages = computed(() => selected.value ? archiveDocumentStages(selected.value) : [])
+// The parser/OCR returns one final response, so its in-flight fraction is unknowable.
+const selectedOpaqueParsing = computed(() => Boolean(selected.value?.extraction_status === 'parsing' && selectedStages.value[1]?.state === 'active'))
+const progressClock = ref(Date.now())
+// updated_at is a generic record timestamp, so this is only an approximate elapsed display.
+const selectedParseElapsed = computed(() => {
+  const startedAt = Date.parse(selected.value?.updated_at || '')
+  return Number.isFinite(startedAt) ? Math.max(0, Math.floor((progressClock.value - startedAt) / 1000)) : 0
+})
 const visibleDocumentIds = computed(() => store.documents.map((document) => document.id))
 const selectedCount = computed(() => selectedIds.value.length)
 const allDocumentsSelected = computed(() => visibleDocumentIds.value.length > 0 && visibleDocumentIds.value.every((id) => selectedIds.value.includes(id)))
@@ -116,10 +136,10 @@ async function refreshDocumentSearch() {
   try { await store.search(appliedQuery.value, documentSearchFilters.value, 1, false) } catch (e: any) { documentError.value = e?.message || t('smartArchive.searchFailed') } finally { documentLoading.value = false }
 }
 async function refreshLoadedDocumentPages() {
+  await refreshSelectedDocument()
   if (tab.value === 'documents') {
     try { await store.refreshSearch(appliedQuery.value, documentSearchFilters.value, store.searchPage || 1) } catch { /* The next poll retries transient failures. */ }
   }
-  await refreshSelectedDocument()
 }
 async function refreshSelectedDocument() {
   const selectedId = selected.value?.id
@@ -143,7 +163,7 @@ async function fetchSelectedDocument(id: string): Promise<ArchiveDocument | null
 function stopStatusPolling() { if (statusPollTimer !== null) { clearInterval(statusPollTimer); statusPollTimer = null } }
 function syncStatusPolling(active: boolean) {
   if (active && statusPollTimer === null) {
-    statusPollTimer = setInterval(() => { if (tab.value === 'documents' || selected.value) void refreshLoadedDocumentPages() }, 2000)
+    statusPollTimer = setInterval(() => { progressClock.value = Date.now(); if (tab.value === 'documents' || selected.value) void refreshLoadedDocumentPages() }, 2000)
   } else if (!active) {
     stopStatusPolling()
   }
@@ -255,6 +275,8 @@ const formatDate = (value: string, dateOnly = false) => new Intl.DateTimeFormat(
 const formatTime = (value: string) => new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit' }).format(new Date(value)); const formatSize = (value: number) => value > 1024 * 1024 ? `${(value / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`
 const candidateDueDate = (candidate: ArchiveReminderCandidate) => { const date = new Date(candidate.event_at); date.setUTCDate(date.getUTCDate() - candidate.suggested_offset_days); return formatDate(date.toISOString(), true) }
 const documentTypeLabel = (value: string) => t(`smartArchive.documentTypes.${value}`, value); const extractionStatusLabel = (value: ArchiveExtractionStatus) => t(`smartArchive.extractionStatuses.${value}`, value); const reminderStatusLabel = (value: ArchiveReminderStatus) => t(`smartArchive.reminderStatuses.${value}`, value)
+const archiveStageLabel = (value: ArchiveDocumentStageId) => t(`smartArchive.stageLabels.${value}`, value)
+const archiveStageStateLabel = (value: ArchiveDocumentStageState) => t(`smartArchive.stageStates.${value}`, value)
 const documentStatus = (document: ArchiveDocument) => archiveDocumentDisplayStatus(document)
 const documentStatusLabel = (document: ArchiveDocument) => { const status = documentStatus(document); return status.source === 'mirror' ? t(`smartArchive.mirrorStatuses.${status.status}`, status.status) : extractionStatusLabel(status.status as ArchiveExtractionStatus) }
 function closeStatusFilterOnOutsideClick(event: MouseEvent) {
@@ -481,17 +503,45 @@ onMounted(() => { window.addEventListener('resize', onResize); document.addEvent
 .detail-status > span:nth-child(2),
 .detail-status time { color: var(--legal-text-secondary); font-size: 10px; }
 .detail-status time { margin-left: auto; }
-.detail-progress { margin: -2px 0 18px; padding: 12px 13px; border: 1px solid var(--legal-border); border-radius: 6px; background: var(--legal-bg-surface); }
-.detail-progress__heading { display: flex; align-items: center; justify-content: space-between; color: var(--legal-text-secondary); font-size: 10px; }
-.detail-progress__heading strong { color: var(--legal-text-primary); font-size: 11px; }
-.detail-progress__track { height: 5px; margin: 9px 0 6px; overflow: hidden; border-radius: 3px; background: var(--legal-border); }
-.detail-progress__track i { position: relative; display: block; height: 100%; overflow: hidden; border-radius: inherit; background: var(--legal-brand); transition: width .25s ease; }
-.detail-progress__track--active i::after { position: absolute; inset: 0 auto 0 -35%; width: 35%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .6), transparent); content: ''; animation: archive-progress-sweep 1.1s ease-in-out infinite; }
-.detail-progress__track--active i { animation: archive-progress-pulse 1.4s ease-in-out infinite; }
-.detail-progress small { color: var(--legal-text-secondary); font-size: 10px; }
-@keyframes archive-progress-pulse { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
-@keyframes archive-progress-sweep { to { transform: translateX(385%); } }
-@media (prefers-reduced-motion: reduce) { .detail-progress__track--active i, .detail-progress__track--active i::after { animation: none; } }
+.detail-stages { margin: -2px 0 18px; padding: 12px 13px; border: 1px solid var(--legal-border); border-radius: 6px; background: var(--legal-bg-surface); }
+.detail-stages__heading { display: flex; align-items: center; justify-content: space-between; color: var(--legal-text-secondary); font-size: 10px; }
+.detail-stages__heading strong { color: var(--legal-text-primary); font-size: 11px; }
+.detail-stage-list { margin: 10px 0 0; padding: 0; display: grid; gap: 7px; list-style: none; }
+.detail-stage-list__item { min-height: 17px; display: grid; grid-template-columns: 17px minmax(0, 1fr) auto; align-items: center; gap: 7px; color: var(--legal-text-secondary); font-size: 10px; }
+.detail-stage-list__marker { width: 15px; height: 15px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1px solid var(--legal-border); border-radius: 50%; color: var(--legal-bg-surface); background: var(--legal-bg-surface); font-size: 9px; font-weight: 700; }
+.detail-stage-list__marker i { width: 5px; height: 5px; border-radius: 50%; background: var(--legal-border); }
+.detail-stage-list__state { color: var(--legal-text-secondary); font-size: 9px; white-space: nowrap; }
+.detail-stage-list__item--completed .detail-stage-list__marker { border-color: var(--legal-ai); color: #fff; background: var(--legal-ai); }
+.detail-stage-list__item--completed .detail-stage-list__marker::before { content: '✓'; }
+.detail-stage-list__item--completed .detail-stage-list__marker i { display: none; }
+.detail-stage-list__item--completed .detail-stage-list__label { color: var(--legal-text-primary); }
+.detail-stage-list__item--active .detail-stage-list__marker { border-color: var(--legal-brand); background: var(--legal-brand); animation: archive-stage-pulse 1.8s ease-out infinite; }
+.detail-stage-list__item--active .detail-stage-list__marker i { background: #fff; }
+.detail-stage-list__item--active .detail-stage-list__label,
+.detail-stage-list__item--active .detail-stage-list__state { color: var(--legal-brand); font-weight: 700; }
+.detail-stage-list__item--failed .detail-stage-list__marker { border-color: var(--legal-risk); color: #fff; background: var(--legal-risk); }
+.detail-stage-list__item--failed .detail-stage-list__marker::before { content: '!'; }
+.detail-stage-list__item--failed .detail-stage-list__marker i,
+.detail-stage-list__item--needs_review .detail-stage-list__marker i,
+.detail-stage-list__item--canceled .detail-stage-list__marker i { display: none; }
+.detail-stage-list__item--failed .detail-stage-list__label,
+.detail-stage-list__item--failed .detail-stage-list__state { color: var(--legal-risk-strong); font-weight: 700; }
+.detail-stage-list__item--needs_review .detail-stage-list__marker { border-color: var(--legal-warning); color: var(--legal-warning-strong); background: var(--legal-warning-soft); }
+.detail-stage-list__item--needs_review .detail-stage-list__marker::before { content: '?'; }
+.detail-stage-list__item--needs_review .detail-stage-list__label,
+.detail-stage-list__item--needs_review .detail-stage-list__state { color: var(--legal-warning-strong); font-weight: 700; }
+.detail-stage-list__item--canceled .detail-stage-list__marker { border-color: var(--legal-text-secondary); color: var(--legal-text-secondary); }
+.detail-stage-list__item--canceled .detail-stage-list__marker::before { content: '×'; }
+.detail-stage-list__item--canceled .detail-stage-list__label,
+.detail-stage-list__item--canceled .detail-stage-list__state { color: var(--legal-text-secondary); font-weight: 700; }
+.detail-stage-activity { margin-top: 10px; padding-top: 9px; display: flex; align-items: center; gap: 7px; border-top: 1px solid var(--legal-border); color: var(--legal-text-secondary); font-size: 10px; }
+.detail-stage-activity__indicator { width: 28px; height: 4px; flex: 0 0 28px; overflow: hidden; border-radius: 3px; background: var(--legal-border); }
+.detail-stage-activity__indicator i { display: block; width: 40%; height: 100%; border-radius: inherit; background: var(--legal-brand); animation: archive-stage-travel 1.4s ease-in-out infinite alternate; }
+.detail-stage-sync { margin-top: 10px; padding-top: 9px; display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--legal-border); color: var(--legal-text-secondary); font-size: 10px; }
+.detail-stage-sync strong { color: var(--legal-text-primary); }
+@keyframes archive-stage-pulse { 0%, 100% { box-shadow: 0 0 0 2px var(--legal-ai-soft); } 50% { box-shadow: 0 0 0 5px transparent; } }
+@keyframes archive-stage-travel { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .detail-stage-list__item--active .detail-stage-list__marker, .detail-stage-activity__indicator i { animation: none; } }
 .archive-detail-drawer .detail-actions { flex-wrap: wrap; }
 .archive-detail-error { margin-top: 18px; padding: 13px; border: 1px solid var(--legal-status-failed); border-radius: 6px; background: var(--legal-status-failed-soft); }
 .archive-detail-error strong,

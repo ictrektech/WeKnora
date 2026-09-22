@@ -77,9 +77,10 @@ test('loads documents while settings are blocked and retains partial bulk failur
     localStorage.setItem('weknora_tenant', JSON.stringify(tenant))
     localStorage.setItem('weknora_memberships', JSON.stringify([{ tenant_id: 1, role: 'contributor' }]))
     localStorage.setItem('locale', 'en-US')
+    localStorage.setItem('weknora:new-user-guide-done:v1', '1')
   })
 
-  await page.route('**/api/**', async (route) => {
+  await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname
@@ -142,6 +143,9 @@ test('loads documents while settings are blocked and retains partial bulk failur
         },
       })
     }
+    if (path.endsWith('/archive/documents/archive-1')) {
+      return json(route, { success: true, data: { ...documents[0], extraction_progress: 100 } })
+    }
     if (path.endsWith('/archive/documents/bulk/archive') && request.method() === 'POST') {
       bulkActionDone = true
       return json(route, {
@@ -173,6 +177,16 @@ test('loads documents while settings are blocked and retains partial bulk failur
   await expect(page.getByTestId('archive-row-archive-failed')).toBeVisible()
   expect(settingsReleased).toBe(false)
   releaseSettings()
+
+  await page.getByTestId('archive-row-archive-1').click()
+  const stageCard = page.getByTestId('archive-detail-stages')
+  await expect(stageCard).toBeVisible()
+  const stages = stageCard.getByRole('listitem')
+  await expect(stages).toHaveCount(5)
+  await expect(stages).toContainText(['Queued', 'Processing content', 'Extracting fields', 'Linking', 'Finalizing'])
+  await expect(stages).toHaveText(['QueuedCompleted', 'Processing contentCompleted', 'Extracting fieldsCompleted', 'LinkingCompleted', 'FinalizingCompleted'])
+  await expect(stageCard).not.toContainText(/\d+%/)
+  await page.locator('.t-drawer__close-btn').click()
 
   await page.getByTestId('archive-search').fill('AG-001')
   await page.getByTestId('archive-search').press('Enter')

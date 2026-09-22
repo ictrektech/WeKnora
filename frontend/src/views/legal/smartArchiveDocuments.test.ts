@@ -5,7 +5,7 @@ import type { ArchiveDocument } from '@/api/smart-archive'
 import {
   archiveDocumentStatusTone,
   archiveDocumentDisplayStatus,
-  archiveDocumentProgress,
+  archiveDocumentStages,
   buildArchiveSearchFilters,
   hasMoreArchiveDocuments,
   mergeArchiveDocuments,
@@ -70,13 +70,19 @@ test('maps extraction states to stable status tones', () => {
   assert.equal(archiveDocumentStatusTone('needs_review'), 'review')
 })
 
-test('uses persisted progress for one archive document', () => {
-  assert.equal(archiveDocumentProgress({ extraction_status: 'parsing', extraction_progress: 10 }), 10)
-  assert.equal(archiveDocumentProgress({ extraction_status: 'extracting', extraction_progress: 45 }), 45)
-  assert.equal(archiveDocumentProgress({ extraction_status: 'linking', extraction_progress: 75 }), 75)
-  assert.equal(archiveDocumentProgress({ extraction_status: 'completed', extraction_progress: 0 }), 100)
-  assert.equal(archiveDocumentProgress({ extraction_status: 'needs_review', extraction_progress: 10 }), 10)
-  assert.equal(archiveDocumentProgress({ extraction_status: 'failed', extraction_progress: 130 }), 100)
+test('maps persisted milestones to one document stage sequence', () => {
+  const states = (extraction_status: ArchiveDocument['extraction_status'], extraction_progress: number) => archiveDocumentStages({ extraction_status, extraction_progress }).map(stage => stage.state)
+
+  assert.deepEqual(states('parsing', 5), ['active', 'pending', 'pending', 'pending', 'pending'])
+  assert.deepEqual(states('parsing', 10), ['completed', 'active', 'pending', 'pending', 'pending'])
+  assert.deepEqual(states('extracting', 45), ['completed', 'completed', 'active', 'pending', 'pending'])
+  assert.deepEqual(states('linking', 75), ['completed', 'completed', 'completed', 'active', 'pending'])
+  assert.deepEqual(states('linking', 90), ['completed', 'completed', 'completed', 'completed', 'active'])
+  assert.deepEqual(states('completed', 100), ['completed', 'completed', 'completed', 'completed', 'completed'])
+  assert.deepEqual(states('failed', 100), ['completed', 'completed', 'completed', 'completed', 'failed'])
+  assert.deepEqual(states('needs_review', 100), ['completed', 'completed', 'completed', 'completed', 'needs_review'])
+  assert.deepEqual(states('needs_review', 10), ['completed', 'needs_review', 'pending', 'pending', 'pending'])
+  assert.deepEqual(states('canceled', 75), ['completed', 'completed', 'completed', 'canceled', 'pending'])
 })
 
 test('exposes one user-facing status across extraction and mirror stages', () => {

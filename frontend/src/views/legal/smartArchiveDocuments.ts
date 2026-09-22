@@ -35,12 +35,62 @@ export function hasMoreArchiveDocuments(documents: ArchiveDocument[], total: num
   return documents.length < total
 }
 
-/** The API persists per-document milestones; clamp legacy or bad values at the UI boundary. */
-export function archiveDocumentProgress(document: Pick<ArchiveDocument, 'extraction_progress' | 'extraction_status'>): number {
-  if (document.extraction_status === 'completed') return 100
-  const value = Number(document.extraction_progress)
-  if (!Number.isFinite(value)) return 0
-  return Math.min(100, Math.max(0, Math.round(value)))
+export type ArchiveDocumentStageId = 'queued' | 'content' | 'fields' | 'linking' | 'finalizing'
+export type ArchiveDocumentStageState = 'pending' | 'active' | 'completed' | 'failed' | 'needs_review' | 'canceled'
+
+export interface ArchiveDocumentStage {
+  id: ArchiveDocumentStageId
+  state: ArchiveDocumentStageState
+}
+
+const archiveDocumentStageIds: ArchiveDocumentStageId[] = ['queued', 'content', 'fields', 'linking', 'finalizing']
+
+function archiveDocumentStageIndex(document: Pick<ArchiveDocument, 'extraction_progress' | 'extraction_status'>): number {
+  const progress = Number(document.extraction_progress)
+  const value = Number.isFinite(progress) ? Math.min(100, Math.max(0, Math.round(progress))) : 0
+
+  switch (document.extraction_status) {
+    case 'uploading':
+      return 0
+    case 'parsing':
+      return value >= 10 ? 1 : 0
+    case 'extracting':
+      return 2
+    case 'linking':
+      return value >= 90 ? 4 : 3
+    case 'completed':
+      return 4
+    default:
+      if (value >= 90) return 4
+      if (value >= 75) return 3
+      if (value >= 45) return 2
+      if (value >= 10) return 1
+      return 0
+  }
+}
+
+export function archiveDocumentStages(document: Pick<ArchiveDocument, 'extraction_progress' | 'extraction_status'>): ArchiveDocumentStage[] {
+  const currentIndex = archiveDocumentStageIndex(document)
+  const terminalState: ArchiveDocumentStageState | undefined = document.extraction_status === 'failed'
+    ? 'failed'
+    : document.extraction_status === 'needs_review'
+      ? 'needs_review'
+      : document.extraction_status === 'canceled'
+        ? 'canceled'
+        : undefined
+
+  return archiveDocumentStageIds.map((id, index) => ({
+    id,
+    state: document.extraction_status === 'completed'
+      ? 'completed'
+      : terminalState && index === currentIndex
+        ? terminalState
+        : index < currentIndex
+          ? 'completed'
+          : index === currentIndex
+            ? 'active'
+            : 'pending',
+  }))
 }
 
 export function archiveDocumentStatusTone(status: ArchiveExtractionStatus): 'queued' | 'running' | 'completed' | 'failed' | 'review' | 'canceled' {
