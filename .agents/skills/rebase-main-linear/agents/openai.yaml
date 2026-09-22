@@ -1,0 +1,4 @@
+interface:
+  display_name: "线性同步 main"
+  short_description: "将当前分支线性同步到最新 main，避免产生 merge commit"
+  default_prompt: "Use $rebase-main-linear to sync the current branch onto the latest main with a linear history."

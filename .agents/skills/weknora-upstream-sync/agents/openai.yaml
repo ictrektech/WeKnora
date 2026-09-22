@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sync WeKnora Upstream"
+  short_description: "Merge Tencent updates into the ictrek fork safely"
+  default_prompt: "Use $weknora-upstream-sync to inspect and merge the latest Tencent/WeKnora updates into the ictrek fork."
