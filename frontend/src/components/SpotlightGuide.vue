@@ -53,6 +53,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SpotlightGuideStep } from '@/types/spotlightGuide'
+import { cssViewportSize, getRootZoom, rectToCssPx } from '@/utils/zoom'
 
 const CARD_WIDTH = 340
 const GAP = 16
@@ -88,25 +89,30 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const index = ref(0)
-const vw = ref(window.innerWidth)
-const vh = ref(window.innerHeight)
-const targetRect = ref<DOMRect | null>(null)
+const rootZoom = ref(getRootZoom())
+const initialViewport = cssViewportSize(rootZoom.value)
+const vw = ref(initialViewport.width)
+const vh = ref(initialViewport.height)
+type GuideRect = ReturnType<typeof rectToCssPx>
+const targetRect = ref<GuideRect | null>(null)
 const targetEl = ref<HTMLElement | null>(null)
 const cardSize = ref({ width: CARD_WIDTH, height: 220 })
 
 type HoleRect = { x: number; y: number; width: number; height: number }
 
-const measureNeighborGap = (el: HTMLElement, r: DOMRect) => {
+const measureNeighborGap = (el: HTMLElement, r: GuideRect) => {
   let above = PAD
   const prev = el.previousElementSibling
   if (prev) {
-    above = Math.max(0, r.top - prev.getBoundingClientRect().bottom)
+    const prevRect = rectToCssPx(prev.getBoundingClientRect(), rootZoom.value)
+    above = Math.max(0, r.top - prevRect.bottom)
   }
 
   let below = PAD
   const next = el.nextElementSibling
   if (next) {
-    below = Math.max(0, next.getBoundingClientRect().top - r.bottom)
+    const nextRect = rectToCssPx(next.getBoundingClientRect(), rootZoom.value)
+    below = Math.max(0, nextRect.top - r.bottom)
   } else {
     const mb = parseFloat(getComputedStyle(el).marginBottom) || 0
     below = Math.max(0, PAD - mb)
@@ -115,7 +121,7 @@ const measureNeighborGap = (el: HTMLElement, r: DOMRect) => {
   return { above, below }
 }
 
-const computeHighlightHole = (el: HTMLElement, r: DOMRect): HoleRect => {
+const computeHighlightHole = (el: HTMLElement, r: GuideRect): HoleRect => {
   const { above, below } = measureNeighborGap(el, r)
   const inset = Math.min(PAD, above, below)
 
@@ -272,8 +278,10 @@ const measureCard = async () => {
 }
 
 const locate = async (retry = 0) => {
-  vw.value = window.innerWidth
-  vh.value = window.innerHeight
+  rootZoom.value = getRootZoom()
+  const viewport = cssViewportSize(rootZoom.value)
+  vw.value = viewport.width
+  vh.value = viewport.height
 
   const cur = step.value
   if (!cur.target) {
@@ -302,7 +310,7 @@ const locate = async (retry = 0) => {
 
   el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
   targetEl.value = el
-  targetRect.value = el.getBoundingClientRect()
+  targetRect.value = rectToCssPx(el.getBoundingClientRect(), rootZoom.value)
   await measureCard()
 }
 
