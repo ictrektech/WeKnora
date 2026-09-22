@@ -786,10 +786,14 @@ func (h *Handler) setupSSEStream(reqCtx *qaRequestContext, generateTitle bool, m
 
 	// Generate title if needed
 	if generateTitle && reqCtx.session.Title == "" {
-		// Use the same model as the conversation for title generation
+		// The assistant message carries the effective model selected for this
+		// turn. Reuse it instead of choosing an unrelated tenant model later.
 		modelID := ""
-		if reqCtx.customAgent != nil && reqCtx.customAgent.Config.ModelID != "" {
-			modelID = reqCtx.customAgent.Config.ModelID
+		if reqCtx.assistantMessage != nil {
+			modelID = strings.TrimSpace(reqCtx.assistantMessage.ModelID)
+		}
+		if modelID == "" && reqCtx.customAgent != nil {
+			modelID = strings.TrimSpace(reqCtx.customAgent.Config.ModelID)
 		}
 		logger.Infof(reqCtx.ctx, "Session has no title, starting async title generation, session ID: %s, model: %s", reqCtx.sessionID, modelID)
 		h.sessionService.GenerateTitleAsync(asyncCtx, reqCtx.session, reqCtx.query, modelID, eventBus)

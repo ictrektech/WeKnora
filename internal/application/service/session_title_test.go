@@ -66,6 +66,15 @@ func TestSanitizeGeneratedTitle(t *testing.T) {
 	}
 }
 
+func TestFallbackSessionTitleCollapsesWhitespace(t *testing.T) {
+	t.Parallel()
+
+	got := fallbackSessionTitle("  合同\n借用协议\t草稿  ")
+	if got != "合同 借用协议 草稿" {
+		t.Fatalf("fallback title = %q, want collapsed question", got)
+	}
+}
+
 // The database column is VARCHAR(255) in every shipped migration; guard the
 // constant so nobody raises it past what the column can hold.
 func TestMaxSessionTitleRunesFitsColumn(t *testing.T) {

@@ -52,12 +52,12 @@ type SessionService interface {
 	// SetSessionPinned pins or unpins the session for the current user scope.
 	// Returns the number of rows affected; 0 signals "not found" to the handler.
 	SetSessionPinned(ctx context.Context, sessionID string, pinned bool) (int64, error)
-	// GenerateTitle generates a title for the current conversation
-	// modelID: optional model ID to use for title generation (if empty, uses first available KnowledgeQA model)
+	// GenerateTitle generates a title for the current conversation. When modelID
+	// is empty, message context is preferred before the tenant model fallback.
 	GenerateTitle(ctx context.Context, session *types.Session, messages []types.Message, modelID string) (string, error)
 	// GenerateTitleAsync generates a title for the session asynchronously
 	// It emits an event when the title is generated
-	// modelID: optional model ID to use for title generation (if empty, uses first available KnowledgeQA model)
+	// modelID: effective assistant model; empty uses the service fallback chain
 	GenerateTitleAsync(ctx context.Context, session *types.Session, userQuery string, modelID string, eventBus *event.EventBus)
 	// KnowledgeQA performs knowledge-based question answering.
 	// Events are emitted through eventBus (references, answer chunks, completion).

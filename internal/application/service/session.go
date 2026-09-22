@@ -913,8 +913,31 @@ func sanitizeGeneratedTitle(raw string) (string, bool) {
 	return strings.TrimSpace(string(runes[:maxSessionTitleRunes])), true
 }
 
-// GenerateTitle generates a title for the current conversation content
-// modelID: optional model ID to use for title generation (if empty, uses first available KnowledgeQA model)
+func fallbackSessionTitle(raw string) string {
+	title, _ := sanitizeGeneratedTitle(strings.Join(strings.Fields(raw), " "))
+	return title
+}
+
+func (s *sessionService) persistFallbackTitle(
+	ctx context.Context, session *types.Session, userContent string, cause error,
+) (string, error) {
+	title := fallbackSessionTitle(userContent)
+	if title == "" {
+		return "", cause
+	}
+	session.Title = title
+	if _, err := s.sessionRepo.Update(ctx, session, session.UserID); err != nil {
+		logger.ErrorWithFields(ctx, err, map[string]interface{}{
+			"session_id": session.ID,
+		})
+		return "", err
+	}
+	logger.Warnf(ctx, "Session title generation failed; persisted question fallback, session=%s: %v", session.ID, cause)
+	return title, nil
+}
+
+// GenerateTitle generates a title for the current conversation content.
+// modelID: effective assistant model; empty uses message context then fallback.
 func (s *sessionService) GenerateTitle(ctx context.Context,
 	session *types.Session, messages []types.Message, modelID string,
 ) (string, error) {
@@ -953,12 +976,21 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 		return "", stderrors.New("no user message found")
 	}
 
-	// Use provided modelID, or fallback to first available KnowledgeQA model
+	// Use the recorded assistant model, or fallback to the first available
+	// KnowledgeQA model when callers do not provide message context.
+	if modelID == "" {
+		for _, m := range messages {
+			if m.Role == "assistant" && strings.TrimSpace(m.ModelID) != "" {
+				modelID = strings.TrimSpace(m.ModelID)
+				logger.Infof(ctx, "Using assistant message model for title: %s", modelID)
+				break
+			}
+		}
+	}
 	if modelID == "" {
 		models, err := s.modelService.ListModels(ctx)
 		if err != nil {
-			logger.ErrorWithFields(ctx, err, nil)
-			return "", fmt.Errorf("failed to list models: %w", err)
+			return s.persistFallbackTitle(ctx, session, message.Content, fmt.Errorf("failed to list models: %w", err))
 		}
 		for _, model := range models {
 			if model == nil {
@@ -971,8 +1003,8 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 			}
 		}
 		if modelID == "" {
-			logger.Error(ctx, "No KnowledgeQA model found")
-			return "", stderrors.New("no KnowledgeQA model available for title generation")
+			return s.persistFallbackTitle(ctx, session, message.Content,
+				stderrors.New("no KnowledgeQA model available for title generation"))
 		}
 	} else {
 		logger.Infof(ctx, "Using specified model for title generation: %s", modelID)
@@ -980,10 +1012,7 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 
 	chatModel, err := s.modelService.GetChatModel(ctx, modelID)
 	if err != nil {
-		logger.ErrorWithFields(ctx, err, map[string]interface{}{
-			"model_id": modelID,
-		})
-		return "", err
+		return s.persistFallbackTitle(ctx, session, message.Content, fmt.Errorf("load title model %s: %w", modelID, err))
 	}
 
 	// Prepare messages for title generation
@@ -1005,12 +1034,16 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 		Thinking:    &thinking,
 	})
 	if err != nil {
-		logger.ErrorWithFields(ctx, err, nil)
-		return "", err
+		return s.persistFallbackTitle(ctx, session, message.Content,
+			fmt.Errorf("title model %s failed: %w", modelID, err))
 	}
 
 	// Process and store the generated title
 	title, truncated := sanitizeGeneratedTitle(response.Content)
+	if title == "" {
+		return s.persistFallbackTitle(ctx, session, message.Content,
+			stderrors.New("title model returned an empty title"))
+	}
 	if truncated {
 		logger.Warnf(ctx,
 			"Generated session title exceeded %d runes and was truncated, session=%s, model=%s",
@@ -1029,10 +1062,10 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 	return session.Title, nil
 }
 
-// GenerateTitleAsync generates a title for the session asynchronously
+// GenerateTitleAsync generates a title for the session asynchronously.
 // This method clones the session and generates the title in a goroutine
 // It emits an event when the title is generated
-// modelID: optional model ID to use for title generation (if empty, uses first available KnowledgeQA model)
+// modelID: effective assistant model; empty uses the service fallback chain.
 func (s *sessionService) GenerateTitleAsync(
 	ctx context.Context,
 	session *types.Session,
