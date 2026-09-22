@@ -20,6 +20,13 @@ export interface NormalizedTextMap {
   offsets: Array<{ start: number; end: number }>
 }
 
+export interface PdfTextItemLike {
+  str: string
+  transform: number[]
+  width: number
+  height: number
+}
+
 export interface ReviewLocatorUnitLike {
   unit_id: string
   source_start: number
@@ -101,6 +108,32 @@ export function buildNormalizedTextMap(value: string): NormalizedTextMap {
     index += rawChar.length
   }
   return { text, offsets }
+}
+
+const PDF_TEXT_ITEM_GEOMETRY_TOLERANCE = 0.5
+
+function samePdfTextItemGeometry(left: PdfTextItemLike, right: PdfTextItemLike): boolean {
+  if (left.transform.length < 6 || right.transform.length < 6) return false
+  const leftGeometry = [...left.transform.slice(0, 6), left.width, left.height]
+  const rightGeometry = [...right.transform.slice(0, 6), right.width, right.height]
+  return leftGeometry.every((value, index) => Number.isFinite(value)
+    && Number.isFinite(rightGeometry[index])
+    && Math.abs(value - rightGeometry[index]) <= PDF_TEXT_ITEM_GEOMETRY_TOLERANCE)
+}
+
+/** Drop only overlaid copies of the same PDF text item; callers scope this per page. */
+export function deduplicatePdfTextItems(items: ReadonlyArray<PdfTextItemLike>): PdfTextItemLike[] {
+  const unique: PdfTextItemLike[] = []
+  const candidatesByText = new Map<string, PdfTextItemLike[]>()
+  for (const item of items) {
+    const normalizedText = normalizeReviewText(item.str)
+    const candidates = candidatesByText.get(normalizedText) || []
+    if (candidates.some((candidate) => samePdfTextItemGeometry(candidate, item))) continue
+    unique.push(item)
+    candidates.push(item)
+    candidatesByText.set(normalizedText, candidates)
+  }
+  return unique
 }
 
 /** Return every exact match so the locator can constrain repeated text. */

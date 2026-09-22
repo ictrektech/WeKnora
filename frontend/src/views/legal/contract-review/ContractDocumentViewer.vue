@@ -51,8 +51,10 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { getContractReviewDocument, type ContractReviewLocator, type EvidenceStatus, type LocatorLoadStatus, type ReviewIssue } from '@/api/contract-review'
 import {
   buildNormalizedTextMap,
+  deduplicatePdfTextItems,
   resolveReviewEvidence,
   type EvidenceResolution,
+  type PdfTextItemLike,
   type RenderedPageRange,
   type RenderedUnitRange,
 } from './documentLinking'
@@ -281,8 +283,8 @@ async function renderPdf(documentProxy: PDFDocumentProxy | null = pdf, generatio
     if (!isCurrentRender()) return
     const content = await page.getTextContent()
     if (!isCurrentRender()) return
-    for (const raw of content.items as any[]) {
-      if (!('str' in raw) || !raw.str) continue
+    const textItems = (content.items as any[]).filter((raw): raw is PdfTextItemLike => 'str' in raw && !!raw.str)
+    for (const raw of deduplicatePdfTextItems(textItems)) {
       const mapped = buildNormalizedTextMap(raw.str)
       if (!mapped.text) continue
       const tx = Util.transform(viewport.transform, raw.transform)

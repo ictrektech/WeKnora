@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  deduplicatePdfTextItems,
   findReviewQuoteMatch,
   hasReviewQuoteMatch,
   normalizeReviewText,
@@ -18,6 +19,35 @@ test('normalizes layout whitespace while preserving case and punctuation', () =>
 test('matches an exact quote despite PDF text-item whitespace', () => {
   assert.equal(hasReviewQuoteMatch('Payment shall be made within 30 days.', 'Payment shall be made\nwithin 30 days.'), true)
   assert.deepEqual(findReviewQuoteMatch('Payment shall be made within 30 days.', 'Payment shall be made\nwithin 30 days.'), { start: 0, end: 31 })
+})
+
+test('collapses overlaid PDF text items but keeps spatially separate repeats', () => {
+  const item = (str: string, x: number) => ({ str, transform: [1, 0, 0, 1, x, 420], width: 96, height: 12 })
+  const items = [
+    item('合计金额', 50.106),
+    item('合计金额', 49.806),
+    item('人民币（大写）', 100.106),
+    item('人民币（大写）', 99.806),
+    item('：', 200.106),
+    item('：', 199.806),
+    item('合计金额', 180),
+  ]
+  const quote = '合计金额人民币（大写）：'
+  const originalText = items.map((entry) => entry.str).join('')
+  const unique = deduplicatePdfTextItems(items)
+  const deduplicatedText = unique.map((entry) => entry.str).join('')
+
+  assert.equal(findReviewQuoteMatch(originalText, quote), null)
+  assert.deepEqual(findReviewQuoteMatch(deduplicatedText, quote), { start: 0, end: normalizeReviewText(quote).length })
+  assert.equal(findReviewQuoteMatch(deduplicatedText, '合计金额'), null)
+  assert.equal(unique.length, 4)
+  assert.deepEqual(unique.map((entry) => [entry.str, entry.transform[4]]), [
+    ['合计金额', 50.106],
+    ['人民币（大写）', 100.106],
+    ['：', 200.106],
+    ['合计金额', 180],
+  ])
+  assert.equal(deduplicatePdfTextItems([item('甲方', 50), { ...item('甲方', 50), transform: [0, 1, -1, 0, 50, 420] }]).length, 2)
 })
 
 test('does not choose between duplicate exact matches without a locator constraint', () => {
