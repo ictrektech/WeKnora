@@ -70,7 +70,7 @@ builtin_models:
     name: qwen3.5:2b
     display_name: Model Hub Ollama QA (model-hub-ollama-qa)
     parameters:
-      base_url: http://model-hub-ollama-qa:11535/v1
+      base_url: http://model-hub-ollama-qa:11434/v1
       api_key: EMPTY
       provider: generic
       supports_vision: true
@@ -84,7 +84,7 @@ builtin_models:
     name: qwen3.5:2b
     display_name: Model Hub Ollama VLM (model-hub-ollama-qa)
     parameters:
-      base_url: http://model-hub-ollama-qa:11535/v1
+      base_url: http://model-hub-ollama-qa:11434/v1
       api_key: EMPTY
       provider: generic
       supports_vision: true
@@ -98,7 +98,7 @@ builtin_models:
     name: bge-m3
     display_name: Model Hub Ollama Embedding (model-hub-ollama-embedding)
     parameters:
-      base_url: http://model-hub-ollama-embedding:11535/v1
+      base_url: http://model-hub-ollama-embedding:11434/v1
       api_key: EMPTY
       provider: generic
       embedding_parameters:
@@ -113,7 +113,7 @@ builtin_models:
     name: qllama/bge-reranker-v2-m3:q8_0
     display_name: Model Hub Ollama ReRank (model-hub-ollama-rerank)
     parameters:
-      base_url: http://model-hub-ollama-rerank:11535
+      base_url: http://model-hub-ollama-rerank:11434
       api_key: EMPTY
       provider: ollama
       extra_config:

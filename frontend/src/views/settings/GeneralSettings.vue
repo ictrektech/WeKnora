@@ -19,6 +19,7 @@
             @change="handleLanguageChange"
             style="width: 280px;"
           >
+            <t-option v-if="vosApp" value="auto" :label="$t('language.followVos')">{{ $t('language.followVos') }}</t-option>
             <t-option value="zh-CN" :label="$t('language.zhCN')">{{ $t('language.zhCN') }}</t-option>
             <t-option value="en-US" :label="$t('language.enUS')">{{ $t('language.enUS') }}</t-option>
             <t-option value="ru-RU" :label="$t('language.ruRU')">{{ $t('language.ruRU') }}</t-option>
@@ -144,6 +145,8 @@ import { MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/settings'
 import { useAuthStore } from '@/stores/auth'
+import { followsVosLocale, isVosApp, saveAppLocale } from '@/i18n/vosLocale'
+import type { SupportedLocale } from '@/i18n/resolveDefaultLocale'
 import { useTheme, type ThemeMode } from '@/composables/useTheme'
 import {
   useFont,
@@ -157,6 +160,7 @@ import {
 } from '@/composables/useFont'
 
 const { t, locale } = useI18n()
+const vosApp = isVosApp()
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
 const { currentTheme, setTheme } = useTheme()
@@ -221,22 +225,19 @@ const isAutoCheckUpdateEnabled = computed({
 
 // 初始化加载
 onMounted(() => {
-  // 从 localStorage 加载语言设置
-  const savedLocale = localStorage.getItem('locale')
-  if (savedLocale) {
-    localLanguage.value = savedLocale
-    locale.value = savedLocale
-  } else {
-    localLanguage.value = locale.value
-  }
+  localLanguage.value = followsVosLocale() ? 'auto' : locale.value
+})
+
+watch(locale, (value) => {
+  if (followsVosLocale()) localLanguage.value = 'auto'
+  else localLanguage.value = value
 })
 
 // 处理语言变化
 const handleLanguageChange = () => {
-  locale.value = localLanguage.value
-  localStorage.setItem('locale', localLanguage.value)
+  locale.value = saveAppLocale(localLanguage.value as SupportedLocale | 'auto')
   MessagePlugin.success(t('language.languageSaved'))
-    }
+}
 
 // 处理主题变化
 const handleThemeChange = (val: ThemeMode) => {

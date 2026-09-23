@@ -1,4 +1,5 @@
 export default {
+  modelHubDownload: { title: 'Model Hub готовит модели', starting: 'Запуск загрузки…', failed: 'Ошибка загрузки', retry: 'Повторить', unavailable: 'Ожидание Model Hub…' },
   localBrowser: {
     pipOpen: "Открыть плавающее окно",
     pipReturn: "Вернуть предпросмотр в чат",
@@ -2767,6 +2768,7 @@ export default {
     close: 'Закрыть настройки'
   },
   language: {
+    followVos: 'Следовать языку VOS',
     zhCN: '简体中文',
     enUS: 'English',
     ruRU: 'Русский',

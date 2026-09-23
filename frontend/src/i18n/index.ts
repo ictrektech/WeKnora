@@ -5,6 +5,7 @@ import enUS from './locales/en-US.ts'
 import koKR from './locales/ko-KR.ts'
 import jaJP from './locales/ja-JP.ts'
 import { BUILT_IN_DEFAULT, resolveDefaultLocale } from './resolveDefaultLocale.ts'
+import { initialAppLocale, listenForVosLocaleChange } from './vosLocale.ts'
 
 const messages = {
   'zh-CN': zhCN,
@@ -15,10 +16,10 @@ const messages = {
 }
 
 // User's explicit past choice wins; otherwise use the deployment default.
-const savedLocale = localStorage.getItem('locale') || resolveDefaultLocale(
+const savedLocale = initialAppLocale(resolveDefaultLocale(
   window.__RUNTIME_CONFIG__?.DEFAULT_LOCALE,
   import.meta.env.VITE_DEFAULT_LOCALE,
-)
+))
 
 const i18n = createI18n({
   legacy: false,
@@ -31,5 +32,7 @@ const i18n = createI18n({
   warnHtmlMessage: false,
   messages
 })
+
+listenForVosLocaleChange((locale) => { i18n.global.locale.value = locale })
 
 export default i18n

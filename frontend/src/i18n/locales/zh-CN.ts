@@ -1,4 +1,5 @@
 export default {
+  modelHubDownload: { title: 'Model Hub 正在准备模型', starting: '正在触发下载…', failed: '下载失败', retry: '重试', unavailable: '正在等待 Model Hub 连接…' },
   localBrowser: {
     pipOpen: "弹出悬浮窗",
     pipReturn: "返回对话小窗",
@@ -2769,6 +2770,7 @@ export default {
     close: '关闭设置'
   },
   language: {
+    followVos: '跟随 VOS 语言',
     zhCN: '简体中文',
     enUS: 'English',
     ruRU: 'Русский',

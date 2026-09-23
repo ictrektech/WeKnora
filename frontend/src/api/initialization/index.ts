@@ -1,5 +1,7 @@
 import { get, post, put } from '../../utils/request';
 import i18n from '@/i18n'
+import { isVosApp } from '@/i18n/vosLocale'
+import { getHubTask, pullHubModel } from '@/api/modelHub'
 import type { ModelCapabilities, ReasoningEffortLevel } from '../model'
 
 const t = (key: string) => i18n.global.t(key)
@@ -247,6 +249,11 @@ export function checkOllamaModels(models: string[]): Promise<{ models: Record<st
 
 // 启动Ollama模型下载（异步）
 export function downloadOllamaModel(modelName: string): Promise<{ taskId: string; modelName: string; status: string; progress: number }> {
+    if (isVosApp()) {
+        return pullHubModel(modelName).then((taskId) => ({
+            taskId, modelName, status: taskId.startsWith('ready:') ? 'completed' : 'downloading', progress: 0,
+        }))
+    }
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/ollama/models/download', { modelName })
             .then((response: any) => {
@@ -261,6 +268,17 @@ export function downloadOllamaModel(modelName: string): Promise<{ taskId: string
 
 // 查询下载进度
 export function getDownloadProgress(taskId: string): Promise<DownloadTask> {
+    if (isVosApp()) {
+        return getHubTask(taskId).then((task) => ({
+            id: taskId,
+            modelName: task?.model_id.replace(/^ollama:\/\//, '') || taskId.replace(/^ready:/, ''),
+            status: !task || task.phase === 'READY' ? 'completed'
+                : task.phase === 'FAILED' ? 'failed' : 'downloading',
+            progress: !task ? 100 : task.progress * 100,
+            message: task?.error_msg || '',
+            startTime: '',
+        }))
+    }
     return new Promise((resolve, reject) => {
         get(`/api/v1/initialization/ollama/download/progress/${taskId}`)
             .then((response: any) => {

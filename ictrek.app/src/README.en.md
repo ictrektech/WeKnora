@@ -17,7 +17,7 @@
 
 `manifest.yml` 要求：
 
-- `com.ictrek.model-hub >= 0.0.54`：最低兼容版本；提供 `model-hub-ollama-qa` 和 `model-hub-ollama-embedding` 两个预热运行时，当前 HybRAG 需要使用同时兼容 OpenAI `/v1/*` 与 Ollama `/api/*` 的 `11535` gateway。
+- `com.ictrek.model-hub >= 0.0.54`: provides Ollama runtimes with native OpenAI-compatible `/v1/*` and Ollama `/api/*` endpoints on port `11434`.
 - `com.ictrek.pgv >= 0.0.21`：最低兼容版本；提供 `shared-pgv:5432` Postgres/pgvector 服务。
 
 HybRAG 的 `docker-compose.yml` 不启动 Model Hub 或 Postgres。
@@ -83,16 +83,16 @@ The app container entrypoint generates four YAML-managed model rows at runtime:
 
 | 类型 | display_name | endpoint | 默认模型 |
 | --- | --- | --- | --- |
-| KnowledgeQA | `Model Hub Ollama QA (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11535/v1` | `qwen3.5:2b` |
-| VLLM | `Model Hub Ollama VLM (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11535/v1` | `qwen3.5:2b` |
-| Embedding | `Model Hub Ollama Embedding (model-hub-ollama-embedding)` | `http://model-hub-ollama-embedding:11535/v1` | `bge-m3` |
-| ReRank | `Model Hub Ollama ReRank (model-hub-ollama-rerank)` | `http://model-hub-ollama-rerank:11535` | `qllama/bge-reranker-v2-m3:q8_0` |
+| KnowledgeQA | `Model Hub Ollama QA (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11434/v1` | `qwen3.5:2b` |
+| VLLM | `Model Hub Ollama VLM (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11434/v1` | `qwen3.5:2b` |
+| Embedding | `Model Hub Ollama Embedding (model-hub-ollama-embedding)` | `http://model-hub-ollama-embedding:11434/v1` | `bge-m3` |
+| ReRank | `Model Hub Ollama ReRank (model-hub-ollama-rerank)` | `http://model-hub-ollama-rerank:11434` | `qllama/bge-reranker-v2-m3:q8_0` |
 
 The default model names are fixed to `qwen3.5:2b`, `bge-m3`, and `qllama/bge-reranker-v2-m3:q8_0` in the HybRAG package. ReRank is added only to the default model list; it is not automatically assigned to knowledge base `rerank_model_id`. Model download, prewarm, context size, and Ollama concurrency are configured in Model Hub, not in the HybRAG install form.
 
-QA、VLM 和 embedding 模型行必须使用 `11535/v1` Gateway 地址；Ollama ReRank 通过 `/api/embed` 适配，使用 `11535` Gateway 根地址。不能改成 Ollama 原生 `11434`。只有经过 Gateway 的请求才会被 Model Hub 统计槽位、运行阶段和 token/s。
+QA, VLM, and embedding use the native Ollama `11434/v1` endpoint; reranking uses `11434/api/embed`. Downloads and progress use the Model Hub management API.
 
-Model Hub 负责模型下载、预热、常驻、上下文和 Ollama 并发；HybRAG 只负责引用 gateway 并做应用侧并发调度。ReRank worker 按 Model Hub 配置提供 `2` 个槽位。
+Model Hub manages model storage, download tasks, and Ollama concurrency. When HybRAG opens, it requests missing default models through Model Hub and displays task progress. The rerank worker provides two slots by default.
 
 ## 排错
 

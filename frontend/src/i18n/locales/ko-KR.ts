@@ -1,4 +1,5 @@
 export default {
+  modelHubDownload: { title: 'Model Hub 모델 준비 중', starting: '다운로드 시작 중…', failed: '다운로드 실패', retry: '재시도', unavailable: 'Model Hub 연결 대기 중…' },
   localBrowser: {
     pipOpen: "미리보기 팝업 열기",
     pipReturn: "대화 내 미리보기로 돌아가기",
@@ -2767,6 +2768,7 @@ export default {
     close: '설정 닫기'
   },
   language: {
+    followVos: 'VOS 언어 따르기',
     zhCN: '简体中文',
     enUS: 'English',
     ruRU: 'Русский',

@@ -9,6 +9,7 @@ export type SettingsRoleKey = 'viewer' | 'contributor' | 'admin' | 'owner'
  */
 export const SETTINGS_SECTION_MIN_ROLE: Record<string, SettingsRoleKey> = {
   general: 'viewer',
+  'api-docs': 'viewer',
   ollama: 'admin',
   weknoracloud: 'admin',
   models: 'viewer',

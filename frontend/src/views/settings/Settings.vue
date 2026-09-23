@@ -149,6 +149,10 @@
           <SystemInfo />
         </div>
 
+        <div v-if="currentSection === 'api-docs'" class="section">
+          <ApiDocs />
+        </div>
+
         <!-- 系统管理员可见的全局运行时设置 -->
         <div v-if="currentSection === 'system-global'" class="section">
           <SystemSettings />
@@ -211,6 +215,7 @@ import { MessagePlugin } from 'tdesign-vue-next'
 import { useModalShell } from '@/composables/useModalShell'
 import SettingsModalShell from '@/components/SettingsModalShell.vue'
 import SystemInfo from './SystemInfo.vue'
+import ApiDocs from './ApiDocs.vue'
 import TenantInfo from './TenantInfo.vue'
 import UserProfile from './UserProfile.vue'
 import GeneralSettings from './GeneralSettings.vue'
@@ -363,6 +368,7 @@ const navItems = computed(() => {
     { key: 'skills', icon: SKILL_ICON, label: t('settings.skills.title') },
     { key: 'mcp', icon: 'tools', label: t('settings.mcpService') },
     { key: 'system', icon: 'info-circle', label: t('settings.versionInfo') },
+    { key: 'api-docs', icon: 'file', label: t('tenant.api.docLabel') },
     { key: 'system-global', icon: 'server', label: t('settings.system') },
     { key: 'runtime-queues', icon: 'queue', label: t('settings.taskQueue') },
     { key: 'platform-api-keys', icon: 'secured', label: t('platformApiKeys.title') },
@@ -410,7 +416,7 @@ const navGroups = computed<NavGroup[]>(() => {
     {
       key: 'integrations',
       label: t('integrations.title'),
-      items: pickItems(INTEGRATION_PREVIEW_ITEMS.map((item) => integrationSectionKey(item.key))),
+      items: pickItems(['api-docs', ...INTEGRATION_PREVIEW_ITEMS.map((item) => integrationSectionKey(item.key))]),
     },
     {
       key: 'data_extensions',

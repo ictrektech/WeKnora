@@ -80,8 +80,8 @@ x-hybrag-app-env: &id001
   REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
   DOCREADER_ADDR: hybrag-docreader:50051
   DOCREADER_TRANSPORT: grpc
-  OLLAMA_BASE_URL: http://model-hub-ollama-qa:11535
-  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+  OLLAMA_BASE_URL: http://model-hub-ollama-qa:11434
+  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
   BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
   WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -101,7 +101,7 @@ x-hybrag-app-env: &id001
   WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS:-8000}
   WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS:-8000}
   WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
-  WEKNORA_REPARSE_WAIT_URLS: http://model-hub-ollama-qa:11535/v1/models,http://model-hub-ollama-embedding:11535/v1/models
+  WEKNORA_REPARSE_WAIT_URLS: http://model-hub-ollama-qa:11434/v1/models,http://model-hub-ollama-embedding:11434/v1/models
   WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
   WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
   WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
@@ -259,8 +259,8 @@ services:
       REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
       DOCREADER_ADDR: hybrag-docreader:50051
       DOCREADER_TRANSPORT: grpc
-      OLLAMA_BASE_URL: http://model-hub-ollama-qa:11535
-      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+      OLLAMA_BASE_URL: http://model-hub-ollama-qa:11434
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
       CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
       BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
       WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -280,7 +280,7 @@ services:
       WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS:-8000}
       WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS:-8000}
       WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
-      WEKNORA_REPARSE_WAIT_URLS: http://model-hub-ollama-qa:11535/v1/models,http://model-hub-ollama-embedding:11535/v1/models
+      WEKNORA_REPARSE_WAIT_URLS: http://model-hub-ollama-qa:11434/v1/models,http://model-hub-ollama-embedding:11434/v1/models
       WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
       WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
       WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}
@@ -367,8 +367,8 @@ services:
       REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
       DOCREADER_ADDR: hybrag-docreader:50051
       DOCREADER_TRANSPORT: grpc
-      OLLAMA_BASE_URL: http://model-hub-ollama-qa:11535
-      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+      OLLAMA_BASE_URL: http://model-hub-ollama-qa:11434
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
       CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
       BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
       WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -388,7 +388,7 @@ services:
       WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS: ${WEKNORA_AGENT_FINAL_ANSWER_MAX_TOKENS:-8000}
       WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS: ${WEKNORA_CONVERSATION_MAX_COMPLETION_TOKENS:-8000}
       WEKNORA_REPARSE_INCOMPLETE_ON_START: ${WEKNORA_REPARSE_INCOMPLETE_ON_START:-true}
-      WEKNORA_REPARSE_WAIT_URLS: http://model-hub-ollama-qa:11535/v1/models,http://model-hub-ollama-embedding:11535/v1/models
+      WEKNORA_REPARSE_WAIT_URLS: http://model-hub-ollama-qa:11434/v1/models,http://model-hub-ollama-embedding:11434/v1/models
       WEKNORA_REPARSE_READY_WAIT_SECONDS: ${WEKNORA_REPARSE_READY_WAIT_SECONDS:-300}
       WEKNORA_SANDBOX_MODE: ${WEKNORA_SANDBOX_MODE:-docker}
       WEKNORA_SANDBOX_TIMEOUT: ${WEKNORA_SANDBOX_TIMEOUT:-60}

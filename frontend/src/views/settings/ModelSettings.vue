@@ -277,6 +277,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import ModelEditorDialog from '@/components/ModelEditorDialog.vue'
 import ModelDebugDrawer from '@/components/ModelDebugDrawer.vue'
+import { isModelHubUrl, pullHubModel } from '@/api/modelHub'
 import {
   listModels,
   createModel,
@@ -743,6 +744,9 @@ const handleModelSave = async (modelData: any) => {
           (modelData.desensitizeBaseUrl || '').trim(),
         )
       }
+      if (isModelHubUrl(apiModelData.parameters.base_url || '')) {
+        void pullHubModel(apiModelData.name).catch((error) => MessagePlugin.warning(String(error)))
+      }
       MessagePlugin.success(t('modelSettings.toasts.updated'))
     } else {
       const created = await createModel(apiModelData)
@@ -754,6 +758,9 @@ const handleModelSave = async (modelData: any) => {
           (modelData.desensitizeEnabled ?? false) && (modelData.desensitizeImage ?? false),
           (modelData.desensitizeBaseUrl || '').trim(),
         )
+      }
+      if (isModelHubUrl(apiModelData.parameters.base_url || '')) {
+        void pullHubModel(apiModelData.name).catch((error) => MessagePlugin.warning(String(error)))
       }
       MessagePlugin.success(t('modelSettings.toasts.added'))
     }

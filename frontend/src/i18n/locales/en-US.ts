@@ -1,4 +1,5 @@
 export default {
+  modelHubDownload: { title: 'Model Hub is preparing models', starting: 'Starting download…', failed: 'Download failed', retry: 'Retry', unavailable: 'Waiting for Model Hub…' },
   smartArchive: {
     deleteNotification: "Delete notification",
     deleteNotificationConfirm: "Delete this notification?",
@@ -6071,6 +6072,7 @@ export default {
     builtinTag: "Built-in",
   },
   language: {
+    followVos: 'Follow VOS language',
     zhCN: "简体中文",
     enUS: "English",
     ruRU: "Русский",

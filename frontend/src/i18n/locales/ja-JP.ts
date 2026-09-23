@@ -1,4 +1,5 @@
 export default {
+  modelHubDownload: { title: 'Model Hub でモデルを準備中', starting: 'ダウンロードを開始中…', failed: 'ダウンロード失敗', retry: '再試行', unavailable: 'Model Hub への接続を待機中…' },
   smartArchive: {
     deleteNotification: "通知を削除",
     deleteNotificationConfirm: "この通知を削除しますか？",
@@ -6125,6 +6126,7 @@ export default {
     builtinTag: "組み込み",
   },
   language: {
+    followVos: 'VOS の言語に従う',
     zhCN: "简体中文",
     enUS: "English",
     ruRU: "Русский",
