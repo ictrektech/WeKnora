@@ -1,7 +1,7 @@
 import { BUILT_IN_DEFAULT, SUPPORTED_LOCALES, type SupportedLocale } from './resolveDefaultLocale'
 
 const VOS_LOCALE_KEY = 'preferences-locale'
-const VOS_LOCALE_PREFIX = 'vben-web-antd-'
+const VOS_LOCALE_PREFIXES = ['VIVIBIT-', 'vben-web-antd-']
 const MODE_KEY = 'weknora-locale-mode'
 
 function supported(value: unknown): value is SupportedLocale {
@@ -33,7 +33,7 @@ export function readVosLocale(): SupportedLocale | null {
 
 function isVosLocaleKey(key: string): boolean {
   return key === VOS_LOCALE_KEY
-    || (key.startsWith(VOS_LOCALE_PREFIX) && key.endsWith(`-${VOS_LOCALE_KEY}`))
+    || VOS_LOCALE_PREFIXES.some((prefix) => key.startsWith(prefix) && key.endsWith(`-${VOS_LOCALE_KEY}`))
 }
 
 function parseStoredLocale(stored: string | null): SupportedLocale | null {

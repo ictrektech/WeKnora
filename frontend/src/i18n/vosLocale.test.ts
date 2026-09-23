@@ -3,7 +3,7 @@ import { test } from 'node:test'
 
 import { initialAppLocale, listenForVosLocaleChange, readVosLocale, saveAppLocale } from './vosLocale.ts'
 
-test('follows the namespaced VOS locale and its storage changes', () => {
+test('follows the deployed VIVIBIT locale and its storage changes', () => {
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
   const oldStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
   const values = new Map<string, string>()
@@ -26,7 +26,7 @@ test('follows the namespaced VOS locale and its storage changes', () => {
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage })
 
   try {
-    const key = 'vben-web-antd-1.1.0-prod-preferences-locale'
+    const key = 'VIVIBIT-5.5.9-prod-preferences-locale'
     storage.setItem(key, JSON.stringify({ value: 'en-US' }))
     assert.equal(readVosLocale(), 'en-US')
     assert.equal(initialAppLocale('zh-CN'), 'en-US')
