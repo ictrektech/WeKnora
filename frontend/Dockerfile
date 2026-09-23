@@ -9,7 +9,7 @@
 #   docker build --platform linux/amd64 \
 #     --build-arg VITE_FRONTEND_COMMIT=$(git rev-parse --short HEAD) \
 #     -t wechatopenai/weknora-ui:latest \
-#     frontend/
+#     .
 #
 # Optional npm mirror (e.g. corporate registry):
 #   --build-arg NPM_REGISTRY=https://registry.npmmirror.com
@@ -35,14 +35,18 @@ ENV VITE_IS_DOCKER=true
 ENV NODE_OPTIONS="--max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE}"
 
 # The lockfile pins the remote SheetJS archive and its integrity hash.
-COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./
 RUN if [ -n "$NPM_REGISTRY" ]; then \
       npm ci --registry="$NPM_REGISTRY"; \
     else \
       npm ci; \
     fi
 
-COPY . .
+COPY frontend/ .
+COPY docs/api/ /docs/api/
+# API documentation is bundled by Vite from the repository-level docs/api.
+# Fail the image build if that source is absent instead of shipping an empty page.
+RUN test -s /docs/api/README.md && test -s /docs/api/vos-external-api.md
 # After npm ci so a new commit hash does not bust the dependency layer.
 ARG VITE_FRONTEND_COMMIT=unknown
 ENV VITE_FRONTEND_COMMIT=${VITE_FRONTEND_COMMIT}
@@ -60,14 +64,14 @@ FROM nginx:1.30.3-alpine@sha256:0d3b80406a13a767339fbe2f41406d6c7da727ab89cf8fae
 
 COPY --from=builder /frontend/dist /usr/share/nginx/html
 
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+COPY frontend/nginx.conf /etc/nginx/templates/default.conf.template
 
 # Copied outside templates/ on purpose: envsubst would eat $host and the other
 # nginx variables in it.
-COPY nginx-api-proxy.conf /etc/nginx/api-proxy.conf
-COPY nginx-http.conf /etc/nginx/conf.d/00-weknora-http.conf
+COPY frontend/nginx-api-proxy.conf /etc/nginx/api-proxy.conf
+COPY frontend/nginx-http.conf /etc/nginx/conf.d/00-weknora-http.conf
 
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY frontend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 ENV MAX_FILE_SIZE_MB=500

@@ -57,7 +57,7 @@ EOF
 ./build_image.sh --target amd --sandbox-only
 ```
 
-前端镜像使用 `frontend/Dockerfile` 和 `frontend/` 构建上下文；不要改回已依赖废弃的 `frontend/packages` 目录的旧 Dockerfile。
+前端镜像使用 `frontend/Dockerfile` 和仓库根目录 `.` 作为构建上下文，以便打包 `docs/api/*.md`。Dockerfile 会在 API 文档缺失时终止构建；不要改回已依赖废弃的 `frontend/packages` 目录的旧 Dockerfile。
 
 `--no-push` 用于只做本机构建检查；`--no-feishu` 用于不更新飞书发布表。
 脚本只读取并计算下一个 patch 版本，不会修改 `ictrek.app/VERSION`；正式发布时再由 `scripts/update_version.sh` 更新 VOS 版本。

@@ -866,13 +866,12 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_APP" == "1" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
-  # The frontend Dockerfile owns a frontend/ build context. The old release
-  # Dockerfile under docker/ expects the removed frontend/packages directory.
+  # The frontend imports repository-level docs/api Markdown at build time.
   docker_build_with_local_base_fallback frontend/Dockerfile \
     "${FRONTEND_BUILD_ARGS[@]}" \
     -f frontend/Dockerfile \
     -t "${UI_IMAGE}:${TAG}" \
-    frontend
+    .
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_DOCREADER" == "1" ]]; then
