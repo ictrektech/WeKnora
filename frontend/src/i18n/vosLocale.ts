@@ -1,6 +1,7 @@
 import { BUILT_IN_DEFAULT, SUPPORTED_LOCALES, type SupportedLocale } from './resolveDefaultLocale'
 
 const VOS_LOCALE_KEY = 'preferences-locale'
+const VOS_LOCALE_PREFIX = 'vben-web-antd-'
 const MODE_KEY = 'weknora-locale-mode'
 
 function supported(value: unknown): value is SupportedLocale {
@@ -17,8 +18,28 @@ export function isVosApp(): boolean {
 export function readVosLocale(): SupportedLocale | null {
   if (!isVosApp()) return null
   try {
-    const stored = localStorage.getItem(VOS_LOCALE_KEY)
-    const value = stored ? JSON.parse(stored) : null
+    const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+      .filter((key): key is string => !!key && isVosLocaleKey(key))
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+    for (const key of keys) {
+      const locale = parseStoredLocale(localStorage.getItem(key))
+      if (locale) return locale
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function isVosLocaleKey(key: string): boolean {
+  return key === VOS_LOCALE_KEY
+    || (key.startsWith(VOS_LOCALE_PREFIX) && key.endsWith(`-${VOS_LOCALE_KEY}`))
+}
+
+function parseStoredLocale(stored: string | null): SupportedLocale | null {
+  if (!stored) return null
+  try {
+    const value = JSON.parse(stored)
     const locale = value?.value ?? value
     return supported(locale) ? locale : null
   } catch {
@@ -49,8 +70,8 @@ export function saveAppLocale(locale: SupportedLocale | 'auto'): SupportedLocale
 
 export function listenForVosLocaleChange(apply: (locale: SupportedLocale) => void): () => void {
   const listener = (event: StorageEvent) => {
-    if (event.key !== VOS_LOCALE_KEY || !followsVosLocale()) return
-    const locale = readVosLocale()
+    if (!event.key || !isVosLocaleKey(event.key) || !followsVosLocale()) return
+    const locale = parseStoredLocale(event.newValue)
     if (locale) apply(locale)
   }
   window.addEventListener('storage', listener)
