@@ -111,3 +111,10 @@ func TestModelLimiterKeyUsesProviderEndpoint(t *testing.T) {
 		t.Fatalf("decorators must preserve limiter key: %q != %q", modelLimiterKey(wrapped), modelLimiterKey(a))
 	}
 }
+
+func TestWithRemoteEndpointLimiterKey(t *testing.T) {
+	remote := withRemoteEndpointLimiterKey(&fakeChat{id: "qa-model"}, "https://gateway.example/v1/", "routed-model")
+	if got, want := modelLimiterKey(remote), "https://gateway.example/v1|routed-model"; got != want {
+		t.Fatalf("limiter key = %q, want %q", got, want)
+	}
+}

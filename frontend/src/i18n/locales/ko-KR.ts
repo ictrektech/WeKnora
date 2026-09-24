@@ -1,5 +1,9 @@
 export default {
-  modelHubDownload: { title: 'Model Hub 모델 준비 중', starting: '다운로드 시작 중…', failed: '다운로드 실패', retry: '재시도', unavailable: 'Model Hub 연결 대기 중…' },
+  toolbox: {
+    "title": "도구함",
+    "description": "에이전트의 스킬, 외부 도구 및 브라우저 연결을 관리합니다.",
+    "unavailable": "현재 워크스페이스에서 사용할 수 있는 도구가 없습니다."
+  },
   localBrowser: {
     pipOpen: "미리보기 팝업 열기",
     pipReturn: "대화 내 미리보기로 돌아가기",
@@ -64,9 +68,9 @@ export default {
     "helpHint": "인증 또는 권한 승인이 필요합니다. 미리보기를 클릭하여 이동하세요.",
 
     "settingsTitle": "브라우저 연결",
-    "settingsDescription": "BrowserSkill로 내 Chrome을 연결하면 대화에서 실제 웹페이지를 조작할 수 있습니다.",
+    "settingsDescription": "BrowserSkill로 내 Chrome 또는 Edge를 연결하면 대화에서 실제 웹페이지를 조작할 수 있습니다.",
     "openSettings": "연결 설정 열기",
-    "settingsHint": "개인 설정에서 BrowserSkill을 연결하면 로컬 브라우저를 사용할 수 있습니다.",
+    "settingsHint": "도구함에서 BrowserSkill을 연결하면 로컬 브라우저를 사용할 수 있습니다.",
     "unavailable": "서버에서 로컬 브라우저가 활성화되지 않았습니다. 관리자에게 문의하세요.",
 
     "source": "브라우저 연결 대상",
@@ -79,26 +83,40 @@ export default {
     "pause": "조작 일시 중지",
     "start": "작업 시작",
     "stop": "브라우저 작업 종료",
-    "pairHint": "확장 프로그램의 원격 연결에 링크를 붙여넣고 서버를 확인하세요.",
+    "resumeShort": "재개",
+    "pauseShort": "일시 중지",
+    "stopShort": "종료",
+    "pairHint": "확장 프로그램의 연결 설정 → 원격 연결에 페어링 링크를 붙여넣고 서버를 확인하세요. 링크는 5분 동안 한 번만 사용할 수 있습니다.",
     "copyPairing": "페어링 링크 복사",
     "copied": "복사됨",
-    "windowHint": "작업은 표시된 탭 그룹에서 실행됩니다. 기존 탭에는 권한이 필요합니다.",
+    "windowHint": "작업은 별도의 브라우저 작업 창에서 실행됩니다. 기존 탭을 빌리려면 권한이 필요합니다.",
     "preview": "로컬 브라우저 미리보기",
     "waiting": "작업 페이지를 기다리는 중",
-    "startHint": "브라우저 작업을 보내면 백그라운드에 작업 탭을 만듭니다.",
+    "startHint": "브라우저 요청을 보내면 별도의 작업 창이 생성됩니다.",
     "revoke": "기기 인증 취소",
     "revokeConfirm": "취소하면 다시 연결해야 로컬 브라우저를 사용할 수 있습니다.",
     "failed": "작업에 실패했습니다. 다시 시도하세요.",
-    "productDescription": "내 Chrome에서 브라우저 작업 실행",
+    "productDescription": "에이전트가 브라우저에서 페이지를 열고 내용을 읽고 작업을 수행할 수 있게 해 주는 오픈소스 Chrome / Edge 확장 프로그램입니다.",
     "offline": "오프라인",
     "notPaired": "연결 설정 필요",
     "lastSeen": "최근 연결",
     "readyHint": "준비되었습니다. 대화로 돌아가 브라우저 작업을 요청하세요.",
-    "reconnectHint": "인증이 저장되어 있습니다. Chrome과 확장 프로그램을 열면 자동으로 다시 연결됩니다.",
+    "capabilitiesTitle": "에이전트가 할 수 있는 작업",
+    "sidebarStatus": "사이드바에 연결 상태 표시",
+    "reconnectHint": "인증이 저장되어 있습니다. 브라우저와 확장 프로그램을 열면 자동으로 다시 연결됩니다.",
     "replaceDevice": "브라우저 변경",
     "installExtension": "BrowserSkill 설치",
-    "installHint": "이 서버용 확장 프로그램을 다운로드하여 Chrome에 설치하세요.",
-    "downloadExtension": "확장 프로그램 다운로드",
+    "storeInstall": "Chrome 웹 스토어",
+    "edgeStoreInstall": "Edge 추가 기능",
+    "extensionMinVersion": "BrowserSkill v{version} 이상이 필요합니다. Chrome과 Edge를 지원합니다.",
+    "extensionOutdated": "확장 프로그램 v{current}이(가) 오래되었습니다. v{version} 이상으로 업데이트하세요.",
+    "manualInstall": "수동 설치 (대안)",
+    "storeInstallHint": "Chrome 웹 스토어 또는 Edge 추가 기능에서 BrowserSkill을 설치한 후 여기로 돌아와 페어링하세요.",
+    "installHint": "스토어에 접근할 수 없거나 버전이 호환되지 않으면 호환 패키지를 다운로드하여 수동으로 설치할 수 있습니다.",
+    "downloadExtension": "호환 패키지 다운로드",
+    "officialExtension": "공식 확장 프로그램 (Chrome 웹 스토어)",
+    "installGuide": "다운로드한 패키지는 어떻게 설치하나요?",
+    "pairGuide": "페어링 링크는 어떻게 사용하나요?",
     "pairBrowser": "브라우저 연결",
     "packageUnavailable": "관리자에게 호환되는 확장 프로그램 패키지를 요청하세요.",
     "manualCopy": "아래 링크를 복사하세요. 5분 동안 한 번만 사용할 수 있습니다.",
@@ -106,17 +124,32 @@ export default {
     "copyAgain": "다시 복사",
     "usageTitle": "사용 방법",
     "usageStep1Title": "확장 프로그램 설치",
-    "usageStep1Text": "확장 압축을 풀고 Chrome 확장 프로그램 페이지에서 개발자 모드를 켜 로드하세요.",
+    "usageStep1Text": "ZIP 파일의 압축을 풀고 브라우저 주소창에 chrome://extensions(Edge는 edge://extensions)를 입력하세요. 개발자 모드를 켜고 압축해제된 확장 프로그램을 로드합니다를 선택한 뒤 압축을 푼 확장 프로그램 폴더를 선택하세요.",
     "usageStep2Title": "브라우저 연결",
-    "usageStep2Text": "페어링 링크를 복사해 확장 프로그램의 원격 연결에 붙여넣고 서버를 확인하세요. 한 번 연결하면 공간 내 모든 대화에서 공유됩니다.",
+    "usageStep2Text": "페어링 링크를 확장 프로그램의 연결 설정 → 원격 연결에 붙여넣고 서버를 확인하세요. 한 번 연결하면 공간 내 모든 대화에서 공유됩니다.",
     "usageStep3Title": "대화에서 작업 요청",
-    "usageStep3Text": "입력창에서 로컬 브라우저를 켜고 웹 작업을 요청하세요. 표시된 탭 그룹에서 실행됩니다.",
+    "usageStep3Text": "웹 작업을 보내기 전에 대화 입력창에서 로컬 브라우저를 켜세요. 페어링만으로 자동 활성화되지는 않습니다. 작업은 별도의 작업 창에서 실행됩니다.",
     "usageStep4Title": "미리보기로 확인하고 이어가기",
     "usageStep4Text": "대화에 작은 미리보기가 나타납니다. 클릭하면 작업 탭으로 이동합니다. 중단된 작업은 다시 연결해도 일시정지 상태이므로 미리보기에서 계속하세요. 기존 탭에는 권한이 필요합니다.",
     "running": "실행 중",
     "locateWindow": "브라우저 표시",
     "reconnectShort": "재연결 대기 중",
 },
+  resourceSort: {
+    title: '정렬',
+    updatedTime: '업데이트 시간',
+    updatedTimeDescription: '기본 옵션입니다.',
+    createdTime: '생성 시간',
+    createdTimeDescription: '최근 또는 가장 먼저 생성된 항목을 확인합니다',
+    name: '이름',
+    nameDescription: '이름을 알고 있는 항목을 빠르게 찾습니다',
+    recentlyUpdated: '최근 업데이트',
+    earliestUpdated: '오래된 업데이트',
+    recentlyCreated: '최근 생성',
+    earliestCreated: '가장 먼저 생성',
+    nameAscending: 'A–Z',
+    nameDescending: 'Z–A',
+  },
   platformApiKeys: {
     title: '플랫폼 API 키',
     description: '워크스페이스 간 자동화를 위한 플랫폼 자격 증명입니다. 워크스페이스 API에는 X-Tenant-ID를 사용하세요.',
@@ -532,19 +565,6 @@ export default {
       copySuccess: '복사되었습니다',
       baseUrl: 'API Base URL',
       baseUrlDesc: 'REST API 경로와 함께 사용하세요.',
-      directHostBaseUrl: '직접 호스트 API URL',
-      directHostBaseUrlDesc: 'VOS 패키지는 기본적으로 RAG API를 호스트 포트 29081에 연결하므로 LAN 또는 외부 시스템에서 직접 호출할 수 있습니다. 설치 포트를 변경했다면 설치된 값을 사용하세요.',
-      externalGuideTitle: '외부 API 빠른 참조',
-      externalGuideDesc: '외부 서비스는 VOS 앱 경로 또는 직접 호스트 포트를 통해 HybRAG를 호출할 수 있습니다. HybRAG는 개인 사용자 API Key와 VOS/OAuth bearer token을 모두 지원합니다.',
-      externalGuideAuthTitle: '인증',
-      externalGuideAuthDesc: '옵션 1: 일반 사용자가 여기에서 개인 API Key를 만들고 외부 앱이 X-API-Key를 보냅니다. 개인 Key는 해당 사용자의 지식베이스 범위만 상속하며 관리자가 발급한 Key가 필요하지 않습니다. 옵션 2: 외부 앱이 사용자의 VOS/OAuth token을 받아 Authorization: Bearer <VOS token>으로 보냅니다. HybRAG가 이를 확인하고 매핑된 사용자 권한으로 실행합니다.',
-      externalGuideSessionTitle: '세션',
-      externalGuideSessionDesc: '먼저 POST /sessions로 세션을 만들고, 반환된 id를 /knowledge-chat/:session_id 또는 /agent-chat/:session_id에 전달하세요.',
-      externalGuideKbTitle: '지식 범위',
-      externalGuideKbDesc: '요청 본문에 knowledge_base_ids를 전달하세요. API Key를 만들 때 선택한 지식베이스로 제한할 수도 있습니다.',
-      externalGuideRagExample: 'RAG Chat 예시',
-      externalGuideRagStep: '# 2. RAG chat (SSE; 1단계에서 반환된 id로 <session_id>를 교체)',
-      externalGuideQuestion: '이 지식베이스의 핵심 내용은 무엇인가요?',
       apiKeys: 'API Keys',
       apiKeysDesc: '통합마다 별도 Key를 만들고 작업 권한 및 접근 가능한 지식베이스 범위를 제한합니다.',
       createApiKey: 'API Key 생성',
@@ -559,7 +579,6 @@ export default {
       apiKeyScopedAccess: '범위 지정 접근',
       apiKeyAccessType: '접근 유형',
       apiKeyAccessTypeHint: '"지식베이스"는 아래 권한 수준에 따라 지식베이스 범위 내에서 작동합니다. "워크스페이스 전체 접근"은 모델, 데이터 소스 등 모든 워크스페이스 수준 API를 추가로 사용할 수 있습니다.',
-      personalApiKeyAccessTypeHint: '일반 사용자는 개인 API Key를 만들 수 있습니다. 현재 계정에만 적용되며 선택한 지식베이스를 검색/대화/수집할 수 있고 워크스페이스 전체 접근 권한을 부여할 수 없습니다. 관리자가 발급한 Key도 필요하지 않습니다.',
       apiKeyCapabilities: '사용 가능 기능',
       apiKeyCapabilityGroupKnowledge: '지식베이스 데이터',
       apiKeyCapabilityGroupAutomation: '에이전트 및 통합',
@@ -607,9 +626,6 @@ export default {
       capabilityManageTenantSettingsHint: 'API 최종 사용자 식별 모드, 요청 헤더 설정, 워크스페이스 KV 설정 등 워크스페이스 수준 통합 설정을 읽고 업데이트합니다. API Key 관리, 멤버 관리, 워크스페이스 삭제 또는 소유권 이전은 포함하지 않습니다.',
       apiKeyKnowledgeScope: '지식베이스 범위',
       apiKeyKnowledgeScopePlaceholder: '비워 두면 모든 지식베이스 접근 허용',
-      personalApiKeyKnowledgeScopePlaceholder: '이 개인 API Key가 접근할 지식베이스를 선택하세요',
-      personalApiKeyKnowledgeScopeHint: '개인 API Key는 현재 사용자에게 표시되는 선택한 지식베이스에 연결해야 합니다.',
-      personalApiKeyKnowledgeScopeRequired: '개인 API Key에 사용할 지식베이스를 하나 이상 선택하세요',
       allKnowledgeBases: '모든 지식베이스',
       editApiKeyScope: 'API Key 편집',
       editApiKeyScopeDesc: 'API Key "{name}"의 이름과 권한 범위를 변경합니다.',
@@ -695,7 +711,24 @@ export default {
       loadFailed: 'API 통합 설정을 불러오지 못했습니다',
       saveFailed: 'API 통합 설정 저장 실패',
       saveSuccess: 'API 통합 설정이 저장되었습니다',
-      autoSaveNeedSecret: '서명 토큰 모드는 자동 저장 전에 HMAC secret이 필요합니다.'
+      autoSaveNeedSecret: '서명 토큰 모드는 자동 저장 전에 HMAC secret이 필요합니다.',
+      directHostBaseUrl: '직접 호스트 API URL',
+      directHostBaseUrlDesc: 'VOS 패키지는 기본적으로 RAG API를 호스트 포트 29081에 연결하므로 LAN 또는 외부 시스템에서 직접 호출할 수 있습니다. 설치 포트를 변경했다면 설치된 값을 사용하세요.',
+      externalGuideTitle: '외부 API 빠른 참조',
+      externalGuideDesc: '외부 서비스는 VOS 앱 경로 또는 직접 호스트 포트를 통해 HybRAG를 호출할 수 있습니다. HybRAG는 개인 사용자 API Key와 VOS/OAuth bearer token을 모두 지원합니다.',
+      externalGuideAuthTitle: '인증',
+      externalGuideAuthDesc: '옵션 1: 일반 사용자가 여기에서 개인 API Key를 만들고 외부 앱이 X-API-Key를 보냅니다. 개인 Key는 해당 사용자의 지식베이스 범위만 상속하며 관리자가 발급한 Key가 필요하지 않습니다. 옵션 2: 외부 앱이 사용자의 VOS/OAuth token을 받아 Authorization: Bearer <VOS token>으로 보냅니다. HybRAG가 이를 확인하고 매핑된 사용자 권한으로 실행합니다.',
+      externalGuideSessionTitle: '세션',
+      externalGuideSessionDesc: '먼저 POST /sessions로 세션을 만들고, 반환된 id를 /knowledge-chat/:session_id 또는 /agent-chat/:session_id에 전달하세요.',
+      externalGuideKbTitle: '지식 범위',
+      externalGuideKbDesc: '요청 본문에 knowledge_base_ids를 전달하세요. API Key를 만들 때 선택한 지식베이스로 제한할 수도 있습니다.',
+      externalGuideRagExample: 'RAG Chat 예시',
+      externalGuideRagStep: '# 2. RAG chat (SSE; 1단계에서 반환된 id로 <session_id>를 교체)',
+      externalGuideQuestion: '이 지식베이스의 핵심 내용은 무엇인가요?',
+      personalApiKeyAccessTypeHint: '일반 사용자는 개인 API Key를 만들 수 있습니다. 현재 계정에만 적용되며 선택한 지식베이스를 검색/대화/수집할 수 있고 워크스페이스 전체 접근 권한을 부여할 수 없습니다. 관리자가 발급한 Key도 필요하지 않습니다.',
+      personalApiKeyKnowledgeScopePlaceholder: '이 개인 API Key가 접근할 지식베이스를 선택하세요',
+      personalApiKeyKnowledgeScopeHint: '개인 API Key는 현재 사용자에게 표시되는 선택한 지식베이스에 연결해야 합니다.',
+      personalApiKeyKnowledgeScopeRequired: '개인 API Key에 사용할 지식베이스를 하나 이상 선택하세요',
     },
     mcpserver: {
       title: 'MCP 서버',
@@ -1289,6 +1322,9 @@ export default {
       sessionModeUser: '사용자별 (기본)',
       sessionModeThread: '스레드별',
       sessionModeHint: '사용자 모드: 각 사용자별 독립 대화. /clear로 새 대화 시작. 스레드 모드: 메시지 스레드별 독립 대화. 같은 스레드에서 여러 명이 함께 대화 가능.',
+      replyLanguage: '응답 언어',
+      replyLanguageDefault: '시스템 기본값 사용',
+      replyLanguageHint: '이 채널의 에이전트 응답 언어를 고정합니다. 설정하지 않으면 배포 기본 언어를 사용합니다.',
       wechatScanBind: 'QR 코드를 스캔하여 WeChat 연결',
       wechatScanning: 'WeChat으로 QR 코드를 스캔하세요',
       wechatBindSuccess: 'WeChat이 연결되었습니다',
@@ -2241,6 +2277,7 @@ export default {
 },
   mcpServiceDialog: {
     addTitle: 'MCP 서비스 추가',
+    addDesc: '외부 MCP 서비스를 연결하면 에이전트가 해당 도구를 호출할 수 있습니다.',
     editTitle: 'MCP 서비스 편집',
     basicSection: '기본',
     connectionSection: '연결',
@@ -2362,8 +2399,6 @@ export default {
     }
   },
   modelSettings: {
-    personalDesensitization: '개인 비식별화 설정',
-    personalDesensitizationHint: '이 설정은 현재 계정과 현재 모델 구성에만 적용됩니다. 이름이나 주소가 같은 다른 모델 및 다른 사용자의 설정은 변경되지 않습니다. NER는 규칙 기반 비식별화 후에 실행됩니다.',
     title: '모델 설정',
     description: '다양한 유형의 AI 모델을 관리합니다. Ollama 로컬 모델과 원격 API를 지원합니다',
     copySuffix: ' 사본',
@@ -2418,15 +2453,11 @@ export default {
       audioFile: '오디오 파일',
       chooseFile: '파일 선택',
       parameters: '요청 매개변수',
-      thinking: '사고 모드',
-      thinkingDesc: '사고를 지원하는 모델에만 적용됩니다',
       systemPrompt: 'System Prompt',
       systemPromptPlaceholder: '선택 사항, 시스템 프롬프트 입력',
       run: '테스트 실행',
       copyResult: '결과 복사',
       history: '기록',
-      thinkOn: '사고 켜기',
-      thinkOff: '사고 끄기',
       runLabel: '{n}번째 실행',
       success: '호출 성공',
       failed: '호출 실패',
@@ -2444,7 +2475,11 @@ export default {
         reasoningReturned: '추론 내용 반환',
         textChars: '전사 문자 수',
         segmentCount: '세그먼트 수'
-      }
+      },
+      thinking: '사고 모드',
+      thinkingDesc: '사고를 지원하는 모델에만 적용됩니다',
+      thinkOn: '사고 켜기',
+      thinkOff: '사고 끄기',
     },
     builtinModels: {
       title: '기본 제공 모델',
@@ -2510,7 +2545,9 @@ export default {
       rerank: 'ReRank',
       vllm: '비전',
       asr: '음성'
-    }
+    },
+    personalDesensitization: '개인 비식별화 설정',
+    personalDesensitizationHint: '이 설정은 현재 계정과 현재 모델 구성에만 적용됩니다. 이름이나 주소가 같은 다른 모델 및 다른 사용자의 설정은 변경되지 않습니다. NER는 규칙 기반 비식별화 후에 실행됩니다.',
   },
   mcpSettings: {
     addUsageInstructions: "사용 안내 추가",
@@ -2768,7 +2805,6 @@ export default {
     close: '설정 닫기'
   },
   language: {
-    followVos: 'VOS 언어 따르기',
     zhCN: '简体中文',
     enUS: 'English',
     ruRU: 'Русский',
@@ -2777,7 +2813,8 @@ export default {
     selectLanguage: '언어 선택',
     language: '언어',
     languageDescription: '인터페이스 표시 언어 선택',
-    languageSaved: '언어 설정이 저장되었습니다'
+    languageSaved: '언어 설정이 저장되었습니다',
+    followVos: 'VOS 언어 따르기',
   },
   model: {
     reasoning: {
@@ -2852,7 +2889,8 @@ export default {
         compat: {
           label: '프로토콜 호환 재정의(JSON)',
           placeholder: "{'{'} \"max_tokens_field\": \"max_tokens\" {'}'}",
-          desc: '해석된 프로토콜의 카탈로그 기본값 위에 병합되는 호환 스위치입니다. 백엔드 catalog/compat.go 참조. 비워 두면 재정의하지 않습니다.',
+          desc: '엔드포인트 동작이 카탈로그 기본값과 다를 때만 변경할 필드만 입력합니다. 비워 두면 재정의하지 않습니다.',
+          docLink: '필드 설명 보기',
           invalid: '잘못된 JSON',
           mustBeObject: 'JSON 객체여야 합니다',
         },
@@ -2902,28 +2940,8 @@ export default {
       contextWindowTokens: '{count} 토큰',
       maxConcurrencyLabel: '백그라운드 동시 실행 상한',
       maxConcurrencyPlaceholder: '0이면 전역 기본값 사용',
-    maxConcurrencyDesc: '문서 인덱싱/보강 등 백그라운드 작업이 이 모델을 호출하는 동시 실행 수를 제한합니다(모델별로 모든 복제본이 공유). 0 또는 비워 두면 전역 기본값을 사용하며, 대화형 채팅에는 영향을 주지 않습니다.',
-      thinkingControlLabel: 'Thinking mode request format',
-      thinkingControlDesc: 'Controls how the agent thinking-mode switch is written to the API.',
-      thinkingControl: {
-        none: {
-          label: 'Do not send thinking fields',
-          hint: 'Thinking parameters are not sent in requests.',
-        },
-        chatTemplateKwargs: {
-          label: 'chat_template_kwargs',
-          hint: 'Custom OpenAI-compatible gateways, NVIDIA NIM, vLLM / local Qwen',
-        },
-        enableThinking: {
-          label: 'enable_thinking',
-          hint: 'Alibaba DashScope thinking parameter',
-        },
-        thinkingType: {
-          label: 'thinking.type',
-          hint: 'Volcengine Ark and Tencent LKEAP thinking parameter',
-        },
-      },
-    dimensionHint: '모델이 선택되었습니다. "차원 감지" 버튼을 클릭하여 벡터 차원을 자동으로 가져옵니다',
+      maxConcurrencyDesc: '문서 인덱싱/보강 등 백그라운드 작업이 이 모델을 호출하는 동시 실행 수를 제한합니다(모델별로 모든 복제본이 공유). 0 또는 비워 두면 전역 기본값을 사용하며, 대화형 채팅에는 영향을 주지 않습니다.',
+      dimensionHint: '모델이 선택되었습니다. "차원 감지" 버튼을 클릭하여 벡터 차원을 자동으로 가져옵니다',
       loadModelListFailed: '모델 목록 로드 실패',
       listRefreshed: '목록이 새로고침되었습니다',
       fillModelAndUrl: '먼저 모델 식별자와 Base URL을 입력해주세요',
@@ -2946,6 +2964,50 @@ export default {
       providerLabel: '프로바이더',
       providerPlaceholder: '모델 프로바이더 선택',
       providerDocs: '{provider} 모델 문서 보기',
+      validation: {
+        extraFieldRequired: '{name}을(를) 입력하세요',
+        modelNameRequired: '모델 이름을 입력해주세요',
+        modelNameEmpty: '모델 이름은 비워둘 수 없습니다',
+        modelNameMax: '모델 이름은 100자를 초과할 수 없습니다',
+        baseUrlRequired: 'Base URL을 입력해주세요',
+        baseUrlEmpty: 'Base URL은 비워둘 수 없습니다',
+        baseUrlInvalid: 'Base URL 형식이 올바르지 않습니다. 유효한 URL을 입력해주세요'
+      },
+      modelNamePlaceholder: {
+        local: '예: llama2:latest',
+        remote: '예: gpt-4, claude-3-opus',
+        localVllm: '예: llava:latest',
+        remoteVllm: '예: gpt-4-vision-preview',
+        remoteAsr: '예: whisper-1'
+      },
+      description: {
+        chat: '대화용 대규모 언어 모델 설정',
+        embedding: '텍스트 벡터화용 임베딩 모델 설정',
+        rerank: '결과 재정렬용 모델 설정',
+        vllm: '시각 이해 및 멀티모달용 비전 언어 모델 설정',
+        asr: '음성 인식 및 오디오 전사를 위한 음성 인식 모델 설정',
+        default: '모델 정보 설정'
+      },
+      thinkingControlLabel: 'Thinking mode request format',
+      thinkingControlDesc: 'Controls how the agent thinking-mode switch is written to the API.',
+      thinkingControl: {
+        none: {
+          label: 'Do not send thinking fields',
+          hint: 'Thinking parameters are not sent in requests.',
+        },
+        chatTemplateKwargs: {
+          label: 'chat_template_kwargs',
+          hint: 'Custom OpenAI-compatible gateways, NVIDIA NIM, vLLM / local Qwen',
+        },
+        enableThinking: {
+          label: 'enable_thinking',
+          hint: 'Alibaba DashScope thinking parameter',
+        },
+        thinkingType: {
+          label: 'thinking.type',
+          hint: 'Volcengine Ark and Tencent LKEAP thinking parameter',
+        },
+      },
       providers: {
         openai: {
           label: 'OpenAI',
@@ -3069,30 +3131,6 @@ export default {
         regionDesc: 'RunRerank supports ap-beijing, ap-guangzhou, etc. Default: ap-guangzhou',
         rerankCredentialHint: 'Rerank uses Tencent Cloud API signature. Create SecretId/SecretKey in the CAM console.',
       },
-      validation: {
-        extraFieldRequired: '{name}을(를) 입력하세요',
-        modelNameRequired: '모델 이름을 입력해주세요',
-        modelNameEmpty: '모델 이름은 비워둘 수 없습니다',
-        modelNameMax: '모델 이름은 100자를 초과할 수 없습니다',
-        baseUrlRequired: 'Base URL을 입력해주세요',
-        baseUrlEmpty: 'Base URL은 비워둘 수 없습니다',
-        baseUrlInvalid: 'Base URL 형식이 올바르지 않습니다. 유효한 URL을 입력해주세요'
-      },
-      modelNamePlaceholder: {
-        local: '예: llama2:latest',
-        remote: '예: gpt-4, claude-3-opus',
-        localVllm: '예: llava:latest',
-        remoteVllm: '예: gpt-4-vision-preview',
-        remoteAsr: '예: whisper-1'
-      },
-      description: {
-        chat: '대화용 대규모 언어 모델 설정',
-        embedding: '텍스트 벡터화용 임베딩 모델 설정',
-        rerank: '결과 재정렬용 모델 설정',
-        vllm: '시각 이해 및 멀티모달용 비전 언어 모델 설정',
-        asr: '음성 인식 및 오디오 전사를 위한 음성 인식 모델 설정',
-        default: '모델 정보 설정'
-      },
       desensitizeRulesLabel: '규칙 기반 비식별화 사용',
       desensitizeRulesDesc: '이 모델을 호출하기 전에 전화번호, 이메일, 신분증 번호, 비밀 키와 같은 구조화된 민감 정보를 치환합니다.',
       desensitizeNerLabel: 'NER 비식별화 사용',
@@ -3103,7 +3141,7 @@ export default {
       desensitizeVosHint: '같은 vos_default 네트워크에서는 다음 주소를 사용하세요:',
       desensitizeFailureDesc: '활성화된 상태에서 서비스가 응답하지 않으면 원문을 보내지 않고 모델 요청을 차단합니다.',
       desensitizeServiceUrlRequired: '비식별화를 활성화하면 서비스 URL이 필요합니다',
-      desensitizeServiceUrlInvalid: '비식별화 서비스 URL 형식이 올바르지 않습니다'
+      desensitizeServiceUrlInvalid: '비식별화 서비스 URL 형식이 올바르지 않습니다',
     }
   },
   error: {
@@ -3174,16 +3212,6 @@ export default {
     retry: '재시도',
     versionLabel: '앱 버전',
     versionDescription: '애플리케이션 서비스(weknora-app)의 버전 번호',
-    vosAppVersionLabel: 'VOS 앱 버전',
-    vosAppVersionDescription: '설치된 VOS 애플리케이션 패키지 버전',
-    appImageVersionLabel: '앱 이미지 버전',
-    appImageVersionDescription: '실행 중인 WeKnora 백엔드 이미지 버전',
-    frontendImageVersionLabel: 'UI 이미지 버전',
-    frontendImageVersionDescription: '실행 중인 weknora-ui 이미지 버전',
-    docreaderImageVersionLabel: 'DocReader 이미지 버전',
-    docreaderImageVersionDescription: '실행 중인 weknora-docreader 이미지 버전',
-    sandboxImageVersionLabel: 'Sandbox 이미지 버전',
-    sandboxImageVersionDescription: '설정된 weknora-sandbox 이미지 버전',
     frontendVersionLabel: 'UI 버전',
     frontendVersionDescription: 'UI(weknora-ui) 빌드 버전 번호',
     versionMismatch: '앱 버전과 일치하지 않음',
@@ -3739,7 +3767,17 @@ export default {
     messages: {
       fetchFailed: '시스템 정보 가져오기 실패',
       networkError: '네트워크 오류, 나중에 다시 시도해주세요'
-    }
+    },
+    vosAppVersionLabel: 'VOS 앱 버전',
+    vosAppVersionDescription: '설치된 VOS 애플리케이션 패키지 버전',
+    appImageVersionLabel: '앱 이미지 버전',
+    appImageVersionDescription: '실행 중인 WeKnora 백엔드 이미지 버전',
+    frontendImageVersionLabel: 'UI 이미지 버전',
+    frontendImageVersionDescription: '실행 중인 weknora-ui 이미지 버전',
+    docreaderImageVersionLabel: 'DocReader 이미지 버전',
+    docreaderImageVersionDescription: '실행 중인 weknora-docreader 이미지 버전',
+    sandboxImageVersionLabel: 'Sandbox 이미지 버전',
+    sandboxImageVersionDescription: '설정된 weknora-sandbox 이미지 버전',
   },
   tenant: {
     title: '워크스페이스 정보',
@@ -3908,7 +3946,6 @@ export default {
         tabTerminal: '터미널',
         tabDesktop: '데스크톱',
         artifactsEmpty: '이 대화에서 생성된 파일이 없습니다',
-        desktopPlaceholder: '데스크톱 시각화는 곧 지원될 예정입니다',
         artifactScope: '파일 범위',
         artifactsCurrent: '이번 응답',
         artifactsAll: '전체',
@@ -3940,6 +3977,7 @@ export default {
         sessionEnded: '터미널 세션이 종료되었습니다',
         idleDisconnected: '터미널이 유휴 상태로 연결이 끊어졌습니다. 샌드박스는 TTL에 따라 일시 중지됩니다. 다시 연결할 수 있습니다.',
         authRevoked: '로그인 상태가 더 이상 유효하지 않아 터미널 연결이 끊어졌습니다. 다시 로그인한 뒤 재연결하세요.',
+        desktopPlaceholder: '데스크톱 시각화는 곧 지원될 예정입니다',
     },
     questionMinimapTitle: '질문',
     questionMinimapPosition: '전체 {total}턴 중 {current}턴',
@@ -5000,6 +5038,9 @@ export default {
   createChat: {
     title: '안녕하세요, WeKnora입니다 — 당신의 지식을 손끝에',
     newSessionTitle: '새 세션',
+    openProject: '프로젝트 선택',
+    clearProject: '바인딩 해제',
+    pickFailed: '선택한 경로를 열 수 없습니다',
     messages: {
       createFailed: '세션 생성 실패',
       createError: '세션 생성 실패, 나중에 다시 시도해주세요'
@@ -5075,7 +5116,6 @@ export default {
     placeholderAgent: "Ask {name}",
   },
   manualEditor: {
-    description: 'Markdown으로 지식을 작성하고 실시간 미리보기를 지원합니다',
     defaultTitlePrefix: '새 문서',
     noDocumentKnowledgeBases: '사용 가능한 문서형 지식베이스가 없습니다. 먼저 문서형 지식베이스를 생성해주세요',
     actions: {
@@ -5118,8 +5158,8 @@ export default {
       currentKnowledgeBase: '현재 지식베이스'
     },
     section: {
+      content: '지식 내용',
       basic: '기본 정보',
-      content: '지식 내용'
     },
     title: {
       edit: 'Markdown 지식 편집',
@@ -5134,13 +5174,13 @@ export default {
       indent: '들여쓰기 / Shift+Tab 내어쓰기'
     },
     view: {
-      editLabel: '편집으로 돌아가기',
-      previewLabel: '내용 미리보기',
       edit: '편집',
       split: '분할',
       preview: '미리보기',
       splitUnavailable: '너비가 부족합니다. 서랍을 넓히거나 전체 화면으로 전환하세요',
-      groupLabel: '편집기 보기'
+      groupLabel: '편집기 보기',
+      editLabel: '편집으로 돌아가기',
+      previewLabel: '내용 미리보기',
     },
     toolbar: {
       bold: '굵게',
@@ -5179,7 +5219,8 @@ export default {
       italic: '기울임 텍스트',
       strike: '취소선',
       inlineCode: 'code'
-    }
+    },
+    description: 'Markdown으로 지식을 작성하고 실시간 미리보기를 지원합니다',
   },
   file: {
     upload: '파일 업로드'
@@ -6784,8 +6825,9 @@ export default {
     minutesAgo: '{n}분 전',
     noActivity: '파싱 활동 없음',
     totalDuration: '총 소요시간: {d}',
-    total: '총 {d}',
     errorCode: {
+      TASK_STALLED: '진행이 없어 자동 중단됨',
+      TASK_STALLED_SUGGESTION: '임계 시간을 넘도록 진행이 없고 대기열에도 해당 작업이 없어 실패로 표시되었습니다. 「다시 시도」를 누르세요. 반복되면 이 단계가 의존하는 서비스(문서 파싱, 모델, 벡터 저장소)를 확인하세요.',
       UNKNOWN_SUGGESTION: '자세한 내용은 애플리케이션 로그를 확인하세요.'
     },
     status: {
@@ -6836,19 +6878,28 @@ export default {
       overview: '개요',
       raw: '원본 JSON'
     },
+    stall: {
+      title: '{minutes}분 동안 진행이 없어 멈췄을 수 있습니다',
+      hint: '계속 기다리거나 파싱을 중지한 뒤 지식을 재구축할 수 있습니다. 계속 진행이 없으면 자동으로 실패 처리됩니다.',
+      hintAtStage: '「{stage}」 단계에서 멈춰 있습니다. 계속 기다리거나 파싱을 중지한 뒤 지식을 재구축할 수 있습니다. 계속 진행이 없으면 자동으로 실패 처리됩니다.',
+      queuedTitle: '{minutes}분 동안 진행이 없습니다. 아직 대기열에서 기다리는 중입니다',
+      queuedHint: '이 문서의 작업이 아직 대기열에 있습니다. 보통 작업 적체 때문이며 자동으로 이어지므로 대개 조치가 필요 없습니다.'
+    },
     head: {
+      lastProgress: '최근 진행',
       stagesDone: '주요 단계',
       stagesProgress: '현재 단계',
+      attempt: '시도',
+      updated: '갱신',
       postprocessTasks: '후처리: 실행 중 {running} / 실패 {failed} / 완료 {completed}',
       completedWithActiveTrace: '처리는 완료되었지만 {n}개의 Trace 작업이 아직 실행 중입니다',
-      attempt: '시도',
-      updated: '갱신'
     },
     processConfig: {
       title: '이번 파싱 설정',
       kbDefault: '지식 베이스 기본 설정 사용',
       graph: '지식 그래프'
-    }
+    },
+    total: '총 {d}',
   },
   uploadConfirm: {
     documentSummary: "문서 요약",
@@ -6921,6 +6972,21 @@ export default {
     name: '이름',
     description: '설명',
     settings: '설정',
+    sort: {
+      title: '정렬',
+      updatedTime: '업데이트 시간',
+      updatedTimeDescription: '파일이 마지막으로 변경된 시간을 기준으로 정렬합니다.',
+      createdTime: '업로드/생성 시간',
+      createdTimeDescription: '기본 옵션입니다. 새로 추가된 자료나 가장 오래된 자료를 확인합니다.',
+      fileName: '파일 이름',
+      fileNameDescription: '이름을 알고 있는 파일을 빠르게 찾습니다.',
+      recentlyUpdated: '최근 업데이트',
+      earliestUpdated: '가장 오래된 업데이트',
+      newestCreated: '최신 업로드',
+      earliestCreated: '가장 오래된 업로드',
+      nameAscending: 'A–Z',
+      nameDescending: 'Z–A',
+    },
     tagUpdateSuccess: '태그 업데이트 성공',
     tagEditDialogHeading: '태그 편집',
     folderTree: {
@@ -7161,16 +7227,6 @@ export default {
     deleteStatusUnavailable: '삭제 결과를 확인할 수 없습니다. 잠시 후 새로고침하여 문서 상태를 확인하세요.',
     batchDeleteSuccess: '{count}개 문서가 삭제되었습니다',
     batchDeleteFailed: '일괄 삭제 실패',
-    batchDownloadSuccess: '{count}개 원본 파일 다운로드를 시작했습니다',
-    batchDownloadPartialFailed: '{count}개 원본 파일을 다운로드하지 못했습니다',
-    reparseFailedDocuments: '실패한 문서 다시 처리',
-    reparseFailedDocumentsSuccess: '실패한 문서 {count}개를 다시 처리하도록 제출했습니다',
-    reparseFailedDocumentsFailed: '실패한 문서를 다시 처리하지 못했습니다',
-    noFailedDocuments: '이 지식 베이스에 처리 실패 문서가 없습니다',
-    downloadKnowledgeBaseDocuments: '지식 베이스 문서 다운로드',
-    downloadKnowledgeBaseSuccess: '{count}개 원본 파일 다운로드를 시작했습니다',
-    downloadKnowledgeBaseFailed: '지식 베이스 문서를 다운로드하지 못했습니다',
-    noDownloadableDocuments: '다운로드 가능한 문서가 없습니다',
     batchTag: '일괄 태그',
     batchTagDialogHeading: '일괄 태그 지정',
     batchTagSubtitle: '선택한 {count}개 문서에 태그를 일괄 설정합니다 (기존 태그는 대체됩니다)',
@@ -7184,6 +7240,10 @@ export default {
     statusCompleted: '완료',
     statusProcessing: '처리 중',
     statusFinalizing: '최적화 중',
+    statusStalled: '멈춤 의심',
+    stalledHint: '{minutes}분 동안 진행이 없습니다. 멈췄을 수 있습니다. Trace에서 멈춘 위치를 확인하거나 파싱을 중지한 뒤 지식을 재구축하세요.',
+    statusQueued: '대기 중',
+    queuedHint: '{minutes}분 동안 진행이 없지만 작업이 아직 대기열에서 기다리고 있습니다. 보통 작업 적체 때문이며 곧 자동으로 이어집니다.',
     statusFailed: '실패',
     statusCancelled: '취소됨',
     statusDraft: '초안',
@@ -7256,6 +7316,16 @@ export default {
       sharedAt: '공유일시',
       lastUpdated: '마지막 업데이트'
     },
+    batchDownloadSuccess: '{count}개 원본 파일 다운로드를 시작했습니다',
+    batchDownloadPartialFailed: '{count}개 원본 파일을 다운로드하지 못했습니다',
+    reparseFailedDocuments: '실패한 문서 다시 처리',
+    reparseFailedDocumentsSuccess: '실패한 문서 {count}개를 다시 처리하도록 제출했습니다',
+    reparseFailedDocumentsFailed: '실패한 문서를 다시 처리하지 못했습니다',
+    noFailedDocuments: '이 지식 베이스에 처리 실패 문서가 없습니다',
+    downloadKnowledgeBaseDocuments: '지식 베이스 문서 다운로드',
+    downloadKnowledgeBaseSuccess: '{count}개 원본 파일 다운로드를 시작했습니다',
+    downloadKnowledgeBaseFailed: '지식 베이스 문서를 다운로드하지 못했습니다',
+    noDownloadableDocuments: '다운로드 가능한 문서가 없습니다',
     tagEditSearch: "Search tags...",
     tagEditSelectedSection: "Selected",
     tagEditAvailableSection: "Available",
@@ -7558,6 +7628,7 @@ export default {
     deleteSession: '대화 삭제',
     renamePlaceholder: '대화 제목을 입력하세요',
     unpinSuccess: '대화 고정이 해제되었습니다',
+    temporaryWorkspace: '임시 작업 영역',
     sessionIdCopied: '세션 ID가 복사되었습니다',
     linkCopied: '대화 링크가 복사되었습니다',
     copyFailed: '복사하지 못했습니다. 브라우저 클립보드 권한을 확인하세요.',
@@ -7653,7 +7724,7 @@ export default {
     apiChats: 'API 세션',
     noSessions: '대화가 없습니다'
   },
-
+  modelHubDownload: { title: 'Model Hub 모델 준비 중', starting: '다운로드 시작 중…', failed: '다운로드 실패', retry: '재시도', unavailable: 'Model Hub 연결 대기 중…' },
   contractReview: {
     workspaceEyebrow: "법률 워크스페이스",
     title: "계약 검토",
@@ -7892,7 +7963,6 @@ export default {
       cancelled: "취소됨",
     },
   },
-
   legalAssistant: {
     eyebrow: "법률 워크스페이스",
     title: "법무 어시스턴트",
@@ -7905,7 +7975,6 @@ export default {
       "법률 워크스페이스를 사용할 수 없습니다. 지식베이스로 돌아갑니다.",
     createFailed: "법무 어시스턴트 세션을 만들지 못했습니다.",
   },
-
   legalWorkspace: {
     title: "법률 워크스페이스",
     contractReview: "계약 검토",
@@ -7916,7 +7985,6 @@ export default {
     smartArchive: "스마트 아카이브",
     assistant: "법무 어시스턴트",
   },
-
   legalWorkspaceSettings: {
     description:
       "이 워크스페이스에서 법률 워크스페이스를 표시하고 사용할 수 있는지 제어합니다. 끄더라도 기존 데이터는 삭제되지 않습니다.",
@@ -7942,7 +8010,6 @@ export default {
       "워크스페이스 관리자만 이 설정을 변경할 수 있으며, 데이터 삭제는 소유자만 수행할 수 있습니다.",
     disabledMessage: "법률 워크스페이스가 현재 비활성화되어 있습니다.",
   },
-
   smartArchive: {
     deleteNotification: "알림 삭제",
     deleteNotificationConfirm: "이 알림을 삭제하시겠습니까?",
@@ -8131,4 +8198,4 @@ export default {
       canceled: "취소됨",
     },
   },
-};
+}

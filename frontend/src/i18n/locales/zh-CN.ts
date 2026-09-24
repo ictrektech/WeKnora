@@ -1,5 +1,9 @@
 export default {
-  modelHubDownload: { title: 'Model Hub 正在准备模型', starting: '正在触发下载…', failed: '下载失败', retry: '重试', unavailable: '正在等待 Model Hub 连接…' },
+  toolbox: {
+    "title": "工具箱",
+    "description": "管理智能体可用的技能、外部工具和浏览器连接。",
+    "unavailable": "当前空间暂无可用的工具。"
+  },
   localBrowser: {
     pipOpen: "弹出悬浮窗",
     pipReturn: "返回对话小窗",
@@ -64,9 +68,9 @@ export default {
     "helpHint": "点击预览前往浏览器，完成上述步骤后，在浏览器帮助提示中确认完成。",
 
     "settingsTitle": "浏览器连接",
-    "settingsDescription": "通过 BrowserSkill 连接本机 Chrome，配对后即可在对话中操作真实网页。",
+    "settingsDescription": "通过 BrowserSkill 连接本机 Chrome 或 Edge，配对后即可在对话中操作真实网页。",
     "openSettings": "前往浏览器连接",
-    "settingsHint": "在个人设置中连接 BrowserSkill，即可在对话里使用本机浏览器。",
+    "settingsHint": "在工具箱中连接 BrowserSkill，即可在对话里使用本机浏览器。",
     "unavailable": "服务端尚未启用本机浏览器，请联系管理员。",
 
     "source": "浏览器来源",
@@ -79,26 +83,40 @@ export default {
     "pause": "暂停操作",
     "start": "开始任务",
     "stop": "结束浏览器任务",
-    "pairHint": "在扩展的「远程连接」中粘贴配对链接，确认服务器后连接。",
+    "resumeShort": "继续",
+    "pauseShort": "暂停",
+    "stopShort": "结束",
+    "pairHint": "打开扩展的「连接设置 → 远程连接」，粘贴配对链接并确认服务器。链接 5 分钟内有效，仅可使用一次。",
     "copyPairing": "复制配对链接",
     "copied": "已复制",
-    "windowHint": "任务在 Chrome 的 WeKnora 标签组内运行。借用已有标签页需确认。",
+    "windowHint": "任务在独立的浏览器任务窗口中运行。借用已有标签页需要你的授权。",
     "preview": "本机浏览器任务预览",
     "waiting": "等待任务页面",
-    "startHint": "发送浏览器任务后，会在后台创建带标识的任务标签。",
+    "startHint": "发起浏览器请求后，会创建独立的任务窗口。",
     "revoke": "撤销设备授权",
     "revokeConfirm": "撤销后需要重新配对，才能继续使用本机浏览器。",
     "failed": "操作失败，请重试",
-    "productDescription": "在你的 Chrome 中执行浏览器任务",
+    "productDescription": "开源的 Chrome / Edge 扩展，让智能体在你的浏览器里打开网页、读取内容并完成操作。",
     "offline": "离线",
     "notPaired": "未配对",
     "lastSeen": "最近连接",
     "readyHint": "已准备就绪。回到对话，直接描述需要浏览器完成的任务。",
-    "reconnectHint": "保留授权，等待扩展自动重连。请确认 Chrome 和 BrowserSkill 扩展已开启。",
+    "capabilitiesTitle": "智能体可以",
+    "sidebarStatus": "在侧边栏显示连接状态",
+    "reconnectHint": "保留授权，等待扩展自动重连。请确认浏览器和 BrowserSkill 扩展已开启。",
     "replaceDevice": "更换浏览器",
     "installExtension": "安装 BrowserSkill 扩展",
-    "installHint": "下载与当前服务配套的扩展，安装到 Chrome。",
-    "downloadExtension": "下载扩展",
+    "storeInstall": "Chrome 应用商店",
+    "edgeStoreInstall": "Edge 加载项",
+    "extensionMinVersion": "需要 BrowserSkill v{version} 及以上版本，支持 Chrome 和 Edge。",
+    "extensionOutdated": "当前扩展版本 v{current} 过低，请升级到 v{version} 及以上。",
+    "manualInstall": "手动安装（备用）",
+    "storeInstallHint": "在 Chrome 应用商店或 Edge 加载项中安装 BrowserSkill，再回到这里配对。",
+    "installHint": "无法访问商店或商店版本不兼容时，可下载配套扩展并手动安装。",
+    "downloadExtension": "下载配套扩展",
+    "officialExtension": "官方扩展（Chrome 应用商店）",
+    "installGuide": "如何安装下载的扩展包？",
+    "pairGuide": "如何使用配对链接？",
     "pairBrowser": "连接这台浏览器",
     "packageUnavailable": "管理员尚未配置扩展下载包，请向管理员获取配套版本。",
     "manualCopy": "点击下方输入框复制链接，5 分钟内有效，仅可配对一次。",
@@ -106,17 +124,32 @@ export default {
     "copyAgain": "再次复制",
     "usageTitle": "使用方式",
     "usageStep1Title": "安装扩展",
-    "usageStep1Text": "解压扩展包，在 Chrome 的扩展程序页面开启开发者模式，选择「加载已解压的扩展程序」。",
+    "usageStep1Text": "下载 ZIP 后解压，在浏览器地址栏输入 chrome://extensions（Edge 为 edge://extensions），开启「开发者模式」，点击「加载已解压的扩展程序」，选择解压后的扩展目录。",
     "usageStep2Title": "配对这台浏览器",
-    "usageStep2Text": "复制配对链接，在扩展的「远程连接」中粘贴并确认服务器。配对一次，同一空间的各个对话共用。",
+    "usageStep2Text": "复制配对链接，在扩展的「连接设置 → 远程连接」中粘贴并确认服务器。配对一次，同一空间的各个对话共用。",
     "usageStep3Title": "回到对话描述任务",
-    "usageStep3Text": "在输入栏打开本机浏览器，直接描述要完成的网页任务。任务会在带标识的标签组中运行。",
+    "usageStep3Text": "在对话输入栏开启「本机浏览器」，再发送网页任务。配对不会自动开启此选项，任务会在独立的任务窗口中运行。",
     "usageStep4Title": "通过预览查看和继续",
     "usageStep4Text": "对话里会出现小预览，点击可定位到任务标签。中断或重连后任务仍会暂停，请在预览中点继续；借用已有标签页会先请你确认。",
     "running": "运行中",
     "locateWindow": "定位到浏览器",
     "reconnectShort": "等待浏览器重连",
 },
+  resourceSort: {
+    title: '排序',
+    updatedTime: '更新时间',
+    updatedTimeDescription: '默认选项。',
+    createdTime: '创建时间',
+    createdTimeDescription: '查看最新或最早创建的内容',
+    name: '名称',
+    nameDescription: '快速寻找明确知道名称的内容',
+    recentlyUpdated: '最近更新',
+    earliestUpdated: '最早更新',
+    recentlyCreated: '最近创建',
+    earliestCreated: '最早创建',
+    nameAscending: 'A–Z',
+    nameDescending: 'Z–A',
+  },
   platformApiKeys: {
     title: '平台 API Key',
     description: '为跨空间自动化创建平台级凭据；调用空间接口时通过 X-Tenant-ID 指定目标空间。',
@@ -532,19 +565,6 @@ export default {
       copySuccess: '已复制',
       baseUrl: 'API 地址',
       baseUrlDesc: '与 REST API 路径拼接使用。',
-      directHostBaseUrl: '宿主机直连 API 地址',
-      directHostBaseUrlDesc: 'VOS 安装包默认把 RAG API 映射到宿主机 29081，可供局域网或外部系统直接调用；如果安装时改过端口，以安装配置为准。',
-      externalGuideTitle: '外部系统调用速查',
-      externalGuideDesc: '外部服务可以通过 VOS 应用路径调用，也可以直接使用宿主机映射端口调用。支持普通用户个人 API Key，也支持普通用户 VOS/OAuth Bearer token。',
-      externalGuideAuthTitle: '认证',
-      externalGuideAuthDesc: '方式一：普通用户在 API 集成里创建自己的个人 API Key，外部应用用 X-API-Key 调用；个人 Key 只继承该用户自己的知识库范围，不需要 admin 代发。方式二：外部应用先从 VOS/OAuth 拿到该普通用户 token，再用 Authorization: Bearer <VOS token> 调用，HybRAG 会按该 VOS 用户身份和权限执行。',
-      externalGuideSessionTitle: '会话',
-      externalGuideSessionDesc: '先 POST /sessions 创建会话，后续把返回的 id 放到 /knowledge-chat/:session_id 或 /agent-chat/:session_id。',
-      externalGuideKbTitle: '知识库范围',
-      externalGuideKbDesc: '在请求体传 knowledge_base_ids；API Key 还可以在创建时限制可访问的知识库。',
-      externalGuideRagExample: 'RAG Chat 示例',
-      externalGuideRagStep: '# 2. RAG 问答（SSE；将 <session_id> 替换为第 1 步返回的 id）',
-      externalGuideQuestion: '这份知识库里有哪些重点?',
       apiKeys: 'API Keys',
       apiKeysDesc: '为不同集成创建独立 Key，并限制操作权限与可访问知识库范围。',
       createApiKey: '创建 API Key',
@@ -559,7 +579,6 @@ export default {
       apiKeyScopedAccess: '能力授权',
       apiKeyAccessType: '访问类型',
       apiKeyAccessTypeHint: '「知识库」按下方权限级别在知识库范围内操作；「空间完全访问」额外开放模型、数据源等全部空间级接口。',
-      personalApiKeyAccessTypeHint: '普通用户创建的是个人 API Key，只对当前账号生效；可用于检索、问答和写入已选择的知识库，不能获得空间完全访问，也不需要 admin 账号代发。',
       apiKeyCapabilities: '可用能力',
       apiKeyCapabilityGroupKnowledge: '知识库数据',
       apiKeyCapabilityGroupAutomation: '智能体与集成',
@@ -607,9 +626,6 @@ export default {
       capabilityManageTenantSettingsHint: '允许读取和更新空间级集成设置，例如 API 终端用户身份模式、请求头配置、空间 KV 配置等；不包含 API Key 管理、成员管理、空间删除或所有权转移。',
       apiKeyKnowledgeScope: '知识库范围',
       apiKeyKnowledgeScopePlaceholder: '留空表示允许访问全部知识库',
-      personalApiKeyKnowledgeScopePlaceholder: '请选择该个人 API Key 可访问的知识库',
-      personalApiKeyKnowledgeScopeHint: '个人 API Key 必须绑定知识库范围，只能选择当前账号可访问的知识库。',
-      personalApiKeyKnowledgeScopeRequired: '个人 API Key 需要至少选择一个知识库',
       allKnowledgeBases: '全部知识库',
       editApiKeyScope: '编辑 API Key',
       editApiKeyScopeDesc: '修改 API Key「{name}」的名称和授权范围。',
@@ -695,7 +711,24 @@ export default {
       loadFailed: '加载 API 集成设置失败',
       saveFailed: '保存 API 集成设置失败',
       saveSuccess: 'API 集成设置已保存',
-      autoSaveNeedSecret: '签名 Token 模式需要填写 HMAC 密钥后才能自动保存。'
+      autoSaveNeedSecret: '签名 Token 模式需要填写 HMAC 密钥后才能自动保存。',
+      directHostBaseUrl: '宿主机直连 API 地址',
+      directHostBaseUrlDesc: 'VOS 安装包默认把 RAG API 映射到宿主机 29081，可供局域网或外部系统直接调用；如果安装时改过端口，以安装配置为准。',
+      externalGuideTitle: '外部系统调用速查',
+      externalGuideDesc: '外部服务可以通过 VOS 应用路径调用，也可以直接使用宿主机映射端口调用。支持普通用户个人 API Key，也支持普通用户 VOS/OAuth Bearer token。',
+      externalGuideAuthTitle: '认证',
+      externalGuideAuthDesc: '方式一：普通用户在 API 集成里创建自己的个人 API Key，外部应用用 X-API-Key 调用；个人 Key 只继承该用户自己的知识库范围，不需要 admin 代发。方式二：外部应用先从 VOS/OAuth 拿到该普通用户 token，再用 Authorization: Bearer <VOS token> 调用，HybRAG 会按该 VOS 用户身份和权限执行。',
+      externalGuideSessionTitle: '会话',
+      externalGuideSessionDesc: '先 POST /sessions 创建会话，后续把返回的 id 放到 /knowledge-chat/:session_id 或 /agent-chat/:session_id。',
+      externalGuideKbTitle: '知识库范围',
+      externalGuideKbDesc: '在请求体传 knowledge_base_ids；API Key 还可以在创建时限制可访问的知识库。',
+      externalGuideRagExample: 'RAG Chat 示例',
+      externalGuideRagStep: '# 2. RAG 问答（SSE；将 <session_id> 替换为第 1 步返回的 id）',
+      externalGuideQuestion: '这份知识库里有哪些重点?',
+      personalApiKeyAccessTypeHint: '普通用户创建的是个人 API Key，只对当前账号生效；可用于检索、问答和写入已选择的知识库，不能获得空间完全访问，也不需要 admin 账号代发。',
+      personalApiKeyKnowledgeScopePlaceholder: '请选择该个人 API Key 可访问的知识库',
+      personalApiKeyKnowledgeScopeHint: '个人 API Key 必须绑定知识库范围，只能选择当前账号可访问的知识库。',
+      personalApiKeyKnowledgeScopeRequired: '个人 API Key 需要至少选择一个知识库',
     },
     mcpserver: {
       title: 'MCP Server',
@@ -1291,6 +1324,9 @@ export default {
       sessionModeUser: '按用户（默认）',
       sessionModeThread: '按话题',
       sessionModeHint: '用户模式：每个用户独立对话，使用 /clear 开始新对话。话题模式：每个消息话题独立对话，同一话题中多人可协作。',
+      replyLanguage: '回复语言',
+      replyLanguageDefault: '跟随系统默认语言',
+      replyLanguageHint: '固定该渠道的智能体回复语言；留空时使用部署的默认语言。',
       wechatScanBind: '扫码绑定微信',
       wechatScanning: '请使用微信扫描二维码',
       wechatBindSuccess: '微信绑定成功',
@@ -2243,6 +2279,7 @@ export default {
 },
   mcpServiceDialog: {
     addTitle: '添加 MCP 服务',
+    addDesc: '连接外部 MCP 服务，智能体即可调用其中的工具。',
     editTitle: '编辑 MCP 服务',
     basicSection: '基本信息',
     connectionSection: '连接配置',
@@ -2364,8 +2401,6 @@ export default {
     }
   },
   modelSettings: {
-    personalDesensitization: '个人脱敏设置',
-    personalDesensitizationHint: '此设置仅对当前账号和当前模型配置生效。名称、地址相同的其他模型，以及其他用户，均不会跟随变化。NER 会在规则脱敏后执行。',
     title: '模型配置',
     description: '管理不同类型的 AI 模型，支持 Ollama 本地模型和远程 API',
     copySuffix: ' 副本',
@@ -2420,15 +2455,11 @@ export default {
       audioFile: '音频文件',
       chooseFile: '选择文件',
       parameters: '请求参数',
-      thinking: '思考模式',
-      thinkingDesc: '仅对支持思考模式的模型生效',
       systemPrompt: 'System Prompt',
       systemPromptPlaceholder: '可选，输入系统提示词',
       run: '运行测试',
       copyResult: '复制结果',
       history: '历史记录',
-      thinkOn: '思考开启',
-      thinkOff: '思考关闭',
       runLabel: '第 {n} 次运行',
       success: '调用成功',
       failed: '调用失败',
@@ -2446,7 +2477,11 @@ export default {
         reasoningReturned: '返回推理内容',
         textChars: '转写字符数',
         segmentCount: '分段数量'
-      }
+      },
+      thinking: '思考模式',
+      thinkingDesc: '仅对支持思考模式的模型生效',
+      thinkOn: '思考开启',
+      thinkOff: '思考关闭',
     },
     builtinModels: {
       title: '内置模型',
@@ -2512,7 +2547,9 @@ export default {
       rerank: 'ReRank',
       vllm: '视觉',
       asr: '语音'
-    }
+    },
+    personalDesensitization: '个人脱敏设置',
+    personalDesensitizationHint: '此设置仅对当前账号和当前模型配置生效。名称、地址相同的其他模型，以及其他用户，均不会跟随变化。NER 会在规则脱敏后执行。',
   },
   mcpSettings: {
     addUsageInstructions: "添加使用说明",
@@ -2770,7 +2807,6 @@ export default {
     close: '关闭设置'
   },
   language: {
-    followVos: '跟随 VOS 语言',
     zhCN: '简体中文',
     enUS: 'English',
     ruRU: 'Русский',
@@ -2779,7 +2815,8 @@ export default {
     selectLanguage: '选择语言',
     language: '语言',
     languageDescription: '选择界面显示语言',
-    languageSaved: '语言设置已保存'
+    languageSaved: '语言设置已保存',
+    followVos: '跟随 VOS 语言',
   },
   model: {
     reasoning: {
@@ -2854,7 +2891,8 @@ export default {
         compat: {
           label: '协议兼容覆盖（JSON）',
           placeholder: "{'{'} \"max_tokens_field\": \"max_tokens\" {'}'}",
-          desc: '按协议合并到目录默认值的兼容开关，字段见后端 catalog/compat.go。留空表示不覆盖。',
+          desc: '只在接口与目录默认值不一致时填写，只写需要改的字段。留空表示不覆盖。',
+          docLink: '查看字段说明',
           invalid: 'JSON 格式不正确',
           mustBeObject: '必须是 JSON 对象',
         },
@@ -2897,17 +2935,6 @@ export default {
       dimensionOverrideDesc: '仅在确认该模型支持 dimensions 参数时开启；默认只使用检测到的实际维度。',
       supportsVisionLabel: '支持视觉/多模态',
       supportsVisionDesc: '模型是否支持图片等多模态输入',
-      desensitizeRulesLabel: '开启规则脱敏',
-      desensitizeRulesDesc: '发送给该模型前，先替换手机号、邮箱、身份证、密钥等结构化敏感信息。',
-      desensitizeNerLabel: '开启 NER 脱敏',
-      desensitizeNerDesc: '在规则脱敏后进一步识别人名和地点；需要脱敏服务已准备 NER 模型。',
-      desensitizeImageLabel: '开启图片脱敏',
-      desensitizeImageDesc: '聊天上传的图片和送入该模型解析的图片会先通过脱敏服务遮挡敏感区域；需要脱敏服务支持图片 OCR。',
-      desensitizeServiceUrlLabel: '脱敏服务地址',
-      desensitizeVosHint: '同一 vos_default 网络可直接使用：',
-      desensitizeFailureDesc: '启用后若脱敏服务不可用，本次模型请求会被阻止，原文不会直接发送。',
-      desensitizeServiceUrlRequired: '启用脱敏后必须填写脱敏服务地址',
-      desensitizeServiceUrlInvalid: '脱敏服务地址格式无效',
       contextWindowLabel: '上下文窗口',
       contextWindowPlaceholder: '默认 {value}',
       contextWindowDesc: '该模型一次请求能容纳的 token 数。智能体压缩对话历史会按此上限工作。留空则使用默认 200000（200K）。请按厂商文档填写真实值，填大会导致压缩不触发、上游直接拒绝请求。',
@@ -2915,28 +2942,8 @@ export default {
       contextWindowTokens: '{count} tokens',
       maxConcurrencyLabel: '后台并发上限',
       maxConcurrencyPlaceholder: '0 表示使用全局默认',
-    maxConcurrencyDesc: '限制文档入库/富化等后台任务对该模型的并发调用数（按模型全副本共享）。0 或留空表示沿用全局默认；不影响交互式对话。',
-      thinkingControlLabel: 'Thinking mode request format',
-      thinkingControlDesc: 'Controls how the agent thinking-mode switch is written to the API.',
-      thinkingControl: {
-        none: {
-          label: 'Do not send thinking fields',
-          hint: 'Thinking parameters are not sent in requests.',
-        },
-        chatTemplateKwargs: {
-          label: 'chat_template_kwargs',
-          hint: 'Custom OpenAI-compatible gateways, NVIDIA NIM, vLLM / local Qwen',
-        },
-        enableThinking: {
-          label: 'enable_thinking',
-          hint: 'Alibaba DashScope thinking parameter',
-        },
-        thinkingType: {
-          label: 'thinking.type',
-          hint: 'Volcengine Ark and Tencent LKEAP thinking parameter',
-        },
-      },
-    dimensionHint: '模型已选择，点击"检测维度"按钮自动获取向量维度',
+      maxConcurrencyDesc: '限制文档入库/富化等后台任务对该模型的并发调用数（按模型全副本共享）。0 或留空表示沿用全局默认；不影响交互式对话。',
+      dimensionHint: '模型已选择，点击"检测维度"按钮自动获取向量维度',
       loadModelListFailed: '加载模型列表失败',
       listRefreshed: '列表已刷新',
       fillModelAndUrl: '请先填写模型标识和 Base URL',
@@ -2959,6 +2966,61 @@ export default {
       providerLabel: '服务商',
       providerPlaceholder: '选择模型服务商',
       providerDocs: '查看 {provider} 的模型文档',
+      validation: {
+        extraFieldRequired: '请填写 {name}',
+        modelNameRequired: '请输入模型名称',
+        modelNameEmpty: '模型名称不能为空',
+        modelNameMax: '模型名称不能超过100个字符',
+        baseUrlRequired: '请输入 Base URL',
+        baseUrlEmpty: 'Base URL 不能为空',
+        baseUrlInvalid: 'Base URL 格式不正确，请输入有效的 URL'
+      },
+      modelNamePlaceholder: {
+        local: '例如：llama2:latest',
+        remote: '例如：gpt-4, claude-3-opus',
+        localVllm: '例如：llava:latest',
+        remoteVllm: '例如：gpt-4-vision-preview',
+        remoteAsr: '例如：whisper-1'
+      },
+      description: {
+        chat: '配置用于对话的大语言模型',
+        embedding: '配置用于文本向量化的嵌入模型',
+        rerank: '配置用于结果重排序的模型',
+        vllm: '配置用于视觉理解和多模态的视觉语言模型',
+        asr: '配置用于语音识别和音频转录的语音转文本模型',
+        default: '配置模型信息'
+      },
+      desensitizeRulesLabel: '开启规则脱敏',
+      desensitizeRulesDesc: '发送给该模型前，先替换手机号、邮箱、身份证、密钥等结构化敏感信息。',
+      desensitizeNerLabel: '开启 NER 脱敏',
+      desensitizeNerDesc: '在规则脱敏后进一步识别人名和地点；需要脱敏服务已准备 NER 模型。',
+      desensitizeImageLabel: '开启图片脱敏',
+      desensitizeImageDesc: '聊天上传的图片和送入该模型解析的图片会先通过脱敏服务遮挡敏感区域；需要脱敏服务支持图片 OCR。',
+      desensitizeServiceUrlLabel: '脱敏服务地址',
+      desensitizeVosHint: '同一 vos_default 网络可直接使用：',
+      desensitizeFailureDesc: '启用后若脱敏服务不可用，本次模型请求会被阻止，原文不会直接发送。',
+      desensitizeServiceUrlRequired: '启用脱敏后必须填写脱敏服务地址',
+      desensitizeServiceUrlInvalid: '脱敏服务地址格式无效',
+      thinkingControlLabel: 'Thinking mode request format',
+      thinkingControlDesc: 'Controls how the agent thinking-mode switch is written to the API.',
+      thinkingControl: {
+        none: {
+          label: 'Do not send thinking fields',
+          hint: 'Thinking parameters are not sent in requests.',
+        },
+        chatTemplateKwargs: {
+          label: 'chat_template_kwargs',
+          hint: 'Custom OpenAI-compatible gateways, NVIDIA NIM, vLLM / local Qwen',
+        },
+        enableThinking: {
+          label: 'enable_thinking',
+          hint: 'Alibaba DashScope thinking parameter',
+        },
+        thinkingType: {
+          label: 'thinking.type',
+          hint: 'Volcengine Ark and Tencent LKEAP thinking parameter',
+        },
+      },
       providers: {
         openai: {
           label: 'OpenAI',
@@ -3082,30 +3144,6 @@ export default {
         regionDesc: 'RunRerank supports ap-beijing, ap-guangzhou, etc. Default: ap-guangzhou',
         rerankCredentialHint: 'Rerank uses Tencent Cloud API signature. Create SecretId/SecretKey in the CAM console.',
       },
-      validation: {
-        extraFieldRequired: '请填写 {name}',
-        modelNameRequired: '请输入模型名称',
-        modelNameEmpty: '模型名称不能为空',
-        modelNameMax: '模型名称不能超过100个字符',
-        baseUrlRequired: '请输入 Base URL',
-        baseUrlEmpty: 'Base URL 不能为空',
-        baseUrlInvalid: 'Base URL 格式不正确，请输入有效的 URL'
-      },
-      modelNamePlaceholder: {
-        local: '例如：llama2:latest',
-        remote: '例如：gpt-4, claude-3-opus',
-        localVllm: '例如：llava:latest',
-        remoteVllm: '例如：gpt-4-vision-preview',
-        remoteAsr: '例如：whisper-1'
-      },
-      description: {
-        chat: '配置用于对话的大语言模型',
-        embedding: '配置用于文本向量化的嵌入模型',
-        rerank: '配置用于结果重排序的模型',
-        vllm: '配置用于视觉理解和多模态的视觉语言模型',
-        asr: '配置用于语音识别和音频转录的语音转文本模型',
-        default: '配置模型信息'
-      }
     }
   },
   error: {
@@ -3176,16 +3214,6 @@ export default {
     retry: '重试',
     versionLabel: '应用版本',
     versionDescription: '当前应用服务（weknora-app）的版本号',
-    vosAppVersionLabel: 'VOS App 版本',
-    vosAppVersionDescription: '当前安装的 VOS 应用包版本号',
-    appImageVersionLabel: 'App 镜像版本',
-    appImageVersionDescription: '当前运行的 weknora 后端镜像版本号',
-    frontendImageVersionLabel: 'UI 镜像版本',
-    frontendImageVersionDescription: '当前运行的 weknora-ui 镜像版本号',
-    docreaderImageVersionLabel: 'DocReader 镜像版本',
-    docreaderImageVersionDescription: '当前运行的 weknora-docreader 镜像版本号',
-    sandboxImageVersionLabel: 'Sandbox 镜像版本',
-    sandboxImageVersionDescription: '当前配置的 weknora-sandbox 镜像版本号',
     frontendVersionLabel: 'UI 版本',
     frontendVersionDescription: '当前 UI 界面（weknora-ui）的构建版本号',
     versionMismatch: '与应用版本不一致',
@@ -3741,7 +3769,17 @@ export default {
     messages: {
       fetchFailed: '获取系统信息失败',
       networkError: '网络错误，请稍后重试'
-    }
+    },
+    vosAppVersionLabel: 'VOS App 版本',
+    vosAppVersionDescription: '当前安装的 VOS 应用包版本号',
+    appImageVersionLabel: 'App 镜像版本',
+    appImageVersionDescription: '当前运行的 weknora 后端镜像版本号',
+    frontendImageVersionLabel: 'UI 镜像版本',
+    frontendImageVersionDescription: '当前运行的 weknora-ui 镜像版本号',
+    docreaderImageVersionLabel: 'DocReader 镜像版本',
+    docreaderImageVersionDescription: '当前运行的 weknora-docreader 镜像版本号',
+    sandboxImageVersionLabel: 'Sandbox 镜像版本',
+    sandboxImageVersionDescription: '当前配置的 weknora-sandbox 镜像版本号',
   },
   tenant: {
     title: '空间信息',
@@ -3910,7 +3948,6 @@ export default {
         tabTerminal: '终端',
         tabDesktop: '桌面',
         artifactsEmpty: '本会话尚未生成可下载的文件',
-        desktopPlaceholder: '桌面可视化即将支持',
         artifactScope: '产物范围',
         artifactsCurrent: '本轮',
         artifactsAll: '全部',
@@ -3942,6 +3979,7 @@ export default {
         sessionEnded: '终端会话已结束',
         idleDisconnected: '终端空闲已断开，沙箱将按工作区 TTL 自行暂停。可重新连接。',
         authRevoked: '登录状态已失效，终端已断开。请重新登录后再连接。',
+        desktopPlaceholder: '桌面可视化即将支持',
     },
     questionMinimapTitle: '问答',
     questionMinimapPosition: '第 {current} 轮 · 共 {total} 轮',
@@ -5002,6 +5040,9 @@ export default {
   createChat: {
     title: 'Hi，我是 WeKnora，让你的知识触手可及',
     newSessionTitle: '新会话',
+    openProject: '选择项目',
+    clearProject: '取消绑定',
+    pickFailed: '无法打开所选路径',
     messages: {
       createFailed: '创建会话失败',
       createError: '创建会话失败，请稍后重试'
@@ -5077,7 +5118,6 @@ export default {
     placeholderAgent: "Ask {name}",
   },
   manualEditor: {
-    description: '使用 Markdown 编写知识内容，支持实时预览',
     defaultTitlePrefix: '新建文档',
     noDocumentKnowledgeBases: '暂无可用的文档型知识库，请先创建一个文档型知识库',
     actions: {
@@ -5120,8 +5160,8 @@ export default {
       currentKnowledgeBase: '当前知识库'
     },
     section: {
+      content: '知识内容',
       basic: '基本信息',
-      content: '知识内容'
     },
     title: {
       edit: '编辑 Markdown 知识',
@@ -5136,13 +5176,13 @@ export default {
       indent: '缩进 / Shift+Tab 反缩进'
     },
     view: {
-      editLabel: '返回编辑',
-      previewLabel: '预览内容',
       edit: '编辑',
       split: '分屏',
       preview: '预览',
       splitUnavailable: '宽度不足，拖宽抽屉或全屏后可用分屏',
-      groupLabel: '编辑区视图'
+      groupLabel: '编辑区视图',
+      editLabel: '返回编辑',
+      previewLabel: '预览内容',
     },
     toolbar: {
       bold: '加粗',
@@ -5181,7 +5221,8 @@ export default {
       italic: '斜体文本',
       strike: '删除线',
       inlineCode: 'code'
-    }
+    },
+    description: '使用 Markdown 编写知识内容，支持实时预览',
   },
   file: {
     upload: '上传文件'
@@ -6786,8 +6827,9 @@ export default {
     minutesAgo: '{n} 分钟前',
     noActivity: '暂无解析记录',
     totalDuration: '总耗时：{d}',
-    total: '总计 {d}',
     errorCode: {
+      TASK_STALLED: '长时间无进展，已自动终止',
+      TASK_STALLED_SUGGESTION: '处理超过阈值仍没有任何进展，且队列中已无对应任务，已被系统标记为失败。请点击「重试」；如反复出现，请检查该阶段依赖的服务（文档解析、模型、向量库）是否正常。',
       UNKNOWN_SUGGESTION: '请查看应用日志获取详细信息。'
     },
     status: {
@@ -6838,19 +6880,28 @@ export default {
       overview: '概览',
       raw: '原始 JSON'
     },
+    stall: {
+      title: '已 {minutes} 分钟没有进展，可能已卡住',
+      hint: '可以继续等待，或停止解析后重建知识。长时间仍无进展时，系统会自动将其标记为失败。',
+      hintAtStage: '当前停在「{stage}」阶段。可以继续等待，或停止解析后重建知识。长时间仍无进展时，系统会自动将其标记为失败。',
+      queuedTitle: '已 {minutes} 分钟没有进展，任务仍在排队',
+      queuedHint: '这篇文档还有任务在队列中等待处理，通常是任务积压导致，稍后会自动继续，一般无需操作。'
+    },
     head: {
+      lastProgress: '最近进展',
       stagesDone: '主流程阶段',
       stagesProgress: '当前阶段',
+      attempt: '尝试',
+      updated: '更新于',
       postprocessTasks: '后处理：运行中 {running} / 失败 {failed} / 已完成 {completed}',
       completedWithActiveTrace: '处理已完成，但仍有 {n} 个 Trace 任务处于活动状态',
-      attempt: '尝试',
-      updated: '更新于'
     },
     processConfig: {
       title: '本次解析配置',
       kbDefault: '使用知识库默认配置',
       graph: '知识图谱'
-    }
+    },
+    total: '总计 {d}',
   },
   uploadConfirm: {
     documentSummary: "文档摘要",
@@ -6923,6 +6974,21 @@ export default {
     name: '名称',
     description: '描述',
     settings: '设置',
+    sort: {
+      title: '排序',
+      updatedTime: '更新时间',
+      updatedTimeDescription: '按文件最近发生变化的时间排序',
+      createdTime: '上传/创建时间',
+      createdTimeDescription: '默认选项。查看新加入或最早积累的资料',
+      fileName: '文件名称',
+      fileNameDescription: '快速寻找明确知道名称的文件',
+      recentlyUpdated: '最近更新',
+      earliestUpdated: '最早更新',
+      newestCreated: '最新上传',
+      earliestCreated: '最早上传',
+      nameAscending: 'A–Z',
+      nameDescending: 'Z–A',
+    },
     tagUpdateSuccess: '标签已更新',
     tagEditDialogHeading: '编辑标签',
     folderTree: {
@@ -7163,16 +7229,6 @@ export default {
     deleteStatusUnavailable: '暂时无法确认删除结果，请稍后刷新查看文档状态。',
     batchDeleteSuccess: '成功删除 {count} 个文档',
     batchDeleteFailed: '批量删除失败',
-    batchDownloadSuccess: '已开始下载 {count} 个源文件',
-    batchDownloadPartialFailed: '{count} 个源文件下载失败',
-    reparseFailedDocuments: '重新解析失败文档',
-    reparseFailedDocumentsSuccess: '已提交 {count} 个失败文档重新解析',
-    reparseFailedDocumentsFailed: '重新解析失败文档失败',
-    noFailedDocuments: '当前知识库没有解析失败的文档',
-    downloadKnowledgeBaseDocuments: '下载当前知识库文档',
-    downloadKnowledgeBaseSuccess: '已开始下载 {count} 个源文件',
-    downloadKnowledgeBaseFailed: '下载当前知识库文档失败',
-    noDownloadableDocuments: '当前没有可下载的文档',
     batchTag: '批量打标签',
     batchTagDialogHeading: '批量打标签',
     batchTagSubtitle: '为选中的 {count} 个文档统一设置标签（将替换文档原有标签）',
@@ -7186,6 +7242,10 @@ export default {
     statusCompleted: '已完成',
     statusProcessing: '解析中',
     statusFinalizing: '优化中',
+    statusStalled: '疑似卡住',
+    stalledHint: '已 {minutes} 分钟没有进展，可能已卡住。可打开 Trace 查看停在哪一步，或停止解析后重建知识。',
+    statusQueued: '排队中',
+    queuedHint: '已 {minutes} 分钟没有进展，但仍有任务在队列中等待处理，通常是任务积压，稍后会自动继续。',
     statusFailed: '失败',
     statusCancelled: '已取消',
     statusDraft: '草稿',
@@ -7258,6 +7318,16 @@ export default {
       sharedAt: '共享于',
       lastUpdated: '最后更新'
     },
+    batchDownloadSuccess: '已开始下载 {count} 个源文件',
+    batchDownloadPartialFailed: '{count} 个源文件下载失败',
+    reparseFailedDocuments: '重新解析失败文档',
+    reparseFailedDocumentsSuccess: '已提交 {count} 个失败文档重新解析',
+    reparseFailedDocumentsFailed: '重新解析失败文档失败',
+    noFailedDocuments: '当前知识库没有解析失败的文档',
+    downloadKnowledgeBaseDocuments: '下载当前知识库文档',
+    downloadKnowledgeBaseSuccess: '已开始下载 {count} 个源文件',
+    downloadKnowledgeBaseFailed: '下载当前知识库文档失败',
+    noDownloadableDocuments: '当前没有可下载的文档',
     tagEditSearch: "Search tags...",
     tagEditSelectedSection: "Selected",
     tagEditAvailableSection: "Available",
@@ -7560,6 +7630,7 @@ export default {
     deleteSession: '删除对话',
     renamePlaceholder: '输入对话标题',
     unpinSuccess: '已取消置顶',
+    temporaryWorkspace: '临时工作区',
     sessionIdCopied: '会话 ID 已复制',
     linkCopied: '对话链接已复制',
     copyFailed: '复制失败，请检查浏览器剪贴板权限',
@@ -7655,7 +7726,7 @@ export default {
     apiChats: 'API 会话',
     noSessions: '暂无对话'
   },
-
+  modelHubDownload: { title: 'Model Hub 正在准备模型', starting: '正在触发下载…', failed: '下载失败', retry: '重试', unavailable: '正在等待 Model Hub 连接…' },
   contractReview: {
     workspaceEyebrow: "法律工作台",
     title: "合同审查",
@@ -7886,7 +7957,6 @@ export default {
       cancelled: "已取消",
     },
   },
-
   legalAssistant: {
     eyebrow: "法律工作台",
     title: "法务助手",
@@ -7897,7 +7967,6 @@ export default {
     workspaceUnavailable: "法务工作台不可用，已返回知识库。",
     createFailed: "创建法务会话失败。",
   },
-
   legalWorkspace: {
     title: "法律工作台",
     contractReview: "合同审查",
@@ -7908,7 +7977,6 @@ export default {
     smartArchive: "智能档案",
     assistant: "法务助手",
   },
-
   legalWorkspaceSettings: {
     description:
       "控制当前工作区是否显示并允许访问法律工作台。关闭只隐藏入口，不会删除已有数据。",
@@ -7934,7 +8002,6 @@ export default {
       "只有工作区管理员可以修改此设置；只有所有者可以删除法律工作台数据。",
     disabledMessage: "法律工作台当前已关闭。",
   },
-
   smartArchive: {
     deleteNotification: "删除通知",
     deleteNotificationConfirm: "确定删除这条通知吗？",
@@ -8120,4 +8187,4 @@ export default {
       canceled: "已取消",
     },
   },
-};
+}

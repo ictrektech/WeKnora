@@ -9,10 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The fork has already published the migration range 000097-000120, so
-// upstream additions are appended as 000121-000125 and local ictrek
-// migrations continue at 000126. Loading each directory catches any future
-// duplicate version before deployment.
+// The fork's existing migration history reaches PostgreSQL 000130 and SQLite
+// 000037. New upstream additions are appended at PostgreSQL 000131–000132 and
+// SQLite 000038–000040. Loading each directory catches duplicate versions.
 func TestMigrationDirectoriesLoad(t *testing.T) {
 	root := sqliteRepoRoot(t)
 	for _, dir := range []string{"versioned", "sqlite"} {

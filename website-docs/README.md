@@ -2,6 +2,8 @@
 
 `website-docs/` 包含官网、文档、共享样式和全部构建部署脚本，可独立复制和构建，不依赖仓库外层文件。官网和文档共用一个域名、一次构建和一份部署产物。
 
+产品、部署、API 和开发文档统一在这里维护。旧 `docs/` 的有效内容已按主题合并，过时和重复正文已删除；迁移取舍及仍保留的工程资源见[迁移记录](MIGRATION.md)；该记录仅供维护者使用，不发布到站点。
+
 - `/`：产品首页。
 - `/docs/`：直接进入“快速上手”。
 - `/docs/…`：完整文档，保留分类导航、搜索和侧栏。
@@ -81,6 +83,14 @@ docker run -d --name weknora-site --restart unless-stopped -p 8080:80 weknora-si
 ```
 
 访问 `http://服务器地址:8080/`。如使用域名和 HTTPS，让现有反向代理转发到该端口即可。镜像内已经包含官网、文档和 Nginx 路由配置。
+
+容器内的 Nginx 默认监听 80 端口，可以用环境变量 `WEBSITE_NGINX_PORT` 修改，无需重新构建。使用 `--network host`，或者部署平台要求容器监听指定端口时，这样设置：
+
+```bash
+docker run -d --name weknora-site --restart unless-stopped -e WEBSITE_NGINX_PORT=8080 -p 8080:8080 weknora-site:0.8.0
+```
+
+只是想换一个对外端口时，改 `-p` 左侧的宿主机端口就够了，例如 `-p 9000:80`。
 
 也可以只复制 `website-docs/` 目录，在该目录执行 `docker build -t weknora-site:0.8.0 .`。构建上下文必须是 `website-docs/`，宿主机的依赖、旧构建产物和部署包由 `.dockerignore` 排除。
 

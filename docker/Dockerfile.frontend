@@ -15,6 +15,7 @@ RUN npm config set registry "${NPM_REGISTRY}" && npm ci
 
 COPY frontend/ ./
 COPY docs/api /docs/api
+COPY website-docs/04-api /website-docs/04-api
 RUN npm run build
 
 FROM nginx:stable-alpine

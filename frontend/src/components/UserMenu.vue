@@ -92,10 +92,6 @@
           <t-icon name="control-platform" class="menu-icon" />
           <span>{{ $t('settings.modelManagement') }}</span>
         </div>
-        <div v-if="canManageSkills" class="menu-item" @click="handleQuickNav('skills')">
-          <t-icon :name="SKILL_ICON" class="menu-icon" />
-          <span>{{ $t('settings.skills.title') }}</span>
-        </div>
         <div class="menu-divider"></div>
         <div class="menu-item" @click="handleSettings">
           <t-icon name="setting" class="menu-icon" />
@@ -197,8 +193,6 @@ import { useRoleLabel, useHomeTenant } from '@/composables/useRoleLabel'
 import { getRootZoom, rectToCssPx, cssViewportSize } from '@/utils/zoom'
 import { openNewUserGuide } from '@/config/contextualGuides'
 import { SETTINGS_MANAGEMENT_SHORTCUT_MIN_ROLE } from '@/config/settingsAccess'
-import { SKILL_ICON } from '@/types/mention'
-
 const { t } = useI18n()
 
 const router = useRouter()
@@ -239,12 +233,6 @@ const canManageModels = computed(() =>
   authStore.isSystemAdmin ||
   authStore.hasRole(SETTINGS_MANAGEMENT_SHORTCUT_MIN_ROLE.models),
 )
-const canManageSkills = computed(() =>
-  authStore.canAccessAllTenants ||
-  authStore.isSystemAdmin ||
-  authStore.hasRole(SETTINGS_MANAGEMENT_SHORTCUT_MIN_ROLE.skills),
-)
-
 const menuRef = ref<HTMLElement>()
 const tenantMenuItemRef = ref<HTMLElement>()
 const menuVisible = ref(false)
@@ -481,6 +469,16 @@ const reopenGuide = () => {
   openNewUserGuide()
 }
 
+const openDocs = () => {
+  menuVisible.value = false
+  window.open('https://github.com/ictrektech/WeKnora/tree/main/website-docs', '_blank')
+}
+
+// 打开 GitHub
+const openGithub = () => {
+  menuVisible.value = false
+  window.open('https://github.com/ictrektech/WeKnora', '_blank')
+}
 // 注销
 const handleLogout = async () => {
   menuVisible.value = false

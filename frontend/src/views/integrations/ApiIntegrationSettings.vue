@@ -834,6 +834,7 @@ type ApiDocItem = {
   slug: string
   fileName: string
   title: string
+  sourcePath: string
   raw: string
 }
 
@@ -846,28 +847,8 @@ const apiDocModules = import.meta.glob('../../../../docs/api/*.md', {
 const apiDocOrder = [
   'README',
   'vos-external-api',
-  'auth',
-  'tenant',
-  'knowledge-base',
-  'knowledge',
-  'knowledge-search',
-  'chat',
-  'session',
-  'message',
-  'agent',
-  'mcp-service',
-  'model',
-  'vector-store',
-  'storage-backend',
-  'web-search',
-  'tag',
-  'faq',
-  'chunk',
-  'skill',
-  'evaluation',
-  'organization',
-  'initialization',
-  'system',
+  'vos-external-api-validation',
+  'vos-external-api-validation.zh-TW',
 ]
 
 function apiDocSortWeight(slug: string) {
@@ -888,6 +869,7 @@ const apiDocs: ApiDocItem[] = Object.entries(apiDocModules)
       slug,
       fileName,
       title: extractMarkdownTitle(fileName, raw),
+      sourcePath: path.replace(/^\.\.\/\.\.\/\.\.\/\.\.\//, ''),
       raw,
     }
   })
@@ -1261,19 +1243,28 @@ const selectedApiDoc = computed(() => (
 
 const apiDocSlugSet = new Set(apiDocs.map((doc) => doc.slug))
 
-function rewriteApiDocLinks(markdown: string) {
+function rewriteApiDocLinks(markdown: string, sourcePath: string) {
   return markdown.replace(/\]\(([^)]+\.md)(#[^)]+)?\)/g, (match, href: string, hash = '') => {
     const fileName = href.split('/').pop() || ''
     const slug = fileName.replace(/\.md$/, '')
-    if (!apiDocSlugSet.has(slug)) return match
-    return `](#api-doc:${slug}${hash || ''})`
+    if (apiDocSlugSet.has(slug)) return `](#api-doc:${slug}${hash || ''})`
+    if (href.startsWith('/') || href.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return match
+    const segments = sourcePath.split('/').slice(0, -1)
+    for (const segment of href.split('/')) {
+      if (segment === '..') segments.pop()
+      else if (segment && segment !== '.') segments.push(segment)
+    }
+    const repoPath = segments.join('/')
+    return repoPath
+      ? `](https://github.com/ictrektech/WeKnora/blob/main/${repoPath}${hash || ''})`
+      : match
   })
 }
 
 const selectedApiDocHtml = computed(() => {
   const doc = selectedApiDoc.value
   if (!doc) return ''
-  const html = marked.parse(rewriteApiDocLinks(doc.raw), {
+  const html = marked.parse(rewriteApiDocLinks(doc.raw, doc.sourcePath), {
     async: false,
     gfm: true,
     breaks: false,
@@ -1779,6 +1770,11 @@ function handleApiDocMarkdownClick(event: MouseEvent) {
   const anchor = target?.closest('a')
   if (!anchor) return
   const href = anchor.getAttribute('href') || ''
+  if (href.startsWith('https://github.com/ictrektech/WeKnora/blob/main/')) {
+    event.preventDefault()
+    window.open(href, '_blank', 'noopener,noreferrer')
+    return
+  }
   if (!href.startsWith('#api-doc:')) return
   event.preventDefault()
   const slug = href.replace(/^#api-doc:/, '').split('#')[0]

@@ -366,6 +366,7 @@ import {
   register,
   getOIDCAuthorizationURL,
   getOIDCConfig,
+  autoSetup,
   loginWithVOSOIDC,
   loginWithVOSSSO,
   getAuthConfig,
@@ -924,6 +925,20 @@ onMounted(async () => {
   }
 
   if (!vosOnlyMode.value) {
+    const AUTO_SETUP_FAILED_KEY = 'weknora_auto_setup_failed'
+    if (localStorage.getItem(AUTO_SETUP_FAILED_KEY) !== 'true') {
+      try {
+        const response = await autoSetup()
+        if (response.success) {
+          authStore.setLiteMode(true)
+          await persistLoginResponse(response)
+          return
+        }
+        localStorage.setItem(AUTO_SETUP_FAILED_KEY, 'true')
+      } catch {
+        localStorage.setItem(AUTO_SETUP_FAILED_KEY, 'true')
+      }
+    }
     await Promise.all([loadOIDCConfig(), loadAuthConfig()])
     return
   }

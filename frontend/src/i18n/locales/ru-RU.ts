@@ -1,5 +1,9 @@
 export default {
-  modelHubDownload: { title: 'Model Hub готовит модели', starting: 'Запуск загрузки…', failed: 'Ошибка загрузки', retry: 'Повторить', unavailable: 'Ожидание Model Hub…' },
+  toolbox: {
+    "title": "Инструменты",
+    "description": "Управляйте навыками, внешними инструментами и подключением браузера для агентов.",
+    "unavailable": "В текущем рабочем пространстве нет доступных инструментов."
+  },
   localBrowser: {
     pipOpen: "Открыть плавающее окно",
     pipReturn: "Вернуть предпросмотр в чат",
@@ -64,9 +68,9 @@ export default {
     "helpHint": "Требуется проверка или разрешение. Нажмите предпросмотр для перехода.",
 
     "settingsTitle": "Подключение браузера",
-    "settingsDescription": "Подключите локальный Chrome через BrowserSkill, чтобы управлять реальными страницами из диалогов.",
+    "settingsDescription": "Подключите локальный Chrome или Edge через BrowserSkill, чтобы управлять реальными страницами из диалогов.",
     "openSettings": "Открыть настройки",
-    "settingsHint": "Подключите BrowserSkill в личных настройках, чтобы использовать локальный браузер.",
+    "settingsHint": "Подключите BrowserSkill в разделе «Инструменты», чтобы использовать локальный браузер.",
     "unavailable": "Локальный браузер не включён на сервере. Обратитесь к администратору.",
 
     "source": "Источник браузера",
@@ -79,26 +83,40 @@ export default {
     "pause": "Приостановить браузер",
     "start": "Начать задачу",
     "stop": "Завершить задачу браузера",
-    "pairHint": "Вставьте ссылку в раздел удалённого подключения расширения и проверьте сервер.",
+    "resumeShort": "Продолжить",
+    "pauseShort": "Пауза",
+    "stopShort": "Завершить",
+    "pairHint": "Откройте в расширении «Настройки подключения → Удалённое подключение», вставьте ссылку и подтвердите сервер. Ссылка действует 5 минут и используется один раз.",
     "copyPairing": "Скопировать ссылку",
     "copied": "Скопировано",
-    "windowHint": "Задачи работают в отмеченной группе вкладок. Для существующих вкладок требуется разрешение.",
+    "windowHint": "Задачи выполняются в отдельном окне браузера. Заимствование существующих вкладок требует вашего разрешения.",
     "preview": "Предпросмотр локального браузера",
     "waiting": "Ожидание страницы задачи",
-    "startHint": "Запрос браузера создаёт фоновые вкладки задачи.",
+    "startHint": "Запрос к браузеру создаёт отдельное окно агента.",
     "revoke": "Отозвать доступ устройства",
     "revokeConfirm": "После отзыва потребуется повторное подключение, чтобы снова использовать локальный браузер.",
     "failed": "Операция не удалась. Повторите попытку.",
-    "productDescription": "Задачи браузера в вашем Chrome",
+    "productDescription": "Расширение Chrome и Edge с открытым исходным кодом: агент открывает страницы, читает их и выполняет действия в вашем браузере.",
     "offline": "Не в сети",
     "notPaired": "Не подключён",
     "lastSeen": "Последнее подключение",
     "readyHint": "Готово. Вернитесь в диалог и опишите задачу для браузера.",
-    "reconnectHint": "Авторизация сохранена. Откройте Chrome и BrowserSkill для автоматического подключения.",
+    "capabilitiesTitle": "Агент может",
+    "sidebarStatus": "Показывать статус подключения на боковой панели",
+    "reconnectHint": "Авторизация сохранена. Откройте браузер и BrowserSkill для автоматического подключения.",
     "replaceDevice": "Сменить браузер",
     "installExtension": "Установите BrowserSkill",
-    "installHint": "Скачайте расширение для этого сервера и установите в Chrome.",
-    "downloadExtension": "Скачать расширение",
+    "storeInstall": "Интернет-магазин Chrome",
+    "edgeStoreInstall": "Надстройки Edge",
+    "extensionMinVersion": "Требуется BrowserSkill v{version} или новее. Поддерживаются Chrome и Edge.",
+    "extensionOutdated": "Версия расширения v{current} устарела. Обновите до v{version} или новее.",
+    "manualInstall": "Установить вручную (альтернатива)",
+    "storeInstallHint": "Установите BrowserSkill из Интернет-магазина Chrome или надстроек Edge, затем вернитесь сюда для сопряжения.",
+    "installHint": "Если магазин недоступен или версия несовместима, скачайте подходящий пакет и установите его вручную.",
+    "downloadExtension": "Скачать совместимый пакет",
+    "officialExtension": "Официальное расширение (Интернет-магазин Chrome)",
+    "installGuide": "Как установить скачанный пакет?",
+    "pairGuide": "Как использовать ссылку сопряжения?",
     "pairBrowser": "Подключите браузер",
     "packageUnavailable": "Запросите совместимое расширение у администратора.",
     "manualCopy": "Скопируйте ссылку ниже. Она действует 5 минут и используется один раз.",
@@ -106,17 +124,32 @@ export default {
     "copyAgain": "Копировать ещё раз",
     "usageTitle": "Как пользоваться",
     "usageStep1Title": "Установите расширение",
-    "usageStep1Text": "Распакуйте пакет, включите режим разработчика на странице расширений Chrome и загрузите папку.",
+    "usageStep1Text": "Распакуйте ZIP, введите chrome://extensions (в Edge — edge://extensions) в адресной строке, включите режим разработчика, нажмите «Загрузить распакованное расширение» и выберите папку расширения.",
     "usageStep2Title": "Подключите браузер",
-    "usageStep2Text": "Скопируйте ссылку и вставьте её в раздел удалённого подключения расширения. Одно подключение используется во всех диалогах пространства.",
+    "usageStep2Text": "Вставьте ссылку в «Настройки подключения → Удалённое подключение» расширения и подтвердите сервер. Одно подключение используется во всех диалогах пространства.",
     "usageStep3Title": "Опишите задачу в диалоге",
-    "usageStep3Text": "Включите локальный браузер в поле ввода и опишите веб-задачу. Она выполняется в отмеченной группе вкладок.",
+    "usageStep3Text": "Перед отправкой веб-задачи включите локальный браузер в поле ввода диалога. Подключение не включает эту опцию автоматически. Задачи выполняются в отдельном окне агента.",
     "usageStep4Title": "Просматривайте и продолжайте через предпросмотр",
     "usageStep4Text": "В диалоге появится миниатюра. Нажмите её, чтобы перейти к вкладке задачи. Прерванные задачи остаются на паузе после переподключения — продолжите через предпросмотр. Для существующих вкладок нужно разрешение.",
     "running": "Выполняется",
     "locateWindow": "Показать браузер",
     "reconnectShort": "Ожидание подключения",
 },
+  resourceSort: {
+    title: 'Сортировка',
+    updatedTime: 'Время обновления',
+    updatedTimeDescription: 'Вариант по умолчанию.',
+    createdTime: 'Время создания',
+    createdTimeDescription: 'Показать недавно или давно созданные элементы',
+    name: 'Название',
+    nameDescription: 'Быстро найти элемент по известному названию',
+    recentlyUpdated: 'Сначала обновлённые',
+    earliestUpdated: 'Сначала давно обновлённые',
+    recentlyCreated: 'Сначала новые',
+    earliestCreated: 'Сначала старые',
+    nameAscending: 'A–Z',
+    nameDescending: 'Z–A',
+  },
   platformApiKeys: {
     title: 'Платформенные API-ключи',
     description: 'Учетные данные для автоматизации между рабочими пространствами. Для API пространства используйте X-Tenant-ID.',
@@ -532,19 +565,6 @@ export default {
       copySuccess: 'Скопировано',
       baseUrl: 'Базовый URL API',
       baseUrlDesc: 'Используйте с путями REST API.',
-      directHostBaseUrl: 'Прямой URL API хоста',
-      directHostBaseUrlDesc: 'Пакет VOS по умолчанию направляет RAG API на порт хоста 29081, поэтому его можно вызывать напрямую из LAN или внешних систем. Если порт установки изменён, используйте фактическое значение.',
-      externalGuideTitle: 'Краткая справка по внешнему API',
-      externalGuideDesc: 'Внешние сервисы могут обращаться к HybRAG через путь приложения VOS или через прямой порт хоста. HybRAG поддерживает личные API-ключи пользователей и bearer-токены VOS/OAuth.',
-      externalGuideAuthTitle: 'Аутентификация',
-      externalGuideAuthDesc: 'Вариант 1: обычный пользователь создаёт здесь личный API-ключ, а внешнее приложение отправляет X-API-Key. Личный ключ наследует только область баз знаний этого пользователя и не требует ключа администратора. Вариант 2: внешнее приложение получает VOS/OAuth-токен пользователя и отправляет Authorization: Bearer <VOS token>; HybRAG проверяет его и работает с правами сопоставленного пользователя.',
-      externalGuideSessionTitle: 'Сессия',
-      externalGuideSessionDesc: 'Сначала создайте сессию через POST /sessions, затем передайте возвращённый id в /knowledge-chat/:session_id или /agent-chat/:session_id.',
-      externalGuideKbTitle: 'Область баз знаний',
-      externalGuideKbDesc: 'Передавайте knowledge_base_ids в теле запроса. При создании API-ключа его также можно ограничить выбранными базами знаний.',
-      externalGuideRagExample: 'Пример RAG Chat',
-      externalGuideRagStep: '# 2. RAG chat (SSE; замените <session_id> на id, возвращённый на шаге 1)',
-      externalGuideQuestion: 'Каковы ключевые пункты в этой базе знаний?',
       apiKeys: 'API Keys',
       apiKeysDesc: 'Создавайте отдельные ключи для интеграций и ограничивайте права операций и доступ к базам знаний.',
       createApiKey: 'Создать API Key',
@@ -559,7 +579,6 @@ export default {
       apiKeyScopedAccess: 'Ограниченный доступ',
       apiKeyAccessType: 'Тип доступа',
       apiKeyAccessTypeHint: '«База знаний» работает в пределах области БЗ на выбранном ниже уровне прав; «Полный доступ пространства» дополнительно открывает все API уровня пространства, такие как модели и источники данных.',
-      personalApiKeyAccessTypeHint: 'Обычные пользователи могут создавать личные API-ключи. Они действуют только для текущей учётной записи, позволяют получать данные, вести диалоги и загружать содержимое в выбранные базы знаний, но не дают полного доступа к пространству и не требуют ключа администратора.',
       apiKeyCapabilities: 'Возможности',
       apiKeyCapabilityGroupKnowledge: 'Данные баз знаний',
       apiKeyCapabilityGroupAutomation: 'Агенты и интеграции',
@@ -607,9 +626,6 @@ export default {
       capabilityManageTenantSettingsHint: 'Чтение и обновление интеграционных настроек пространства: режим идентификации конечного пользователя API, настройки заголовков запросов и KV пространства. Не включает управление API Key, участниками, удаление пространства или передачу владения.',
       apiKeyKnowledgeScope: 'Базы знаний',
       apiKeyKnowledgeScopePlaceholder: 'Оставьте пустым, чтобы разрешить доступ ко всем базам знаний',
-      personalApiKeyKnowledgeScopePlaceholder: 'Выберите базы знаний, доступные этому личному API-ключу',
-      personalApiKeyKnowledgeScopeHint: 'Личные API-ключи должны быть привязаны к выбранным базам знаний, доступным текущему пользователю.',
-      personalApiKeyKnowledgeScopeRequired: 'Выберите хотя бы одну базу знаний для личного API-ключа',
       allKnowledgeBases: 'Все базы знаний',
       editApiKeyScope: 'Изменить API key',
       editApiKeyScopeDesc: 'Изменить имя и область авторизации API key «{name}».',
@@ -695,7 +711,24 @@ export default {
       loadFailed: 'Не удалось загрузить настройки API-интеграции',
       saveFailed: 'Не удалось сохранить настройки API-интеграции',
       saveSuccess: 'Настройки API-интеграции сохранены',
-      autoSaveNeedSecret: 'Для signed-token режима нужен HMAC secret перед автосохранением.'
+      autoSaveNeedSecret: 'Для signed-token режима нужен HMAC secret перед автосохранением.',
+      directHostBaseUrl: 'Прямой URL API хоста',
+      directHostBaseUrlDesc: 'Пакет VOS по умолчанию направляет RAG API на порт хоста 29081, поэтому его можно вызывать напрямую из LAN или внешних систем. Если порт установки изменён, используйте фактическое значение.',
+      externalGuideTitle: 'Краткая справка по внешнему API',
+      externalGuideDesc: 'Внешние сервисы могут обращаться к HybRAG через путь приложения VOS или через прямой порт хоста. HybRAG поддерживает личные API-ключи пользователей и bearer-токены VOS/OAuth.',
+      externalGuideAuthTitle: 'Аутентификация',
+      externalGuideAuthDesc: 'Вариант 1: обычный пользователь создаёт здесь личный API-ключ, а внешнее приложение отправляет X-API-Key. Личный ключ наследует только область баз знаний этого пользователя и не требует ключа администратора. Вариант 2: внешнее приложение получает VOS/OAuth-токен пользователя и отправляет Authorization: Bearer <VOS token>; HybRAG проверяет его и работает с правами сопоставленного пользователя.',
+      externalGuideSessionTitle: 'Сессия',
+      externalGuideSessionDesc: 'Сначала создайте сессию через POST /sessions, затем передайте возвращённый id в /knowledge-chat/:session_id или /agent-chat/:session_id.',
+      externalGuideKbTitle: 'Область баз знаний',
+      externalGuideKbDesc: 'Передавайте knowledge_base_ids в теле запроса. При создании API-ключа его также можно ограничить выбранными базами знаний.',
+      externalGuideRagExample: 'Пример RAG Chat',
+      externalGuideRagStep: '# 2. RAG chat (SSE; замените <session_id> на id, возвращённый на шаге 1)',
+      externalGuideQuestion: 'Каковы ключевые пункты в этой базе знаний?',
+      personalApiKeyAccessTypeHint: 'Обычные пользователи могут создавать личные API-ключи. Они действуют только для текущей учётной записи, позволяют получать данные, вести диалоги и загружать содержимое в выбранные базы знаний, но не дают полного доступа к пространству и не требуют ключа администратора.',
+      personalApiKeyKnowledgeScopePlaceholder: 'Выберите базы знаний, доступные этому личному API-ключу',
+      personalApiKeyKnowledgeScopeHint: 'Личные API-ключи должны быть привязаны к выбранным базам знаний, доступным текущему пользователю.',
+      personalApiKeyKnowledgeScopeRequired: 'Выберите хотя бы одну базу знаний для личного API-ключа',
     },
     mcpserver: {
       title: 'MCP-сервер',
@@ -1289,6 +1322,9 @@ export default {
       sessionModeUser: 'По пользователю (по умолчанию)',
       sessionModeThread: 'По потоку',
       sessionModeHint: 'Режим пользователя: отдельный диалог для каждого пользователя. /clear для нового диалога. Режим потока: отдельный диалог для каждого потока. Несколько человек могут общаться в одном потоке.',
+      replyLanguage: 'Язык ответов',
+      replyLanguageDefault: 'Использовать системный язык',
+      replyLanguageHint: 'Фиксирует язык ответов агента для этого канала. Если не задан, используется язык развёртывания по умолчанию.',
       wechatScanBind: 'Сканировать QR-код для привязки WeChat',
       wechatScanning: 'Отсканируйте QR-код в WeChat',
       wechatBindSuccess: 'WeChat успешно привязан',
@@ -2241,6 +2277,7 @@ export default {
 },
   mcpServiceDialog: {
     addTitle: 'Добавить сервис MCP',
+    addDesc: 'Подключите внешний сервис MCP, чтобы агенты могли вызывать его инструменты.',
     editTitle: 'Редактировать сервис MCP',
     basicSection: 'Основное',
     connectionSection: 'Подключение',
@@ -2362,8 +2399,6 @@ export default {
     }
   },
   modelSettings: {
-    personalDesensitization: 'Личные настройки обезличивания',
-    personalDesensitizationHint: 'Эта настройка применяется только к текущей учетной записи и данной конфигурации модели. Другие модели с тем же именем или адресом и другие пользователи не изменяются. NER выполняется после обезличивания по правилам.',
     title: 'Настройки моделей',
     description: 'Управление типами AI‑моделей: локальные (Ollama) и удалённые API',
     copySuffix: ' копия',
@@ -2418,15 +2453,11 @@ export default {
       audioFile: 'Аудиофайл',
       chooseFile: 'Выбрать файл',
       parameters: 'Параметры запроса',
-      thinking: 'Режим размышления',
-      thinkingDesc: 'Применяется только к моделям с поддержкой размышления',
       systemPrompt: 'System Prompt',
       systemPromptPlaceholder: 'Необязательно: системный промпт',
       run: 'Запустить тест',
       copyResult: 'Копировать результат',
       history: 'История',
-      thinkOn: 'Размышление включено',
-      thinkOff: 'Размышление выключено',
       runLabel: 'Запуск №{n}',
       success: 'Запрос выполнен',
       failed: 'Запрос не выполнен',
@@ -2444,7 +2475,11 @@ export default {
         reasoningReturned: 'Рассуждение возвращено',
         textChars: 'Символов транскрипции',
         segmentCount: 'Количество сегментов'
-      }
+      },
+      thinking: 'Режим размышления',
+      thinkingDesc: 'Применяется только к моделям с поддержкой размышления',
+      thinkOn: 'Размышление включено',
+      thinkOff: 'Размышление выключено',
     },
     builtinModels: {
       title: 'Встроенные модели',
@@ -2510,7 +2545,9 @@ export default {
       rerank: 'ReRank',
       vllm: 'Зрение',
       asr: 'Речь'
-    }
+    },
+    personalDesensitization: 'Личные настройки обезличивания',
+    personalDesensitizationHint: 'Эта настройка применяется только к текущей учетной записи и данной конфигурации модели. Другие модели с тем же именем или адресом и другие пользователи не изменяются. NER выполняется после обезличивания по правилам.',
   },
   mcpSettings: {
     addUsageInstructions: "Добавить инструкции",
@@ -2768,7 +2805,6 @@ export default {
     close: 'Закрыть настройки'
   },
   language: {
-    followVos: 'Следовать языку VOS',
     zhCN: '简体中文',
     enUS: 'English',
     ruRU: 'Русский',
@@ -2777,7 +2813,8 @@ export default {
     selectLanguage: 'Выбрать язык',
     language: 'Язык',
     languageDescription: 'Выберите язык отображения интерфейса',
-    languageSaved: 'Настройки языка сохранены'
+    languageSaved: 'Настройки языка сохранены',
+    followVos: 'Следовать языку VOS',
   },
   model: {
     reasoning: {
@@ -2852,7 +2889,8 @@ export default {
         compat: {
           label: 'Переопределение совместимости протокола (JSON)',
           placeholder: "{'{'} \"max_tokens_field\": \"max_tokens\" {'}'}",
-          desc: 'Переключатели совместимости, накладываемые на значения каталога для определённого протокола; см. catalog/compat.go на бэкенде. Пусто — без переопределения.',
+          desc: 'Заполняйте, только если эндпоинт расходится со значениями каталога, и указывайте лишь изменяемые поля. Пусто — без переопределения.',
+          docLink: 'Описание полей',
           invalid: 'Некорректный JSON',
           mustBeObject: 'Должен быть JSON-объект',
         },
@@ -2895,17 +2933,6 @@ export default {
       dimensionOverrideDesc: 'Включайте только если документация провайдера подтверждает поддержку параметра dimensions.',
       supportsVisionLabel: 'Поддержка визуального / мультимодального ввода',
       supportsVisionDesc: 'Поддерживает ли модель изображения и другой мультимодальный ввод',
-      desensitizeRulesLabel: 'Включить маскирование по правилам',
-      desensitizeRulesDesc: 'Перед вызовом модели заменяет структурированные конфиденциальные данные: телефоны, почту, идентификаторы и секреты.',
-      desensitizeNerLabel: 'Включить NER-маскирование',
-      desensitizeNerDesc: 'После правил дополнительно распознаёт имена и местоположения. В сервисе маскирования должна быть готова NER-модель.',
-      desensitizeImageLabel: 'Включить маскирование изображений',
-      desensitizeImageDesc: 'Изображения, загруженные в чате и отправляемые модели на распознавание, сначала маскируются сервисом. Сервис маскирования должен поддерживать OCR изображений.',
-      desensitizeServiceUrlLabel: 'URL сервиса маскирования',
-      desensitizeVosHint: 'В одной сети vos_default используйте:',
-      desensitizeFailureDesc: 'Если сервис недоступен, запрос к модели блокируется, а исходный текст не отправляется.',
-      desensitizeServiceUrlRequired: 'При включённом маскировании требуется URL сервиса',
-      desensitizeServiceUrlInvalid: 'Некорректный URL сервиса маскирования',
       contextWindowLabel: 'Контекстное окно',
       contextWindowPlaceholder: 'По умолчанию {value}',
       contextWindowDesc: 'Сколько токенов модель принимает за один запрос. Сжатие истории агента использует этот лимит. Пустое значение — по умолчанию 200000 (200K). Укажите реальное окно провайдера: завышенное значение не запускает сжатие, и провайдер отклоняет запрос.',
@@ -2913,28 +2940,8 @@ export default {
       contextWindowTokens: '{count} токенов',
       maxConcurrencyLabel: 'Лимит фоновой параллельности',
       maxConcurrencyPlaceholder: '0 — использовать глобальное значение',
-    maxConcurrencyDesc: 'Ограничивает число одновременных фоновых вызовов (индексация/обогащение) к этой модели, общее для модели по всем репликам. 0 или пусто — используется глобальное значение по умолчанию; интерактивный чат не затрагивается.',
-      thinkingControlLabel: 'Thinking mode request format',
-      thinkingControlDesc: 'Controls how the agent thinking-mode switch is written to the API.',
-      thinkingControl: {
-        none: {
-          label: 'Do not send thinking fields',
-          hint: 'Thinking parameters are not sent in requests.',
-        },
-        chatTemplateKwargs: {
-          label: 'chat_template_kwargs',
-          hint: 'Custom OpenAI-compatible gateways, NVIDIA NIM, vLLM / local Qwen',
-        },
-        enableThinking: {
-          label: 'enable_thinking',
-          hint: 'Alibaba DashScope thinking parameter',
-        },
-        thinkingType: {
-          label: 'thinking.type',
-          hint: 'Volcengine Ark and Tencent LKEAP thinking parameter',
-        },
-      },
-    dimensionHint: 'Модель выбрана. Нажмите «Определить размерность», чтобы автоматически получить значение.',
+      maxConcurrencyDesc: 'Ограничивает число одновременных фоновых вызовов (индексация/обогащение) к этой модели, общее для модели по всем репликам. 0 или пусто — используется глобальное значение по умолчанию; интерактивный чат не затрагивается.',
+      dimensionHint: 'Модель выбрана. Нажмите «Определить размерность», чтобы автоматически получить значение.',
       loadModelListFailed: 'Не удалось загрузить список моделей',
       listRefreshed: 'Список обновлён',
       fillModelAndUrl: 'Сначала заполните идентификатор модели и Base URL',
@@ -2957,6 +2964,61 @@ export default {
       providerLabel: 'Провайдер',
       providerPlaceholder: 'Выберите провайдера модели',
       providerDocs: 'Документация моделей {provider}',
+      validation: {
+        extraFieldRequired: 'Заполните {name}',
+        modelNameRequired: 'Введите название модели',
+        modelNameEmpty: 'Название модели не может быть пустым',
+        modelNameMax: 'Название модели не может превышать 100 символов',
+        baseUrlRequired: 'Введите Base URL',
+        baseUrlEmpty: 'Base URL не может быть пустым',
+        baseUrlInvalid: 'Недопустимый Base URL, введите корректный адрес'
+      },
+      modelNamePlaceholder: {
+        local: 'например: llama2:latest',
+        remote: 'например: gpt-4, claude-3-opus',
+        localVllm: 'например: llava:latest',
+        remoteVllm: 'например: gpt-4-vision-preview',
+        remoteAsr: 'например: whisper-1'
+      },
+      description: {
+        chat: 'Настройте языковую модель для диалогов',
+        embedding: 'Настройте модель встраивания для текстовой векторизации',
+        rerank: 'Настройте модель для повторного ранжирования результатов',
+        vllm: 'Настройте визуально-языковую модель для мультимодального понимания',
+        asr: 'Настройте модель распознавания речи для транскрибации аудио',
+        default: 'Настройте информацию о модели'
+      },
+      desensitizeRulesLabel: 'Включить маскирование по правилам',
+      desensitizeRulesDesc: 'Перед вызовом модели заменяет структурированные конфиденциальные данные: телефоны, почту, идентификаторы и секреты.',
+      desensitizeNerLabel: 'Включить NER-маскирование',
+      desensitizeNerDesc: 'После правил дополнительно распознаёт имена и местоположения. В сервисе маскирования должна быть готова NER-модель.',
+      desensitizeImageLabel: 'Включить маскирование изображений',
+      desensitizeImageDesc: 'Изображения, загруженные в чате и отправляемые модели на распознавание, сначала маскируются сервисом. Сервис маскирования должен поддерживать OCR изображений.',
+      desensitizeServiceUrlLabel: 'URL сервиса маскирования',
+      desensitizeVosHint: 'В одной сети vos_default используйте:',
+      desensitizeFailureDesc: 'Если сервис недоступен, запрос к модели блокируется, а исходный текст не отправляется.',
+      desensitizeServiceUrlRequired: 'При включённом маскировании требуется URL сервиса',
+      desensitizeServiceUrlInvalid: 'Некорректный URL сервиса маскирования',
+      thinkingControlLabel: 'Thinking mode request format',
+      thinkingControlDesc: 'Controls how the agent thinking-mode switch is written to the API.',
+      thinkingControl: {
+        none: {
+          label: 'Do not send thinking fields',
+          hint: 'Thinking parameters are not sent in requests.',
+        },
+        chatTemplateKwargs: {
+          label: 'chat_template_kwargs',
+          hint: 'Custom OpenAI-compatible gateways, NVIDIA NIM, vLLM / local Qwen',
+        },
+        enableThinking: {
+          label: 'enable_thinking',
+          hint: 'Alibaba DashScope thinking parameter',
+        },
+        thinkingType: {
+          label: 'thinking.type',
+          hint: 'Volcengine Ark and Tencent LKEAP thinking parameter',
+        },
+      },
       providers: {
         openai: {
           label: 'OpenAI',
@@ -3080,30 +3142,6 @@ export default {
         regionDesc: 'RunRerank supports ap-beijing, ap-guangzhou, etc. Default: ap-guangzhou',
         rerankCredentialHint: 'Rerank uses Tencent Cloud API signature. Create SecretId/SecretKey in the CAM console.',
       },
-      validation: {
-        extraFieldRequired: 'Заполните {name}',
-        modelNameRequired: 'Введите название модели',
-        modelNameEmpty: 'Название модели не может быть пустым',
-        modelNameMax: 'Название модели не может превышать 100 символов',
-        baseUrlRequired: 'Введите Base URL',
-        baseUrlEmpty: 'Base URL не может быть пустым',
-        baseUrlInvalid: 'Недопустимый Base URL, введите корректный адрес'
-      },
-      modelNamePlaceholder: {
-        local: 'например: llama2:latest',
-        remote: 'например: gpt-4, claude-3-opus',
-        localVllm: 'например: llava:latest',
-        remoteVllm: 'например: gpt-4-vision-preview',
-        remoteAsr: 'например: whisper-1'
-      },
-      description: {
-        chat: 'Настройте языковую модель для диалогов',
-        embedding: 'Настройте модель встраивания для текстовой векторизации',
-        rerank: 'Настройте модель для повторного ранжирования результатов',
-        vllm: 'Настройте визуально-языковую модель для мультимодального понимания',
-        asr: 'Настройте модель распознавания речи для транскрибации аудио',
-        default: 'Настройте информацию о модели'
-      }
     }
   },
   error: {
@@ -3174,16 +3212,6 @@ export default {
     retry: 'Повторить',
     versionLabel: 'Версия приложения',
     versionDescription: 'Версия сервиса приложения (weknora-app)',
-    vosAppVersionLabel: 'Версия приложения VOS',
-    vosAppVersionDescription: 'Версия установленного пакета приложения VOS',
-    appImageVersionLabel: 'Версия образа приложения',
-    appImageVersionDescription: 'Версия запущенного backend-образа WeKnora',
-    frontendImageVersionLabel: 'Версия образа UI',
-    frontendImageVersionDescription: 'Версия запущенного образа weknora-ui',
-    docreaderImageVersionLabel: 'Версия образа DocReader',
-    docreaderImageVersionDescription: 'Версия запущенного образа weknora-docreader',
-    sandboxImageVersionLabel: 'Версия образа Sandbox',
-    sandboxImageVersionDescription: 'Версия настроенного образа weknora-sandbox',
     frontendVersionLabel: 'Версия UI',
     frontendVersionDescription: 'Версия сборки UI (weknora-ui)',
     versionMismatch: 'Не совпадает с версией приложения',
@@ -3739,7 +3767,17 @@ export default {
     messages: {
       fetchFailed: 'Не удалось получить информацию о системе',
       networkError: 'Ошибка сети, попробуйте позже'
-    }
+    },
+    vosAppVersionLabel: 'Версия приложения VOS',
+    vosAppVersionDescription: 'Версия установленного пакета приложения VOS',
+    appImageVersionLabel: 'Версия образа приложения',
+    appImageVersionDescription: 'Версия запущенного backend-образа WeKnora',
+    frontendImageVersionLabel: 'Версия образа UI',
+    frontendImageVersionDescription: 'Версия запущенного образа weknora-ui',
+    docreaderImageVersionLabel: 'Версия образа DocReader',
+    docreaderImageVersionDescription: 'Версия запущенного образа weknora-docreader',
+    sandboxImageVersionLabel: 'Версия образа Sandbox',
+    sandboxImageVersionDescription: 'Версия настроенного образа weknora-sandbox',
   },
   tenant: {
     title: 'Информация о пространстве',
@@ -3908,7 +3946,6 @@ export default {
         tabTerminal: 'Терминал',
         tabDesktop: 'Рабочий стол',
         artifactsEmpty: 'В этом диалоге пока нет созданных файлов',
-        desktopPlaceholder: 'Визуализация рабочего стола скоро появится',
         artifactScope: 'Область файлов',
         artifactsCurrent: 'Этот ответ',
         artifactsAll: 'Все файлы',
@@ -3940,6 +3977,7 @@ export default {
         sessionEnded: 'Сеанс терминала завершён',
         idleDisconnected: 'Терминал отключён из‑за простоя. Песочница приостановится по своему TTL. Можно подключиться снова.',
         authRevoked: 'Сессия больше не действительна, терминал отключён. Войдите снова и переподключитесь.',
+        desktopPlaceholder: 'Визуализация рабочего стола скоро появится',
     },
     questionMinimapTitle: 'Вопросы',
     questionMinimapPosition: 'Реплика {current} из {total}',
@@ -5000,6 +5038,9 @@ export default {
   createChat: {
     title: 'Привет, я WeKnora — ваши знания всегда под рукой',
     newSessionTitle: 'Новая сессия',
+    openProject: 'Выбрать проект',
+    clearProject: 'Снять привязку',
+    pickFailed: 'Не удалось открыть выбранный путь',
     messages: {
       createFailed: 'Не удалось создать сессию',
       createError: 'Не удалось создать сессию, попробуйте позже'
@@ -5075,7 +5116,6 @@ export default {
     placeholderAgent: "Ask {name}",
   },
   manualEditor: {
-    description: 'Пишите знания в Markdown с предпросмотром в реальном времени',
     defaultTitlePrefix: 'Новый документ',
     noDocumentKnowledgeBases: 'Нет доступных баз знаний типа "документ". Пожалуйста, создайте одну сначала',
     actions: {
@@ -5118,8 +5158,8 @@ export default {
       currentKnowledgeBase: 'Текущая база знаний'
     },
     section: {
+      content: 'Содержимое',
       basic: 'Основная информация',
-      content: 'Содержимое'
     },
     title: {
       edit: 'Редактировать Markdown-знание',
@@ -5134,13 +5174,13 @@ export default {
       indent: 'Отступ / Shift+Tab — назад'
     },
     view: {
-      editLabel: 'Вернуться к редактированию',
-      previewLabel: 'Предпросмотр',
       edit: 'Редактор',
       split: 'Разделить',
       preview: 'Предпросмотр',
       splitUnavailable: 'Расширьте панель или включите полный экран, чтобы разделить вид',
-      groupLabel: 'Вид редактора'
+      groupLabel: 'Вид редактора',
+      editLabel: 'Вернуться к редактированию',
+      previewLabel: 'Предпросмотр',
     },
     toolbar: {
       bold: 'Жирный',
@@ -5179,7 +5219,8 @@ export default {
       italic: 'Курсив',
       strike: 'Зачеркнутый текст',
       inlineCode: 'code'
-    }
+    },
+    description: 'Пишите знания в Markdown с предпросмотром в реальном времени',
   },
   file: {
     upload: 'Загрузить файл'
@@ -6784,8 +6825,9 @@ export default {
     minutesAgo: '{n}m ago',
     noActivity: 'Нет активности парсинга',
     totalDuration: 'Всего: {d}',
-    total: 'Всего {d}',
     errorCode: {
+      TASK_STALLED: 'Остановлено из-за отсутствия прогресса',
+      TASK_STALLED_SUGGESTION: 'Обработка не продвигалась дольше порога, и в очереди не осталось задач, поэтому она помечена как ошибочная. Нажмите «Повторить»; если это повторяется, проверьте сервис, от которого зависит этап (разбор документов, модель или векторное хранилище).',
       UNKNOWN_SUGGESTION: 'Проверьте логи приложения для подробностей.'
     },
     status: {
@@ -6836,19 +6878,28 @@ export default {
       overview: 'Overview',
       raw: 'Raw JSON'
     },
+    stall: {
+      title: 'Нет прогресса {minutes} мин.; обработка могла зависнуть',
+      hint: 'Можно подождать или остановить разбор и пересобрать документ. Если прогресса так и не будет, документ будет автоматически помечен как ошибочный.',
+      hintAtStage: 'Обработка остановилась на этапе «{stage}». Можно подождать или остановить разбор и пересобрать документ. Если прогресса так и не будет, документ будет автоматически помечен как ошибочный.',
+      queuedTitle: 'Нет прогресса {minutes} мин.; задачи ещё ждут в очереди',
+      queuedHint: 'Задачи этого документа ещё в очереди, обычно из-за накопившихся задач. Обработка продолжится сама, обычно ничего делать не нужно.'
+    },
     head: {
+      lastProgress: 'Последний прогресс',
       stagesDone: 'Main stages',
       stagesProgress: 'Current stage',
+      attempt: 'Attempt',
+      updated: 'Updated',
       postprocessTasks: 'Постобработка: выполняется {running} / ошибок {failed} / готово {completed}',
       completedWithActiveTrace: 'Обработка завершена, но активны задачи Trace: {n}',
-      attempt: 'Attempt',
-      updated: 'Updated'
     },
     processConfig: {
       title: 'Конфигурация обработки',
       kbDefault: 'Используются настройки базы знаний по умолчанию',
       graph: 'Граф знаний'
-    }
+    },
+    total: 'Всего {d}',
   },
   uploadConfirm: {
     documentSummary: "Сводка документа",
@@ -6921,6 +6972,21 @@ export default {
     name: 'Название',
     description: 'Описание',
     settings: 'Настройки',
+    sort: {
+      title: 'Сортировка',
+      updatedTime: 'Время обновления',
+      updatedTimeDescription: 'Сортировка по времени последнего изменения файла.',
+      createdTime: 'Время загрузки/создания',
+      createdTimeDescription: 'По умолчанию. Просматривайте самые новые или самые ранние материалы.',
+      fileName: 'Имя файла',
+      fileNameDescription: 'Быстро находите файл, имя которого вам известно.',
+      recentlyUpdated: 'Недавно обновлённые',
+      earliestUpdated: 'Обновлённые раньше',
+      newestCreated: 'Сначала новые',
+      earliestCreated: 'Сначала старые',
+      nameAscending: 'A–Z',
+      nameDescending: 'Z–A',
+    },
     tagUpdateSuccess: 'Тег успешно обновлен',
     tagEditDialogHeading: 'Редактировать теги',
     folderTree: {
@@ -7161,16 +7227,6 @@ export default {
     deleteStatusUnavailable: 'Не удалось подтвердить результат удаления. Обновите страницу позже, чтобы проверить состояние документов.',
     batchDeleteSuccess: 'Удалено документов: {count}',
     batchDeleteFailed: 'Ошибка пакетного удаления',
-    batchDownloadSuccess: 'Начато скачивание исходных файлов: {count}',
-    batchDownloadPartialFailed: 'Не удалось скачать исходные файлы: {count}',
-    reparseFailedDocuments: 'Повторно обработать документы с ошибками',
-    reparseFailedDocumentsSuccess: 'Отправлено на повторную обработку документов: {count}',
-    reparseFailedDocumentsFailed: 'Не удалось повторно обработать ошибочные документы',
-    noFailedDocuments: 'В этой базе знаний нет ошибочных документов',
-    downloadKnowledgeBaseDocuments: 'Скачать документы базы знаний',
-    downloadKnowledgeBaseSuccess: 'Начато скачивание исходных файлов: {count}',
-    downloadKnowledgeBaseFailed: 'Не удалось скачать документы базы знаний',
-    noDownloadableDocuments: 'Нет документов для скачивания',
     batchTag: 'Пакетная метка',
     batchTagDialogHeading: 'Пакетное назначение меток',
     batchTagSubtitle: 'Установить метки для {count} выбранных документов (заменит существующие метки)',
@@ -7184,6 +7240,10 @@ export default {
     statusCompleted: 'Завершено',
     statusProcessing: 'Обработка',
     statusFinalizing: 'Оптимизация',
+    statusStalled: 'Возможно, завис',
+    stalledHint: 'Нет прогресса {minutes} мин.; обработка могла зависнуть. Откройте трассировку, чтобы увидеть, где она остановилась, или остановите разбор и пересоберите документ.',
+    statusQueued: 'В очереди',
+    queuedHint: 'Нет прогресса {minutes} мин., но задачи документа ещё ждут в очереди — обычно из-за накопившихся задач. Обработка продолжится сама.',
     statusFailed: 'Ошибка',
     statusCancelled: 'Отменено',
     statusDraft: 'Черновик',
@@ -7256,6 +7316,16 @@ export default {
       sharedAt: 'Дата общего доступа',
       lastUpdated: 'Последнее обновление'
     },
+    batchDownloadSuccess: 'Начато скачивание исходных файлов: {count}',
+    batchDownloadPartialFailed: 'Не удалось скачать исходные файлы: {count}',
+    reparseFailedDocuments: 'Повторно обработать документы с ошибками',
+    reparseFailedDocumentsSuccess: 'Отправлено на повторную обработку документов: {count}',
+    reparseFailedDocumentsFailed: 'Не удалось повторно обработать ошибочные документы',
+    noFailedDocuments: 'В этой базе знаний нет ошибочных документов',
+    downloadKnowledgeBaseDocuments: 'Скачать документы базы знаний',
+    downloadKnowledgeBaseSuccess: 'Начато скачивание исходных файлов: {count}',
+    downloadKnowledgeBaseFailed: 'Не удалось скачать документы базы знаний',
+    noDownloadableDocuments: 'Нет документов для скачивания',
     tagEditSearch: "Search tags...",
     tagEditSelectedSection: "Selected",
     tagEditAvailableSection: "Available",
@@ -7558,6 +7628,7 @@ export default {
     deleteSession: 'Удалить диалог',
     renamePlaceholder: 'Введите название диалога',
     unpinSuccess: 'Диалог откреплён',
+    temporaryWorkspace: 'Временная рабочая область',
     sessionIdCopied: 'ID сессии скопирован',
     linkCopied: 'Ссылка на диалог скопирована',
     copyFailed: 'Не удалось скопировать. Проверьте разрешение браузера на доступ к буферу обмена.',
@@ -7653,7 +7724,7 @@ export default {
     apiChats: 'Сессии API',
     noSessions: 'Пока нет диалогов'
   },
-
+  modelHubDownload: { title: 'Model Hub готовит модели', starting: 'Запуск загрузки…', failed: 'Ошибка загрузки', retry: 'Повторить', unavailable: 'Ожидание Model Hub…' },
   contractReview: {
     workspaceEyebrow: "Юридическое рабочее пространство",
     title: "Проверка договора",
@@ -7895,7 +7966,6 @@ export default {
       cancelled: "Отменено",
     },
   },
-
   legalAssistant: {
     eyebrow: "Юридическое рабочее пространство",
     title: "Юридический помощник",
@@ -7908,7 +7978,6 @@ export default {
       "Юридическое рабочее пространство недоступно. Возвращаемся в базу знаний.",
     createFailed: "Не удалось создать сессию юридического помощника.",
   },
-
   legalWorkspace: {
     title: "Юридическое рабочее пространство",
     contractReview: "Проверка договоров",
@@ -7919,7 +7988,6 @@ export default {
     smartArchive: "Умный архив",
     assistant: "Юридический помощник",
   },
-
   legalWorkspaceSettings: {
     description:
       "Управляйте видимостью и доступом к юридическому рабочему пространству в этом пространстве. Отключение не удаляет существующие данные.",
@@ -7947,7 +8015,6 @@ export default {
       "Изменять этот параметр могут администраторы пространства. Удалять данные может только владелец пространства.",
     disabledMessage: "Юридическое рабочее пространство сейчас отключено.",
   },
-
   smartArchive: {
     deleteNotification: "Удалить уведомление",
     deleteNotificationConfirm: "Удалить это уведомление?",
@@ -8137,4 +8204,4 @@ export default {
       canceled: "Отменено",
     },
   },
-};
+}

@@ -4,6 +4,7 @@ import { BUILTIN_LEGAL_ASSISTANT_ID, BUILTIN_QUICK_ANSWER_ID, BUILTIN_SMART_REAS
 import { getApiBaseUrl } from "@/utils/api-base";
 import { isAgentStreamAgentId } from "@/utils/agent-mode";
 import { loadAndReconcileSettings } from "@/stores/settingsStorage";
+import { isReasoningLevel, type ReasoningLevel } from "@/utils/reasoningEffort";
 
 // 定义设置接口
 interface Settings {
@@ -167,6 +168,8 @@ export const useSettingsStore = defineStore("settings", {
     _isApplyingSessionState: false,
     legalAssistantProfile: loadLegalAssistantProfile(),
     _legalAssistantSnapshot: null as Settings | null,
+    // Session-only preference: never written into global settings/localStorage.
+    reasoningEffortOverride: '' as ReasoningLevel | '',
   }),
 
   getters: {
@@ -548,6 +551,7 @@ export const useSettingsStore = defineStore("settings", {
     
     // 选择智能体（sourceTenantId 仅在使用共享智能体时传入）
     selectAgent(agentId: string, sourceTenantId?: string | null) {
+      this.reasoningEffortOverride = '';
       this.settings.selectedAgentId = agentId;
       this.settings.selectedAgentSourceTenantId = (sourceTenantId != null && sourceTenantId !== "") ? sourceTenantId : null;
       // 智能体配置只决定是否具备网络搜索能力，不替用户决定是否在本轮使用。
@@ -596,6 +600,7 @@ export const useSettingsStore = defineStore("settings", {
 
     // 还原默认（如果有快照），用于离开会话或跨会话切换时。
     restoreDefaultsIfSnapshotted() {
+      this.reasoningEffortOverride = '';
       if (!this._defaultsSnapshot) return;
       this.settings = this._defaultsSnapshot;
       this._defaultsSnapshot = null;
@@ -618,6 +623,7 @@ export const useSettingsStore = defineStore("settings", {
       if (!state) return;
       this._isApplyingSessionState = true;
       try {
+        this.reasoningEffortOverride = isReasoningLevel(state.reasoning_effort) ? state.reasoning_effort : '';
         if (typeof state.agent_enabled === "boolean") {
           this.settings.isAgentEnabled = state.agent_enabled;
         }
@@ -693,6 +699,7 @@ export const useSettingsStore = defineStore("settings", {
 // 后端 sessions.last_request_state JSON 形状（与 SessionLastRequestState 对齐）。
 // 字段全部可选——历史会话或新建会话首发前的请求没有这条记录。
 export interface SessionLastRequestStatePayload {
+  reasoning_effort?: string;
   agent_id?: string;
   agent_enabled?: boolean;
   model_id?: string;

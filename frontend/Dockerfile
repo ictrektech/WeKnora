@@ -44,9 +44,12 @@ RUN if [ -n "$NPM_REGISTRY" ]; then \
 
 COPY frontend/ .
 COPY docs/api/ /docs/api/
-# API documentation is bundled by Vite from the repository-level docs/api.
-# Fail the image build if that source is absent instead of shipping an empty page.
-RUN test -s /docs/api/README.md && test -s /docs/api/vos-external-api.md
+# The API settings drawer uses the fork's VOS-specific guides; the general API
+# viewer bundles the upstream website docs as its maintained endpoint reference.
+COPY website-docs/04-api/ /website-docs/04-api/
+RUN test -s /docs/api/README.md \
+    && test -s /docs/api/vos-external-api.md \
+    && test -s /website-docs/04-api/01-api-overview.md
 # After npm ci so a new commit hash does not bust the dependency layer.
 ARG VITE_FRONTEND_COMMIT=unknown
 ENV VITE_FRONTEND_COMMIT=${VITE_FRONTEND_COMMIT}

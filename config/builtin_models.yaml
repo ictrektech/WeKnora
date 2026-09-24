@@ -13,5 +13,5 @@
 # knowledge bases, agents, or GraphRAG jobs that still reference the old model
 # ids can fail with "model not found".
 #
-# See docs/ictrek/remote-weknora-deployment.md and docs/BUILTIN_MODELS.md.
+# See website-docs/03-features/06-models.md.
 builtin_models: []

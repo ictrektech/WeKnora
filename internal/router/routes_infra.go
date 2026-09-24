@@ -23,6 +23,7 @@ func RegisterModelRoutes(
 		models.GET("/providers", g.Viewer(), handler.ListModelProviders)
 		// 解析模型的有效接入配置（协议 / 思考等级 / 上下文）— Viewer+
 		models.GET("/catalog/resolve", g.Viewer(), handler.ResolveModelCatalog)
+		models.POST("/catalog/resolve", g.Viewer(), handler.ResolveModelCatalog)
 		// 创建模型 — Viewer+; JWT-created rows are private to the caller.
 		models.POST("", g.Viewer(), handler.CreateModel)
 		// 获取模型列表 — Viewer+

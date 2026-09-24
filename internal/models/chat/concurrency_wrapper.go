@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/Tencent/WeKnora/internal/models/limiter"
@@ -30,6 +31,37 @@ type concurrencyChat struct {
 	// limit is this model's configured per-model background cap; 0 falls back
 	// to the process-wide default (see limiter.GateN).
 	limit int
+}
+
+type endpointKeyChat struct {
+	inner Chat
+	key   string
+}
+
+func (c *endpointKeyChat) GetLimiterKey() string { return c.key }
+func (c *endpointKeyChat) GetModelName() string  { return c.inner.GetModelName() }
+func (c *endpointKeyChat) GetModelID() string    { return c.inner.GetModelID() }
+func (c *endpointKeyChat) Chat(ctx context.Context, messages []Message, opts *ChatOptions) (*types.ChatResponse, error) {
+	return c.inner.Chat(ctx, messages, opts)
+}
+func (c *endpointKeyChat) ChatStream(ctx context.Context, messages []Message, opts *ChatOptions) (<-chan types.StreamResponse, error) {
+	return c.inner.ChatStream(ctx, messages, opts)
+}
+func (c *endpointKeyChat) BuildRequestBody(messages []Message, opts *ChatOptions, stream bool) (map[string]any, error) {
+	builder, ok := c.inner.(interface {
+		BuildRequestBody([]Message, *ChatOptions, bool) (map[string]any, error)
+	})
+	if !ok {
+		return nil, errors.New("underlying chat does not expose BuildRequestBody")
+	}
+	return builder.BuildRequestBody(messages, opts, stream)
+}
+
+func withRemoteEndpointLimiterKey(c Chat, baseURL, model string) Chat {
+	return &endpointKeyChat{
+		inner: c,
+		key:   strings.TrimRight(baseURL, "/") + "|" + model,
+	}
 }
 
 func (w *concurrencyChat) GetModelName() string { return w.inner.GetModelName() }

@@ -15,10 +15,8 @@ import (
 // create to stay in sync with the versioned (PostgreSQL) migrations:
 // 000041 task queue, 000053 system settings, 000055 processing spans,
 // 000063 knowledge multi-tags, browser authorization, memory consistency and
-// vector search. The fork snapshot lease, knowledge profile, MCP endpoint,
-// message artifact, context checkpoint, session index, and local ictrek
-// migrations are appended after the base migrations so their SQLite version
-// numbers remain unique.
+// vector search. Fork migrations add skill tables, the host workspace column,
+// and IM channel locale alongside the local archive and application schema.
 var versionedSQLiteTables = []string{
 	"memory_extraction_sessions",
 	"task_pending_ops",
@@ -47,33 +45,44 @@ var versionedSQLiteTables = []string{
 	"fork_snapshot_leases",
 	"mcp_endpoints",
 	"message_artifacts",
+	"tenant_skills",
+	"tenant_skill_snapshots",
+	"tenant_skill_catalog",
+	"tenant_user_env_vars",
 }
 
 // versionedSQLiteColumns maps each existing table to the columns that the
 // versioned migrations add and the SQLite baseline was missing.
 var versionedSQLiteColumns = map[string][]string{
-	"memory_subjects":         {"extraction_state"},
-	"memory_items":            {"replaces_id"},
-	"sessions":                {"workspace_mode", "parent_session_id", "forked_from_message_id", "fork_bootstrap", "sandbox_config_tenant_id"},
-	"tenants":                 {"api_principal_config", "legal_workspace_config"},
-	"users":                   {"is_system_admin"},
-	"knowledges":              {"pending_subtasks_count", "profile"},
-	"knowledge_bases":         {"profile_config", "generated_profile"},
-	"messages":                {"attachments", "usage", "sandbox_checkpoint", "context_checkpoint"},
-	"tenant_invitations":      {"token", "accepted_count"},
-	"embed_channels":          {"allow_memory"},
-	"mcp_oauth_tokens":        {"principal_type", "principal_id"},
-	"mcp_tool_approvals":      {"enabled"},
-	"contract_reviews":        {"model_id", "analysis_run_id", "config_hash", "source_revision", "source_text_hash", "source_hash", "locator", "quality_status", "warnings"},
-	"contract_review_clauses": {"evidence_id"},
-	"contract_review_issues":  {"category", "finding_type", "evidence_refs"},
-	"message_artifacts":       {"deleted_at"},
-	"archive_documents":       {"extraction_progress"},
+	"memory_subjects": {"extraction_state"},                                                 // 000112
+	"memory_items":    {"replaces_id"},                                                      // 000112
+	"tenants":         {"api_principal_config"},                                             // 000064
+	"users":           {"is_system_admin"},                                                  // 000053
+	"knowledges":      {"pending_subtasks_count", "profile"},                                // 000056, 000119
+	"knowledge_bases": {"profile_config", "generated_profile"},                              // 000119
+	"messages":        {"attachments", "usage", "sandbox_checkpoint", "context_checkpoint"}, // 000005/093/115/123
+	"sessions": {
+		"parent_session_id", "forked_from_message_id", "fork_bootstrap", // 000115
+		"workspace_mode", "sandbox_config_tenant_id", "host_workspace_dir", // 000110/130/131
+	},
+	"tenant_invitations": {"token", "accepted_count"},        // 000054
+	"embed_channels":     {"allow_memory"},                   // 000060
+	"im_channels":        {"locale"},                         // 000132
+	"mcp_oauth_tokens":   {"principal_type", "principal_id"}, // 000064
+	"mcp_tool_approvals": {"enabled"},                        // 000100
+	"message_artifacts":  {"deleted_at"},                     // 000125
+	"tenant_skills": {
+		"envs", "served", "catalog_id", "install_session_id", "install_message_id",
+	}, // 000038
+	"tenant_skill_snapshots": {"planned_name"}, // 000038
+	"tenant_user_env_vars": {
+		"principal_type", "principal_id", "sandbox_config_id", "skill_id", "name", "value",
+	}, // 000038
 }
 
-// expectedSQLiteMigrationVersion includes both upstream migrations and the
-// fork's appended SQLite migrations.
-const expectedSQLiteMigrationVersion = 37
+// The fork's existing SQLite history ends at 000037; upstream additions are
+// appended at 000038–000040.
+const expectedSQLiteMigrationVersion = 40
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

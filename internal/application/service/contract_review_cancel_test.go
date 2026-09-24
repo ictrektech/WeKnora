@@ -112,7 +112,7 @@ func TestHousekeepingRecoversOrphanedContractReview(t *testing.T) {
 		"updated_at": stale,
 	}).Error)
 
-	housekeeping := NewHousekeepingService(db, nil, contractReviewHousekeepingInspector{})
+	housekeeping := NewHousekeepingService(db, nil, contractReviewHousekeepingInspector{}, nil)
 	housekeeping.sweepContractReviews(context.Background())
 
 	stored, err := svc.repo.Get(context.Background(), review.TenantID, review.UserID, review.ID)
@@ -130,7 +130,7 @@ func TestHousekeepingPreservesQueuedContractReview(t *testing.T) {
 		"updated_at": stale,
 	}).Error)
 
-	housekeeping := NewHousekeepingService(db, nil, contractReviewHousekeepingInspector{queued: true})
+	housekeeping := NewHousekeepingService(db, nil, contractReviewHousekeepingInspector{queued: true}, nil)
 	housekeeping.sweepContractReviews(context.Background())
 
 	stored, err := svc.repo.Get(context.Background(), review.TenantID, review.UserID, review.ID)

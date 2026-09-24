@@ -4,6 +4,9 @@
 !docs/
 !docs/api/
 !docs/api/**
+!website-docs/
+!website-docs/04-api/
+!website-docs/04-api/**
 frontend/node_modules/
 frontend/**/node_modules/
 frontend/dist/

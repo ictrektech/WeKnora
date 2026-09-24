@@ -218,29 +218,29 @@ HybRAG API 按功能分为以下几类：
 
 | 分类 | 描述 | 文档链接 |
 |------|------|----------|
-| 认证管理 | 用户注册、登录、令牌管理；OIDC 流程 | [auth.md](./auth.md) · [OIDC认证调用流程.md](../OIDC认证调用流程.md) |
-| 空间管理 | 创建和管理空间账户 | [tenant.md](./tenant.md) |
-| 知识库管理 | 创建、查询和管理知识库 | [knowledge-base.md](./knowledge-base.md) |
-| 知识管理 | 上传、检索和管理知识内容 | [knowledge.md](./knowledge.md) |
-| 模型管理 | 配置和管理各种AI模型 | [model.md](./model.md) |
-| 分块管理 | 管理知识的分块内容 | [chunk.md](./chunk.md) |
-| 标签管理 | 管理知识库的标签分类 | [tag.md](./tag.md) |
-| FAQ管理 | 管理FAQ问答对 | [faq.md](./faq.md) |
-| 智能体管理 | 创建和管理自定义智能体 | [agent.md](./agent.md) |
+| 认证管理 | 用户注册、登录、令牌管理；OIDC 流程 | [认证与用户 API](../../website-docs/04-api/02-api-auth.md) · [认证与授权](../../website-docs/03-features/01-tenant-auth.md) |
+| 空间管理 | 创建和管理空间账户 | [空间与成员 API](../../website-docs/04-api/02-api-tenant.md) |
+| 知识库管理 | 创建、查询和管理知识库 | [知识库与知识 API](../../website-docs/04-api/02-api-knowledge.md) |
+| 知识管理 | 上传、检索和管理知识内容 | [知识库与知识 API](../../website-docs/04-api/02-api-knowledge.md) |
+| 模型管理 | 配置和管理各种AI模型 | [模型与初始化 API](../../website-docs/04-api/02-api-model-system.md) |
+| 分块管理 | 管理知识的分块内容 | [分块与标签 API](../../website-docs/04-api/02-api-chunks.md) |
+| 标签管理 | 管理知识库的标签分类 | [分块与标签 API](../../website-docs/04-api/02-api-chunks.md) |
+| FAQ管理 | 管理FAQ问答对 | [FAQ 与 Wiki API](../../website-docs/04-api/02-api-faq-wiki.md) |
+| 智能体管理 | 创建和管理自定义智能体 | [Agent、MCP 与技能 API](../../website-docs/04-api/02-api-agent-mcp.md) |
 | 合同审查 | 上传合同并异步获取风险、证据和修改建议 | [contract-review.md](../contract-review.md) |
-| 会话管理 | 创建和管理对话会话 | [session.md](./session.md) |
-| 知识搜索 | 在知识库中搜索内容 | [knowledge-search.md](./knowledge-search.md) |
-| 聊天功能 | 基于知识库和 Agent 进行问答 | [chat.md](./chat.md) |
-| 消息管理 | 获取和管理对话消息 | [message.md](./message.md) |
-| 评估功能 | 评估模型性能 | [evaluation.md](./evaluation.md) |
-| 初始化管理 | 知识库模型配置与 Ollama 管理 | [initialization.md](./initialization.md) |
-| 系统管理 | 系统信息、解析引擎、存储引擎 | [system.md](./system.md) |
-| MCP 服务 | MCP 工具服务管理 | [mcp-service.md](./mcp-service.md) |
-| 组织管理 | 组织、成员、知识库/智能体共享 | [organization.md](./organization.md) |
-| Skills | 预装与已安装的智能体技能、技能环境变量 | [skill.md](./skill.md) |
-| 长期记忆 | 当前用户的跨会话记忆（设置、条目、主题、文档亲和度、导出、整理） | [memory.md](./memory.md) |
-| 网络搜索 | 网络搜索服务商 | [web-search.md](./web-search.md) |
-| 向量存储 | 向量数据库连接管理 | [vector-store.md](./vector-store.md) |
-| 存储后端 | 对象/文件存储实例（多实例）管理 | [storage-backend.md](./storage-backend.md) |
-| IM 渠道 | 企业微信 / 飞书 / Slack 等 IM 平台对接，含渠道 CRUD 与回调 | [../IM集成开发文档.md](../IM集成开发文档.md) |
-| 数据源导入 | 飞书 / 企微 / Notion / Confluence 等外部数据源接入与同步 | [../数据源导入开发文档.md](../数据源导入开发文档.md) |
+| 会话管理 | 创建和管理对话会话 | [会话、消息与聊天 API](../../website-docs/04-api/02-api-chat.md) |
+| 知识搜索 | 在知识库中搜索内容 | [会话、消息与聊天 API](../../website-docs/04-api/02-api-chat.md) |
+| 聊天功能 | 基于知识库和 Agent 进行问答 | [会话、消息与聊天 API](../../website-docs/04-api/02-api-chat.md) |
+| 消息管理 | 获取和管理对话消息 | [会话、消息与聊天 API](../../website-docs/04-api/02-api-chat.md) |
+| 评估功能 | 评估模型性能 | [模型与初始化 API](../../website-docs/04-api/02-api-model-system.md) |
+| 初始化管理 | 知识库模型配置与 Ollama 管理 | [模型与初始化 API](../../website-docs/04-api/02-api-model-system.md) |
+| 系统管理 | 系统信息、解析引擎、存储引擎 | [系统与平台 API](../../website-docs/04-api/02-api-system.md) |
+| MCP 服务 | MCP 工具服务管理 | [Agent、MCP 与技能 API](../../website-docs/04-api/02-api-agent-mcp.md) |
+| 组织管理 | 组织、成员、知识库/智能体共享 | [组织与共享 API](../../website-docs/04-api/02-api-org.md) |
+| Skills | 预装与已安装的智能体技能、技能环境变量 | [沙箱、技能与个人变量 API](../../website-docs/04-api/02-api-sandbox-skills.md) |
+| 长期记忆 | 当前用户的跨会话记忆（设置、条目、主题、文档亲和度、导出、整理） | [长期记忆 API](../../website-docs/04-api/02-api-memory.md) |
+| 网络搜索 | 网络搜索服务商 | [基础设施与数据源 API](../../website-docs/04-api/02-api-infra.md) |
+| 向量存储 | 向量数据库连接管理 | [基础设施与数据源 API](../../website-docs/04-api/02-api-infra.md) |
+| 存储后端 | 对象/文件存储实例（多实例）管理 | [基础设施与数据源 API](../../website-docs/04-api/02-api-infra.md) |
+| IM 渠道 | 企业微信 / 飞书 / Slack 等 IM 平台对接，含渠道 CRUD 与回调 | [IM、Embed 与文件 API](../../website-docs/04-api/02-api-channels.md) · [IM 集成](../../website-docs/03-features/12-im-integration.md) |
+| 数据源导入 | 飞书 / 企微 / Notion / Confluence 等外部数据源接入与同步 | [基础设施与数据源 API](../../website-docs/04-api/02-api-infra.md) · [数据源同步](../../website-docs/03-features/10-datasource.md) |
