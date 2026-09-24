@@ -87,8 +87,8 @@ test('completed background streams clear their own session cache', () => {
 })
 
 test('sidebar activity is scoped to the current session stream', () => {
-  assert.match(source, /const currentSessionStreaming = hasActiveStream\(activitySessionId\.value\)/)
-  assert.match(source, /sessionActivity\.update\(activitySessionId\.value, isReplying\.value \|\| currentSessionStreaming \|\| isImRecovering\.value/)
+  assert.match(source, /watch\(\[activitySessionId, isReplying, isImRecovering, currentAssistantMessageId\]/)
+  assert.match(source, /sessionActivity\.update\(activitySessionId\.value, isReplying\.value \|\| isImRecovering\.value/)
   assert.doesNotMatch(source, /sessionActivity\.update\(activitySessionId\.value, isReplying\.value \|\| isStreaming\.value/)
 })
 

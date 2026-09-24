@@ -960,7 +960,7 @@ onMounted(async () => {
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    background: var(--td-bg-color-page, #f7f8fa);
+    background: var(--td-bg-color-page);
 
     .form-section {
       flex: none;
@@ -977,7 +977,7 @@ onMounted(async () => {
     .form-card {
       padding: 28px 32px;
       box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
-      border: 1px solid var(--td-component-stroke, rgba(0, 0, 0, 0.08));
+      border: 1px solid var(--td-component-stroke);
     }
   }
 
@@ -1566,7 +1566,7 @@ onMounted(async () => {
 .vos-sso-spinner {
   width: 24px;
   height: 24px;
-  border: 3px solid rgba(7, 192, 95, 0.2);
+  border: 3px solid color-mix(in srgb, var(--td-brand-color) 20%, transparent);
   border-top-color: var(--td-brand-color);
   border-radius: 50%;
   animation: vos-sso-spin 0.8s linear infinite;

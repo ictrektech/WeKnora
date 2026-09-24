@@ -1740,7 +1740,7 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         }
 
         &--selected :deep(.submenu_item) {
-            background: rgba(7, 192, 95, 0.05);
+            background: color-mix(in srgb, var(--td-brand-color) 5%, transparent);
         }
     }
 
@@ -2269,7 +2269,7 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         translate var(--app-motion-slow) var(--stack-spring),
         color var(--app-motion-base) ease,
         box-shadow var(--app-motion-base) ease;
-    transition-delay: var(--stack-delay, 0ms);
+    transition-delay: var(--stack-delay);
 
     & + & {
         margin-left: -6px;
