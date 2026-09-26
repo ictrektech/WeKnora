@@ -133,6 +133,21 @@ description: 审计 VOS HybRAG 应用相关 Git 提交并维护项目级 CHANGEL
 4. 不因提交来自上游就自动跳过。只要它改变了 VOS 包内行为、镜像运行时、安装/升级契约、模型配置或应用文档，就纳入；与 VOS 无关的通用项目变化不纳入本日志。
 5. 将同一用户结果的连续提交合并为一个 CHANGELOG 条目，不逐条复制 commit message。提交数量和 SHA 只在执行报告中用于溯源，正文不做 commit dump。
 
+### 版本比较与提交溯源
+
+- CHANGELOG 正文保持面向用户，不在每个条目后堆叠 Commit SHA。执行报告提供“新增或调整的 CHANGELOG 条目 → 关键 Commit”的紧凑映射；一个条目由多个提交共同形成时，列出主要提交并说明已聚合。
+- 仓库存在稳定、可浏览且不含凭据的代码托管地址时，在 CHANGELOG 末尾维护版本标题使用的 Markdown 引用链接。优先使用项目确认的 canonical remote；可以从 SSH remote（例如 `git@github.com:org/repo.git`）转换为对应的 HTTPS 网页地址，但不得把用户名、令牌或其他凭据写入文档。
+- GitHub 仓库使用以下格式；其他托管平台只有在仓库证据确认其 Compare URL 规则后才添加，不要猜测：
+
+  ```markdown
+  [Unreleased]: https://github.com/org/repo/compare/<baseline-tag>...HEAD
+  [0.1.63]: https://github.com/org/repo/compare/<previous-tag>...<version-tag>
+  ```
+
+- `Unreleased` 链接始终使用本次审计基线到 `HEAD`。已有版本链接使用该版本实际审计的起止 tag；历史跳号时沿用用户明确给出的范围，不虚构缺失 tag。
+- 只有起止引用都已存在并且范围可验证时才添加版本链接。SemVer 归档时若目标 tag 尚不存在，保留条目但暂不添加最终版本链接，并在报告中说明；目标 tag 创建后，下次维护时补齐。
+- 更新引用定义时去重并保留无关链接；引用定义放在文件末尾，不改变现有版本正文顺序。
+
 ## 筛选内容
 
 纳入以下变化：
@@ -235,16 +250,17 @@ description: 审计 VOS HybRAG 应用相关 Git 提交并维护项目级 CHANGEL
 2. 完整读取解析出的 CHANGELOG；默认或 `unreleased` 模式下文件不存在时，创建标题、说明和 `## [Unreleased]`；SemVer 模式下文件不存在时，创建标题、说明和目标 `## [X.Y.Z] - YYYY-MM-DD`。
 3. 默认或 `unreleased` 模式下，逐项比较 `tag..HEAD` 的候选变化与现有 `Unreleased`：保留已有条目，只补充缺失条目并去重；不清空、替换、静默改写或无必要地重排已有内容。没有缺失变化时保持文件不变，重复执行结果必须稳定。
 4. SemVer 归档模式下，将当前 `Unreleased` 中能由本次审计范围证明属于目标版本的条目，与候选变化合并到目标版本章节；目标章节不存在时，在说明段之后、其他历史版本之前插入。未能证明属于目标版本的人工草稿保留原处并在报告中说明；迁移后若 `Unreleased` 为空，删除这个空标题，不创建新的空 `Unreleased`。
-5. 所有模式都保留已有历史版本章节，不把 CHANGELOG 最近一次修改 commit 当作审计基线，不记录或推断上次 `$cl` 执行位置；所有条目都要逐项去重，不改写历史版本的原有措辞。
-6. 使用补丁方式编辑，检查最终 diff 和格式：
+5. 按“版本比较与提交溯源”维护文件末尾的引用定义；无法验证可浏览仓库地址或 Compare URL 时不添加链接，并在报告中说明。
+6. 所有模式都保留已有历史版本章节，不把 CHANGELOG 最近一次修改 commit 当作审计基线，不记录或推断上次 `$cl` 执行位置；所有条目都要逐项去重，不改写历史版本的原有措辞。
+7. 使用补丁方式编辑，检查最终 diff 和格式：
 
    ```bash
    git diff --check
    git diff -- "$CHANGELOG"
    ```
 
-7. 当前仓库确认没有改动项目根目录 `CHANGELOG.md`、`docs/ictrek/CHANGELOG.md`、组件日志、历史版本或用户已有的无关工作区改动；其他项目按其适用的仓库边界检查。
-8. 本技能完成后不执行 fetch、tag、commit、push 或 GitHub Release 操作。
+8. 当前仓库确认没有改动项目根目录 `CHANGELOG.md`、`docs/ictrek/CHANGELOG.md`、组件日志、历史版本或用户已有的无关工作区改动；其他项目按其适用的仓库边界检查。
+9. 本技能完成后不执行 fetch、tag、commit、push 或 GitHub Release 操作。
 
 ## 汇报结果
 
@@ -254,8 +270,10 @@ description: 审计 VOS HybRAG 应用相关 Git 提交并维护项目级 CHANGEL
 - 审计目标、VOS 基线来源、起止 tag/commit，以及无法确定基线时采用的回退策略。
 - VOS 版本文件、根目录 `VERSION`（如存在）和目标 CHANGELOG 顶部版本；说明它们的版本线差异。
 - 纳入的 VOS 产品变化、聚合后的条目数和对应提交数量。
+- 新增或调整的 CHANGELOG 条目到关键 Commit SHA 的紧凑映射；CHANGELOG 正文不重复这些 SHA。
 - 跳过的 housekeeping、无 VOS 影响变化、通用项目变化和不确定内容。
 - 写入或修改的 CHANGELOG 章节和文件路径。
+- 新增、更新或无法生成的版本 Compare 链接及其原因。
 - 采用的工作模式、目标版本（如有）和审计基线；说明是补充 `Unreleased` 还是执行版本归档，以及是否因无缺失变化而保持文件不变。
 - 无法验证、需要用户判断或后续补充证据的内容。
 - 明确说明本次只维护目标 CHANGELOG，没有生成或发布 GitHub Release Notes。
