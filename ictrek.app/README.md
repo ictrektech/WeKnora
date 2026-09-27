@@ -26,7 +26,7 @@
 
 ## 打包
 
-正式发布入口是 `scripts/update_version.sh`。默认模式只负责自增 `VERSION`、提交版本 commit、创建并推送 `vos-hybrag-v${VERSION}` 触发 tag；使用 `--with-changelog` 时，还会把已准备好的 `ictrek.app/CHANGELOG.md` 放入同一个 release commit。GitHub Actions 收到 tag 后会读取飞书组件版本、生成 pull 包并发布 release。
+正式发布入口是 `scripts/update_version.sh`。默认模式只负责自增 `VERSION`、提交版本 commit、创建并推送 `vos-hybrag-v${VERSION}` 触发 tag；使用 `--with-changelog` 时，会校验已准备好的 `ictrek.app/CHANGELOG.md`，并把其中未提交的修改放入同一个 release commit，也允许 changelog 已提交。GitHub Actions 收到 tag 后会读取飞书组件版本、生成 pull 包并发布 release。
 
 本地 `package.sh` 只用于调试模板或手动验证。未设置 `PACKAGE_VERSION` 时读取当前 `ictrek.app/VERSION`，CI 会显式传入 tag 中解析出的 `PACKAGE_VERSION`。
 
@@ -346,7 +346,7 @@ Model Hub 下载、预热和原生 Ollama 接口检查见 [docs/vos-ollama-prewa
 ./scripts/update_version.sh patch
 ```
 
-如果要让 VOS changelog 和版本号形成同一个 commit，先让 `$cl` 按目标版本归档并审核 `ictrek.app/CHANGELOG.md`，例如输入 `$cl 0.1.59`，然后执行：
+如果发布时需要校验 VOS changelog，先让 `$cl` 按目标版本归档并审核 `ictrek.app/CHANGELOG.md`，例如输入 `$cl 0.1.64`，然后执行；changelog 可以已提交，也可以留待脚本与版本号一起提交：
 
 ```bash
 ./scripts/update_version.sh patch --with-changelog
@@ -359,16 +359,18 @@ Model Hub 下载、预热和原生 Ollama 接口检查见 [docs/vos-ollama-prewa
 | `patch` | `0.0.1 -> 0.0.2`，默认值 |
 | `minor` | `0.0.1 -> 0.1.0` |
 | `major` | `0.0.1 -> 1.0.0` |
-| `--with-changelog` | 将已准备的 `ictrek.app/CHANGELOG.md` 与 `VERSION` 放入同一个 release commit；除 changelog 外不允许有其他未提交改动 |
+| `--with-changelog` | 校验目标版本的 changelog；有未提交修改时与 `VERSION` 一起提交，已提交时只提交 `VERSION`；除 changelog 外不允许有其他未提交改动 |
 
 脚本会：
 
 1. 自增 `ictrek.app/VERSION`。
-2. 默认只提交 `VERSION`；使用 `--with-changelog` 时，同时提交 `ictrek.app/CHANGELOG.md`。提交信息为 `chore: release VOS hybrag ${VERSION}`。
+2. 默认只提交 `VERSION`；使用 `--with-changelog` 时，同时提交 `ictrek.app/CHANGELOG.md` 的待提交修改，已提交的 changelog 无需再次修改。提交信息为 `chore: release VOS hybrag ${VERSION}`。
 3. 创建并推送 `vos-hybrag-v${VERSION}` 触发 tag。
 4. GitHub Actions 收到 tag 后执行 `.github/workflows/vos-release.yml`。
 
-`--with-changelog` 不会调用或生成 changelog；它要求 `$cl` 已经写入下一版本标题 `## [${VERSION}] - YYYY-MM-DD`，并且工作区除 `ictrek.app/CHANGELOG.md` 外没有其他改动。应用代码必须在执行发布脚本前单独提交。
+`--with-changelog` 不会调用或生成 changelog；它要求 `$cl` 已经写入下一版本标题 `## [${VERSION}] - YYYY-MM-DD`，并且工作区除 `ictrek.app/CHANGELOG.md` 外没有其他改动，也接受干净工作区。已提交不等于已归档：只有 `[Unreleased]`、没有目标版本标题时仍会退出，且不会修改版本或创建发布提交。这样既兼容先提交 changelog 的流程，也保留版本与日志的对应校验。应用代码必须在执行发布脚本前单独提交。
+
+回归验证：在仓库根目录运行 `bash ictrek.app/scripts/test_update_version.sh`，使用临时仓库和本地远端，检查已提交、未暂存、已暂存 changelog 可发布，缺少目标版本或存在其他改动时拒绝发布，以及默认模式仍要求工作区干净。
 
 GitHub Actions 会：
 
@@ -389,7 +391,7 @@ git fetch --tags origin
 
 要求：
 
-- 默认发布模式要求 HybRAG 工作区干净；`--with-changelog` 只允许待提交的 `ictrek.app/CHANGELOG.md`，其他改动仍会使脚本退出。
+- 默认发布模式要求 HybRAG 工作区干净；`--with-changelog` 接受干净工作区或仅有待提交的 `ictrek.app/CHANGELOG.md`，其他改动仍会使脚本退出。
 - `origin` 应指向发布目标仓库，例如 `git@github.com:ictrektech/WeKnora.git`。
 - 本地只需要能向 HybRAG push 分支和 tag；不需要本地读取飞书，也不需要本地创建 GitHub Release。
 - GitHub Actions 需要能读取飞书发布表，并能写 HybRAG release。

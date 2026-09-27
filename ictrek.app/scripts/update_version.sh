@@ -20,8 +20,9 @@ standard SemVer release tag.
 Commit application code changes before running this script.
 
 Options:
-  --with-changelog  include the prepared ictrek.app/CHANGELOG.md in the
-                     release commit; no other pending changes are allowed.
+  --with-changelog  validate the prepared ictrek.app/CHANGELOG.md and include
+                     pending changes in the release commit; already committed
+                     changelog is allowed; no other pending changes are allowed.
 EOF
 }
 
@@ -83,10 +84,6 @@ if [[ "$include_changelog" == true ]]; then
     git diff --cached --name-only
     git ls-files --others --exclude-standard
   } | sort -u)"
-  [[ -n "$changed_files" ]] || {
-    echo "--with-changelog requires a modified ${CHANGELOG_PATH}" >&2
-    exit 1
-  }
   while IFS= read -r path; do
     [[ -z "$path" ]] && continue
     [[ "$path" == "$CHANGELOG_PATH" ]] || {
