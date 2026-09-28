@@ -2,7 +2,7 @@
 
 记录 VOS HybRAG 应用的可验证变化。
 
-## [Unreleased]
+## [0.1.64] - 2026-09-28
 
 ### 新增
 
@@ -28,6 +28,10 @@
 - **技能必填环境变量识别** — 沙箱创建配置中的 `env_vars` 现在可以满足 Skill 的必填变量检查，不再把已经写入容器的变量误报为缺失；这些值只参与检查，不会在每次执行时重复注入。
 - **BrowserSkill 调用参数校验** — `local_browser` 按方法声明允许的参数，并统一使用 `max_text_chars` 限制文本；页面读取会将该限制换算为扩展的 token 上限，避免 Agent 发送不适用字段或混用两套文本限制。
 - **QA 非法输入提前拒绝** — QA 请求在查找会话或启动处理前校验输入语法，无效内容直接返回 `400`；Agent 对话仍允许正常的前端代码文本。
+
+### 打包与部署
+
+- **发布脚本兼容已提交日志** — `update_version.sh --with-changelog` 现在允许 `ictrek.app/CHANGELOG.md` 已提前提交；仍会校验目标版本标题、拒绝其他工作区改动，并在日志尚未提交时将其与 `VERSION` 一并纳入发布提交。新增临时仓库回归脚本覆盖已提交、未暂存、已暂存和拒绝路径。
 
 ## [0.1.63] - 2026-09-23
 
@@ -107,7 +111,6 @@
 
 - **数据库驱动范围** — 运行时的 `DB_DRIVER` 当前只接入 PostgreSQL 和 SQLite；仓库中的 `migrations/mysql/` 仅作未接入的参考脚本，不能据此声称已支持 MySQL。
 
-[Unreleased]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.63...HEAD
 [0.1.63]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.62...vos-hybrag-v0.1.63
 [0.1.62]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.61...vos-hybrag-v0.1.62
 [0.1.61]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.60...vos-hybrag-v0.1.61
