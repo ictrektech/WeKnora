@@ -800,9 +800,9 @@ import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import { copyWithToast } from '@/utils/clipboard'
-import { getCurrentUser } from '@/api/auth'
+import { BUILTIN_SMART_REASONING_ID, type CustomAgent } from '@/api/agent'
 import { useAuthStore } from '@/stores/auth'
-import { listAgents, BUILTIN_SMART_REASONING_ID, type CustomAgent } from '@/api/agent'
+import { useChatResourcesStore } from '@/stores/chatResources'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
 import { sanitizeMarkdownHTML } from '@/utils/security'
 import {
@@ -818,7 +818,6 @@ import {
   type TenantAPIKey,
   type TenantAPIKeyCapability,
 } from '@/api/tenant'
-import { listKnowledgeBases } from '@/api/knowledge-base'
 import { getApiBaseUrl } from '@/utils/api-base'
 import {
   DEFAULT_TENANT_API_KEY_CAPABILITIES,
@@ -887,6 +886,7 @@ const DEFAULT_TOKEN_HEADER_NAME = 'X-External-User-Token'
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
+const chatResources = useChatResourcesStore()
 const tenantId = ref(0)
 const apiKey = ref('')
 const config = ref<APIPrincipalConfig | null>(null)
@@ -1448,17 +1448,18 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [userResp] = await Promise.all([
-      getCurrentUser(),
-      loadAgents(),
-    ])
-    const tenant = (userResp as any)?.data?.tenant
-    if (!tenant?.id) {
+    // 当前生效空间就是每个请求 X-Tenant-ID 指向的空间，auth store 里已有，
+    // 不必再为拿一个 id 打一次 /auth/me。
+    await loadAgents()
+    const activeTenantId = authStore.effectiveTenantId
+    if (!activeTenantId) {
       throw new Error(t('integrations.api.loadFailed'))
     }
-    tenantId.value = Number(tenant.id)
-    void loadAPIKeys()
-    void loadKnowledgeBaseOptions()
+    tenantId.value = Number(activeTenantId)
+    await Promise.all([
+      loadAPIKeys(),
+      loadKnowledgeBaseOptions(),
+    ])
 
     if (canManageWorkspaceAPIKeys.value) {
       const cfgResp = await getAPIPrincipalConfig(tenantId.value)
@@ -1517,9 +1518,8 @@ async function loadAPIKeys() {
 async function loadKnowledgeBaseOptions() {
   knowledgeBasesLoading.value = true
   try {
-    const resp: any = await listKnowledgeBases({ creator: 'all' })
-    const rows = Array.isArray(resp?.data) ? resp.data : []
-    knowledgeBases.value = rows.map((item: any) => ({
+    await chatResources.ensureKnowledgeBases()
+    knowledgeBases.value = chatResources.rawKnowledgeBases.map((item: any) => ({
       id: String(item.id),
       name: item.name || item.id,
     }))
@@ -1534,8 +1534,8 @@ async function loadAgents() {
   agentsLoading.value = true
   agentsError.value = ''
   try {
-    const resp = await listAgents({ creator: 'all' }) as any
-    agents.value = Array.isArray(resp?.data) ? resp.data : []
+    await chatResources.ensureAgents()
+    agents.value = chatResources.agents as CustomAgent[]
     ensurePlaygroundAgent()
   } catch (err: any) {
     agentsError.value = err?.message || t('integrations.api.playgroundAgentsLoadFailed')

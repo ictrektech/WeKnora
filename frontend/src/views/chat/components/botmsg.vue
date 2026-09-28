@@ -242,6 +242,7 @@ const props = defineProps({
         default: false
     }
 });
+// The popover evaluates sessionId during setup, so it must follow defineProps.
 let parentMd = ref()
 const { float: citationFloat, rebind: rebindCitations, cancelClose: cancelCitationClose, scheduleClose: scheduleCitationClose } = useChatCitationPopover(parentMd, {
     getKnowledgeReferences: () => props.session?.knowledge_references,
