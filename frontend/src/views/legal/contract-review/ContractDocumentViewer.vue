@@ -201,7 +201,7 @@ async function load() {
   const previousPdf = pdf
   pdf = null
   pdfRenderGeneration++
-  if (previousPdf) void previousPdf.destroy().catch(() => {})
+  if (previousPdf) void previousPdf.loadingTask.destroy().catch(() => {})
   loading.value = true
   error.value = ''
   documentText = ''
@@ -231,7 +231,7 @@ async function loadPdf(data: ArrayBuffer, generation: number) {
   if (generation !== loadGeneration || !pdfEl.value) return
   const loadedPdf = await getDocument({ data: new Uint8Array(data.slice(0)) }).promise
   if (generation !== loadGeneration || !pdfEl.value) {
-    await loadedPdf.destroy().catch(() => {})
+    await loadedPdf.loadingTask.destroy().catch(() => {})
     return
   }
   pdf = loadedPdf
@@ -575,7 +575,7 @@ onBeforeUnmount(() => {
   fontScaleObserver?.disconnect()
   const documentProxy = pdf
   pdf = null
-  if (documentProxy) void documentProxy.destroy().catch(() => {})
+  if (documentProxy) void documentProxy.loadingTask.destroy().catch(() => {})
 })
 defineExpose({ locateIssue, goToPage, setZoom, load })
 </script>

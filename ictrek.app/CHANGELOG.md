@@ -2,6 +2,70 @@
 
 记录 VOS HybRAG 应用的可验证变化。
 
+## [Unreleased]
+
+### 重点变化
+
+- **知识库图片画廊与按需 OCR** — 知识库新增画廊视图，支持搜索、属性筛选、排序、翻页和全屏查看；开启 `image_attrs_enabled` 后，VLM 在生成描述时同步观察 `contain.text` 和 `contain.data_visual`，再由 `image_actions` 决定是否追加 OCR。默认仍保持原有的描述加 OCR 行为；历史图片若需属性筛选，需重新处理文档。
+- **引用直达原文** — 点击知识库引用可打开原始文件并定位高亮，覆盖文字或扫描 PDF、Word、PPT、Excel/CSV、Markdown/TXT/EPUB 和带分段时间的音频；新入库分块保存 `source_locators`，旧文档继续按文字回退定位，重新解析后可获得精确位置。同步修复了重叠 PDF 文本、片段化 Markdown、表格高亮、文档预览启动失败以及历史会话引用浮层初始化。
+- **统一检索与 rerank 语义** — 页面问答、Agent `search_knowledge`、`POST /knowledge-search` 和 `POST /knowledge-bases/:id/hybrid-search` 共用同一套 rerank、分数归一化、MMR 去重和降级逻辑；两个 API 可控制召回阈值和 `rerank` 对象，并通过 `meta.rerank` 返回模型、阈值、候选数和降级原因。候选与返回上限统一约束为 200，模型加载或调用失败时按召回顺序返回。
+- **系统管理员模型目录** — 「设置 → 系统管理 → 模型目录」可编辑、预览、发布、恢复和导入导出模型目录覆盖；`GET/POST/PUT /api/v1/system/admin/model-catalog` 使用版本和部署基线检测冲突，其他实例约 5 秒内同步。控制台不接受凭据、请求头、`base_url` 或环境变量展开，这些仍由部署配置管理。
+
+### 新增
+
+- **跨知识库 Wiki 搜索** — 新增 `POST /api/v1/wiki-search`，可在多个自有或共享知识库中按标题、slug、摘要和正文排序，返回 `match_snippet`；要求 Viewer 及 API Key `retrieve`/full 权限，并在检查 Wiki 开关前完成每个知识库的访问授权。
+- **MinerU 4.0 V1 自建服务** — `mineru` 引擎会通过 `GET /v1/health` 自动选择 MinerU 4.0 V1 任务流或旧版 `/file_parse`；V1 支持 SHA-256 去重上传、任务轮询、取消、zip 结果和同源 API Key 限制。新增 `mineru_server_api_key`、`mineru_tier` 以及 `WEKNORA_MINERU_TIMEOUT` / `WEKNORA_MINERU_CLOUD_TIMEOUT`；MinerU 3.x 参数与协议保持兼容。
+- **Confluence 子树和私有图片同步** — Confluence 数据源可选择页面子树并解析需鉴权的附件图片，单页内联图片总量限制为 50 MiB。Server/Data Center 返回重复尾页链接时会停止无穷翻页，并逐页确认未列出内容后才执行删除对齐，避免部分列表误删文档。
+- **语雀目录层级同步** — 语雀数据源新增 `folder_mode=toc` 和 `toc_only`，可按「书名/分组/文档」保留目录层级；新建来源默认启用 TOC，已有来源保持 `folder_mode=none`。切换模式后需执行一次全量同步；`toc_only` 只停止新的同步入库，不自动删除已存文档。
+
+### 优化
+
+- **数据源调度与失败边界** — `sync_schedule` 统一按含秒的六段 cron 校验，空字符串表示仅手动同步；无效创建、更新或恢复请求返回 `400` 且不改写已存调度。Notion 资源发现失败会中止增量同步，飞书 Wiki 重复分页 token 会明确报错，RSS 响应超限时不再静默截断正文。
+- **Wiki 积压并发清理** — 标准 Redis 模式会按 `ingest_max_inflight` 补充 Wiki 后续批次，同时用每知识库预留和恢复探针限制排队、运行与重试中的后续任务，避免积压退化为单批串行或并发完成时重复放大队列；Lite 和限流路径仍保持单后续任务。
+- **前端资源刷新一致性** — 知识库、Agent、组织和模型等列表取消 60 秒 TTL，改为进行中请求去重、显式失效和旧响应隔离；`/auth/me` 与系统信息的重复请求同步收敛。`/platform/settings` 只挂载一个设置弹窗，避免双弹窗之间出现旧数据。
+- **自动会话标题** — 标题生成会把首条问题当作数据而非指令，并移除思考块、Markdown 表格、标题、列表和链接格式；输出仍不合法时使用用户问题的 30 个 Unicode 字符作为纯文本标题。
+- **应用内帮助链接** — 模型、沙箱、API、图谱和系统信息等页面的帮助入口改为打开已发布文档站，不再直接展示 GitHub 原始 Markdown；测试会校验每个页面和锚点存在。
+
+### 修复
+
+- **FAQ 条目清理与校验** — FAQ 写入前会去除问题和答案首尾空白，丢弃空值并去重；仅含空白的答案现在会被拒绝，不再把无效或重复内容保存到知识库。
+- **会话知识库范围恢复** — 切换到未保存知识库范围的历史会话时会清空上一个会话的选择，避免继续把过期的 `@KB` 范围发送给服务端；离开会话后仍恢复浏览器级默认选择。
+- **表格摘要任务边界** — 已删除或不属于任务租户的文档不会继续执行遗留的表格摘要任务；模型返回空摘要时改为明确失败并进入既有重试路径，不再保存空的表格或列说明。
+- **数据源内容与增量同步** — 钉钉同步会记录跳过、失败和尚未建模的块类型，并保留列表、代码、附件及可读的未知块内容；GitLab 按提交快照比较强推或重置后的变化；飞书云盘重复分页 token 会终止并报错；Notion 页面清空后会覆盖旧正文；RSS 全文抓取失败后会在下次同步重试。
+- **Lite 关键词字面匹配** — SQLite 查询为 `%`、`_` 和 `\` 补齐显式 `ESCAPE` 语义，文档、知识库、标签、租户、成员、会话及分块/FAQ 搜索不再静默漏掉或扩大包含这些字符的关键词；PostgreSQL 保持相同字面匹配行为。
+- **Embed Host context 追问** — 嵌入渠道调用 `WeKnora.setContext` 后，追问建议可识别合法的 `[Host context]` 信封，不再因归因文本不完全相等返回 `400`；生成回答期间未实际发送的点击也不会污染下一条消息。
+- **本机 Skill 密钥标签** — 环境变量设置中的本机 Skill 密钥卡片使用当前语言的“本机”标签，不再在其他语言界面显示后端原始配置名称。
+- **文档处理任务恢复** — 重新解析会取消被取代尝试的排队任务，并在事务中完成子任务计数与阶段推进；入队失败、短暂读写错误、图片计数、Wiki 模型创建失败和 worker panic 都会进入重试或明确失败，减少文档长期停在 `processing` / `finalizing`。
+- **Excel 容错解析** — builtin 和 MarkItDown 路径会在 openpyxl 加载前修复 `xl/styles.xml` 中缺少 fill 定义的工作簿，并移除 openpyxl 无法解析的数据验证范围；单元格文本不受影响，修复失败时保留原文件的原始错误。
+- **JSON 上传提前校验** — 上传或替换的非法 `.json` 文件在 HTTP 边界直接返回本地化 `400` 错误，不再创建后经过多轮异步解析才失败；数据源和 IM 入库仍保留异步失败语义。
+- **向量索引复制与并发创建** — Elasticsearch v7/v8 `CopyIndices` 保留向量、`SourceID` 和启用状态，不再把生成问题行或禁用行复制为不可检索数据；Weaviate 多 worker 竞态创建同名 class 时会重新查询并继续，不再使整份文档失败。
+- **Agent 工具调用恢复** — 并行工具发生 panic 时转换为失败的 tool result，不再崩溃服务器；合并相邻 assistant 历史消息时保留 `tool_calls`，避免孤立 tool 消息使 OpenAI 兼容端点返回 `400`。
+- **对象存储路径与飞书图片降级** — S3、COS、KS3、OBS、OSS、TOS 和 MinIO 服务接受规范的 `storage://` 路径；飞书回复中无法解析的 `resource://` 图片降级为纯文本，不再导致整张消息卡片更新失败。
+- **表单弹层间距** — 邀请、分享链接、创建用户、重置密码和修改密码弹层恢复内边距、宽度和超高滚动，避免表单紧贴边框或主按钮被裁切。
+
+### 打包与部署
+
+- **新功能数据库迁移** — PostgreSQL 新增 `000133_model_catalog_config`、`000134_embeddings_knowledge_chunk_index`、`000135_chunk_images` 和 `000136_chunk_source_locators`；SQLite 新增 `000041_model_catalog_config`、`000042_chunk_images` 和 `000043_chunk_source_locators`。升级部署需确保对应 `up` 迁移执行成功，否则模型目录、画廊或精确引用定位不可用。
+
+### 模型与运行
+
+- **Rerank 与思考等级兼容** — 阿里云 `qwen3-rerank` 恢复使用 DashScope 原生 rerank 协议并重新出现在选择器中；仅支持布尔思考开关的通用模型只展示 `off` / `auto`，显式声明 `supports_reasoning_effort` 的模型才展示分级档位，并将 `reasoning_effort` 实际写入请求。
+- **模型限流重试** — Agent 对 `429` / `503` 响应同时支持秒数和 HTTP 日期格式的 `Retry-After`，按其与线性退避的较大值等待，并将服务端建议限制在 30 秒内，减少仍处于限流窗口时耗尽重试。
+- **上下文压缩取消语义** — 摘要流因请求取消而关闭时会返回取消错误，不再把空摘要当作成功 checkpoint 保存；供应商错误、自然结束和原有停滞重试语义保持不变。
+- **中断流识别与 SDK SSE 解析** — Completions、Responses 和 Gemini 流在没有 finish reason 就结束时会标记为不完整并返回流错误，不再把半截回答存为完成；重试按结构化 HTTP/传输错误分类且可响应取消。Go client 同时按 SSE 规则合并多行 `data:` 并忽略空帧。
+- **MCP 连接有界关闭** — 服务停止时会注册并并发关闭 MCP 连接，且设置总时间边界，避免远程 session 留待超时或串行断开阻塞进程退出。
+- **信号关闭资源回收** — `SIGTERM` / `SIGINT` 关闭会在同一 `server.shutdown_timeout` 内划分连接排空和清理预算，并继续执行 BrowserSkill、沙箱、IM、任务池和 Langfuse 等清理钩子，避免监听器竞态触发 `os.Exit(1)` 后跳过回收。
+
+### 安全与权限
+
+- **共享 Agent 本地浏览器归属** — 共享空间 Agent 的 `local_browser` 从当前调用者而非 Agent 所有者解析设备范围，已与调用者配对的浏览器不再误报未配对，且仍不跨用户控制设备。
+- **LLM 调试日志路径限制** — 来自 `X-Request-ID` 的文件名只保留安全标识符，阻止 `../` 选择日志目录外的路径；含完整 prompt 的记录以 `0600` 写入 `0700` 目录。
+- **Embed 签名密钥诊断** — 启动时会检测可用的 `SYSTEM_SIGNING_KEY` 并输出 `[startup-env]` 警告，Embed session 缺少密钥时的 `503` 错误也会指明配置项，便于升级后识别已失效的示例 `SYSTEM_AES_KEY`。
+
+### 文档与验证
+
+- **API 快速入门工作空间变量** — API 示例会从登录响应提取 `active_tenant.id` 为 `TENANT_ID`，并说明需要 Bash、curl、jq 以及已加入工作空间的账号，后续创建 API Key 的命令可直接执行。
+
 ## [0.1.64] - 2026-09-28
 
 ### 新增
@@ -111,6 +175,8 @@
 
 - **数据库驱动范围** — 运行时的 `DB_DRIVER` 当前只接入 PostgreSQL 和 SQLite；仓库中的 `migrations/mysql/` 仅作未接入的参考脚本，不能据此声称已支持 MySQL。
 
+[Unreleased]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.64...HEAD
+[0.1.64]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.63...vos-hybrag-v0.1.64
 [0.1.63]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.62...vos-hybrag-v0.1.63
 [0.1.62]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.61...vos-hybrag-v0.1.62
 [0.1.61]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.60...vos-hybrag-v0.1.61
