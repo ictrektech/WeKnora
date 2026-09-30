@@ -336,7 +336,7 @@ VOS 安装包不会放额外 `config/` 目录。App 容器启动脚本会在运�
 
 Ollama Qwen3.5 关闭思考使用 `extra_config.thinking_control=think`，请求会发送顶层 `think:false`。vLLM / generic Qwen3.5 后端关闭思考使用 `extra_config.thinking_control=chat_template_kwargs`，请求会发送 `chat_template_kwargs.enable_thinking=false`。两者不要混用。
 
-Model Hub 下载、预热和原生 Ollama 接口检查见 [docs/vos-ollama-prewarm.md](docs/vos-ollama-prewarm.md)。用户界面操作见 [docs/USERGUIDE.md](docs/USERGUIDE.md)。
+Model Hub 下载、预热和原生 Ollama 接口检查见 [docs/vos-ollama-prewarm.md](docs/vos-ollama-prewarm.md)。用户界面操作见 [docs/USERGUIDE.md](docs/USERGUIDE.md)；新会话标题在回答结束后异步生成，输出上限、超时和兜底规则见其中的[快速问答](docs/USERGUIDE.md#11-快速问答)。
 
 ## 版本更新与 Release
 

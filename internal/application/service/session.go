@@ -5,6 +5,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Tencent/WeKnora/internal/application/repository"
 	chatpipeline "github.com/Tencent/WeKnora/internal/application/service/chat_pipeline"
@@ -1009,9 +1010,12 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 
 	// Call model to generate title
 	thinking := false
-	response, err := chatModel.Chat(ctx, chatMessages, &chat.ChatOptions{
+	titleCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	response, err := chatModel.Chat(titleCtx, chatMessages, &chat.ChatOptions{
 		Temperature: 0.3,
 		Thinking:    &thinking,
+		MaxTokens:   64,
 	})
 	if err != nil {
 		return s.persistFallbackTitle(ctx, session, message.Content,
@@ -1020,6 +1024,9 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 
 	// Process and store the generated title
 	sanitized := sanitizeGeneratedTitle(response.Content, message.Content)
+	if sanitized.Title == "" {
+		return s.persistFallbackTitle(ctx, session, message.Content, stderrors.New("title model returned no usable title"))
+	}
 	if sanitized.Truncated {
 		logger.Warnf(ctx,
 			"Generated session title exceeded %d runes and was truncated, session=%s, model=%s",

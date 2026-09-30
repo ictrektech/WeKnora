@@ -1832,20 +1832,6 @@ func (s *Service) HandleMessage(ctx context.Context, msg *IncomingMessage, chann
 		}
 	}
 
-	// Title an untitled IM session from its first text message, like web chats.
-	// GenerateTitleAsync self-guards on a non-empty title and persists to the DB;
-	// nil eventBus is fine (IM has no live stream — the sidebar reloads it).
-	if session.Title == "" && strings.TrimSpace(msg.Content) != "" {
-		// Copy the session: the async title goroutine writes Title while the QA
-		// worker below shares the same *session.
-		sessionForTitle := *session
-		titleModelID := ""
-		if customAgent != nil && customAgent.Config.ModelID != "" {
-			titleModelID = customAgent.Config.ModelID
-		}
-		s.sessionService.GenerateTitleAsync(sessionCtx, &sessionForTitle, msg.Content, titleModelID, nil)
-	}
-
 	s.persistIMLastRequestState(sessionCtx, session.ID, agentID, customAgent, nil)
 
 	// 5. Enqueue the QA request into the bounded worker pool.
@@ -1966,6 +1952,19 @@ func (s *Service) executeQARequest(req *qaRequest) {
 			context.WithoutCancel(ctx), req.channel, downloaded,
 		)
 	}
+	// Run after reply delivery, before cancelling ctx, so the title cannot
+	// occupy the shared model while this request is queued or answering.
+	defer func() {
+		if ctx.Err() != nil || req.session.Title != "" || strings.TrimSpace(req.msg.Content) == "" {
+			return
+		}
+		sessionForTitle := *req.session
+		modelID := ""
+		if req.agent != nil {
+			modelID = req.agent.Config.ModelID
+		}
+		s.sessionService.GenerateTitleAsync(ctx, &sessionForTitle, req.msg.Content, modelID, nil)
+	}()
 
 	// Determine output mode from channel config.
 	streamDisabled := req.channel.OutputMode == "full"

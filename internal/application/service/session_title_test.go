@@ -1,9 +1,81 @@
 package service
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
+
+	"github.com/Tencent/WeKnora/internal/config"
+	"github.com/Tencent/WeKnora/internal/models/chat"
+	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/Tencent/WeKnora/internal/types/interfaces"
 )
+
+type titleTestChat struct {
+	captureChatModel
+	run func(context.Context, *chat.ChatOptions) (*types.ChatResponse, error)
+}
+
+func (m *titleTestChat) Chat(ctx context.Context, _ []chat.Message, opts *chat.ChatOptions) (*types.ChatResponse, error) {
+	return m.run(ctx, opts)
+}
+
+type titleTestSessionRepo struct {
+	interfaces.SessionRepository
+	storedTitle string
+}
+
+func (r *titleTestSessionRepo) Update(ctx context.Context, session *types.Session, _ string) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	r.storedTitle = session.Title
+	return 1, nil
+}
+
+func TestGenerateTitleBoundsModelCallAndPersistsFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		content string
+		timeout bool
+		want    string
+	}{
+		{name: "success", content: "民法典用途", want: "民法典用途"},
+		{name: "empty completion", want: "言简意赅的说下民法典用途"},
+		{name: "timeout", timeout: true, want: "言简意赅的说下民法典用途"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				repo := &titleTestSessionRepo{}
+				model := &titleTestChat{run: func(ctx context.Context, opts *chat.ChatOptions) (*types.ChatResponse, error) {
+					if opts.CompletionBudget() != 64 || opts.Thinking == nil || *opts.Thinking {
+						t.Fatalf("title must disable thinking and cap output at 64 tokens: %+v", opts)
+					}
+					deadline, ok := ctx.Deadline()
+					if !ok || time.Until(deadline) != 10*time.Second {
+						t.Fatal("title model call must have a 10-second deadline")
+					}
+					if tc.timeout {
+						<-ctx.Done()
+						return nil, ctx.Err()
+					}
+					return &types.ChatResponse{Content: tc.content}, nil
+				}}
+				svc := &sessionService{
+					cfg: &config.Config{Conversation: &config.ConversationConfig{}}, sessionRepo: repo,
+					modelService: &stubModelService{chatModel: model},
+				}
+				title, err := svc.GenerateTitle(t.Context(), &types.Session{ID: "session"},
+					[]types.Message{{Role: "user", Content: "言简意赅的说下民法典用途"}}, "answer-model")
+				if err != nil || title != tc.want || repo.storedTitle != tc.want {
+					t.Fatalf("title=%q stored=%q err=%v; want %q", title, repo.storedTitle, err, tc.want)
+				}
+			})
+		})
+	}
+}
 
 func TestSanitizeGeneratedTitle(t *testing.T) {
 	t.Parallel()

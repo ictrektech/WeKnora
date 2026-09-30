@@ -38,6 +38,15 @@ type fullOutputSessionService struct {
 	started         chan struct{}
 }
 
+func (s *fullOutputSessionService) GenerateTitleAsync(
+	ctx context.Context, _ *types.Session, _, _ string, _ *event.EventBus,
+) {
+	if ctx.Err() != nil {
+		panic("title started after worker cancellation")
+	}
+	s.order.add("title")
+}
+
 func (s *fullOutputSessionService) KnowledgeQA(ctx context.Context, req *types.QARequest, bus *event.EventBus) error {
 	s.order.add("qa")
 	if s.started != nil {
@@ -328,7 +337,7 @@ func TestExecuteQARequestFullOutputDispatchesToProgressSender(t *testing.T) {
 		userKey: "user-key",
 	})
 
-	wantOrder := []string{"start", "qa", "finalize", "end"}
+	wantOrder := []string{"start", "qa", "finalize", "end", "title"}
 	if got := order.snapshot(); !reflect.DeepEqual(got, wantOrder) {
 		t.Fatalf("lifecycle order = %v, want %v", got, wantOrder)
 	}
@@ -351,7 +360,7 @@ func TestExecuteQARequestFullOutputSkipsProgressWhenNotSupported(t *testing.T) {
 		userKey: "user-key",
 	})
 
-	wantOrder := []string{"qa", "plain-reply"}
+	wantOrder := []string{"qa", "plain-reply", "title"}
 	if got := order.snapshot(); !reflect.DeepEqual(got, wantOrder) {
 		t.Fatalf("lifecycle order = %v, want %v", got, wantOrder)
 	}

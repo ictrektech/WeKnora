@@ -803,7 +803,8 @@ func (h *Handler) setupSSEStream(reqCtx *qaRequestContext, generateTitle bool, m
 	streamCtx.streamHandler = h.setupStreamHandler(asyncCtx, reqCtx.sessionID, reqCtx.assistantMessage.ID,
 		reqCtx.requestID, reqCtx.session.TenantID, reqCtx.receivedAt, reqCtx.assistantMessage, eventBus)
 
-	// Generate title if needed
+	// Title generation shares the answer model, which may have only one slot.
+	// Both QA modes emit AgentComplete; wait for it so the title cannot run first.
 	if generateTitle && reqCtx.session.Title == "" {
 		// The assistant message carries the effective model selected for this
 		// turn. Reuse it instead of choosing an unrelated tenant model later.
@@ -814,8 +815,19 @@ func (h *Handler) setupSSEStream(reqCtx *qaRequestContext, generateTitle bool, m
 		if modelID == "" && reqCtx.customAgent != nil {
 			modelID = strings.TrimSpace(reqCtx.customAgent.Config.ModelID)
 		}
-		logger.Infof(reqCtx.ctx, "Session has no title, starting async title generation, session ID: %s, model: %s", reqCtx.sessionID, modelID)
-		h.sessionService.GenerateTitleAsync(asyncCtx, reqCtx.session, reqCtx.query, modelID, eventBus)
+		sessionForTitle := *reqCtx.session
+		var titleOnce sync.Once
+		eventBus.On(event.EventAgentComplete, func(_ context.Context, evt event.Event) error {
+			if _, ok := evt.Data.(event.AgentCompleteData); !ok || asyncCtx.Err() != nil ||
+				strings.TrimSpace(reqCtx.assistantMessage.Content) == "" {
+				return nil
+			}
+			titleOnce.Do(func() {
+				logger.Infof(asyncCtx, "Answer completed, starting async title generation, session ID: %s, model: %s", reqCtx.sessionID, modelID)
+				h.sessionService.GenerateTitleAsync(asyncCtx, &sessionForTitle, reqCtx.query, modelID, eventBus)
+			})
+			return nil
+		})
 	}
 
 	return streamCtx
