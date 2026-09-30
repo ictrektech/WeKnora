@@ -7,9 +7,11 @@ package runtime_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/Tencent/WeKnora/internal/models/api"
+	"github.com/Tencent/WeKnora/internal/models/api/openaicompletions"
 	"github.com/Tencent/WeKnora/internal/models/providers"
 	modelruntime "github.com/Tencent/WeKnora/internal/models/runtime"
 	"github.com/Tencent/WeKnora/internal/types"
@@ -244,7 +246,7 @@ func TestEveryCataloguedModelResolves(t *testing.T) {
 }
 
 // legacyThinkingControl is the old chat.parseThinkingOverride mapping, from
-// internal/models/chat/thinking.go before the refactor. The four values are
+// internal/models/chat/thinking.go before the refactor. The six values are
 // the only ones the old frontend wrote (frontend/src/utils/thinkingControl.ts),
 // but an unrecognized non-empty value historically fell back to
 // chat_template_kwargs and must keep doing so.
@@ -252,10 +254,13 @@ var legacyThinkingControl = map[string]api.ThinkingFormat{
 	"none":                 api.ThinkingFormatNone,
 	"enable_thinking":      api.ThinkingFormatEnableThinking,
 	"thinking_type":        api.ThinkingFormatThinkingType,
+	"think":                api.ThinkingFormatThink,
+	"reasoning_effort":     api.ThinkingFormatReasoningEffort,
 	"chat_template_kwargs": api.ThinkingFormatChatTemplateKwargs,
 	"enabled":              api.ThinkingFormatChatTemplateKwargs,
 	"ENABLE_THINKING":      api.ThinkingFormatEnableThinking,
 	"  thinking_type  ":    api.ThinkingFormatThinkingType,
+	" THINK ":              api.ThinkingFormatThink,
 }
 
 // TestLegacyThinkingControlMapping pins extra_config.thinking_control to the
@@ -277,6 +282,79 @@ func TestLegacyThinkingControlMapping(t *testing.T) {
 				t.Fatalf("thinking_control=%q resolved to %q, old code selected %q", value, got, want)
 			}
 		})
+	}
+}
+
+func TestLegacyOllamaThinkingControlsWire(t *testing.T) {
+	on, off := true, false
+	for _, control := range []string{"think", "reasoning_effort"} {
+		for _, model := range []struct{ provider, name string }{{"generic", "qwen3.5:2b"}, {"openai", "gpt-4o"}, {"aliyun", "qwen3-32b"}} {
+			t.Run(control+"/"+model.name, func(t *testing.T) {
+				resolved, err := modelruntime.Resolve(modelruntime.Ref{
+					Provider: model.provider, Model: model.name, BaseURL: "https://example.com/v1",
+					ModelType: types.ModelTypeKnowledgeQA, Extra: map[string]string{"thinking_control": control},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				caps := resolved.Capabilities()
+				for _, level := range caps.ThinkingLevels {
+					if level.Graded() {
+						t.Errorf("legacy boolean control advertises unsupported level %q", level)
+					}
+				}
+				client := openaicompletions.New(openaicompletions.Config{
+					Endpoint: api.Endpoint{Model: model.name}, Settings: resolved.OpenAICompletions,
+					ThinkingLevels: resolved.ThinkingLevels,
+				})
+				for _, tc := range []struct {
+					name string
+					opts *api.Options
+					on   *bool
+				}{
+					{"unset", nil, nil},
+					{"off", &api.Options{Thinking: &off}, &off},
+					{"on", &api.Options{Thinking: &on}, &on},
+					{"graded", &api.Options{ReasoningEffort: api.ReasoningHigh}, &on},
+					{"effort overrides boolean", &api.Options{Thinking: &on, ReasoningEffort: api.ReasoningOff}, &off},
+				} {
+					for _, stream := range []bool{false, true} {
+						body, err := client.BuildRequestBody([]api.Message{{Role: "user", Content: "Generate questions"}}, tc.opts, stream)
+						if err != nil {
+							t.Fatal(err)
+						}
+						data, err := json.Marshal(body)
+						if err != nil {
+							t.Fatal(err)
+						}
+						var wire map[string]any
+						if err := json.Unmarshal(data, &wire); err != nil {
+							t.Fatal(err)
+						}
+						var want any
+						if tc.on != nil {
+							want = *tc.on
+							if control == "reasoning_effort" {
+								want = "none"
+								if *tc.on {
+									want = "medium"
+								}
+							}
+						}
+						if got := wire[control]; got != want {
+							t.Errorf("%s stream=%v: %s=%v, want %v", tc.name, stream, control, got, want)
+						}
+						for _, field := range []string{"think", "reasoning_effort", "chat_template_kwargs", "enable_thinking", "thinking"} {
+							if field != control || tc.on == nil {
+								if _, present := wire[field]; present {
+									t.Errorf("%s stream=%v: unexpected field %q", tc.name, stream, field)
+								}
+							}
+						}
+					}
+				}
+			})
+		}
 	}
 }
 

@@ -831,7 +831,7 @@ const PROTOCOL_OPTIONS = [
 const COMPAT_DOC_URL = docsUrl('modelsCompat')
 
 /** Legacy thinking_control values still honoured by catalog.Resolve. */
-const LEGACY_THINKING_CONTROL_VALUES = ['none', 'enable_thinking', 'thinking_type', 'chat_template_kwargs'] as const
+const LEGACY_THINKING_CONTROL_VALUES = ['none', 'enable_thinking', 'thinking_type', 'chat_template_kwargs', 'think', 'reasoning_effort'] as const
 
 /** Keys of extra_config that are edited by dedicated controls, not the generic renderer. */
 const RESERVED_EXTRA_CONFIG_KEYS = new Set(['thinking_control'])

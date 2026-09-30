@@ -43,7 +43,21 @@ ReRank 只进入默认模型列表，不会自动写入知识库 `rerank_model_i
 
 为了升级时不破坏已有引用，默认模型行的内部 `id` 会保持兼容；界面显示名和 endpoint 会跟随当前 YAML 托管配置同步。
 
-Ollama Qwen3.5 关闭思考使用 `extra_config.thinking_control=think`，请求会发送顶层 `think:false`。vLLM / generic Qwen3.5 后端应使用 `chat_template_kwargs`，不要照搬 Ollama 的 `think`。
+## 思考参数兼容（当前源码已实现）
+
+`extra_config.thinking_control` 指定 OpenAI 兼容接口的思考开关写法。按实际后端选择；现有模型行无需迁移。该兼容逻辑在上游模型适配重构合并时曾遗漏，运行中的镜像必须包含本次修复才会恢复。
+
+| 配置值 | 本次请求关闭思考 | 本次请求开启思考 | 适用后端 |
+| --- | --- | --- | --- |
+| `think` | 顶层 `"think": false` | 顶层 `"think": true` | Model Hub Ollama；沿用既有参数格式 |
+| `reasoning_effort` | 顶层 `"reasoning_effort": "none"` | 顶层 `"reasoning_effort": "medium"` | 明确支持这两个值的 OpenAI 兼容接口；沿用旧配置行为 |
+| `chat_template_kwargs` | `"chat_template_kwargs": {"enable_thinking": false}` | `"chat_template_kwargs": {"enable_thinking": true}` | 使用此模板参数的 vLLM / generic 后端 |
+
+`think` 和旧 `reasoning_effort` 配置只表达开关，模型能力列表仅提供 `off`、`auto`。请求未指定思考偏好时不发送这些字段，保留后端默认值；流式和非流式请求使用相同映射。它们覆盖供应商默认的思考参数策略，不会同时附加另一种开关或思考预算。
+
+问题生成会显式关闭思考，并使用 512-token 输出上限。网关忽略关闭指令时，模型可能只输出思考内容而没有问题；增加输出上限不能替代参数兼容修复。更新后先验证一个片段的问题生成和推荐接口，再补生成已有文档的问题。升级不会自动补齐历史空结果；空结果的任务失败判定和重试策略不属于本次兼容修复。
+
+回归验证覆盖旧配置解析、实际 JSON 请求中的开启/关闭/未指定、流式与非流式、模型编辑后的配置保留，以及其他参数格式的既有测试。远端镜像升级和历史问题补生成仍需单独验证。
 
 ## 验证命令
 

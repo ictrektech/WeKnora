@@ -395,6 +395,13 @@ func (c *Client) applyThinking(body map[string]any, opts *api.Options, stream bo
 		if effort != "" {
 			body[effortField] = effort
 		}
+	case api.ThinkingFormatThink:
+		body["think"] = enabled
+	case api.ThinkingFormatReasoningEffort:
+		body["reasoning_effort"] = "none"
+		if enabled {
+			body["reasoning_effort"] = "medium"
+		}
 	case api.ThinkingFormatOpenRouter:
 		if enabled {
 			reasoning := map[string]any{}

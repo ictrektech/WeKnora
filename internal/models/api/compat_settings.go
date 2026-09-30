@@ -20,6 +20,11 @@ const (
 	// ThinkingFormatChatTemplateKwargs sends chat_template_kwargs.enable_thinking
 	// (vLLM, SGLang, NIM, LiteLLM in front of them).
 	ThinkingFormatChatTemplateKwargs ThinkingFormat = "chat-template-kwargs"
+	// ThinkingFormatThink sends Ollama's top-level think boolean.
+	ThinkingFormatThink ThinkingFormat = "think"
+	// ThinkingFormatReasoningEffort preserves the legacy boolean override:
+	// reasoning_effort is "medium" when enabled and "none" when disabled.
+	ThinkingFormatReasoningEffort ThinkingFormat = "reasoning-effort"
 	// ThinkingFormatOpenRouter sends {"reasoning": {"effort"|"enabled"}}.
 	ThinkingFormatOpenRouter ThinkingFormat = "openrouter"
 )

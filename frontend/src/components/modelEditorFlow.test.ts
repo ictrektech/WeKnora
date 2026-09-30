@@ -584,30 +584,33 @@ test('advanced overrides: invalid compat JSON blocks save, valid JSON and protoc
   } finally { f.close() }
 })
 
-test('editing a legacy row keeps thinking_control until the user clears it', async () => {
-  const f = await fixture({ type: 'chat', providers: catalogProviders })
-  try {
-    f.props.visible = false
-    await nextTick()
-    f.props.modelData = {
-      id: 'legacy', modelName: 'qwen3-32b', name: '', source: 'remote', baseUrl: 'https://example.com/v1',
-      provider: 'aliyun', isDefault: false, thinkingControl: 'enable_thinking',
-      extraConfig: { thinking_control: 'enable_thinking', api_version: 'v1' },
-      spec: { compat: { max_tokens_field: 'max_tokens' }, context_window: 1 },
-    }
-    f.props.visible = true
-    await nextTick()
-    await nextTick()
-    assert.equal(f.vm.showLegacyThinkingControl, true)
-    assert.equal(f.vm.formData.thinkingControl, 'enable_thinking')
-    assert.deepEqual(plain(f.vm.formData.extraConfig), { api_version: 'v1' })
-    assert.equal(f.vm.formData.specCompat, JSON.stringify({ max_tokens_field: 'max_tokens' }, null, 2))
-    assert.deepEqual(plain(f.vm.buildExtraConfig()), { api_version: 'v1', thinking_control: 'enable_thinking' })
-    f.vm.formData.thinkingControl = ''
-    assert.equal(f.vm.showLegacyThinkingControl, true, 'select stays visible after clearing')
-    assert.deepEqual(plain(f.vm.buildExtraConfig()), { api_version: 'v1' })
-  } finally { f.close() }
-})
+for (const thinkingControl of ['enable_thinking', 'think', 'reasoning_effort']) {
+  test(`editing a legacy ${thinkingControl} row keeps thinking_control until the user clears it`, async () => {
+    const f = await fixture({ type: 'chat', providers: catalogProviders })
+    try {
+      f.props.visible = false
+      await nextTick()
+      f.props.modelData = {
+        id: 'legacy', modelName: 'qwen3-32b', name: '', source: 'remote', baseUrl: 'https://example.com/v1',
+        provider: 'aliyun', isDefault: false, thinkingControl,
+        extraConfig: { thinking_control: thinkingControl, api_version: 'v1' },
+        spec: { compat: { max_tokens_field: 'max_tokens' }, context_window: 1 },
+      }
+      f.props.visible = true
+      await nextTick()
+      await nextTick()
+      assert.equal(f.vm.showLegacyThinkingControl, true)
+      assert.equal(f.vm.formData.thinkingControl, thinkingControl)
+      assert.ok(Array.from(f.vm.LEGACY_THINKING_CONTROL_VALUES).includes(thinkingControl))
+      assert.deepEqual(plain(f.vm.formData.extraConfig), { api_version: 'v1' })
+      assert.equal(f.vm.formData.specCompat, JSON.stringify({ max_tokens_field: 'max_tokens' }, null, 2))
+      assert.deepEqual(plain(f.vm.buildExtraConfig()), { api_version: 'v1', thinking_control: thinkingControl })
+      f.vm.formData.thinkingControl = ''
+      assert.equal(f.vm.showLegacyThinkingControl, true, 'select stays visible after clearing')
+      assert.deepEqual(plain(f.vm.buildExtraConfig()), { api_version: 'v1' })
+    } finally { f.close() }
+  })
+}
 
 test('parent save serializes extra_config, spec.compat and max_output_tokens from the editor payload', async () => {
   const payloads: any[] = []

@@ -32,7 +32,19 @@ func applyLegacyThinkingControl(s *api.OpenAICompletionsSettings, value string) 
 		s.ThinkingFormat = api.ThinkingFormatEnableThinking
 	case "thinking_type":
 		s.ThinkingFormat = api.ThinkingFormatThinkingType
+	case "think":
+		s.ThinkingFormat = api.ThinkingFormatThink
+	case "reasoning_effort":
+		s.ThinkingFormat = api.ThinkingFormatReasoningEffort
 	default:
 		s.ThinkingFormat = api.ThinkingFormatChatTemplateKwargs
+	}
+	if s.ThinkingFormat == api.ThinkingFormatThink || s.ThinkingFormat == api.ThinkingFormatReasoningEffort {
+		// These legacy strategies only encoded an explicitly requested boolean,
+		// independently of the provider's default thinking policy.
+		s.ThinkingAlwaysSend = false
+		s.ThinkingDisableOnNonStream = false
+		s.ThinkingBudgetField = ""
+		s.SupportsReasoningEffort = false
 	}
 }

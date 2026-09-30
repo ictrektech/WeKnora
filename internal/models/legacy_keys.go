@@ -10,7 +10,8 @@ const (
 	// ExtraAPIVersion is the Azure api-version query parameter.
 	ExtraAPIVersion = "api_version"
 	// ExtraThinkingControl is the legacy thinking encoding selector written
-	// by older UIs: none | enable_thinking | thinking_type | chat_template_kwargs.
+	// by older UIs: none | enable_thinking | thinking_type | chat_template_kwargs |
+	// think | reasoning_effort.
 	ExtraThinkingControl = "thinking_control"
 	// ExtraTruncatePromptTokens is the vLLM-only server-side truncation
 	// budget for rerank, opt-in per row. It is never sent unless the operator

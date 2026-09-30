@@ -334,7 +334,7 @@ VOS 安装包不会放额外 `config/` 目录。App 容器启动脚本会在运�
 
 这些模型行不写在镜像里，也不随 VOS 包以目录形式挂载；当前 VOS parser 只接受固定顶层文件，包内不要加入 `config/`。`name` 固定为 `qwen3.5:2b`、`bge-m3` 和 `qllama/bge-reranker-v2-m3:q8_0`，endpoint 指向 Model Hub Ollama 原生接口。ReRank 只进入默认模型列表，不会自动写入知识库的 `rerank_model_id`；是否在知识库或智能体中启用，由用户配置决定。运行后也可以在 HybRAG UI 中添加或修改其他模型；如果管理员手动接管某条 YAML 模型行，需要清空该行的 `managed_by`，否则后续安装包升级会按 YAML 继续同步。
 
-Ollama Qwen3.5 关闭思考使用 `extra_config.thinking_control=think`，请求会发送顶层 `think:false`。vLLM / generic Qwen3.5 后端关闭思考使用 `extra_config.thinking_control=chat_template_kwargs`，请求会发送 `chat_template_kwargs.enable_thinking=false`。两者不要混用。
+按推理后端选择 `extra_config.thinking_control`。Ollama 的 `think` 与旧 `reasoning_effort` 配置已在当前源码中恢复兼容，无需迁移模型行；运行镜像须包含修复。准确的请求格式、开关边界和历史问题恢复步骤见 [思考参数兼容](docs/vos-ollama-prewarm.md#思考参数兼容当前源码已实现)。
 
 Model Hub 下载、预热和原生 Ollama 接口检查见 [docs/vos-ollama-prewarm.md](docs/vos-ollama-prewarm.md)。用户界面操作见 [docs/USERGUIDE.md](docs/USERGUIDE.md)；新会话标题在回答结束后异步生成，输出上限、超时和兜底规则见其中的[快速问答](docs/USERGUIDE.md#11-快速问答)。
 

@@ -324,15 +324,14 @@ func (r *Resolved) Capabilities() Capabilities {
 		caps.MaxTokensField = "num_predict"
 	}
 	caps.ThinkingLevels = r.ThinkingLevels.SupportedLevels()
-	// A chat-template switch carries only the enable_thinking boolean: every
-	// graded rung is silently dropped on the wire (and a relay backend that
-	// does not know enable_thinking drops the boolean too), so the selector
-	// must not offer rungs the request cannot express. Vendors that opt into
-	// a top-level effort field keep their ladders (#3489 moved its NIM
-	// entries to that shape).
+	// Boolean-only switches cannot express graded effort, so the selector
+	// must not offer it. Chat-template vendors with a separate effort field
+	// keep their ladders.
 	if r.API == api.APIOpenAICompletions &&
-		r.OpenAICompletions.ThinkingFormat == api.ThinkingFormatChatTemplateKwargs &&
-		!r.OpenAICompletions.SupportsReasoningEffort {
+		(r.OpenAICompletions.ThinkingFormat == api.ThinkingFormatThink ||
+			r.OpenAICompletions.ThinkingFormat == api.ThinkingFormatReasoningEffort ||
+			(r.OpenAICompletions.ThinkingFormat == api.ThinkingFormatChatTemplateKwargs &&
+				!r.OpenAICompletions.SupportsReasoningEffort)) {
 		keep := make([]api.ReasoningEffort, 0, 2)
 		for _, level := range caps.ThinkingLevels {
 			if !level.Graded() {
