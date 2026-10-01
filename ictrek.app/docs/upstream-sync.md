@@ -1,6 +1,13 @@
 # 上游同步
 
-本文件记录 ictrek fork 从 Tencent/WeKnora 上游拉取并合并功能更新的流程。中文说明在上方，英文原文在下方。
+本文面向 ictrek fork 维护者，是 Tencent/WeKnora 上游同步流程的唯一事实源。先固定两端提交，审查本地兼容行为及测试，再合并、验证和提交。下方附英文流程。
+
+| 项目 | 当前要求 |
+| --- | --- |
+| 支持 | 人工审查本地定制、兼容契约（已有配置必须保持的行为）及测试迁移 |
+| 必需 | 删除或重构定制实现时，逐项确认行为去向并运行对应回归测试 |
+| 未实现 | 自动发现全部 fork 定制或阻断兼容回归的专用 CI 门禁 |
+| 下一步 | 按下文固定提交，完成本地兼容保留检查后再合并 |
 
 ## remote 设置
 
@@ -28,18 +35,19 @@ git remote add upstream git@github.com:Tencent/WeKnora.git
 ```bash
 cd apps/WeKnora
 git status --short
-git fetch upstream
+git fetch upstream main --prune
 git checkout main
-git merge upstream/main
+fork_before=$(git rev-parse HEAD)
+upstream_target=$(git rev-parse upstream/main)
 ```
 
 无冲突的 merge 也必须做语义检查。先列出 fork 与 upstream 自共同基线以来都修改过的文件，逐个审查：
 
 ```bash
-base=$(git merge-base main upstream/main)
+base=$(git merge-base "$fork_before" "$upstream_target")
 comm -12 \
-  <(git diff --name-only "$base"..main | sort) \
-  <(git diff --name-only "$base"..upstream/main | sort)
+  <(git diff --name-only "$base" "$fork_before" | sort) \
+  <(git diff --name-only "$base" "$upstream_target" | sort)
 ```
 
 冲突处理原则：
@@ -50,7 +58,47 @@ comm -12 \
 - 保留 compose 中持久化配置，并确认基础 `docker-compose.yml` 的 `SSRF_WHITELIST_EXTRA` 仍包含 `host.docker.internal`；
 - 上游功能代码尽量合入，不做无关重构。
 
+## 本地兼容保留检查
+
+重叠文件列表只是审查线索。上游可能删除旧模块和测试，或把逻辑迁到另一个文件；必须同时查看两侧自共同基线以来的改动，不能只检查合并冲突或固定目录。
+
+```bash
+git diff --name-status --find-renames "$base" "$fork_before"
+git diff --name-status --find-renames "$base" "$upstream_target"
+```
+
+对上游删除、重命名或重构的区域，读取 fork 原有实现、调用方、配置和测试。合并后逐项记录“保留”“已迁移（新实现和测试位置）”或“明确废弃（迁移说明）”。
+
+删除定制测试前，必须找到覆盖相同输入和输出的替代测试；否则先补齐。缺少覆盖或尚未验证时，不得报告同步完成。
+
+模型适配变化时，至少核对以下 ictrek 扩展：
+
+| 已有配置 | 必须保留的请求行为 | 验证范围 |
+| --- | --- | --- |
+| `extra_config.thinking_control=think` | 显式开/关发送顶层 `think:true/false`；未指定时不发送 | 从模型配置解析到最终请求 JSON；流式和非流式 |
+| `extra_config.thinking_control=reasoning_effort` | 旧布尔开/关发送顶层 `reasoning_effort:medium/none`；未指定时不发送 | 从模型配置解析到最终请求 JSON；流式和非流式 |
+
+还需确认其他已支持值和未知非空值的原有回退行为未改变。表中是必须保留的契约，不代表某次合并或已部署镜像已验证通过。
+
+历史案例：`f735f55c0` 删除旧思考适配及测试时遗漏了上述两项兼容，因此必须检查行为和测试的迁移去向。
+
+审查完成后，合并已固定的上游提交：
+
+```bash
+git merge --no-ff --no-commit "$upstream_target"
+```
+
+`--no-ff` 保留 merge 拓扑，`--no-commit` 将提交留到验证通过后。
+
 ## 合并后检查
+
+冲突处理并暂存后，先与保存的合并前提交比较，复核删除和迁移结果：
+
+```bash
+git diff --cached --name-status --find-renames "$fork_before"
+```
+
+未提交的合并不能用 `HEAD^1` 代替 `fork_before`；此时 `HEAD` 仍指向合并前提交。
 
 重点查这些本地定制是否还在：
 
@@ -68,6 +116,14 @@ cd ..
 ```
 
 UI 或路由发生变化时，再登录验证聊天页到知识库、智能体、设置、新对话及其他会话的跳转，并确认控制台没有未处理的 `ReferenceError` 或 Vue 错误；运行时代码、构建配置或依赖发生变化时执行 `npm run build-only`。
+
+模型适配变化时，迁移并运行上述请求契约的回归测试；当前相关包为：
+
+```bash
+go test ./internal/models/runtime ./internal/models/api/openaicompletions ./internal/models/chat
+```
+
+包路径变化时调整命令，保留契约覆盖并记录实际测试及结果。部署验证须在授权范围内检查正文非空、问题落库和推荐接口结果，不能只看 `HTTP 200` 或任务 `success`；未执行则记为待验证。
 
 验证通过后再看状态并提交：
 
@@ -154,11 +210,16 @@ Even a conflict-free merge needs a semantic review. List files changed by both
 sides since their common base and review them one by one:
 
 ```bash
-base=$(git merge-base main upstream/main)
+fork_before=$(git rev-parse main)
+upstream_target=$(git rev-parse upstream/main)
+base=$(git merge-base "$fork_before" "$upstream_target")
 comm -12 \
-  <(git diff --name-only "$base"..main | sort) \
-  <(git diff --name-only "$base"..upstream/main | sort)
+  <(git diff --name-only "$base" "$fork_before" | sort) \
+  <(git diff --name-only "$base" "$upstream_target" | sort)
 ```
+
+Follow the [local compatibility preservation checklist](#本地兼容保留检查)
+before merging; it defines the protected contracts and replacement-test requirements.
 
 Pay special attention to files that overlap with ictrek changes:
 
@@ -180,10 +241,11 @@ ictrek.app/*
 Merge upstream into the ictrek fork branch:
 
 ```bash
-git merge --no-ff upstream/main
+git checkout main
+git merge --no-ff --no-commit "$upstream_target"
 ```
 
-If there are no conflicts, continue to the verification step.
+Keep the merge topology and defer the commit until verification passes.
 
 ## Conflict Handling
 
@@ -250,6 +312,9 @@ git status --short
 ```
 
 ## Verification
+
+Compare the staged merge with `fork_before` and complete the
+[post-merge checks](#合并后检查) before committing.
 
 After the merge, re-check the ictrek invariants:
 

@@ -55,11 +55,14 @@ git log --oneline --decorate --graph --max-count=30 --all
 git diff --stat main..upstream/main
 git diff --name-status main..upstream/main
 
+# 固定合并前的 fork 和本次上游目标；指定其他目标分支时替换 main
+fork_before=$(git rev-parse main)
+upstream_target=$(git rev-parse upstream/main)
 # 找出 fork 与 upstream 自共同基线以来都修改过的文件
-base=$(git merge-base main upstream/main)
+base=$(git merge-base "$fork_before" "$upstream_target")
 comm -12 \
-  <(git diff --name-only "$base"..main | sort) \
-  <(git diff --name-only "$base"..upstream/main | sort)
+  <(git diff --name-only "$base" "$fork_before" | sort) \
+  <(git diff --name-only "$base" "$upstream_target" | sort)
 ~~~
 
 合并前必须确认：
@@ -68,6 +71,7 @@ comm -12 \
 - 子仓库工作区没有未提交改动。发现改动时先停下并报告，不要借助 stash、reset 或覆盖操作替用户处理。
 - `upstream/main` 已成功获取，且已经审查变更规模和重叠文件。
 - 双方共同修改的文件已逐个做语义审查；无 Git 冲突也不能视为代码正确。
+- 执行来源文档的[本地兼容保留检查](../../../ictrek.app/docs/upstream-sync.md#本地兼容保留检查)，记录受影响行为及替代测试。
 - 重点审查 `ictrek.app/*`、`build_image.sh`、`docker-compose.override.yml`、`docker/Dockerfile.frontend*`、`config/builtin_models.yaml`、`config/prompt_templates/*.yaml`、登录页和用户菜单等本地定制面。
 
 ## 合并策略
@@ -76,10 +80,10 @@ comm -12 \
 
 ~~~bash
 git checkout main
-git merge --no-ff upstream/main
+git merge --no-ff --no-commit "$upstream_target"
 ~~~
 
-使用 `--no-ff` 保留上游同步的显式 merge commit。不要使用 rebase 或 cherry-pick 替代整合。合并无冲突时也继续执行后续验证。
+`--no-ff` 保留 merge 拓扑，`--no-commit` 将提交留到验证通过后。不要使用 rebase 或 cherry-pick 替代整合。
 
 ## 冲突处理
 
@@ -133,6 +137,8 @@ git status --short
 ~~~
 
 ## 合并后验证
+
+对照 `fork_before` 复核合并结果，完成来源文档的[合并后检查](../../../ictrek.app/docs/upstream-sync.md#合并后检查)后再提交。
 
 重新检查 ictrek 约束和工作区：
 
@@ -191,5 +197,6 @@ git push
 - 获取的 `upstream/main` 提交和合并目标分支。
 - 是否产生 merge commit，以及实际解决的冲突文件和关键取舍。
 - 执行过的验证命令及结果；未执行的验证说明原因。
+- 受影响的本地兼容契约、保留/迁移/废弃结果、对应测试证据及待验证项。
 - 子仓库和父仓库是否已提交、是否已推送。
 - 剩余风险，例如未配置 `upstream`、远程推送未授权、迁移编号待复核或部署未验证。
