@@ -82,6 +82,10 @@ VOS 中打开 HybRAG 时，前端优先走 VOS OIDC Fastpath：同域 iframe 内
 
 HybRAG 当前只按 VOS app 使用，前端不会再展示普通登录/注册入口。若用户打开应用时后端、PGV 或 Model Hub 尚未就绪，登录页会保持 VOS 自动登录等待状态并重试；如果长时间停留在等待页，优先检查 app 容器是否已监听 `8080`、PGV 是否可连接、以及后端日志中的容器初始化步骤。
 
+已实现：`auth.registration_mode` 的 `self_serve`、`invite_register`、`invite_only` 分别允许公开密码注册、仅有效邀请链接密码注册、禁止密码注册；这些档位不限制 VOS 身份验证后的自动开户。
+
+登录必须先成功保存 access token 和 refresh token，任一写入失败都不会返回成功登录；后续 token 查询失败会报告查询错误，不再误报为已撤销。
+
 设置中的「API 文档」入口对普通空间成员可见，无需先创建 API Key。界面语言默认跟随同源 VOS 的语言偏好；用户也可在「常规设置 → 语言」选择具体语言，该选择会在当前浏览器保存。
 
 ## 其他 VOS App 以当前用户身份接入 HybRAG
@@ -333,6 +337,8 @@ VOS 安装包不会放额外 `config/` 目录。App 容器启动脚本会在运�
 | Rerank | `Model Hub Ollama ReRank (model-hub-ollama-rerank)` | `http://model-hub-ollama-rerank:11434` |
 
 这些模型行不写在镜像里，也不随 VOS 包以目录形式挂载；当前 VOS parser 只接受固定顶层文件，包内不要加入 `config/`。`name` 固定为 `qwen3.5:2b`、`bge-m3` 和 `qllama/bge-reranker-v2-m3:q8_0`，endpoint 指向 Model Hub Ollama 原生接口。ReRank 只进入默认模型列表，不会自动写入知识库的 `rerank_model_id`；是否在知识库或智能体中启用，由用户配置决定。运行后也可以在 HybRAG UI 中添加或修改其他模型；如果管理员手动接管某条 YAML 模型行，需要清空该行的 `managed_by`，否则后续安装包升级会按 YAML 继续同步。
+
+模型复制的权限、凭证处理及个人归属规则见 [用户指南](docs/USERGUIDE.md#共享模型与个人模型)。
 
 按推理后端选择 `extra_config.thinking_control`。Ollama 的 `think` 与旧 `reasoning_effort` 配置已在当前源码中恢复兼容，无需迁移模型行；运行镜像须包含修复。准确的请求格式、开关边界和历史问题恢复步骤见 [思考参数兼容](docs/vos-ollama-prewarm.md#思考参数兼容当前源码已实现)。
 

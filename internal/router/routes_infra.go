@@ -30,6 +30,8 @@ func RegisterModelRoutes(
 		models.GET("", g.Viewer(), handler.ListModels)
 		// 调试已保存模型会发起真实上游调用并产生费用 — Admin+
 		models.POST("/:id/debug", g.Admin(), handler.DebugModel)
+		// Personal model owners or tenant Admin+ may copy; the handler checks ownership.
+		models.POST("/:id/copy", g.Viewer(), handler.CopyModel)
 		// 获取单个模型 — Viewer+
 		models.GET("/:id", g.Viewer(), handler.GetModel)
 		// Personal privacy policy: every viewer manages only their own row.

@@ -295,6 +295,7 @@ import { isModelHubUrl, pullHubModel } from '@/api/modelHub'
 import {
   listModels,
   createModel,
+  copyModelConfig,
   updateModel as updateModelAPI,
   deleteModel as deleteModelAPI,
   getMyModelDesensitization,
@@ -310,6 +311,7 @@ import {
   type ModelUsageResourceKind,
 } from '@/api/model'
 import { useAuthStore } from '@/stores/auth'
+import { generateCopyDisplayName, modelCopyLabel } from '@/utils/modelCopyName'
 import { useUIStore } from '@/stores/ui'
 import { focusKbEditorSection } from '@/config/contextualGuides'
 import { useChatResourcesStore } from '@/stores/chatResources'
@@ -362,6 +364,7 @@ watch(
 
 // 模型列表数据
 const allModels = ref<ModelConfig[]>([])
+const copyingModelId = ref<string | null>(null)
 
 // 后端 type → 前端分组 type 的映射
 const backendTypeToModelType: Record<string, ModelType> = {
@@ -865,11 +868,8 @@ const getModelOptions = (type: ModelType, model: any) => {
     return options
   }
 
-  // Models are tenant-wide infrastructure (LLM credentials); the
-  // backend gates every mutation behind Admin+ (see RegisterModelRoutes).
-  // Non-Admins get an empty action menu — viewing is fine, but editing,
-  // copying (also goes through createModel), and deleting are not.
-  if (!authStore.hasRole('admin')) {
+  // Match the backend ownership check for personal and tenant models.
+  if (!canManageModel(model)) {
     return options
   }
 
@@ -897,23 +897,10 @@ const handleMenuAction = (data: { value: string }, type: ModelType, model: any) 
   }
 }
 
-// 生成不重复的复制名称
-const generateCopyName = (originalName: string): string => {
-  const suffix = t('modelSettings.copySuffix')
-  const existingNames = new Set(allModels.value.map(m => m.name))
-  let candidate = `${originalName}${suffix}`
-  let counter = 2
-  while (existingNames.has(candidate)) {
-    candidate = `${originalName}${suffix} ${counter}`
-    counter += 1
-  }
-  return candidate
-}
-
-// 复制模型
+// 复制模型。name 与凭证由服务端从源记录复制；这里只生成不重复的展示名。
 const copyModel = async (_type: ModelType, modelId: string) => {
   const source = allModels.value.find(m => m.id === modelId)
-  if (!source) {
+  if (!source?.id || copyingModelId.value) {
     return
   }
   if (source.is_builtin) {
@@ -921,22 +908,21 @@ const copyModel = async (_type: ModelType, modelId: string) => {
     return
   }
 
+  copyingModelId.value = modelId
   try {
-    const newModel: ModelConfig = {
-      name: generateCopyName(source.name),
-      display_name: source.display_name || '',
-      type: source.type,
-      source: source.source,
-      description: source.description || '',
-      parameters: JSON.parse(JSON.stringify(source.parameters || {}))
-    }
-
-    await createModel(newModel)
+    const displayName = generateCopyDisplayName(
+      modelCopyLabel(source),
+      allModels.value.map(model => modelCopyLabel(model)),
+      t('modelSettings.copySuffix'),
+    )
+    await copyModelConfig(source.id, displayName)
     MessagePlugin.success(t('modelSettings.toasts.copied'))
     await loadModels()
   } catch (error: any) {
     console.error('复制模型失败:', error)
     MessagePlugin.error(error.message || t('modelSettings.toasts.copyFailed'))
+  } finally {
+    copyingModelId.value = null
   }
 }
 
