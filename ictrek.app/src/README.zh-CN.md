@@ -98,7 +98,7 @@ QA、VLM 和 embedding 模型行使用 Ollama 原生 `11434/v1`；ReRank 通过�
 
 默认模型名固定为 `qwen3.5:2b`、`bge-m3` 和 `qllama/bge-reranker-v2-m3:q8_0`，不再作为 HybRAG 安装参数暴露。ReRank 只进入默认模型列表，不会自动绑定到知识库 `rerank_model_id`。模型下载、预热、上下文和并发由 Model Hub 配置；运行后也可以在 HybRAG UI 中添加或修改其他模型。
 
-Ollama Qwen3.5 关闭思考使用 `thinking_control=think`，请求会发送顶层 `think:false`。vLLM / generic Qwen3.5 关闭思考使用 `thinking_control=chat_template_kwargs`，请求会发送 `chat_template_kwargs.enable_thinking=false`。
+默认 QA、VLM 使用 `thinking_control=reasoning_effort`，显式关闭思考时向 Ollama 原生 `11434/v1` 发送 `reasoning_effort:"none"`；未指定偏好时保留后端默认值，OCR 调用也遵循此规则。vLLM / generic Qwen3.5 关闭思考使用 `thinking_control=chat_template_kwargs`，请求会发送 `chat_template_kwargs.enable_thinking=false`。
 
 启动时，HybRAG 会等待 Model Hub 两个 Ollama 的 `/v1/models` 可访问后再触发失败文档补交。打开页面会检查默认模型，缺失时通过 Model Hub 发起下载并显示进度。默认按 QA 总槽位 `8`、聊天预留 `2`、后台共享 `6` 调度；embedding 后台使用 `2`；ReRank worker 按 Model Hub 配置提供 `2` 个槽位。
 

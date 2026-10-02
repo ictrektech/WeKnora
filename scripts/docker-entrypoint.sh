@@ -75,7 +75,7 @@ builtin_models:
       provider: generic
       supports_vision: true
       extra_config:
-        thinking_control: think
+        thinking_control: reasoning_effort
 
   - id: hybrag-ollama-qwen35-2b-vlm
     type: VLLM
@@ -89,7 +89,7 @@ builtin_models:
       provider: generic
       supports_vision: true
       extra_config:
-        thinking_control: think
+        thinking_control: reasoning_effort
 
   - id: hybrag-ollama-bge-m3-embedding
     type: Embedding

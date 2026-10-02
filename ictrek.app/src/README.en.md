@@ -90,7 +90,7 @@ The app container entrypoint generates four YAML-managed model rows at runtime:
 
 The default model names are fixed to `qwen3.5:2b`, `bge-m3`, and `qllama/bge-reranker-v2-m3:q8_0` in the HybRAG package. ReRank is added only to the default model list; it is not automatically assigned to knowledge base `rerank_model_id`. Model download, prewarm, context size, and Ollama concurrency are configured in Model Hub, not in the HybRAG install form.
 
-QA, VLM, and embedding use the native Ollama `11434/v1` endpoint; reranking uses `11434/api/embed`. Downloads and progress use the Model Hub management API.
+QA, VLM, and embedding use the native Ollama `11434/v1` endpoint; reranking uses `11434/api/embed`. Downloads and progress use the Model Hub management API. Default QA and VLM models use `thinking_control=reasoning_effort`: explicit off sends `reasoning_effort:"none"`; unspecified requests, including OCR, retain the backend default.
 
 Model Hub manages model storage, download tasks, and Ollama concurrency. When HybRAG opens, it requests missing default models through Model Hub and displays task progress. The rerank worker provides two slots by default.
 

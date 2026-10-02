@@ -340,7 +340,7 @@ VOS 安装包不会放额外 `config/` 目录。App 容器启动脚本会在运�
 
 模型复制的权限、凭证处理及个人归属规则见 [用户指南](docs/USERGUIDE.md#共享模型与个人模型)。
 
-按推理后端选择 `extra_config.thinking_control`。Ollama 的 `think` 与旧 `reasoning_effort` 配置已在当前源码中恢复兼容，无需迁移模型行；运行镜像须包含修复。准确的请求格式、开关边界和历史问题恢复步骤见 [思考参数兼容](docs/vos-ollama-prewarm.md#思考参数兼容当前源码已实现)。
+默认 QA、VLM 使用 `thinking_control=reasoning_effort`，匹配 Ollama 原生 `11434/v1`；升级后启动应用，会自动更新由配置文件管理的默认模型设置。其他后端按实际接口选择参数。请求格式、失败重试和历史问题恢复步骤见 [思考参数兼容](docs/vos-ollama-prewarm.md#思考参数兼容当前源码已实现)。
 
 Model Hub 下载、预热和原生 Ollama 接口检查见 [docs/vos-ollama-prewarm.md](docs/vos-ollama-prewarm.md)。用户界面操作见 [docs/USERGUIDE.md](docs/USERGUIDE.md)；新会话标题在回答结束后异步生成，输出上限、超时和兜底规则见其中的[快速问答](docs/USERGUIDE.md#11-快速问答)。
 

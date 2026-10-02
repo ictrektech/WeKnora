@@ -45,19 +45,25 @@ ReRank 只进入默认模型列表，不会自动写入知识库 `rerank_model_i
 
 ## 思考参数兼容（当前源码已实现）
 
-`extra_config.thinking_control` 指定 OpenAI 兼容接口的思考开关写法。按实际后端选择；现有模型行无需迁移。该兼容逻辑在上游模型适配重构合并时曾遗漏，运行中的镜像必须包含本次修复才会恢复。
+默认 QA、VLM 模型行已改用 `thinking_control=reasoning_effort`，匹配 Ollama 原生 `11434/v1`。本机 `qwen3.5:2b` / Ollama `0.32.14` 验证中，该接口忽略顶层 `think`，问题生成的 512-token 预算耗在思考上，正文为空。当前源码已修复；运行中的旧镜像仍需升级。
+
+`extra_config.thinking_control` 指定 OpenAI 兼容接口的思考开关写法，须与实际后端匹配：
 
 | 配置值 | 本次请求关闭思考 | 本次请求开启思考 | 适用后端 |
 | --- | --- | --- | --- |
-| `think` | 顶层 `"think": false` | 顶层 `"think": true` | Model Hub Ollama；沿用既有参数格式 |
-| `reasoning_effort` | 顶层 `"reasoning_effort": "none"` | 顶层 `"reasoning_effort": "medium"` | 明确支持这两个值的 OpenAI 兼容接口；沿用旧配置行为 |
+| `reasoning_effort` | 顶层 `"reasoning_effort": "none"` | 顶层 `"reasoning_effort": "medium"` | 当前默认 Ollama `11434/v1`；其他接口须确认支持这两个值 |
+| `think` | 顶层 `"think": false` | 顶层 `"think": true` | 支持此字段的 Model Hub Gateway `11535/v1` |
 | `chat_template_kwargs` | `"chat_template_kwargs": {"enable_thinking": false}` | `"chat_template_kwargs": {"enable_thinking": true}` | 使用此模板参数的 vLLM / generic 后端 |
 
-`think` 和旧 `reasoning_effort` 配置只表达开关，模型能力列表仅提供 `off`、`auto`。请求未指定思考偏好时不发送这些字段，保留后端默认值；流式和非流式请求使用相同映射。它们覆盖供应商默认的思考参数策略，不会同时附加另一种开关或思考预算。
+`think` 和旧 `reasoning_effort` 配置只表达开关，模型能力列表仅提供 `off`、`auto`。未指定思考偏好时不发送开关，保留后端默认值；流式和非流式请求映射相同，不同时附加另一种开关或思考预算。VLM 的 OCR 调用未指定思考偏好，因此本次配置修正不会主动关闭 OCR 思考。其他供应商的适配策略保持原样。
 
-问题生成会显式关闭思考，并使用 512-token 输出上限。网关忽略关闭指令时，模型可能只输出思考内容而没有问题；增加输出上限不能替代参数兼容修复。更新后先验证一个片段的问题生成和推荐接口，再补生成已有文档的问题。升级不会自动补齐历史空结果；空结果的任务失败判定和重试策略不属于本次兼容修复。
+问题生成显式关闭思考，保留 512-token 输出上限。增加上限不能替代正确的开关。空白或解析后零问题的响应现在返回错误，包含 `finish_reason` 和正文长度；手动重生成遇到该错误会保留原有问题。
 
-回归验证覆盖旧配置解析、实际 JSON 请求中的开启/关闭/未指定、流式与非流式、模型编辑后的配置保留，以及其他参数格式的既有测试。远端镜像升级和历史问题补生成仍需单独验证。
+整批生成失败会返回错误，沿用队列最多重试 3 次的策略。部分生成成功且成功结果已保存、索引成功时，日志记录 `partial_failure`、处理追踪记录 `QUESTION_FAILED`，不自动重跑整批；索引失败仍返回错误，触发整批重试。旧的整文档任务采用相同规则。最终失败仍释放子任务计数，文档可以完成解析；解析完成不代表每个片段都有问题。部分失败的片段需手动补生成。
+
+升级后的启动同步会更新 `managed_by=yaml` 的默认模型行；已由管理员接管的模型行需自行检查参数。升级不会自动补齐历史空结果。先验证一个片段能生成问题及会话推荐接口，再补生成已有文档的问题。
+
+回归测试覆盖默认配置与实际请求格式、空输出、整批失败重试、部分成功保留结果、重试耗尽释放计数，以及旧任务兼容。运行镜像升级和历史补生成仍需单独验证。
 
 ## 验证命令
 
@@ -82,6 +88,6 @@ curl -fsS http://model-hub-ollama-rerank:11434/api/embed \
 
 - `model-hub-ollama-qa` 或 `model-hub-ollama-embedding` 解析失败：确认 Model Hub 已安装、容器在 `vos_default` 网络中，并保留这两个服务 alias。
 - HybRAG 模型列表为空：先检查 Model Hub 两个 Ollama 的 `/v1/models`，再检查 App 容器启动日志中默认 `builtin_models.yaml` 是否生成。
-- 聊天一直“正在思考”：先在 Model Hub QA 容器内确认模型是否常驻并有可用槽位，再检查 HybRAG 模型行是否使用 `thinking_control=think`。
+- 聊天一直“正在思考”：先在 Model Hub QA 容器内确认模型是否常驻并有可用槽位，再检查原生 `11434/v1` 模型行是否使用 `thinking_control=reasoning_effort`。
 - 文档解析 embedding 失败：测试 `model-hub-ollama-embedding:11434/v1/embeddings`，确认模型名与 HybRAG 模型行一致。
 - ReRank 不可用：测试 `model-hub-ollama-rerank:11434/api/embed`，确认 `qllama/bge-reranker-v2-m3:q8_0` 已在 Model Hub rerank worker 中下载、常驻并保留可用槽位。

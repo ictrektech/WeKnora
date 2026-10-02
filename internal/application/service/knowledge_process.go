@@ -1934,6 +1934,9 @@ func (s *knowledgeService) processQuestionGenerationForKnowledge(ctx context.Con
 			knowledge.Title, questionCount, customInstructions)
 		if err != nil {
 			llmCallFailed++
+			if qErr == nil {
+				qErr = err
+			}
 			logger.Warnf(ctx, "Failed to generate questions for chunk %s: %v", chunk.ID, err)
 			continue
 		}
@@ -2003,11 +2006,19 @@ func (s *knowledgeService) processQuestionGenerationForKnowledge(ctx context.Con
 		indexBatchAttempted = true
 		if err := retrieveEngine.BatchIndex(ctx, embeddingModel, indexInfoList); err != nil {
 			exitStatus = "index_questions_failed"
+			qErr = err
 			logger.Errorf(ctx, "Failed to index generated questions: %v", err)
 			return fmt.Errorf("failed to index questions: %w", err)
 		}
 		indexBatchSucceeded = true
 		logger.Infof(ctx, "Successfully indexed %d generated questions for knowledge: %s", len(indexInfoList), payload.KnowledgeID)
+	}
+	if llmCallFailed > 0 {
+		exitStatus = "partial_failure"
+		if llmCallSuccess == 0 {
+			exitStatus = "generate_questions_failed"
+			return qErr
+		}
 	}
 
 	return nil
@@ -2274,6 +2285,9 @@ func (s *knowledgeService) processQuestionGenerationForChunks(ctx context.Contex
 			customInstructions)
 		if gerr != nil {
 			llmCallFailed++
+			if qErr == nil {
+				qErr = gerr
+			}
 			logger.Warnf(ctx, "Failed to generate questions for chunk %s: %v", chunk.ID, gerr)
 			continue
 		}
@@ -2336,6 +2350,13 @@ func (s *knowledgeService) processQuestionGenerationForChunks(ctx context.Contex
 		indexBatchSucceeded = true
 		logger.Infof(ctx, "Indexed %d generated questions for knowledge=%s batch=%d",
 			len(indexInfoList), payload.KnowledgeID, payload.BatchIndex)
+	}
+	if llmCallFailed > 0 {
+		exitStatus = "partial_failure"
+		if chunksProcessed == 0 {
+			exitStatus = "generate_questions_failed"
+			return qErr
+		}
 	}
 	return nil
 }
@@ -2416,6 +2437,10 @@ func (s *knowledgeService) generateQuestionsWithContext(ctx context.Context,
 		}
 	}
 
+	if len(questions) == 0 {
+		return nil, fmt.Errorf("question generation returned no usable questions (finish_reason=%s, content_length=%d)",
+			response.FinishReason, len(response.Content))
+	}
 	return questions, nil
 }
 
