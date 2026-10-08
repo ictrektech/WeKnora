@@ -285,7 +285,8 @@ verify_app_image_migrations() (
 
   local ready=0
   for _ in {1..60}; do
-    if docker exec "$postgres_container" pg_isready -U postgres -d weknora_migration_test >/dev/null 2>&1; then
+    # The entrypoint's temporary initialization server accepts Unix sockets only.
+    if docker exec "$postgres_container" pg_isready -h 127.0.0.1 -U postgres -d weknora_migration_test >/dev/null 2>&1; then
       ready=1
       break
     fi
