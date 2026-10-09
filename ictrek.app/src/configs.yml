@@ -1,4 +1,18 @@
 configs:
+- name: WEKNORA_LANGUAGE
+  type: string
+  title:
+    zh-CN: 文档生成语言
+    en: Document Generation Language
+  description:
+    zh-CN: 默认留空，文档摘要和问题生成跟随当前界面语言：英文界面使用英文，中文界面使用中文。填写 `zh-CN`、`en-US` 等值可固定生成语言。直接调用接口时，留空则采用 `Accept-Language` 请求头中的语言；只有请求未携带该语言头时，才默认使用中文（`zh-CN`）。
+    en: >-
+      Leave blank to generate document summaries and questions in the current interface
+      language: English for an English interface, Chinese for a Chinese interface.
+      Set `zh-CN`, `en-US`, or another language tag to use a fixed language. For direct
+      API calls, a blank setting uses the `Accept-Language` header; Chinese (`zh-CN`)
+      is the fallback only when that header is absent.
+  default: ''
 - name: WEKNORA_DB_HOST
   type: string
   title:

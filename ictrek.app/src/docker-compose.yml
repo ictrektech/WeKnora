@@ -63,7 +63,7 @@ x-hybrag-docreader-base:
 x-hybrag-app-env: &id001
   GIN_MODE: ${GIN_MODE:-release}
   TZ: ${TZ:-Asia/Shanghai}
-  WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
+  WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-}
   DB_DRIVER: postgres
   DB_HOST: ${WEKNORA_DB_HOST:-shared-pgv}
   DB_PORT: ${WEKNORA_DB_PORT:-5432}
@@ -242,7 +242,7 @@ services:
     environment:
       GIN_MODE: ${GIN_MODE:-release}
       TZ: ${TZ:-Asia/Shanghai}
-      WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
+      WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-}
       DB_DRIVER: postgres
       DB_HOST: ${WEKNORA_DB_HOST:-shared-pgv}
       DB_PORT: ${WEKNORA_DB_PORT:-5432}
@@ -350,7 +350,7 @@ services:
     environment:
       GIN_MODE: ${GIN_MODE:-release}
       TZ: ${TZ:-Asia/Shanghai}
-      WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-zh-CN}
+      WEKNORA_LANGUAGE: ${WEKNORA_LANGUAGE:-}
       DB_DRIVER: postgres
       DB_HOST: ${WEKNORA_DB_HOST:-shared-pgv}
       DB_PORT: ${WEKNORA_DB_PORT:-5432}

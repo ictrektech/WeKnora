@@ -1,28 +1,32 @@
 # HybRAG
 
-本文档与 `README.zh-CN.md` 保持同一套部署说明。当前 VOS 包默认复用 Model Hub 已预热并常驻的两个 Ollama 运行时，不再启动 HybRAG 自己的 Ollama 容器。
+This document covers the same deployment instructions as `README.zh-CN.md`. The VOS package reuses Model Hub's two prewarmed Ollama runtimes, which stay running, instead of starting HybRAG's own Ollama containers.
 
-## 组件
+## Components
 
-- HybRAG Web 前端
+- HybRAG Web frontend
 - HybRAG App API
-- DocReader 文档解析服务
-- Agent Skills sandbox 镜像
+- DocReader document parsing service
+- Agent Skills sandbox image
 - Redis
-- Neo4j 知识图谱数据库
-- 外部 PGV/Postgres 依赖
-- 外部 Model Hub 依赖
+- Neo4j knowledge graph database
+- External PGV/Postgres dependency
+- External Model Hub dependency
 
-## 依赖
+## Dependencies
 
-`manifest.yml` 要求：
+`manifest.yml` requires:
 
 - `com.ictrek.model-hub >= 0.0.54`: provides Ollama runtimes with native OpenAI-compatible `/v1/*` and Ollama `/api/*` endpoints on port `11434`.
-- `com.ictrek.pgv >= 0.0.21`：最低兼容版本；提供 `shared-pgv:5432` Postgres/pgvector 服务。
+- `com.ictrek.pgv >= 0.0.21`: minimum compatible version; provides the Postgres/pgvector service at `shared-pgv:5432`.
 
-HybRAG 的 `docker-compose.yml` 不启动 Model Hub 或 Postgres。
+HybRAG's `docker-compose.yml` does not start Model Hub or Postgres.
 
 VOS assigns HybRAG's private `VOS_APP_STORAGE_PATH`; the package stores files, DocReader intermediates, Redis data, and Neo4j data in `files/`, `docreader/`, `redis/`, and `neo4j/` below that root. These private paths are not shown in the install form. Docker sandbox uses the fixed host socket `/var/run/docker.sock`.
+
+## Application Config
+
+Implemented in the installation template: "Document Generation Language" sets `WEKNORA_LANGUAGE`, a `string` that defaults to empty. Leave it blank to follow `Accept-Language` (the request's preferred language); requests without that header fall back to `zh-CN`. Set `zh-CN`, `en-US`, or another language tag to specify the language for document summaries and generated questions. A non-empty value also overrides the request language for built-in agent names and descriptions. Configuration changes take effect for new tasks after recreating the backend container; existing generated content is unchanged.
 
 ## VOS User Identity For Other Apps
 
@@ -77,11 +81,11 @@ HybRAG is currently packaged as a VOS-only app. The frontend no longer shows the
 
 `X-External-User-ID` is not a keyless login mechanism. It only works together with a valid HybRAG API Key for trusted server-side integrations that need end-user session isolation.
 
-## 默认模型
+## Default Models
 
 The app container entrypoint generates four YAML-managed model rows at runtime:
 
-| 类型 | display_name | endpoint | 默认模型 |
+| Type | display_name | endpoint | Default model |
 | --- | --- | --- | --- |
 | KnowledgeQA | `Model Hub Ollama QA (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11434/v1` | `qwen3.5:2b` |
 | VLLM | `Model Hub Ollama VLM (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11434/v1` | `qwen3.5:2b` |
@@ -94,6 +98,6 @@ QA, VLM, and embedding use the native Ollama `11434/v1` endpoint; reranking uses
 
 Model Hub manages model storage, download tasks, and Ollama concurrency. When HybRAG opens, it requests missing default models through Model Hub and displays task progress. The rerank worker provides two slots by default.
 
-## 排错
+## Troubleshooting
 
-详细预热、常驻和排错说明见 `ictrek.app/docs/vos-ollama-prewarm.md`。
+For detailed instructions on prewarming, keeping models loaded, and troubleshooting, see `ictrek.app/docs/vos-ollama-prewarm.md` in the repository.

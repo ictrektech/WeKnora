@@ -18,6 +18,8 @@ HybRAG 是企业知识库、RAG 问答、Wiki 知识图谱和智能体平台。�
 
 ## 安装配置
 
+已实现（安装模板）：Application Config（安装参数）中的“文档生成语言”对应 `WEKNORA_LANGUAGE`，类型为 `string`，默认留空。留空时跟随 `Accept-Language`（请求中的语言偏好），未提供该请求头时回退到 `zh-CN`；填写 `zh-CN`、`en-US` 等值可指定文档摘要和问题生成的语言。非空值也会覆盖内置智能体名称和描述的请求语言。修改配置并重建后端容器后对新任务生效，已生成内容不会自动改变。
+
 安装 UI 不再要求选择 HybRAG 私有数据路径。VOS 自动分配 `VOS_APP_STORAGE_PATH`，运行数据分别写入其 `files`、`docreader`、`redis`、`neo4j` 子目录；模型下载、预热、常驻和 Ollama 资源参数由依赖的 Model Hub 应用管理。Docker sandbox 固定挂载宿主机 `/var/run/docker.sock`，不允许在安装表单中改写。
 
 Postgres 通过 PGV 提供，默认连接 `shared-pgv:5432`，用户/密码/数据库为 `weknora` / `weknora` / `WeKnora`。这些字段也会在安装 UI 中暴露；如果 PGV 安装时改过用户名、密码或数据库名，需要在 HybRAG 安装表单里同步修改。
