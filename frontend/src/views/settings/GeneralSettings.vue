@@ -19,8 +19,9 @@
             @change="handleLanguageChange"
             style="width: 280px;"
           >
-            <t-option v-if="vosApp" value="auto" :label="$t('language.followVos')">{{ $t('language.followVos') }}</t-option>
+            <t-option value="auto" :label="$t('language.autoBrowserVos')">{{ $t('language.autoBrowserVos') }}</t-option>
             <t-option value="zh-CN" :label="$t('language.zhCN')">{{ $t('language.zhCN') }}</t-option>
+            <t-option value="zh-TW" :label="$t('language.zhTW')">{{ $t('language.zhTW') }}</t-option>
             <t-option value="en-US" :label="$t('language.enUS')">{{ $t('language.enUS') }}</t-option>
             <t-option value="ru-RU" :label="$t('language.ruRU')">{{ $t('language.ruRU') }}</t-option>
             <t-option value="ko-KR" :label="$t('language.koKR')">{{ $t('language.koKR') }}</t-option>
@@ -145,8 +146,8 @@ import { MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/settings'
 import { useAuthStore } from '@/stores/auth'
-import { followsVosLocale, isVosApp, saveAppLocale } from '@/i18n/vosLocale'
-import type { SupportedLocale } from '@/i18n/resolveDefaultLocale'
+import { followsAutomaticLocale, saveAppLocale } from '@/i18n/vosLocale'
+import { resolveDefaultLocale, type SupportedLocale } from '@/i18n/resolveDefaultLocale'
 import { useTheme, type ThemeMode } from '@/composables/useTheme'
 import {
   useFont,
@@ -160,7 +161,6 @@ import {
 } from '@/composables/useFont'
 
 const { t, locale } = useI18n()
-const vosApp = isVosApp()
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
 const { currentTheme, setTheme } = useTheme()
@@ -225,17 +225,21 @@ const isAutoCheckUpdateEnabled = computed({
 
 // 初始化加载
 onMounted(() => {
-  localLanguage.value = followsVosLocale() ? 'auto' : locale.value
+  localLanguage.value = followsAutomaticLocale() ? 'auto' : locale.value
 })
 
 watch(locale, (value) => {
-  if (followsVosLocale()) localLanguage.value = 'auto'
+  if (followsAutomaticLocale()) localLanguage.value = 'auto'
   else localLanguage.value = value
 })
 
 // 处理语言变化
 const handleLanguageChange = () => {
-  locale.value = saveAppLocale(localLanguage.value as SupportedLocale | 'auto')
+  const deploymentDefault = resolveDefaultLocale(
+    window.__RUNTIME_CONFIG__?.DEFAULT_LOCALE,
+    import.meta.env.VITE_DEFAULT_LOCALE,
+  )
+  locale.value = saveAppLocale(localLanguage.value as SupportedLocale | 'auto', deploymentDefault)
   MessagePlugin.success(t('language.languageSaved'))
 }
 

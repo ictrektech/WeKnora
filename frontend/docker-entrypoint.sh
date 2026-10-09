@@ -9,7 +9,7 @@ fi
 # Only emit whitelisted locale tags to avoid config.js injection from env values.
 RUNTIME_DEFAULT_LOCALE=""
 case "${DEFAULT_LOCALE:-}" in
-  zh-CN|en-US|ru-RU|ko-KR|ja-JP) RUNTIME_DEFAULT_LOCALE="${DEFAULT_LOCALE}" ;;
+  zh-CN|zh-TW|en-US|ru-RU|ko-KR|ja-JP) RUNTIME_DEFAULT_LOCALE="${DEFAULT_LOCALE}" ;;
 esac
 
 RUNTIME_HYBRAG_API_PORT=""

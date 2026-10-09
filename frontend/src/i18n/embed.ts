@@ -1,4 +1,7 @@
 import { createI18n } from 'vue-i18n'
+import { watch } from 'vue'
+import zhTWEmbed from './locales/embed/zh-TW.ts'
+import { normalizeSupportedLocale } from './resolveDefaultLocale.ts'
 
 const messages = {
   "zh-CN": {
@@ -2062,7 +2065,7 @@ const ruEmbedPublish = {
   },
 } as const
 
-export const SUPPORTED_LOCALES = ['zh-CN', 'en-US', 'ko-KR', 'ja-JP', 'ru-RU'] as const
+export const SUPPORTED_LOCALES = ['zh-CN', 'zh-TW', 'en-US', 'ko-KR', 'ja-JP', 'ru-RU'] as const
 export type EmbedLocale = (typeof SUPPORTED_LOCALES)[number]
 
 /** Isolated from the main app `locale` key so embed preview never hijacks admin UI language. */
@@ -2075,7 +2078,7 @@ export function normalizeEmbedLocale(raw: string): EmbedLocale {
   if (s.startsWith('ko')) return 'ko-KR'
   if (s.startsWith('ja')) return 'ja-JP'
   if (s.startsWith('ru')) return 'ru-RU'
-  if (s.startsWith('zh')) return 'zh-CN'
+  if (s.startsWith('zh')) return normalizeSupportedLocale(s) || 'zh-CN'
   const exact = SUPPORTED_LOCALES.find((l) => l.toLowerCase() === s)
   return exact || 'zh-CN'
 }
@@ -2086,7 +2089,7 @@ export function readEmbedLocaleFromUrl(): string {
 }
 
 function resolveBrowserEmbedLocale(): EmbedLocale {
-  const nav = typeof navigator !== 'undefined' ? navigator.language : ''
+  const nav = typeof navigator !== 'undefined' ? navigator.languages?.[0] || navigator.language : ''
   return nav ? normalizeEmbedLocale(nav) : 'zh-CN'
 }
 
@@ -2107,9 +2110,11 @@ function resolveInitialEmbedLocale(): EmbedLocale {
 }
 
 const locale = resolveInitialEmbedLocale()
+if (typeof document !== 'undefined') document.documentElement.lang = locale
 
 export const EMBED_MESSAGES = {
   'zh-CN': messages['zh-CN'],
+  'zh-TW': zhTWEmbed,
   'en-US': messages['en-US'],
   'ko-KR': deepMerge(messages['en-US'], koEmbedPublish),
   'ja-JP': messages['ja-JP'],
@@ -2124,6 +2129,10 @@ const i18n = createI18n({
   warnHtmlMessage: false,
   messages: EMBED_MESSAGES,
 })
+
+watch(i18n.global.locale, (locale) => {
+  if (typeof document !== 'undefined') document.documentElement.lang = locale
+}, { immediate: true })
 
 type LocaleRef = { value: string }
 

@@ -1,4 +1,5 @@
 <template>
+  <t-config-provider :globalConfig="tdGlobalConfig">
   <div class="embed-page" :style="pageStyle">
     <div v-if="loadError" class="embed-error">{{ loadError }}</div>
     <template v-else-if="config">
@@ -50,17 +51,33 @@
     <div v-else-if="awaitingToken" class="embed-loading">{{ $t('embedPublish.awaitingToken') }}</div>
     <div v-else-if="bootstrapping" class="embed-loading">{{ $t('embedPublish.loading') }}</div>
   </div>
+  </t-config-provider>
 </template>
 
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import enUSConfig from 'tdesign-vue-next/esm/locale/en_US'
+import zhCNConfig from 'tdesign-vue-next/esm/locale/zh_CN'
+import zhTWConfig from 'tdesign-vue-next/esm/locale/zh_TW'
+import koKRConfig from 'tdesign-vue-next/esm/locale/ko_KR'
+import jaJPConfig from 'tdesign-vue-next/esm/locale/ja_JP'
+import ruRUConfig from 'tdesign-vue-next/esm/locale/ru_RU'
 import EmbedChatView from '@/views/embed/EmbedChatView.vue'
 import { useEmbedBridge } from '@/composables/useEmbedBridge'
 import { setDefaultProtectedFileAccess } from '@/utils/protectedFileAccess'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const tdLocaleMap: Record<string, object> = {
+  'en-US': enUSConfig,
+  'zh-CN': zhCNConfig,
+  'zh-TW': zhTWConfig,
+  'ko-KR': koKRConfig,
+  'ja-JP': jaJPConfig,
+  'ru-RU': ruRUConfig,
+}
+const tdGlobalConfig = computed(() => tdLocaleMap[locale.value] || enUSConfig)
 const route = useRoute()
 const channelId = ref(String(route.params.channelId || ''))
 const sessionTitle = ref('')

@@ -2944,6 +2944,7 @@ export default {
   },
   language: {
     zhCN: '简体中文',
+    zhTW: '繁體中文（台灣）',
     enUS: 'English',
     ruRU: 'Русский',
     koKR: '한국어',
@@ -2952,7 +2953,7 @@ export default {
     language: '语言',
     languageDescription: '选择界面显示语言',
     languageSaved: '语言设置已保存',
-    followVos: '跟随 VOS 语言',
+    autoBrowserVos: '自动（浏览器／VOS）',
   },
   model: {
     reasoning: {

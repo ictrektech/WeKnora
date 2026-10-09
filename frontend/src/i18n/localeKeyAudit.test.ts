@@ -51,6 +51,27 @@ test('critical runtime i18n trees are present', () => {
   assert.deepEqual(missing, [], missing.join('\n'))
 })
 
+test('Traditional Chinese keeps Taiwan terminology and interpolation placeholders', () => {
+  const zhCN = LOCALE_BUNDLES['zh-CN'] as Record<string, unknown>
+  const zhTW = LOCALE_BUNDLES['zh-TW'] as Record<string, unknown>
+  assert.equal(getLocaleValueAtPath(zhTW, 'language.zhTW'), '繁體中文（台灣）')
+  assert.equal(getLocaleValueAtPath(zhTW, 'language.autoBrowserVos'), '自動（瀏覽器／VOS）')
+  assert.equal(getLocaleValueAtPath(zhTW, 'modelCatalog.import'), '匯入 JSON')
+  assert.equal(getLocaleValueAtPath(zhTW, 'auth.login'), '登入')
+
+  const mismatches: string[] = []
+  for (const key of localeKeysByName['zh-CN']) {
+    const source = getLocaleValueAtPath(zhCN, key)
+    const translated = getLocaleValueAtPath(zhTW, key)
+    if (typeof source !== 'string' || typeof translated !== 'string') continue
+    const placeholders = (value: string) => [...value.matchAll(/\{[^{}]+\}/g)].map(([part]) => part).sort()
+    if (JSON.stringify(placeholders(source)) !== JSON.stringify(placeholders(translated))) {
+      mismatches.push(key)
+    }
+  }
+  assert.deepEqual(mismatches, [], mismatches.slice(0, 20).join('\n'))
+})
+
 test('installer command progress messages resolve in the settings namespace', () => {
   for (const [locale, bundle] of Object.entries(LOCALE_BUNDLES)) {
     for (const name of ['installCommandRunning', 'installCommandWaiting']) {

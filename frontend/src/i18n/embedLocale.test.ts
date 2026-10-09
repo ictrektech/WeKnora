@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  applyEmbedLocale,
   EMBED_MESSAGES,
+  EMBED_LOCALE_STORAGE_KEY,
   normalizeEmbedLocale,
   SUPPORTED_LOCALES,
 } from './embed.ts'
@@ -26,8 +28,8 @@ const EXPECTED_REFERENCES_DRAWER_KEYS = [
   'referencesDrawerEmpty',
 ] as const
 
-test('supported embed locales include zh-CN, en-US, ko-KR, ja-JP, ru-RU', () => {
-  assert.deepEqual([...SUPPORTED_LOCALES].sort(), ['en-US', 'ja-JP', 'ko-KR', 'ru-RU', 'zh-CN'].sort())
+test('supported embed locales include zh-CN, zh-TW, en-US, ko-KR, ja-JP, ru-RU', () => {
+  assert.deepEqual([...SUPPORTED_LOCALES].sort(), ['en-US', 'ja-JP', 'ko-KR', 'ru-RU', 'zh-CN', 'zh-TW'].sort())
 })
 
 test('every supported locale defines conversationTime and referencesDrawer in chat', () => {
@@ -102,6 +104,13 @@ test('locale-specific translations match expected strings for missing keys', () 
   assert.equal(zhChat.referencesDrawerEmpty, '暂无参考来源')
   assert.equal(zhCommon.close, '关闭')
 
+  const zhTWChat = EMBED_MESSAGES['zh-TW'].chat as Record<string, any>
+  const zhTWCommon = EMBED_MESSAGES['zh-TW'].common as Record<string, any>
+  assert.equal(zhTWChat.conversationTime.today, '今天 {time}')
+  assert.equal(zhTWChat.referencesDrawerTitleDocs, '文件來源')
+  assert.equal(zhTWChat.referencesDrawerEmpty, '暫無參考來源')
+  assert.equal(zhTWCommon.close, '關閉')
+
   // en-US
   const enChat = EMBED_MESSAGES['en-US'].chat as Record<string, any>
   const enCommon = EMBED_MESSAGES['en-US'].common as Record<string, any>
@@ -147,6 +156,10 @@ test('locale-specific translations match expected strings for missing keys', () 
 
 test('normalizeEmbedLocale maps tags accurately with fallback to zh-CN', () => {
   assert.equal(normalizeEmbedLocale('zh-CN'), 'zh-CN')
+  assert.equal(normalizeEmbedLocale('zh-TW'), 'zh-TW')
+  assert.equal(normalizeEmbedLocale('zh-HK'), 'zh-TW')
+  assert.equal(normalizeEmbedLocale('zh-Hant'), 'zh-TW')
+  assert.equal(normalizeEmbedLocale('zh-Hans-TW'), 'zh-CN')
   assert.equal(normalizeEmbedLocale('zh'), 'zh-CN')
   assert.equal(normalizeEmbedLocale('ZH-cn'), 'zh-CN')
   assert.equal(normalizeEmbedLocale('en-US'), 'en-US')
@@ -160,4 +173,25 @@ test('normalizeEmbedLocale maps tags accurately with fallback to zh-CN', () => {
   assert.equal(normalizeEmbedLocale('ru'), 'ru-RU')
   assert.equal(normalizeEmbedLocale('unknown-locale'), 'zh-CN')
   assert.equal(normalizeEmbedLocale('   '), 'zh-CN')
+})
+
+test('embed locale persistence does not change the main app locale', () => {
+  const oldStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  const values = new Map<string, string>()
+  const storage = {
+    getItem(key: string) { return values.get(key) ?? null },
+    setItem(key: string, value: string) { values.set(key, value) },
+  }
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage })
+  try {
+    storage.setItem('locale', 'en-US')
+    const locale = { value: 'zh-CN' }
+    applyEmbedLocale('zh-HK', locale)
+    assert.equal(storage.getItem(EMBED_LOCALE_STORAGE_KEY), 'zh-TW')
+    assert.equal(storage.getItem('locale'), 'en-US')
+    assert.equal(locale.value, 'zh-TW')
+  } finally {
+    if (oldStorage) Object.defineProperty(globalThis, 'localStorage', oldStorage)
+    else Reflect.deleteProperty(globalThis, 'localStorage')
+  }
 })

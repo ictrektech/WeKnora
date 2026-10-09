@@ -1,11 +1,19 @@
-import { BUILT_IN_DEFAULT, SUPPORTED_LOCALES, type SupportedLocale } from './resolveDefaultLocale'
+import {
+  browserTraditionalLocale,
+  BUILT_IN_DEFAULT,
+  normalizeSupportedLocale,
+  type SupportedLocale,
+} from './resolveDefaultLocale'
 
 const VOS_LOCALE_KEY = 'preferences-locale'
 const VOS_LOCALE_PREFIXES = ['VIVIBIT-', 'vben-web-antd-']
-const MODE_KEY = 'weknora-locale-mode'
 
-function supported(value: unknown): value is SupportedLocale {
-  return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value)
+function normalize(value: unknown): SupportedLocale | null {
+  return typeof value === 'string' ? normalizeSupportedLocale(value) : null
+}
+
+function manualLocale(): SupportedLocale | null {
+  return normalize(localStorage.getItem('locale'))
 }
 
 export function isVosApp(): boolean {
@@ -41,29 +49,38 @@ function parseStoredLocale(stored: string | null): SupportedLocale | null {
   try {
     const value = JSON.parse(stored)
     const locale = value?.value ?? value
-    return supported(locale) ? locale : null
+    return normalize(locale)
   } catch {
     return null
   }
 }
 
 export function followsVosLocale(): boolean {
-  return isVosApp() && localStorage.getItem(MODE_KEY) !== 'manual'
+  return isVosApp() && !manualLocale() && !browserTraditionalLocale()
+}
+
+export function followsAutomaticLocale(): boolean {
+  return !manualLocale()
 }
 
 export function initialAppLocale(deploymentDefault: SupportedLocale): SupportedLocale {
+  const manual = manualLocale()
+  if (manual) return manual
+  const browserLocale = browserTraditionalLocale()
+  if (browserLocale) return browserLocale
   const vosLocale = followsVosLocale() ? readVosLocale() : null
   if (vosLocale) return vosLocale
-  const saved = localStorage.getItem('locale')
-  return supported(saved) ? saved : deploymentDefault || BUILT_IN_DEFAULT
+  return deploymentDefault || BUILT_IN_DEFAULT
 }
 
-export function saveAppLocale(locale: SupportedLocale | 'auto'): SupportedLocale {
+export function saveAppLocale(
+  locale: SupportedLocale | 'auto',
+  deploymentDefault: SupportedLocale = BUILT_IN_DEFAULT,
+): SupportedLocale {
   if (locale === 'auto') {
-    localStorage.removeItem(MODE_KEY)
-    return readVosLocale() || initialAppLocale(BUILT_IN_DEFAULT)
+    localStorage.removeItem('locale')
+    return initialAppLocale(deploymentDefault)
   }
-  localStorage.setItem(MODE_KEY, 'manual')
   localStorage.setItem('locale', locale)
   return locale
 }

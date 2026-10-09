@@ -2942,6 +2942,7 @@ export default {
   },
   language: {
     zhCN: '简体中文',
+    zhTW: '번체 중국어(대만)',
     enUS: 'English',
     ruRU: 'Русский',
     koKR: '한국어',
@@ -2950,7 +2951,7 @@ export default {
     language: '언어',
     languageDescription: '인터페이스 표시 언어 선택',
     languageSaved: '언어 설정이 저장되었습니다',
-    followVos: 'VOS 언어 따르기',
+    autoBrowserVos: '자동(브라우저/VOS)',
   },
   model: {
     reasoning: {

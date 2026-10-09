@@ -375,6 +375,7 @@ import {
 } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
+import { saveAppLocale } from '@/i18n/vosLocale'
 import { getVOSAccessTokenForIframeSSO } from '@/utils/vos-sso'
 import { acquireVOSFastpathToken, clearVOSFastpathFailed } from '@/utils/vos-fastpath'
 import type { VOSFastpathTokenSet } from '@/utils/vos-fastpath'
@@ -477,6 +478,7 @@ const inviteLookupLoading = ref(false)
 // Language options
 const languageOptions = [
   { value: 'zh-CN', label: '简体中文', shortLabel: '中文', flag: '🇨🇳' },
+  { value: 'zh-TW', label: '繁體中文（台灣）', shortLabel: '繁體中文', flag: '🇹🇼' },
   { value: 'en-US', label: 'English', shortLabel: 'EN', flag: '🇺🇸' },
   { value: 'ru-RU', label: 'Русский', shortLabel: 'RU', flag: '🇷🇺' },
   { value: 'ko-KR', label: '한국어', shortLabel: '한국어', flag: '🇰🇷' },
@@ -562,8 +564,7 @@ const toggleLanguageMenu = () => {
 
 // Select language
 const selectLanguage = (lang: string) => {
-  locale.value = lang
-  localStorage.setItem('locale', lang)
+  locale.value = saveAppLocale(lang as 'zh-CN' | 'zh-TW' | 'en-US' | 'ru-RU' | 'ko-KR' | 'ja-JP')
   showLanguageMenu.value = false
   MessagePlugin.success(t('language.languageSaved'))
 }

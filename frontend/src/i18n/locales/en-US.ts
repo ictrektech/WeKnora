@@ -5363,6 +5363,7 @@ export default {
   },
   language: {
     zhCN: '简体中文',
+    zhTW: 'Traditional Chinese (Taiwan)',
     enUS: 'English',
     ruRU: 'Русский',
     koKR: '한국어',
@@ -5371,7 +5372,7 @@ export default {
     language: 'Language',
     languageDescription: 'Select interface display language',
     languageSaved: 'Language settings saved',
-    followVos: 'Follow VOS language',
+    autoBrowserVos: 'Automatic (browser / VOS)',
   },
   general: {
     title: 'General Settings',
