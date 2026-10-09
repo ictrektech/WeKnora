@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { browserTraditionalLocale, BUILT_IN_DEFAULT, resolveDefaultLocale } from './resolveDefaultLocale.ts'
+import { browserPreferredLocale, BUILT_IN_DEFAULT, resolveDefaultLocale } from './resolveDefaultLocale.ts'
 
 test('resolveDefaultLocale prefers runtime over build-time default', () => {
   assert.equal(resolveDefaultLocale('en-US', 'ru-RU'), 'en-US')
@@ -32,9 +32,16 @@ test('resolveDefaultLocale accepts traditional Chinese tags and Hans stays simpl
   }
 })
 
-test('browserTraditionalLocale follows the preferred browser tag only', () => {
-  assert.equal(browserTraditionalLocale(['zh-TW', 'en-US']), 'zh-TW')
-  assert.equal(browserTraditionalLocale(['zh-Hant-HK']), 'zh-TW')
-  assert.equal(browserTraditionalLocale(['zh-Hans-TW']), null)
-  assert.equal(browserTraditionalLocale(['en-US', 'zh-TW']), null)
+test('browserPreferredLocale resolves the first supported browser language', () => {
+  assert.equal(browserPreferredLocale(['en-US', 'zh-TW']), 'en-US')
+  assert.equal(browserPreferredLocale(['en']), 'en-US')
+  assert.equal(browserPreferredLocale(['en-GB']), 'en-US')
+  assert.equal(browserPreferredLocale(['ja']), 'ja-JP')
+  assert.equal(browserPreferredLocale(['ko']), 'ko-KR')
+  assert.equal(browserPreferredLocale(['ru']), 'ru-RU')
+  assert.equal(browserPreferredLocale(['zh-TW', 'en-US']), 'zh-TW')
+  assert.equal(browserPreferredLocale(['zh-Hant-HK']), 'zh-TW')
+  assert.equal(browserPreferredLocale(['zh-Hans-TW']), 'zh-CN')
+  assert.equal(browserPreferredLocale(['fr-FR', 'en-US']), 'en-US')
+  assert.equal(browserPreferredLocale(['fr-FR']), null)
 })

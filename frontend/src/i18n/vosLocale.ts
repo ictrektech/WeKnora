@@ -1,5 +1,5 @@
 import {
-  browserTraditionalLocale,
+  browserPreferredLocale,
   BUILT_IN_DEFAULT,
   normalizeSupportedLocale,
   type SupportedLocale,
@@ -56,7 +56,7 @@ function parseStoredLocale(stored: string | null): SupportedLocale | null {
 }
 
 export function followsVosLocale(): boolean {
-  return isVosApp() && !manualLocale() && !browserTraditionalLocale()
+  return isVosApp() && !manualLocale() && !browserPreferredLocale()
 }
 
 export function followsAutomaticLocale(): boolean {
@@ -66,7 +66,7 @@ export function followsAutomaticLocale(): boolean {
 export function initialAppLocale(deploymentDefault: SupportedLocale): SupportedLocale {
   const manual = manualLocale()
   if (manual) return manual
-  const browserLocale = browserTraditionalLocale()
+  const browserLocale = browserPreferredLocale()
   if (browserLocale) return browserLocale
   const vosLocale = followsVosLocale() ? readVosLocale() : null
   if (vosLocale) return vosLocale

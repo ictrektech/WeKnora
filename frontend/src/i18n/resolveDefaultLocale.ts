@@ -16,18 +16,20 @@ export function normalizeSupportedLocale(value: string): SupportedLocale | null 
   return null
 }
 
-export function browserTraditionalLocale(languages?: readonly string[]): 'zh-TW' | null {
+export function browserPreferredLocale(languages?: readonly string[]): SupportedLocale | null {
   const preferred = languages ?? (typeof navigator === 'undefined'
     ? []
     : navigator.languages?.length ? navigator.languages : [navigator.language])
-  const tag = preferred.find(Boolean)?.trim().replaceAll('_', '-').toLowerCase()
-  if (!tag || !tag.startsWith('zh-')) return null
-
-  const subtags = tag.split('-')
-  if (subtags.includes('hans')) return null
-  return subtags.includes('hant') || subtags.includes('tw') || subtags.includes('hk') || subtags.includes('mo')
-    ? 'zh-TW'
-    : null
+  for (const tag of preferred) {
+    if (!tag?.trim()) continue
+    const normalized = tag.trim().replaceAll('_', '-')
+    const locale = normalizeSupportedLocale(normalized)
+    if (locale) return locale
+    const language = normalized.split('-')[0].toLowerCase()
+    const fallback = SUPPORTED_LOCALES.find((supported) => supported.split('-')[0] === language)
+    if (fallback) return fallback
+  }
+  return null
 }
 
 /** Resolve deployment default locale before any user preference is applied. */

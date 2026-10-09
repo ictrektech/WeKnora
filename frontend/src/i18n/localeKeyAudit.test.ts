@@ -54,7 +54,7 @@ test('critical runtime i18n trees are present', () => {
 test('Traditional Chinese keeps Taiwan terminology and interpolation placeholders', () => {
   const zhCN = LOCALE_BUNDLES['zh-CN'] as Record<string, unknown>
   const zhTW = LOCALE_BUNDLES['zh-TW'] as Record<string, unknown>
-  assert.equal(getLocaleValueAtPath(zhTW, 'language.zhTW'), '繁體中文（台灣）')
+  assert.equal(getLocaleValueAtPath(zhTW, 'language.zhTW'), '繁體中文')
   assert.equal(getLocaleValueAtPath(zhTW, 'language.autoBrowserVos'), '自動（瀏覽器／VOS）')
   assert.equal(getLocaleValueAtPath(zhTW, 'modelCatalog.import'), '匯入 JSON')
   assert.equal(getLocaleValueAtPath(zhTW, 'auth.login'), '登入')

@@ -12,6 +12,7 @@ import {
 test('follows the deployed VIVIBIT locale and its storage changes', () => {
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
   const oldStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  const oldNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
   const values = new Map<string, string>()
   const listeners = new Map<string, (event: StorageEvent) => void>()
   const storage = {
@@ -30,6 +31,7 @@ test('follows the deployed VIVIBIT locale and its storage changes', () => {
     },
   })
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage })
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { languages: ['fr-FR'], language: 'fr-FR' } })
 
   try {
     const key = 'VIVIBIT-5.5.9-prod-preferences-locale'
@@ -51,10 +53,12 @@ test('follows the deployed VIVIBIT locale and its storage changes', () => {
     else Reflect.deleteProperty(globalThis, 'window')
     if (oldStorage) Object.defineProperty(globalThis, 'localStorage', oldStorage)
     else Reflect.deleteProperty(globalThis, 'localStorage')
+    if (oldNavigator) Object.defineProperty(globalThis, 'navigator', oldNavigator)
+    else Reflect.deleteProperty(globalThis, 'navigator')
   }
 })
 
-test('browser Traditional Chinese beats VOS until a manual choice, and auto clears it', () => {
+test('browser language beats VOS until a manual choice, and auto clears it', () => {
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
   const oldStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
   const oldNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
@@ -95,6 +99,17 @@ test('browser Traditional Chinese beats VOS until a manual choice, and auto clea
     assert.equal(saveAppLocale('auto'), 'zh-TW')
     assert.equal(storage.getItem('locale'), null)
     assert.equal(initialAppLocale('en-US'), 'zh-TW')
+
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { languages: ['en-US', 'en'], language: 'en-US' } })
+    assert.equal(initialAppLocale('zh-CN'), 'en-US')
+    assert.equal(followsVosLocale(), false)
+    let englishApplied = ''
+    const stopEnglish = listenForVosLocaleChange((locale) => { englishApplied = locale })
+    listeners.get('storage')?.({ key: 'preferences-locale', newValue: JSON.stringify({ value: 'zh-CN' }) } as StorageEvent)
+    assert.equal(englishApplied, '')
+    stopEnglish()
+    assert.equal(saveAppLocale('zh-CN'), 'zh-CN')
+    assert.equal(saveAppLocale('auto'), 'en-US')
   } finally {
     if (oldWindow) Object.defineProperty(globalThis, 'window', oldWindow)
     else Reflect.deleteProperty(globalThis, 'window')
