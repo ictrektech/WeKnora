@@ -91,3 +91,23 @@ func TestDefaultRewritePreservesActionAndOutputConstraints(t *testing.T) {
 	require.NotContains(t, prompt.Content, "must also be a question")
 	require.NotContains(t, prompt.Content, "within 30 words")
 }
+
+func TestChatTemplatesKeepBrandAndFallbackLanguageNeutral(t *testing.T) {
+	pt, err := loadPromptTemplates("../../config")
+	require.NoError(t, err)
+	require.NotNil(t, pt)
+	groups := [][]PromptTemplate{pt.SystemPrompt, pt.AgentSystemPrompt, pt.IntentPrompts, pt.Fallback}
+	for _, group := range groups {
+		for _, template := range group {
+			// Fixed fallback text is returned verbatim, without model generation.
+			if template.Mode != "model" && strings.HasSuffix(template.ID, "fallback") {
+				continue
+			}
+			t.Run(template.ID, func(t *testing.T) {
+				require.NotContains(t, template.Content, "Vivibit AI小助手")
+				require.NotContains(t, template.Content, "ALWAYS respond in {{language}}")
+				require.NotContains(t, template.Content, "Default response language:")
+			})
+		}
+	}
+}

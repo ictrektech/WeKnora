@@ -219,3 +219,22 @@ func fmtBool(value bool) string {
 	}
 	return "off"
 }
+
+func TestAgentLanguagePolicyOverridesLegacyIdentityAndLocale(t *testing.T) {
+	for _, language := range []string{"", "Chinese (Simplified)", "English"} {
+		t.Run(language, func(t *testing.T) {
+			prompt := BuildSystemPromptWithOptions(nil, false,
+				&BuildSystemPromptOptions{Language: language},
+				"You are Vivibit AI小助手.\n- ALWAYS respond in {{language}}")
+			require.Contains(t, prompt, types.SourcedAnswerOutputPrompt)
+			require.Contains(t, prompt, "follow the user's explicit language request first")
+			require.Contains(t, prompt, "language of the latest user request")
+			require.Contains(t, prompt, "translate the assistant-role description")
+			require.NotContains(t, prompt, "ALWAYS respond in")
+			require.NotContains(t, prompt, "by default; follow the user's explicit language")
+			if language != "" {
+				require.Contains(t, prompt, "Fallback response language (only when the user's request language cannot be determined): "+language)
+			}
+		})
+	}
+}

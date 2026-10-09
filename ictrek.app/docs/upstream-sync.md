@@ -259,7 +259,7 @@ Preserve these ictrek decisions unless the operator explicitly changes them:
 - `build_image.sh` remains the ictrek image build and Feishu update entrypoint.
 - `config/builtin_models.yaml` ships no deployment-specific model rows by
   default.
-- prompt templates identify the assistant as `Vivibit AI小助手`.
+- prompt templates use `Vivibit` as the brand name; assistant-role descriptions follow the response language. See [chat language rules](USERGUIDE.md#11-快速问答).
 - login and user menu links point to ictrek/Vivibit destinations.
 - local persistence behavior stays documented and stable. The base
   `docker-compose.yml` must keep `host.docker.internal` in

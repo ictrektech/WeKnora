@@ -41,3 +41,21 @@ func TestNormalizeKnowledgeBasePromptInstructions(t *testing.T) {
 		t.Fatalf("got %q", kb.VLMConfig.CustomInstructions)
 	}
 }
+
+func TestRenderChatPromptUpgradesLegacyLanguageRulesBeforeSourceSubstitution(t *testing.T) {
+	const legacy = "- ALWAYS respond in {{language}}\nDefault response language: {{language}}; follow an explicit request for another language.\n{{contexts}}"
+	const source = "Source quote: - ALWAYS respond in English"
+	got := RenderChatPrompt(legacy, PlaceholderValues{
+		"language": "Chinese (Simplified)", "contexts": source,
+	})
+	if strings.Contains(got, "ALWAYS respond in Chinese (Simplified)") ||
+		strings.Contains(got, "Default response language:") {
+		t.Fatalf("legacy rule still forces the default language: %q", got)
+	}
+	if strings.Count(got, "Fallback response language") != 2 || !strings.HasSuffix(got, source) {
+		t.Fatalf("expected upgraded template rules and unchanged source quote: %q", got)
+	}
+	if got := RenderChatPrompt("{{contexts}}", PlaceholderValues{"contexts": legacy}); got != legacy {
+		t.Fatalf("must not normalize legacy rules found in source data: %q", got)
+	}
+}

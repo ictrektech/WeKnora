@@ -51,6 +51,22 @@ func TestBuildFallbackMessages_PrefersRewriteQuery(t *testing.T) {
 	assert.Equal(t, "混元大模型性能怎么样", last.Content)
 }
 
+func TestBuildFallbackMessagesKeepsLanguagePolicyWithLegacyPrompt(t *testing.T) {
+	cm := &types.ChatManage{}
+	cm.Query = "how are you"
+	cm.Language = "Chinese (Simplified)"
+	cm.FallbackPrompt = "You are Vivibit AI小助手.\n- ALWAYS respond in {{language}}"
+	svc := &sessionService{}
+	prompt, err := svc.renderFallbackPrompt(t.Context(), cm)
+	require.NoError(t, err)
+	msgs := buildFallbackMessages(cm, prompt)
+	require.NotContains(t, msgs[0].Content, "ALWAYS respond in Chinese (Simplified)")
+	require.Contains(t, msgs[0].Content, types.SourcedAnswerOutputPrompt)
+	require.Contains(t, msgs[0].Content, "This rule overrides conflicting language rules")
+	require.Contains(t, msgs[0].Content, "translate the assistant-role description")
+	require.Equal(t, cm.Query, msgs[len(msgs)-1].Content)
+}
+
 // TestBuildFallbackMessages_EmptyPromptSkipsSystem ensures we don't inject an
 // empty system message when there is no fallback instruction to carry.
 func TestBuildFallbackMessages_EmptyPromptSkipsSystem(t *testing.T) {

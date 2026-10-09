@@ -392,7 +392,7 @@ func renderPromptPlaceholdersWithStatus(
 		status = "Enabled"
 	}
 
-	result = types.RenderPromptPlaceholders(result, types.PlaceholderValues{
+	result = types.RenderChatPrompt(result, types.PlaceholderValues{
 		"web_search_status": status,
 		"current_time":      currentTime,
 		"language":          language,
@@ -492,8 +492,7 @@ func BuildSystemPromptSections(
 		{"runtime_contract", runtimePromptContract},
 	}
 	if language != "" {
-		sections[2].Content += "\nUse " + language +
-			" by default; follow the user's explicit language and output-format requests."
+		sections[2].Content += "\nFallback response language (only when the user's request language cannot be determined): " + language + "."
 	}
 	var names []string
 	if options != nil {
