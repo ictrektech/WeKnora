@@ -63,7 +63,7 @@ func TestBuildFallbackMessagesKeepsLanguagePolicyWithLegacyPrompt(t *testing.T) 
 	require.NotContains(t, msgs[0].Content, "ALWAYS respond in Chinese (Simplified)")
 	require.Contains(t, msgs[0].Content, types.SourcedAnswerOutputPrompt)
 	require.Contains(t, msgs[0].Content, "This rule overrides conflicting language rules")
-	require.Contains(t, msgs[0].Content, "translate the assistant-role description")
+	require.Contains(t, msgs[0].Content, "Vivibit AI Assistant in English or Vivibit AI 助手 in Chinese")
 	require.Equal(t, cm.Query, msgs[len(msgs)-1].Content)
 }
 

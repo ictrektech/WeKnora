@@ -229,7 +229,7 @@ func TestAgentLanguagePolicyOverridesLegacyIdentityAndLocale(t *testing.T) {
 			require.Contains(t, prompt, types.SourcedAnswerOutputPrompt)
 			require.Contains(t, prompt, "follow the user's explicit language request first")
 			require.Contains(t, prompt, "language of the latest user request")
-			require.Contains(t, prompt, "translate the assistant-role description")
+			require.Contains(t, prompt, "Vivibit AI Assistant in English or Vivibit AI 助手 in Chinese")
 			require.NotContains(t, prompt, "ALWAYS respond in")
 			require.NotContains(t, prompt, "by default; follow the user's explicit language")
 			if language != "" {
