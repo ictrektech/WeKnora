@@ -1391,7 +1391,8 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 			if !ok {
 				return nil
 			}
-			streamCtx.assistantMessage.Content += data.Content
+			// setupStreamHandler already accumulates each chunk on this message.
+			// Appending here duplicates the final chunk in history and final_content.
 			if data.IsFallback {
 				streamCtx.assistantMessage.IsFallback = true
 			}

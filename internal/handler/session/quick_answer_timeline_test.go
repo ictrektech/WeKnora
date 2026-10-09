@@ -3,14 +3,87 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Tencent/WeKnora/internal/event"
+	"github.com/Tencent/WeKnora/internal/stream"
 	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type quickAnswerChunkSession struct {
+	interfaces.SessionService
+	chunks          []string
+	terminalContent bool
+}
+
+func (s *quickAnswerChunkSession) UpdateSessionLastRequestState(context.Context, string, *types.SessionLastRequestState) error {
+	return nil
+}
+
+func (s *quickAnswerChunkSession) KnowledgeQA(ctx context.Context, _ *types.QARequest, bus *event.EventBus) error {
+	for i, chunk := range s.chunks {
+		if err := bus.Emit(ctx, event.Event{
+			ID: "answer", Type: event.EventAgentFinalAnswer,
+			Data: event.AgentFinalAnswerData{Content: chunk, Done: s.terminalContent && i == len(s.chunks)-1},
+		}); err != nil {
+			return err
+		}
+	}
+	if !s.terminalContent {
+		return bus.Emit(ctx, event.Event{
+			ID: "answer", Type: event.EventAgentFinalAnswer,
+			Data: event.AgentFinalAnswerData{Done: true},
+		})
+	}
+	return nil
+}
+
+func TestExecuteQuickAnswerPersistsEachChunkOnce(t *testing.T) {
+	for _, chunks := range [][]string{
+		{"How can I assist you today", "?"},
+		{"asked about my identity", "."},
+		{"The last chunk is ", "a whole phrase"},
+		{"**answer", "**"},
+		{"Intentional repetition", "??"},
+	} {
+		for _, terminalContent := range []bool{false, true} {
+			t.Run(strings.Join(chunks, "")+map[bool]string{false: "/empty done", true: "/content done"}[terminalContent], func(t *testing.T) {
+				messages := &imageCompletionMessages{}
+				streams := stream.NewMemoryStreamManager()
+				h := &Handler{
+					messageService: messages, streamManager: streams,
+					sessionService: &quickAnswerChunkSession{chunks: chunks, terminalContent: terminalContent},
+				}
+				msg := &types.Message{ID: "m", SessionID: "s", Role: "assistant"}
+				h.executeQA(&qaRequestContext{
+					ctx: types.WithExecutionTenant(context.Background(), 1), skipSSE: true,
+					sessionID: "s", userMessageID: "u", assistantMessage: msg,
+					session: &types.Session{ID: "s", TenantID: 1},
+				}, qaModeNormal, false)
+				require.NotNil(t, messages.saved)
+				require.True(t, messages.saved.IsCompleted)
+				require.Equal(t, strings.Join(chunks, ""), messages.saved.Content)
+				events, _, err := streams.GetEvents(context.Background(), "s", "m", 0)
+				require.NoError(t, err)
+				var delivered strings.Builder
+				for _, evt := range events {
+					if evt.Type == types.ResponseTypeAnswer {
+						delivered.WriteString(evt.Content)
+					}
+					if evt.Type == types.ResponseTypeComplete {
+						require.Equal(t, messages.saved.Content, evt.Data["final_content"])
+					}
+				}
+				require.Equal(t, delivered.String(), messages.saved.Content)
+			})
+		}
+	}
+}
 
 func emitTimelineStage(
 	t *testing.T,
