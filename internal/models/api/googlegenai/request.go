@@ -320,7 +320,7 @@ func (c *Client) buildBody(messages []api.Message, opts *api.Options) (map[strin
 
 func (c *Client) applySampling(gen map[string]any, opts *api.Options) {
 	s := c.cfg.Settings
-	if opts.Temperature > 0 {
+	if opts.Temperature > 0 || opts.TemperatureSet {
 		gen["temperature"] = opts.Temperature
 	}
 	if opts.TopP > 0 {

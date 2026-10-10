@@ -40,8 +40,10 @@ const (
 // vendor can honour it.
 type Options struct {
 	Temperature float64 `json:"temperature"` // 温度参数
-	TopP        float64 `json:"top_p"`       // Top P 参数
-	Seed        int     `json:"seed"`        // 随机种子
+	// TemperatureSet distinguishes an explicit zero from an unspecified value.
+	TemperatureSet bool    `json:"-"`
+	TopP           float64 `json:"top_p"` // Top P 参数
+	Seed           int     `json:"seed"`  // 随机种子
 	// MaxTokens and MaxCompletionTokens are aliases for one completion budget.
 	// Callers may set either; CompletionBudget() prefers MaxCompletionTokens.
 	// The outbound JSON carries exactly one field, named per vendor.
