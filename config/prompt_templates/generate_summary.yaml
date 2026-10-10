@@ -35,3 +35,4 @@ templates:
 
       ## Language
       - Write every field in {{language}}.
+      - The target language {{language}} takes precedence over the source document language. Even when the source is written in another language, translate all generated prose, including topic labels and the document type, into {{language}}.
