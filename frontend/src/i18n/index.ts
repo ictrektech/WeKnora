@@ -17,7 +17,7 @@ const messages = {
   'ja-JP': jaJP
 }
 
-// User's explicit past choice wins; otherwise use the deployment default.
+// Manual choice wins; automatic follows VOS with a browser/deployment fallback.
 const savedLocale = initialAppLocale(resolveDefaultLocale(
   window.__RUNTIME_CONFIG__?.DEFAULT_LOCALE,
   import.meta.env.VITE_DEFAULT_LOCALE,
@@ -35,6 +35,7 @@ const i18n = createI18n({
   messages
 })
 
-listenForVosLocaleChange((locale) => { i18n.global.locale.value = locale })
+const stopVosLocaleListener = listenForVosLocaleChange((locale) => { i18n.global.locale.value = locale })
+if (import.meta.hot) import.meta.hot.dispose(stopVosLocaleListener)
 
 export default i18n

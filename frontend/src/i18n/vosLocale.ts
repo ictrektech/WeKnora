@@ -7,9 +7,12 @@ import {
 
 const VOS_LOCALE_KEY = 'preferences-locale'
 const VOS_LOCALE_PREFIXES = ['VIVIBIT-', 'vben-web-antd-']
+let bridgeLocale: SupportedLocale | null = null
 
 function normalize(value: unknown): SupportedLocale | null {
-  return typeof value === 'string' ? normalizeSupportedLocale(value) : null
+  return typeof value === 'string'
+    ? normalizeSupportedLocale(value) || browserPreferredLocale([value])
+    : null
 }
 
 function manualLocale(): SupportedLocale | null {
@@ -25,6 +28,7 @@ export function isVosApp(): boolean {
 
 export function readVosLocale(): SupportedLocale | null {
   if (!isVosApp()) return null
+  if (bridgeLocale) return bridgeLocale
   try {
     const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
       .filter((key): key is string => !!key && isVosLocaleKey(key))
@@ -56,7 +60,7 @@ function parseStoredLocale(stored: string | null): SupportedLocale | null {
 }
 
 export function followsVosLocale(): boolean {
-  return isVosApp() && !manualLocale() && !browserPreferredLocale()
+  return isVosApp() && followsAutomaticLocale()
 }
 
 export function followsAutomaticLocale(): boolean {
@@ -66,11 +70,9 @@ export function followsAutomaticLocale(): boolean {
 export function initialAppLocale(deploymentDefault: SupportedLocale): SupportedLocale {
   const manual = manualLocale()
   if (manual) return manual
-  const browserLocale = browserPreferredLocale()
-  if (browserLocale) return browserLocale
   const vosLocale = followsVosLocale() ? readVosLocale() : null
   if (vosLocale) return vosLocale
-  return deploymentDefault || BUILT_IN_DEFAULT
+  return browserPreferredLocale() || deploymentDefault || BUILT_IN_DEFAULT
 }
 
 export function saveAppLocale(
@@ -86,11 +88,59 @@ export function saveAppLocale(
 }
 
 export function listenForVosLocaleChange(apply: (locale: SupportedLocale) => void): () => void {
+  let stopped = false
+  let connected = false
+  let revision = 0
+  let timer: ReturnType<typeof setInterval> | undefined
+  let unsubscribe: (() => void) | undefined
+
+  const receiveLocale = (value: unknown) => {
+    const locale = normalize(value)
+    if (!locale || stopped) return
+    bridgeLocale = locale
+    if (followsVosLocale()) apply(locale)
+  }
+  const onLocaleChange = (data: { locale?: unknown }) => {
+    revision += 1
+    receiveLocale(data?.locale)
+  }
+
+  const connect = () => {
+    const platform = window.vos_platform
+    if (!platform?.getState || !platform.broadcast?.on) return false
+    const snapshotRevision = revision
+    try {
+      const dispose = platform.broadcast.on('locale-change', onLocaleChange)
+      unsubscribe = typeof dispose === 'function'
+        ? dispose
+        : () => platform.broadcast?.off?.('locale-change', onLocaleChange)
+      connected = true
+    } catch {
+      return false
+    }
+    // Subscribe first; a slow initial snapshot must not overwrite a newer event.
+    void Promise.resolve().then(() => platform.getState!()).then((state) => {
+      if (revision === snapshotRevision) receiveLocale(state?.locale)
+    }).catch(() => { /* Keep the fallback locale; later events can still update it. */ })
+    return true
+  }
+
   const listener = (event: StorageEvent) => {
-    if (!event.key || !isVosLocaleKey(event.key) || !followsVosLocale()) return
+    if (connected || !event.key || !isVosLocaleKey(event.key) || !followsVosLocale()) return
     const locale = parseStoredLocale(event.newValue)
     if (locale) apply(locale)
   }
   window.addEventListener('storage', listener)
-  return () => window.removeEventListener('storage', listener)
+  if (isVosApp() && !connect() && window.parent !== window) {
+    timer = setInterval(() => {
+      if (connect()) clearInterval(timer)
+    }, 250)
+  }
+  return () => {
+    stopped = true
+    clearInterval(timer)
+    unsubscribe?.()
+    bridgeLocale = null
+    window.removeEventListener('storage', listener)
+  }
 }

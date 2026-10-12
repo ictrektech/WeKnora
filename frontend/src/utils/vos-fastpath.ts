@@ -31,6 +31,11 @@ interface VOSPlatformOAuth2 {
 interface VOSPlatform {
   version?: string
   mode?: string
+  getState?: () => Promise<{ locale?: unknown }>
+  broadcast?: {
+    on: (event: 'locale-change', handler: (data: { locale?: unknown }) => void) => void | (() => void)
+    off?: (event: 'locale-change', handler: (data: { locale?: unknown }) => void) => void
+  }
   api?: {
     v1000?: {
       oauth2?: VOSPlatformOAuth2
