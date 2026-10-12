@@ -18,7 +18,7 @@ HybRAG 的默认模型直接调用 Model Hub Ollama 原生端口。Model Hub 管
 OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434
 ```
 
-QA、VLM 和 embedding 使用 Ollama 原生的 OpenAI 兼容 `/v1` 接口；ReRank 使用原生 `/api/embed`。模型下载及进度走 Model Hub 的 `/api/v1/models/pull` 和 `/api/v1/tasks`，不依赖推理 Gateway。
+QA、VLM 和 embedding 使用 Ollama 原生的 OpenAI 兼容 `/v1` 接口；ReRank 使用通用 `/v1/rerank`。模型下载及进度走 Model Hub 的 `/api/v1/models/pull` 和 `/api/v1/tasks`，不依赖推理 Gateway。
 
 模型行的 `base_url` 使用带 `/v1` 的 Ollama 地址；`OLLAMA_BASE_URL` 使用不带 `/v1` 的根地址。
 
@@ -37,7 +37,7 @@ VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运
 - `Model Hub Ollama QA (model-hub-ollama-qa)`：KnowledgeQA，endpoint `http://model-hub-ollama-qa:11434/v1`。
 - `Model Hub Ollama VLM (model-hub-ollama-qa)`：VLLM，endpoint `http://model-hub-ollama-qa:11434/v1`。
 - `Model Hub Ollama Embedding (model-hub-ollama-embedding)`：Embedding，endpoint `http://model-hub-ollama-embedding:11434/v1`。
-- `Model Hub Ollama ReRank (model-hub-ollama-rerank)`：ReRank，endpoint `http://model-hub-ollama-rerank:11434`。
+- `Model Hub Ollama ReRank (model-hub-ollama-rerank)`：ReRank，endpoint `http://model-hub-ollama-rerank:11434/v1`。
 
 ReRank 只进入默认模型列表，不会自动写入知识库 `rerank_model_id`；是否在知识库、智能体或搜索流程里启用，由用户配置决定。
 
@@ -77,9 +77,9 @@ curl -fsS http://model-hub-ollama-embedding:11434/v1/embeddings \
   -H 'Content-Type: application/json' \
   -d '{"model":"bge-m3","input":["中文知识库检索测试"]}'
 
-curl -fsS http://model-hub-ollama-rerank:11434/api/embed \
+curl -fsS http://model-hub-ollama-rerank:11434/v1/rerank \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qllama/bge-reranker-v2-m3:q8_0","input":["Query: 中文知识库检索测试\nDocument: 中文知识库检索测试","Query: 中文知识库检索测试\nDocument: 无关内容"]}'
+  -d '{"model":"qllama/bge-reranker-v2-m3:q8_0","query":"中文知识库检索测试","documents":["中文知识库检索测试","无关内容"]}'
 ```
 
 如果在宿主机上测试，需要使用 Model Hub 对外映射的端口或进入任意 `vos_default` 网络内的容器执行。
@@ -90,4 +90,4 @@ curl -fsS http://model-hub-ollama-rerank:11434/api/embed \
 - HybRAG 模型列表为空：先检查 Model Hub 两个 Ollama 的 `/v1/models`，再检查 App 容器启动日志中默认 `builtin_models.yaml` 是否生成。
 - 聊天一直“正在思考”：先在 Model Hub QA 容器内确认模型是否常驻并有可用槽位，再检查原生 `11434/v1` 模型行是否使用 `thinking_control=reasoning_effort`。
 - 文档解析 embedding 失败：测试 `model-hub-ollama-embedding:11434/v1/embeddings`，确认模型名与 HybRAG 模型行一致。
-- ReRank 不可用：测试 `model-hub-ollama-rerank:11434/api/embed`，确认 `qllama/bge-reranker-v2-m3:q8_0` 已在 Model Hub rerank worker 中下载、常驻并保留可用槽位。
+- ReRank 不可用：测试 `model-hub-ollama-rerank:11434/v1/rerank`，确认 `qllama/bge-reranker-v2-m3:q8_0` 已在 Model Hub rerank worker 中下载、常驻并保留可用槽位。

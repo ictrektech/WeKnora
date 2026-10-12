@@ -90,11 +90,11 @@ The app container entrypoint generates four YAML-managed model rows at runtime:
 | KnowledgeQA | `Model Hub Ollama QA (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11434/v1` | `qwen3.5:2b` |
 | VLLM | `Model Hub Ollama VLM (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11434/v1` | `qwen3.5:2b` |
 | Embedding | `Model Hub Ollama Embedding (model-hub-ollama-embedding)` | `http://model-hub-ollama-embedding:11434/v1` | `bge-m3` |
-| ReRank | `Model Hub Ollama ReRank (model-hub-ollama-rerank)` | `http://model-hub-ollama-rerank:11434` | `qllama/bge-reranker-v2-m3:q8_0` |
+| ReRank | `Model Hub Ollama ReRank (model-hub-ollama-rerank)` | `http://model-hub-ollama-rerank:11434/v1` | `qllama/bge-reranker-v2-m3:q8_0` |
 
 The default model names are fixed to `qwen3.5:2b`, `bge-m3`, and `qllama/bge-reranker-v2-m3:q8_0` in the HybRAG package. ReRank is added only to the default model list; it is not automatically assigned to knowledge base `rerank_model_id`. Model download, prewarm, context size, and Ollama concurrency are configured in Model Hub, not in the HybRAG install form.
 
-QA, VLM, and embedding use the native Ollama `11434/v1` endpoint; reranking uses `11434/api/embed`. Downloads and progress use the Model Hub management API. Default QA and VLM models use `thinking_control=reasoning_effort`: explicit off sends `reasoning_effort:"none"`; unspecified requests, including OCR, retain the backend default.
+QA, VLM, and embedding use the native Ollama `11434/v1` endpoint; reranking uses ictrek Ollama's standard `11434/v1/rerank` endpoint with the generic provider and probability scores, without an embedding adapter. Downloads and progress use the Model Hub management API. Default QA and VLM models use `thinking_control=reasoning_effort`: explicit off sends `reasoning_effort:"none"`; unspecified requests, including OCR, retain the backend default.
 
 Model Hub manages model storage, download tasks, and Ollama concurrency. When HybRAG opens, it requests missing default models through Model Hub and displays task progress. The rerank worker provides two slots by default.
 

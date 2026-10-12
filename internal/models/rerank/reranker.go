@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Tencent/WeKnora/internal/models"
+	"maps"
+	"os"
 	"strings"
 	"time"
 
@@ -162,11 +165,29 @@ func newReranker(config *RerankerConfig) (Reranker, error) {
 	if config == nil {
 		return nil, fmt.Errorf("rerank config is nil")
 	}
-	// Ollama exposes rerank-capable embedding models through /api/embed rather
-	// than the runtime's remote rerank protocols. Keep the local adapter as a
-	// deliberate factory branch while other providers use the runtime.
+	// Preserve saved local rows while routing all reranking through the shared protocol.
 	if config.Source == types.ModelSourceLocal || strings.EqualFold(config.Provider, "ollama") {
-		return NewOllamaReranker(config)
+		copy := *config
+		copy.Provider = "generic"
+		copy.BaseURL = strings.TrimRight(strings.TrimSpace(copy.BaseURL), "/")
+		if copy.BaseURL == "" {
+			copy.BaseURL = strings.TrimRight(os.Getenv("OLLAMA_BASE_URL"), "/")
+		}
+		if copy.BaseURL == "" {
+			copy.BaseURL = "http://localhost:11434"
+		}
+		if !strings.HasSuffix(copy.BaseURL, "/v1") && !strings.HasSuffix(copy.BaseURL, "/rerank") {
+			copy.BaseURL += "/v1"
+		}
+		copy.ExtraConfig = maps.Clone(config.ExtraConfig)
+		if copy.ExtraConfig == nil {
+			copy.ExtraConfig = map[string]string{}
+		}
+		delete(copy.ExtraConfig, "ollama_rerank_template")
+		if copy.ExtraConfig[models.ExtraScoreScale] == "" {
+			copy.ExtraConfig[models.ExtraScoreScale] = "probability"
+		}
+		config = &copy
 	}
 	resolved, err := modelruntime.Resolve(modelruntime.Ref{
 		Provider:  config.Provider,

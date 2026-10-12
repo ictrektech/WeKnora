@@ -113,11 +113,11 @@ builtin_models:
     name: qllama/bge-reranker-v2-m3:q8_0
     display_name: Model Hub Ollama ReRank (model-hub-ollama-rerank)
     parameters:
-      base_url: http://model-hub-ollama-rerank:11434
+      base_url: http://model-hub-ollama-rerank:11434/v1
       api_key: EMPTY
-      provider: ollama
+      provider: generic
       extra_config:
-        ollama_rerank_template: "Query: {query}\nDocument: {document}"
+        score_scale: probability
 EOF
     export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
 fi

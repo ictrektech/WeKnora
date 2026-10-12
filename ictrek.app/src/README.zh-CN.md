@@ -94,9 +94,9 @@ Authorization: Bearer <VOS access token>
 - `Model Hub Ollama QA (model-hub-ollama-qa)`：KnowledgeQA，端点 `http://model-hub-ollama-qa:11434/v1`
 - `Model Hub Ollama VLM (model-hub-ollama-qa)`：VLLM，端点 `http://model-hub-ollama-qa:11434/v1`
 - `Model Hub Ollama Embedding (model-hub-ollama-embedding)`：Embedding，端点 `http://model-hub-ollama-embedding:11434/v1`
-- `Model Hub Ollama ReRank (model-hub-ollama-rerank)`：ReRank，端点 `http://model-hub-ollama-rerank:11434`
+- `Model Hub Ollama ReRank (model-hub-ollama-rerank)`：ReRank，端点 `http://model-hub-ollama-rerank:11434/v1`
 
-QA、VLM 和 embedding 模型行使用 Ollama 原生 `11434/v1`；ReRank 通过原生 `11434/api/embed` 适配。模型下载及进度由 Model Hub 的管理 API 提供。
+QA、VLM 和 embedding 模型行使用 Ollama 原生 `11434/v1`；ReRank 使用 ictrek Ollama 的通用 `11434/v1/rerank` 接口（generic provider、probability 分数）；不再调用 `/api/embed` 评分。模型下载及进度由 Model Hub 的管理 API 提供。
 
 默认模型名固定为 `qwen3.5:2b`、`bge-m3` 和 `qllama/bge-reranker-v2-m3:q8_0`，不再作为 HybRAG 安装参数暴露。ReRank 只进入默认模型列表，不会自动绑定到知识库 `rerank_model_id`。模型下载、预热、上下文和并发由 Model Hub 配置；运行后也可以在 HybRAG UI 中添加或修改其他模型。
 

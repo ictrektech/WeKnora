@@ -6,6 +6,8 @@
 
 ### 重点变化
 
+- **通用 Ollama rerank 接入** — 使用 ictrek Ollama 的 `/v1/rerank` 和标准 `query/documents` → `results` 协议；移除 `/api/embed` 第一维评分适配。默认模型行使用 generic provider 和 probability 分数标度，已有 Ollama/local rerank 行仍可接入。
+
 - **知识库图片画廊与按需 OCR** — 知识库新增画廊视图，支持搜索、属性筛选、排序、翻页和全屏查看；开启 `image_attrs_enabled` 后，VLM 在生成描述时同步观察 `contain.text` 和 `contain.data_visual`，再由 `image_actions` 决定是否追加 OCR。默认仍保持原有的描述加 OCR 行为；历史图片若需属性筛选，需重新处理文档。
 - **引用直达原文** — 点击知识库引用可打开原始文件并定位高亮，覆盖文字或扫描 PDF、Word、PPT、Excel/CSV、Markdown/TXT/EPUB 和带分段时间的音频；新入库分块保存 `source_locators`，旧文档继续按文字回退定位，重新解析后可获得精确位置。同步修复了重叠 PDF 文本、片段化 Markdown、表格高亮、文档预览启动失败以及历史会话引用浮层初始化。
 - **统一检索与 rerank 语义** — 页面问答、Agent `search_knowledge`、`POST /knowledge-search` 和 `POST /knowledge-bases/:id/hybrid-search` 共用同一套 rerank、分数归一化、MMR 去重和降级逻辑；两个 API 可控制召回阈值和 `rerank` 对象，并通过 `meta.rerank` 返回模型、阈值、候选数和降级原因。候选与返回上限统一约束为 200，模型加载或调用失败时按召回顺序返回。
