@@ -25,8 +25,10 @@ DEFAULT_MODEL_HUB_PROXY_NAME="weknora-ictrek-local-dev-model-hub-gateway"
 DEFAULT_MODEL_HUB_PROXY_IMAGE="weknora-ictrek-model-hub-proxy:dev"
 DEFAULT_MODEL_HUB_QA_HOST_PORT="31535"
 DEFAULT_MODEL_HUB_EMBEDDING_HOST_PORT="31536"
+DEFAULT_MODEL_HUB_RERANK_HOST_PORT="31537"
 DEFAULT_MODEL_HUB_QA_UPSTREAM="model-hub-ollama-qa:11535"
 DEFAULT_MODEL_HUB_EMBEDDING_UPSTREAM="model-hub-ollama-embedding:11535"
+DEFAULT_MODEL_HUB_RERANK_UPSTREAM="model-hub-ollama-rerank:11434"
 
 declare -a EXTERNAL_ICTREK_DEV_ENV_NAMES=()
 declare -A EXTERNAL_ICTREK_DEV_ENV_VALUES=()
@@ -245,6 +247,7 @@ Default endpoints:
   Ollama    http://127.0.0.1:11434 (non-Jetson host profile)
   Model Hub  http://127.0.0.1:31535 (QA Ollama)
   Model Hub  http://127.0.0.1:31536/v1 (embedding gateway)
+  Model Hub  http://127.0.0.1:31537/v1 (rerank)
 
 Typical flow:
   $0 setup
@@ -255,7 +258,7 @@ Typical flow:
 Profiles:
   auto                             Jetson + Model Hub -> jetson-model-hub; non-Jetson ARM64 -> Ollama, x86_64 -> tc232
   tc232                            host-side QA/VLM/Embedding/ReRank vLLM
-  jetson-model-hub                 reuse VOS Model Hub through the independent 31535/31536 proxy
+  jetson-model-hub                 reuse VOS Model Hub through the independent 31535/31536/31537 proxy
   ollama                           host-side Ollama on any architecture
 
 Examples:
@@ -496,13 +499,16 @@ refresh_config() {
     DEV_OLLAMA_EMBEDDING_MODEL_NAME="${ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME:-bge-m3}"
     DEV_MODEL_HUB_QA_MODEL_NAME="${ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME:-qwen3.5:2b}"
     DEV_MODEL_HUB_EMBEDDING_MODEL_NAME="${ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME:-bge-m3:latest}"
+    DEV_MODEL_HUB_RERANK_MODEL_NAME="${ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME:-qllama/bge-reranker-v2-m3:q8_0}"
     DEV_MODEL_HUB_NETWORK="${ICTREK_DEV_MODEL_HUB_NETWORK:-$DEFAULT_MODEL_HUB_NETWORK}"
     DEV_MODEL_HUB_PROXY_NAME="${ICTREK_DEV_MODEL_HUB_PROXY_NAME:-$DEFAULT_MODEL_HUB_PROXY_NAME}"
     DEV_MODEL_HUB_PROXY_IMAGE="${ICTREK_DEV_MODEL_HUB_PROXY_IMAGE:-$DEFAULT_MODEL_HUB_PROXY_IMAGE}"
     DEV_MODEL_HUB_QA_HOST_PORT="${ICTREK_DEV_MODEL_HUB_QA_HOST_PORT:-$DEFAULT_MODEL_HUB_QA_HOST_PORT}"
     DEV_MODEL_HUB_EMBEDDING_HOST_PORT="${ICTREK_DEV_MODEL_HUB_EMBEDDING_HOST_PORT:-$DEFAULT_MODEL_HUB_EMBEDDING_HOST_PORT}"
+    DEV_MODEL_HUB_RERANK_HOST_PORT="${ICTREK_DEV_MODEL_HUB_RERANK_HOST_PORT:-$DEFAULT_MODEL_HUB_RERANK_HOST_PORT}"
     DEV_MODEL_HUB_QA_UPSTREAM="${ICTREK_DEV_MODEL_HUB_QA_UPSTREAM:-$DEFAULT_MODEL_HUB_QA_UPSTREAM}"
     DEV_MODEL_HUB_EMBEDDING_UPSTREAM="${ICTREK_DEV_MODEL_HUB_EMBEDDING_UPSTREAM:-$DEFAULT_MODEL_HUB_EMBEDDING_UPSTREAM}"
+    DEV_MODEL_HUB_RERANK_UPSTREAM="${ICTREK_DEV_MODEL_HUB_RERANK_UPSTREAM:-$DEFAULT_MODEL_HUB_RERANK_UPSTREAM}"
 
     # A previous Model Hub setup writes the proxy endpoint into the shared
     # Ollama variable. When setup switches away from that profile, restore
@@ -513,12 +519,16 @@ refresh_config() {
         DEV_OLLAMA_BASE_URL="http://127.0.0.1:11434"
     fi
 
+    DEV_MODEL_HUB_QA_BASE_URL="http://127.0.0.1:${DEV_MODEL_HUB_QA_HOST_PORT}/v1"
+    DEV_MODEL_HUB_EMBEDDING_BASE_URL="http://127.0.0.1:${DEV_MODEL_HUB_EMBEDDING_HOST_PORT}/v1"
+    DEV_MODEL_HUB_RERANK_BASE_URL="${ICTREK_DEV_MODEL_HUB_RERANK_BASE_URL:-http://127.0.0.1:${DEV_MODEL_HUB_RERANK_HOST_PORT}/v1}"
+    export ICTREK_DEV_MODEL_HUB_RERANK_BASE_URL="$DEV_MODEL_HUB_RERANK_BASE_URL"
+    export ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME="$DEV_MODEL_HUB_RERANK_MODEL_NAME"
+
     if [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
         # The host-side Go process must go through the independent proxy so
         # Model Hub gateway metrics remain visible. Do not replace these with
         # the upstream container IPs or Ollama's native 11434 port.
-        DEV_MODEL_HUB_QA_BASE_URL="http://127.0.0.1:${DEV_MODEL_HUB_QA_HOST_PORT}/v1"
-        DEV_MODEL_HUB_EMBEDDING_BASE_URL="http://127.0.0.1:${DEV_MODEL_HUB_EMBEDDING_HOST_PORT}/v1"
         DEV_OLLAMA_BASE_URL="http://127.0.0.1:${DEV_MODEL_HUB_QA_HOST_PORT}"
         export ICTREK_DEV_MODEL_HUB_QA_BASE_URL="$DEV_MODEL_HUB_QA_BASE_URL"
         export ICTREK_DEV_MODEL_HUB_EMBEDDING_BASE_URL="$DEV_MODEL_HUB_EMBEDDING_BASE_URL"
@@ -666,16 +676,19 @@ model_hub_proxy_config_matches() {
     [ "$(docker inspect "$container_id" --format '{{json .Config.Cmd}}' 2>/dev/null)" = '["/app/proxy.py"]' ] || return 1
     [ "$(model_hub_proxy_port_binding "$container_id" 11535)" = "127.0.0.1:${DEV_MODEL_HUB_QA_HOST_PORT}" ] || return 1
     [ "$(model_hub_proxy_port_binding "$container_id" 11536)" = "127.0.0.1:${DEV_MODEL_HUB_EMBEDDING_HOST_PORT}" ] || return 1
+    [ "$(model_hub_proxy_port_binding "$container_id" 11537)" = "127.0.0.1:${DEV_MODEL_HUB_RERANK_HOST_PORT}" ] || return 1
     model_hub_proxy_env_matches "$container_id" "MODEL_HUB_QA_UPSTREAM=$DEV_MODEL_HUB_QA_UPSTREAM" || return 1
     model_hub_proxy_env_matches "$container_id" "MODEL_HUB_EMBEDDING_UPSTREAM=$DEV_MODEL_HUB_EMBEDDING_UPSTREAM" || return 1
+    model_hub_proxy_env_matches "$container_id" "MODEL_HUB_RERANK_UPSTREAM=$DEV_MODEL_HUB_RERANK_UPSTREAM" || return 1
     model_hub_proxy_env_matches "$container_id" "MODEL_HUB_QA_LISTEN_PORT=11535" || return 1
     model_hub_proxy_env_matches "$container_id" "MODEL_HUB_EMBEDDING_LISTEN_PORT=11536" || return 1
+    model_hub_proxy_env_matches "$container_id" "MODEL_HUB_RERANK_LISTEN_PORT=11537" || return 1
 }
 
 require_model_hub_profile() {
-    if [ "${DEV_MODEL_BACKEND:-}" != "model-hub" ]; then
+    if [ "${DEV_MODEL_BACKEND:-}" != "model-hub" ] && [ "${DEV_PROFILE:-}" != "tc232" ]; then
         log_error "Current profile ${DEV_PROFILE:-unknown} does not use VOS Model Hub"
-        log_error "Use --profile jetson-model-hub before managing the Model Hub proxy"
+        log_error "Use --profile jetson-model-hub or tc232 before managing the Model Hub proxy"
         return 1
     fi
 }
@@ -738,10 +751,13 @@ ensure_model_hub_proxy() {
             --network "$DEV_MODEL_HUB_NETWORK" \
             -p "127.0.0.1:${DEV_MODEL_HUB_QA_HOST_PORT}:11535" \
             -p "127.0.0.1:${DEV_MODEL_HUB_EMBEDDING_HOST_PORT}:11536" \
+            -p "127.0.0.1:${DEV_MODEL_HUB_RERANK_HOST_PORT}:11537" \
             -e "MODEL_HUB_QA_UPSTREAM=$DEV_MODEL_HUB_QA_UPSTREAM" \
             -e "MODEL_HUB_EMBEDDING_UPSTREAM=$DEV_MODEL_HUB_EMBEDDING_UPSTREAM" \
+            -e "MODEL_HUB_RERANK_UPSTREAM=$DEV_MODEL_HUB_RERANK_UPSTREAM" \
             -e "MODEL_HUB_QA_LISTEN_PORT=11535" \
             -e "MODEL_HUB_EMBEDDING_LISTEN_PORT=11536" \
+            -e "MODEL_HUB_RERANK_LISTEN_PORT=11537" \
             --entrypoint python3 \
             "$DEV_MODEL_HUB_PROXY_IMAGE" /app/proxy.py >/dev/null
         log_success "Created Model Hub proxy container: $DEV_MODEL_HUB_PROXY_NAME"
@@ -749,6 +765,7 @@ ensure_model_hub_proxy() {
 
     wait_for_url "Model Hub QA proxy" "${DEV_MODEL_HUB_QA_BASE_URL%/}/models" 60 "$DEV_MODEL_HUB_PROXY_NAME" || return 1
     wait_for_url "Model Hub embedding proxy" "${DEV_MODEL_HUB_EMBEDDING_BASE_URL%/}/models" 60 "$DEV_MODEL_HUB_PROXY_NAME" || return 1
+    wait_for_url "Model Hub rerank proxy" "http://127.0.0.1:${DEV_MODEL_HUB_RERANK_HOST_PORT}/v1/models" 60 "$DEV_MODEL_HUB_PROXY_NAME" || return 1
 }
 
 start_model_hub_proxy() {
@@ -963,6 +980,10 @@ setup_env() {
     # This variable belonged to the retired bridge-IP auto-discovery path.
     # Model Hub now always uses the independent fixed-port proxy below.
     set_env_value ICTREK_DEV_MODEL_HUB_AUTO_DISCOVER ""
+    set_env_value ICTREK_DEV_MODEL_HUB_RERANK_HOST_PORT "$DEV_MODEL_HUB_RERANK_HOST_PORT"
+    set_env_value ICTREK_DEV_MODEL_HUB_RERANK_UPSTREAM "$DEV_MODEL_HUB_RERANK_UPSTREAM"
+    set_env_value ICTREK_DEV_MODEL_HUB_RERANK_BASE_URL "$DEV_MODEL_HUB_RERANK_BASE_URL"
+    set_env_value ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME "$DEV_MODEL_HUB_RERANK_MODEL_NAME"
     if [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
         set_env_value ICTREK_DEV_MODEL_HUB_NETWORK "$DEV_MODEL_HUB_NETWORK"
         set_env_value ICTREK_DEV_MODEL_HUB_PROXY_NAME "$DEV_MODEL_HUB_PROXY_NAME"
@@ -1717,6 +1738,7 @@ check_setup() {
     elif [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
         printf '  Model Hub QA: %s\n' "$DEV_MODEL_HUB_QA_BASE_URL"
         printf '  Model Hub Emb: %s\n' "$DEV_MODEL_HUB_EMBEDDING_BASE_URL"
+        printf '  Model Hub Rank: %s\n' "$DEV_MODEL_HUB_RERANK_BASE_URL"
         printf '  Ollama base:   %s\n' "$DEV_OLLAMA_BASE_URL"
         printf '  Proxy:         %s on %s\n' "$DEV_MODEL_HUB_PROXY_NAME" "$DEV_MODEL_HUB_NETWORK"
     else
@@ -1755,6 +1777,7 @@ check_setup() {
         check_url "Model Hub QA Ollama proxy" "${DEV_OLLAMA_BASE_URL%/}/api/tags"
         check_url "Model Hub QA models" "${DEV_MODEL_HUB_QA_BASE_URL%/}/models"
         check_url "Model Hub embedding models" "${DEV_MODEL_HUB_EMBEDDING_BASE_URL%/}/models"
+        check_url "Model Hub rerank models" "${DEV_MODEL_HUB_RERANK_BASE_URL%/}/models"
     else
         check_url "Ollama tags" "${DEV_OLLAMA_BASE_URL%/}/api/tags"
     fi

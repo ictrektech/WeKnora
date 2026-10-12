@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Forward local-dev ports to the VOS Model Hub Gateway services.
+"""Forward local-dev ports to the VOS Model Hub inference services.
 
-The local-dev Go process runs on the host, while Model Hub exposes its Ollama
-Gateway on the shared Docker network. This small byte-for-byte TCP forwarder
-keeps streaming responses intact and exposes the Gateway only through the
-host's loopback-published ports.
+The local-dev Go process runs on the host, while Model Hub exposes QA/Embedding
+Gateways and the native ictrek Ollama rerank API on the shared Docker network.
+This byte-for-byte TCP forwarder keeps streaming responses intact and exposes
+the services only through the host's loopback-published ports.
 """
 
 from __future__ import annotations
@@ -104,6 +104,10 @@ def check_upstreams() -> int:
             "MODEL_HUB_EMBEDDING_UPSTREAM",
             "model-hub-ollama-embedding:11535",
         ),
+        os.environ.get(
+            "MODEL_HUB_RERANK_UPSTREAM",
+            "model-hub-ollama-rerank:11434",
+        ),
     )
     try:
         for raw in endpoints:
@@ -130,6 +134,10 @@ def main() -> None:
             "model-hub-ollama-embedding:11535",
         )
     )
+    rerank_upstream = parse_endpoint(
+        os.environ.get("MODEL_HUB_RERANK_UPSTREAM", "model-hub-ollama-rerank:11434")
+    )
+    rerank_port = int(os.environ.get("MODEL_HUB_RERANK_LISTEN_PORT", "11537"))
     qa_port = int(
         os.environ.get("MODEL_HUB_QA_LISTEN_PORT", "11535")
     )
@@ -143,6 +151,7 @@ def main() -> None:
     servers = [
         start_listener("qa", qa_port, qa_upstream),
         start_listener("embedding", embedding_port, embedding_upstream),
+        start_listener("rerank", rerank_port, rerank_upstream),
     ]
     try:
         while True:

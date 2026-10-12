@@ -9,6 +9,7 @@
 | Go 后端源码调试 | 已实现 | 支持 `go run`；安装 Air 后自动热重载。 |
 | 前端源码调试 | 已实现 | Vite 热更新，默认代理到 `127.0.0.1:8080`。 |
 | 基础设施 | 已实现 | 使用本目录的隔离 Compose 和 `/data/hybrag-dev-data`。 |
+| Model Hub ReRank（检索结果重排） | 已实现 | 本机 Model Hub `0.0.92` 与三端口代理已验证；旧代理需重建，见 [接入前提](model-hub-ollama-proxy.md#前置条件)。 |
 | 模型初始化 | 部分落地 | `auto` 会按主机环境选择 profile：Jetson 复用已运行的 VOS Model Hub，非 Jetson ARM64 使用宿主机 Ollama，x86_64 使用 tc232 vLLM。 |
 | VOS iframe 免登录 | 未启用 | 本地源码模式使用普通注册/登录，`HYBRAG_VOS_SSO_ENABLED=false`。 |
 | VOS 发布部署 | 不在本流程 | 发布和安装仍以 `ictrek.app/README.md`、`src/` 和 `package.sh` 为准。 |
@@ -74,7 +75,7 @@ make dev-frontend
 | Profile | 模型配置 | 适用场景 |
 | --- | --- | --- |
 | `tc232` | `builtin_models.tc232.yaml` | 原有 x86_64/tc232 vLLM 环境，参数和模型地址保持原样。 |
-| `jetson-model-hub` | `builtin_models.model-hub.yaml` | 通过独立代理复用 VOS Model Hub；QA/VLM 使用 `31535`，Embedding 使用 `31536`。 |
+| `jetson-model-hub` | `builtin_models.model-hub.yaml` | 通过独立代理复用 VOS Model Hub；QA/VLM 使用 `31535`，Embedding 使用 `31536`，ReRank 使用 `31537`。 |
 | `ollama` | `builtin_models.ollama.yaml` | 非 Jetson 主机上的宿主机 Ollama。 |
 
 首次没有已保存 profile 时使用 `auto`：脚本通过 `uname -m` 和 Jetson 的 `/etc/nv_tegra_release` 或设备树标识判断；Jetson 必须同时发现 Model Hub 的 QA/Embedding 容器，否则会提示先启动 Model Hub；非 Jetson ARM64 选择 `ollama`，普通 `x86_64` 选择 `tc232`。`setup` 会保留 `.env` 中已经选择的 profile；需要重新探测当前环境时可显式执行 `ICTREK_DEV_PROFILE=auto $DEV setup`，也可以用 `--profile` 覆盖，例如 `ICTREK_DEV_PROFILE=tc232 $DEV setup`。
@@ -152,7 +153,9 @@ ollama pull bge-m3
 ./ictrek.app/docs/local-dev/ictrek-dev.sh start-model-hub-proxy
 ```
 
-该 profile 要求以下两个 Model Hub Compose service 正在 `vos_default` 网络运行：`model-hub-ollama-qa(-l4t)` 和 `model-hub-ollama-embedding(-l4t)`。代理将 `127.0.0.1:31535` 转发到 QA `11535`，将 `127.0.0.1:31536` 转发到 Embedding `11535`；本地 QA/VLM 通过 `OLLAMA_BASE_URL=http://127.0.0.1:31535`，Embedding 通过 OpenAI-compatible 的 `http://127.0.0.1:31536/v1`。不要使用 Model Hub 原生 `11434` 或直接使用容器 bridge IP，否则会绕过 Gateway 指标。VOS 重启后只要上游服务仍使用同名网络 alias，代理不需要改地址。
+该 profile 的 QA/Embedding 要求 `model-hub-ollama-qa(-l4t)` 和 `model-hub-ollama-embedding(-l4t)` 在 `vos_default` 网络运行；ReRank 还需 Model Hub `>= 0.0.92` 的 `model-hub-ollama-rerank` 服务和已下载的 `qllama/bge-reranker-v2-m3:q8_0` 模型。代理将 `127.0.0.1:31535` 转发到 QA `11535`，将 `127.0.0.1:31536` 转发到 Embedding `11535`；本地 QA/VLM 通过 `OLLAMA_BASE_URL=http://127.0.0.1:31535`，Embedding 通过 OpenAI-compatible 的 `http://127.0.0.1:31536/v1`。QA/Embedding 不要直连原生 `11434` 或容器 bridge IP，否则会绕过 Gateway 指标。ReRank 通过 `127.0.0.1:31537/v1` 转发到与 VOS 包相同的 `model-hub-ollama-rerank:11434/v1`；其指标能力待验证。VOS 重启后只要上游服务仍使用同名网络 alias，代理不需要改地址。
+
+`tc232` 配置也包含该 Model Hub ReRank 模型，作为非默认可选项；可手动运行 `start-model-hub-proxy`。旧代理只有两个端口，需要按 [代理更新步骤](model-hub-ollama-proxy.md#创建代理容器) 重建。模型配置从 YAML（模型配置文件）同步到开发数据库，并非自动列出 Model Hub 中的所有模型；重启 `$DEV app`/Air 后再刷新页面，已有智能体需手动选择并保存新模型。
 
 在非 Jetson 主机上使用宿主机 Ollama 时，将 profile 改为 `ollama`。不建议把 `legacy/deploy-template` 下的 Orin 容器 overlay 或分离 gateway YAML 直接用于本地源码调试；它们属于 VOS 部署流程。
 
@@ -173,6 +176,7 @@ Model Hub profile 应检查代理端口：
 curl -fsS http://127.0.0.1:31535/api/tags
 curl -fsS http://127.0.0.1:31535/v1/models
 curl -fsS http://127.0.0.1:31536/v1/models
+curl -fsS http://127.0.0.1:31537/v1/models
 ```
 
 `check` 只检查当前 profile 选择的模型后端。Ollama profile 不会因为未启动 vLLM 或可选 ReRank 而产生无关告警。
@@ -190,6 +194,7 @@ curl -fsS http://127.0.0.1:31536/v1/models
 | Neo4j Browser | `http://127.0.0.1:27474` | — |
 | Model Hub QA/VLM proxy | `http://127.0.0.1:31535` | 独立代理容器；上游 `model-hub-ollama-qa:11535` |
 | Model Hub Embedding proxy | `http://127.0.0.1:31536/v1` | 独立代理容器；上游 `model-hub-ollama-embedding:11535` |
+| Model Hub ReRank proxy | `http://127.0.0.1:31537/v1` | 独立代理容器；上游 `model-hub-ollama-rerank:11434` |
 | QA vLLM | `http://127.0.0.1:38118/v1` | 外部模型目录 |
 | bge-m3 vLLM | `http://127.0.0.1:32223/v1` | 外部模型目录 |
 | ReRank vLLM | `http://127.0.0.1:32224` | `/data/models/bge-reranker-v2-m3` |
@@ -243,12 +248,16 @@ go install github.com/air-verse/air@latest
 | `ICTREK_DEV_MODEL_HUB_PROXY_IMAGE` | `weknora-ictrek-model-hub-proxy:dev` | 代理镜像；源码和 Dockerfile 位于 `local-dev/model-hub-proxy/`。 |
 | `ICTREK_DEV_MODEL_HUB_QA_HOST_PORT` | `31535` | 宿主机 QA/VLM Ollama 代理端口，映射到代理 `11535`。 |
 | `ICTREK_DEV_MODEL_HUB_EMBEDDING_HOST_PORT` | `31536` | 宿主机 Embedding 代理端口，映射到代理 `11536`。 |
+| `ICTREK_DEV_MODEL_HUB_RERANK_HOST_PORT` | `31537` | 宿主机 ReRank 代理端口，映射到代理 `11537`。 |
 | `ICTREK_DEV_MODEL_HUB_QA_UPSTREAM` | `model-hub-ollama-qa:11535` | QA Gateway 上游；必须使用 VOS 网络 alias。 |
 | `ICTREK_DEV_MODEL_HUB_EMBEDDING_UPSTREAM` | `model-hub-ollama-embedding:11535` | Embedding Gateway 上游；必须使用 VOS 网络 alias。 |
+| `ICTREK_DEV_MODEL_HUB_RERANK_UPSTREAM` | `model-hub-ollama-rerank:11434` | ictrek Ollama 原生 ReRank 上游；与 VOS 包一致。 |
 | `ICTREK_DEV_MODEL_HUB_QA_BASE_URL` | `http://127.0.0.1:31535/v1` | 由 profile 根据 QA host port 写入；不要改为 `11434` 或 bridge IP。 |
 | `ICTREK_DEV_MODEL_HUB_EMBEDDING_BASE_URL` | `http://127.0.0.1:31536/v1` | 由 profile 根据 Embedding host port 写入；模型行使用 remote/OpenAI-compatible。 |
+| `ICTREK_DEV_MODEL_HUB_RERANK_BASE_URL` | `http://127.0.0.1:31537/v1` | ReRank 模型行地址；远程开发可通过 SSH 隧道或显式覆盖连接。修改代理端口时须同步此值。 |
 | `ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME` | `qwen3.5:2b` | Model Hub QA/VLM 模型名。 |
 | `ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME` | `bge-m3:latest` | Model Hub Embedding 模型名。 |
+| `ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME` | `qllama/bge-reranker-v2-m3:q8_0` | Model Hub ReRank 模型名。 |
 | `ICTREK_DEV_DATA_DIR` | `/data/hybrag-dev-data` 或项目目录回退 | 基础设施持久化根目录；`/data` 不存在或不可写时自动使用 `.local-dev-data`，也可手工改成其他路径。 |
 | `ICTREK_DEV_DB_PORT` | `15432` | 宿主机 PostgreSQL 端口。 |
 | `ICTREK_DEV_REDIS_PORT` | `6380` | 宿主机 Redis 端口。 |
@@ -297,7 +306,9 @@ go install github.com/air-verse/air@latest
 - Jetson Model Hub profile 找不到模型：先确认代理镜像已导入、`docker network inspect vos_default` 正常、`docker ps --filter name=model-hub-ollama` 能看到 QA 和 Embedding 容器，再执行 `$DEV start-model-hub-proxy`；不要把容器内的 `model-hub-ollama-qa` 主机名直接填给宿主机运行的 Go 进程。
 - 文档上传失败：查看 `$DEV logs docreader`；源码后端必须使用 `DOCREADER_ADDR=127.0.0.1:15051` 和 `DOCREADER_TRANSPORT=grpc`。
 - 默认模型不可用：检查对应 `/v1/models`，并确认 YAML 中的模型名与服务返回的 `id` 一致。
-- ReRank 不可用：先执行 `$DEV start-rerank`，检查 `http://127.0.0.1:32224/health` 和 `/rerank`；如果改过端口，保持 YAML 的 `Base URL` 与 `ICTREK_DEV_RERANK_VLLM_PORT` 一致。
+- vLLM ReRank 不可用：先执行 `$DEV start-rerank`，检查 `http://127.0.0.1:32224/health` 和 `/rerank`；如果改过端口，保持 YAML 的 `Base URL` 与 `ICTREK_DEV_RERANK_VLLM_PORT` 一致。
+- Model Hub ReRank 名称显示 `${...}`：更新后完全重启后端再刷新页面，默认值及修正边界见 [代理说明](model-hub-ollama-proxy.md#配置本地-weknora)。
+- Model Hub ReRank 不可用：按 [代理说明](model-hub-ollama-proxy.md#端到端验证) 测试 `31537/v1/rerank`；仅出现模型行不代表服务在线，本地模式不会自动下载模型。
 - 模型名或 Base URL 显示为 `${ICTREK_DEV_RERANK_VLLM_*}`：说明后端启动时没有加载 `.env`；仅刷新页面无效，停止当前 `make dev-app`/`air` 后重新执行 `$DEV setup` 和 `$DEV app`。
 - SSRF 校验拒绝本地模型：保留 `SSRF_WHITELIST=localhost,127.0.0.1,::1`；Model Hub 代理使用 loopback，不需要把容器 bridge IP 加入白名单。
 - 管理员入口仍不可用：先用 `admin@weknora.local` 注册并完全登录一次，再重启 `$DEV app`；启动日志中应出现 bootstrap 提权结果。

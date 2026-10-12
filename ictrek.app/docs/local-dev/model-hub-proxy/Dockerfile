@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY proxy.py /app/proxy.py
 
-EXPOSE 11535 11536
+EXPOSE 11535 11536 11537
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=6 \
     CMD ["python3", "/app/proxy.py", "--health"]

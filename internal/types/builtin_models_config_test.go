@@ -3,7 +3,9 @@ package types
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +13,61 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestLocalDevModelHubRerank(t *testing.T) {
+	for _, profile := range []string{"tc232", "jetson-model-hub"} {
+		t.Run(profile, func(t *testing.T) {
+			for _, port := range []string{"", "32537"} {
+				t.Run("port="+port, func(t *testing.T) {
+					cmd := exec.Command("bash", "-c", `
+source "$1" help >/dev/null
+refresh_config
+require_model_hub_profile
+printf '%s\n%s\n' "$ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME" "$ICTREK_DEV_MODEL_HUB_RERANK_BASE_URL"
+`, "test", "../../ictrek.app/docs/local-dev/ictrek-dev.sh")
+					for _, env := range os.Environ() {
+						if !strings.HasPrefix(env, "ICTREK_DEV_") {
+							cmd.Env = append(cmd.Env, env)
+						}
+					}
+					cmd.Env = append(cmd.Env, "ICTREK_DEV_PROFILE="+profile, "ICTREK_DEV_MODEL_HUB_RERANK_HOST_PORT="+port)
+					output, err := cmd.Output()
+					require.NoError(t, err)
+					values := strings.Split(strings.TrimSpace(string(output)), "\n")
+					require.Len(t, values, 2)
+					require.Equal(t, "qllama/bge-reranker-v2-m3:q8_0", values[0])
+					if port == "" {
+						port = "31537"
+					}
+					require.Equal(t, "http://127.0.0.1:"+port+"/v1", values[1])
+					t.Setenv("ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME", values[0])
+					t.Setenv("ICTREK_DEV_MODEL_HUB_RERANK_BASE_URL", values[1])
+					config := "model-hub"
+					if profile == "tc232" {
+						config = "tc232"
+					}
+					t.Setenv("BUILTIN_MODELS_CONFIG", "../../ictrek.app/docs/local-dev/config/builtin_models."+config+".yaml")
+					db := setupBuiltinModelsDB(t)
+					require.NoError(t, LoadBuiltinModelsConfig(context.Background(), db, t.TempDir()))
+					var model Model
+					require.NoError(t, db.First(&model, "id = ?", "ictrek-model-hub-ollama-rerank").Error)
+					assert.Equal(t, values[0], model.Name)
+					assert.Equal(t, values[1], model.Parameters.BaseURL)
+					assert.Equal(t, ModelTypeRerank, model.Type)
+					assert.Equal(t, ModelSourceRemote, model.Source)
+					assert.Equal(t, "generic", model.Parameters.Provider)
+					assert.Equal(t, "probability", model.Parameters.ExtraConfig["score_scale"])
+					assert.Equal(t, profile == "jetson-model-hub", model.IsDefault)
+					if profile == "tc232" {
+						var original Model
+						require.NoError(t, db.First(&original, "id = ?", "ictrek-weknora-vllm-rerank").Error)
+						assert.True(t, original.IsDefault)
+					}
+				})
+			}
+		})
+	}
+}
 
 // setupBuiltinModelsDB creates an in-memory SQLite DB with `models` migrated
 // via GORM AutoMigrate. AutoMigrate honours the struct tags so the
@@ -171,6 +228,48 @@ func TestLoadBuiltinModelsConfig_EnvInterpolation(t *testing.T) {
 	assert.Equal(t, "sk-from-env", m.Parameters.APIKey, "set env var must be substituted")
 	assert.Equal(t, "${BUILTIN_TEST_UNSET}", m.Parameters.BaseURL,
 		"unset env var must be kept as literal placeholder")
+}
+
+func TestInterpolateBuiltinModelEnv_Default(t *testing.T) {
+	for _, tc := range []struct {
+		name, value, input, want string
+	}{
+		{"empty", "", "${BUILTIN_TEST_DEFAULT:-fallback}", "fallback"},
+		{"override", "custom", "${BUILTIN_TEST_DEFAULT:-fallback}", "custom"},
+		{"url", "", "${BUILTIN_TEST_DEFAULT:-http://127.0.0.1:31537/v1}", "http://127.0.0.1:31537/v1"},
+		{"no default", "", "${BUILTIN_TEST_DEFAULT}", "${BUILTIN_TEST_DEFAULT}"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("BUILTIN_TEST_DEFAULT", tc.value)
+			assert.Equal(t, tc.want, interpolateBuiltinModelEnv(tc.input))
+		})
+	}
+}
+
+func TestLocalDevModelHubRerankWithoutNewEnv(t *testing.T) {
+	for _, config := range []string{"tc232", "model-hub"} {
+		t.Run(config, func(t *testing.T) {
+			for _, key := range []string{"ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME", "ICTREK_DEV_MODEL_HUB_RERANK_BASE_URL"} {
+				t.Setenv(key, "")
+				require.NoError(t, os.Unsetenv(key))
+			}
+			t.Setenv("BUILTIN_MODELS_CONFIG", "../../ictrek.app/docs/local-dev/config/builtin_models."+config+".yaml")
+			db := setupBuiltinModelsDB(t)
+			require.NoError(t, db.Create(&Model{
+				ID: "ictrek-model-hub-ollama-rerank", ManagedBy: BuiltinModelManagedBy,
+				Name:        "${ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME}",
+				DisplayName: "${ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME} (Model Hub Ollama ReRank)",
+				Type:        ModelTypeRerank, Source: ModelSourceRemote,
+				Parameters: ModelParameters{BaseURL: "${ICTREK_DEV_MODEL_HUB_RERANK_BASE_URL}"},
+			}).Error)
+			require.NoError(t, LoadBuiltinModelsConfig(context.Background(), db, t.TempDir()))
+			var model Model
+			require.NoError(t, db.First(&model, "id = ?", "ictrek-model-hub-ollama-rerank").Error)
+			assert.Equal(t, "qllama/bge-reranker-v2-m3:q8_0", model.Name)
+			assert.Equal(t, "qllama/bge-reranker-v2-m3:q8_0 (Model Hub Ollama ReRank)", model.DisplayName)
+			assert.Equal(t, "http://127.0.0.1:31537/v1", model.Parameters.BaseURL)
+		})
+	}
 }
 
 func TestLoadBuiltinModelsConfig_DriftSweepRemovesYAMLManaged(t *testing.T) {

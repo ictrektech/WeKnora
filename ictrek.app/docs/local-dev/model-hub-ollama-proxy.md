@@ -1,6 +1,6 @@
 # 本地开发复用 VOS Model Hub Ollama
 
-本文面向在宿主机运行 WeKnora Go/Vite 的开发者，说明如何复用已安装 VOS Model Hub 的目标主机上的 Ollama。目标是让本地开发程序访问 VOS Model Hub 的模型，同时保留 Model Hub 的预热、常驻、并发槽位和调用指标。
+本文面向在宿主机运行 WeKnora Go/Vite 的开发者，说明如何复用已安装 VOS Model Hub 的目标主机上的 Ollama。目标是让本地开发程序访问 VOS Model Hub 的模型，复用 Model Hub 的预热、常驻和并发配置。已实现 ReRank（对检索结果重新评分和排序）的模型行及代理，并已在本机 Model Hub `0.0.92` 验证。已有两端口代理需重建以提供 `31537`；模型行变动后需重启后端。
 
 ## 结论与边界
 
@@ -9,36 +9,43 @@
 | Model Hub 网络 | `vos_default` |
 | QA / 聊天 / VLM 上游 | `model-hub-ollama-qa:11535` |
 | Embedding 上游 | `model-hub-ollama-embedding:11535` |
+| ReRank 上游 | `model-hub-ollama-rerank:11434` |
 | 开发机 QA 端口 | `127.0.0.1:31535` |
 | 开发机 Embedding 端口 | `127.0.0.1:31536` |
+| 开发机 ReRank 端口 | `127.0.0.1:31537` |
 | 代理镜像 | `weknora-ictrek-model-hub-proxy:dev` |
 
 本方案的链路如下：
 
 ```text
 宿主机 WeKnora Go 进程
-  -> 127.0.0.1:31535 / 127.0.0.1:31536
+  -> 127.0.0.1:31535 / 127.0.0.1:31536 / 127.0.0.1:31537
   -> model-hub-gateway 代理容器
   -> vos_default Docker 网络
-  -> Model Hub Ollama Gateway:11535
+  -> QA/Embedding Gateway:11535 或 ReRank Ollama:11434
 ```
 
-`11535` 是 Model Hub 的 Gateway，必须优先使用；不要改成 Ollama 原生的 `11434`，否则请求不会进入 Model Hub 的槽位、阶段和速度统计。`35005` 是 Model Hub 后端管理 API，不是模型推理端口。Model Hub 的服务、模型预热和 Gateway 说明见 [VOS Model Hub 模型预热与常驻](../vos-ollama-prewarm.md)。
+QA/Embedding 使用 `11535` Gateway（推理请求入口），保留该入口的槽位、阶段和速度统计。ReRank 与当前 VOS 安装包一致，使用 ictrek Ollama 的原生 `11434/v1/rerank`；此路径是否提供相同指标待验证。`35005` 是 Model Hub 后端管理 API，不是模型推理端口。Model Hub 的服务、模型预热和 Gateway 说明见 [VOS Model Hub 模型预热与常驻](../vos-ollama-prewarm.md)。
 
 当前状态：
 
-- 已验证：代理拓扑使用 `weknora-ictrek-model-hub-proxy:dev`，将 `31535/31536` 转发到上面的两个 Model Hub 服务；目标主机需要先导入镜像后才能运行它。
+- 已验证（历史 QA/Embedding）：代理拓扑使用 `weknora-ictrek-model-hub-proxy:dev`，将 `31535/31536` 转发到 QA/Embedding 服务；目标主机需要先导入镜像后才能运行它。
+- 已验证（本机模拟）：模型配置入库、ReRank 请求与响应转发、上游不可用时健康检查失败；见 `test_proxy.py` 和 `TestLocalDevModelHubRerank`。
+- 已验证（本机 Model Hub `0.0.92`）：`31537` 转发到 Model Hub ReRank `11434`，真实 `/v1/rerank` 请求返回 `200` 且相关文档排序正确；模型行在 `jetson-model-hub` 为默认项，在 `tc232` 为非默认可选项。
 - 已记录：下面的镜像导出、导入和 `docker run` 流程可以在另一台已安装 Model Hub 的 VOS 主机上重建同样的网络桥接。
 - 已补齐运行管理：当前 `local-dev/docker-compose.yml` 仍不构建或声明这个代理，但 `ictrek-dev.sh start` 和 `start-model-hub-proxy` 会在镜像已构建或导入、上游已加入 `vos_default` 时创建或复用独立代理。代理源码和 Dockerfile 位于 `local-dev/model-hub-proxy/`。
 
 ## 前置条件
 
+已验证（2026-10-12）：本机已升级到 Model Hub `0.0.92`。开发代理已重建为三端口版本，`http://127.0.0.1:31537/v1/rerank` 返回 `200`。之前的 `connection refused` 来自旧代理缺少 `31537` 映射；升级 Model Hub 不会自动更新开发代理。
+
 在目标 VOS 主机确认：
 
-1. Model Hub 已通过 VOS 安装并运行。
+1. Model Hub 已通过 VOS 安装并运行；ReRank 需 `>= 0.0.92` 版本提供下述接口。
 2. `model-hub-ollama-qa` 和 `model-hub-ollama-embedding` 已加入 `vos_default` 网络，并且对应模型已经下载或处于可按需启动状态。
-3. 目标主机已有代理镜像 `weknora-ictrek-model-hub-proxy:dev`，或者可以在目标 Jetson 本地构建/从已有开发机导入该镜像。
-4. 宿主机的 `31535` 和 `31536` 端口没有被其他程序占用。
+3. `model-hub-ollama-rerank` 在 `vos_default` 网络运行，已下载 `qllama/bge-reranker-v2-m3:q8_0`，并提供 `/v1/models` 和 `/v1/rerank`。
+4. 目标主机已有新版代理镜像 `weknora-ictrek-model-hub-proxy:dev`，或者可以在目标 Jetson 本地构建/从已有开发机导入该镜像。
+5. 宿主机的 `31535`、`31536` 和 `31537` 端口没有被其他程序占用。
 
 检查网络和 Model Hub 容器：
 
@@ -47,7 +54,7 @@ VOS_NETWORK=vos_default
 
 docker network inspect "$VOS_NETWORK" >/dev/null
 docker ps --format '{{.Names}}\t{{.Networks}}' \
-  | rg 'model-hub-ollama-(qa|embedding)'
+  | rg 'model-hub-ollama-(qa|embedding|rerank)'
 ```
 
 在 Model Hub 容器内验证 Gateway：
@@ -55,11 +62,14 @@ docker ps --format '{{.Names}}\t{{.Networks}}' \
 ```bash
 QA_CONTAINER="$(docker ps -q --filter 'name=model-hub-ollama-qa' | head -n 1)"
 EMBEDDING_CONTAINER="$(docker ps -q --filter 'name=model-hub-ollama-embedding' | head -n 1)"
+RERANK_CONTAINER="$(docker ps -q --filter 'name=model-hub-ollama-rerank' | head -n 1)"
 
 docker exec "$QA_CONTAINER" \
   wget -qO- http://127.0.0.1:11535/v1/models
 docker exec "$EMBEDDING_CONTAINER" \
   wget -qO- http://127.0.0.1:11535/v1/models
+docker exec "$RERANK_CONTAINER" \
+  wget -qO- http://127.0.0.1:11434/v1/models
 ```
 
 如果容器没有运行、Gateway 不可用或模型列表为空，先在 VOS Model Hub 管理页面启动对应服务和模型，再继续下面的步骤。
@@ -110,6 +120,7 @@ PROXY_IMAGE=weknora-ictrek-model-hub-proxy:dev
 VOS_NETWORK=vos_default
 QA_HOST_PORT=31535
 EMBEDDING_HOST_PORT=31536
+RERANK_HOST_PORT=31537
 
 docker run -d \
   --name "$PROXY_NAME" \
@@ -117,10 +128,13 @@ docker run -d \
   --network "$VOS_NETWORK" \
   -p "127.0.0.1:${QA_HOST_PORT}:11535" \
   -p "127.0.0.1:${EMBEDDING_HOST_PORT}:11536" \
+  -p "127.0.0.1:${RERANK_HOST_PORT}:11537" \
   -e MODEL_HUB_QA_UPSTREAM=model-hub-ollama-qa:11535 \
   -e MODEL_HUB_EMBEDDING_UPSTREAM=model-hub-ollama-embedding:11535 \
+  -e MODEL_HUB_RERANK_UPSTREAM=model-hub-ollama-rerank:11434 \
   -e MODEL_HUB_QA_LISTEN_PORT=11535 \
   -e MODEL_HUB_EMBEDDING_LISTEN_PORT=11536 \
+  -e MODEL_HUB_RERANK_LISTEN_PORT=11537 \
   --entrypoint python3 \
   "$PROXY_IMAGE" /app/proxy.py
 ```
@@ -132,12 +146,20 @@ docker inspect "$PROXY_NAME" \
   --format '{{json .Config.Env}} {{json .HostConfig.PortBindings}} {{json .NetworkSettings.Networks}}'
 ```
 
+旧代理只有两个监听端口，单纯 `restart-model-hub-proxy` 不会更新容器配置。先确认上面的检查结果对应本地开发代理；重建镜像后，移除这个无持久化数据的代理容器，再执行 `start-model-hub-proxy`。此操作会中断正在通过代理进行的请求，不涉及 Model Hub 容器：
+
+```bash
+docker rm -f "$PROXY_NAME"
+./ictrek.app/docs/local-dev/ictrek-dev.sh start-model-hub-proxy
+```
+
 代理创建后确认它同时能看到 Model Hub 服务和宿主机端口：
 
 ```bash
 docker logs "$PROXY_NAME"
 curl -fsS "http://127.0.0.1:${QA_HOST_PORT}/v1/models"
 curl -fsS "http://127.0.0.1:${EMBEDDING_HOST_PORT}/v1/models"
+curl -fsS "http://127.0.0.1:${RERANK_HOST_PORT}/v1/models"
 ```
 
 ## 配置本地 WeKnora
@@ -151,7 +173,9 @@ OLLAMA_BASE_URL=http://127.0.0.1:31535
 
 使用 local-dev helper 时，`setup --profile jetson-model-hub` 会写入上述固定代理地址；`start-model-hub-proxy` 或后续 `start` 会负责创建/复用独立代理容器。Embedding 模型行始终使用 `source: remote` 和 `http://127.0.0.1:31536/v1`，不要把它改成全局 `OLLAMA_BASE_URL`。
 
-然后重启本地后端：
+`tc232` 也可手动执行 `start-model-hub-proxy`，其模型列表包含同一 ReRank 可选行，默认仍为 vLLM。仅显示模型行不代表上游可用；本地模式不会自动从 Model Hub 下载模型。
+
+然后重启本地后端（已有 `tc232` 配置执行 `setup` 会保留该 profile）：
 
 ```bash
 ./ictrek.app/docs/local-dev/ictrek-dev.sh setup
@@ -165,6 +189,7 @@ OLLAMA_BASE_URL=http://127.0.0.1:31535
 | QA / VLM，直接使用本地 Ollama 适配器 | `source: local`，`base_url: ""` | 使用全局 `OLLAMA_BASE_URL`，即 `31535` |
 | QA / VLM，使用 OpenAI-compatible 适配器 | `source: remote`，`interface_type: openai` | `http://127.0.0.1:31535/v1` |
 | Embedding | `source: remote`，`interface_type: openai` | `http://127.0.0.1:31536/v1` |
+| ReRank | `source: remote`，`provider: generic`，`score_scale: probability`（`0～1` 相关度） | `http://127.0.0.1:31537/v1` |
 
 当前 `builtin_models.tc232.yaml` 中的 Ollama QA/VLM 行是非默认的 fallback 行；选择这些行后，QA/VLM 会通过 `OLLAMA_BASE_URL` 访问代理。该文件的默认 QA、VLM 和 Embedding 仍然是 vLLM 端点，不会因为启动代理而自动切换。
 
@@ -186,20 +211,25 @@ parameters:
   provider: generic
 ```
 
-模型名必须与目标 Model Hub 的 `/v1/models` 返回值一致，通常分别是 `qwen3.5:2b` 和 `bge-m3`。不要把本地开发 YAML 指向 VOS 生产数据库；YAML 托管行可能会被同步或软删除。
+模型名必须与目标 Model Hub 的 `/v1/models` 返回值一致，本 profile 默认使用 `qwen3.5:2b`、`bge-m3:latest` 和 `qllama/bge-reranker-v2-m3:q8_0`。不要把本地开发 YAML 指向 VOS 生产数据库；YAML 托管行可能会被同步或软删除。
 
-当前代理只提供 QA 和 Embedding 两个监听端口。ReRank 仍使用现有 vLLM 或其他独立端点；如果要复用 `model-hub-ollama-rerank:11535`，需要为代理增加第三个监听端口和对应的镜像实现。
+后端启动会把 YAML（模型配置文件）的 ReRank 行同步到本地开发数据库。ReRank 的模型名和地址使用 `${NAME:-default}`（环境变量缺失或为空时使用默认值）：旧 `.env` 无需新增变量也会显示 `qllama/bge-reranker-v2-m3:q8_0`，默认地址为 `http://127.0.0.1:31537/v1`；非空环境变量仍优先。未声明默认值的 `${NAME}` 继续保留缺失变量的占位符，便于发现配置问题。
+
+重启会修正先前写入的 YAML 托管异常模型名、展示名和地址；通过管理界面修改过的运行时模型仍保留人工设置。重启后应在「模型管理」和智能体 ReRank 下拉框看到该模型；已有智能体不会因此自动切换模型，需手动选择并保存。
 
 ## 端到端验证
+
+本机实测覆盖两条中文候选文档的接口调用，以及 HybRAG 聊天重排阶段（`outcome=ok`）。未覆盖浏览器完整会话和 Model Hub 调用指标。
 
 先验证模型列表：
 
 ```bash
 curl -fsS http://127.0.0.1:31535/v1/models
 curl -fsS http://127.0.0.1:31536/v1/models
+curl -fsS http://127.0.0.1:31537/v1/models
 ```
 
-再分别测试 QA 和 Embedding：
+再分别测试 QA、Embedding 和 ReRank：
 
 ```bash
 curl -N -fsS http://127.0.0.1:31535/v1/chat/completions \
@@ -217,6 +247,10 @@ curl -fsS http://127.0.0.1:31536/v1/embeddings \
     "model": "bge-m3",
     "input": ["Model Hub embedding 测试"]
   }'
+
+curl -fsS http://127.0.0.1:31537/v1/rerank \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qllama/bge-reranker-v2-m3:q8_0","query":"知识库检索","documents":["知识库检索流程","今天的天气"]}'
 ```
 
 同时查看 Model Hub QA 或 Embedding 容器日志，确认请求进入的是 `11535` Gateway，而不是原生 `11434`：
@@ -234,6 +268,7 @@ docker logs --since 5m "$(docker ps -q --filter 'name=model-hub-ollama-embedding
 ssh -N \
   -L 31535:127.0.0.1:31535 \
   -L 31536:127.0.0.1:31536 \
+  -L 31537:127.0.0.1:31537 \
   <vos-user>@<vos-host>
 ```
 
@@ -247,9 +282,11 @@ OLLAMA_BASE_URL=http://127.0.0.1:31535
 
 ## 故障排查
 
-- `model-hub-ollama-qa` 或 `model-hub-ollama-embedding` 解析失败：确认代理加入的是目标 VOS 的 `vos_default` 网络，并检查服务 alias。
-- 宿主机 `31535/31536` 连接被拒绝：检查代理容器状态、端口映射和 `docker logs`。
+- `model-hub-ollama-qa`、`model-hub-ollama-embedding` 或 `model-hub-ollama-rerank` 解析失败：确认代理加入的是目标 VOS 的 `vos_default` 网络，并检查服务 alias。
+- 宿主机 `31535/31536/31537` 连接被拒绝：检查代理容器状态、端口映射和 `docker logs`。
 - `/v1/models` 有响应但模型调用报模型不存在：检查 Model Hub 管理页面的模型名，以及请求中的 `model` 是否完全一致。
 - Embedding 调用到了 QA 服务：不要使用 `source: local` 的本地 Embedding fallback；使用 `source: remote` 并把 `base_url` 配置为 `http://127.0.0.1:31536/v1`。
-- Model Hub 看不到槽位或 token/s：确认调用地址使用 `11535` Gateway，不要直连 `11434`。
-- 端口冲突：修改 `QA_HOST_PORT`、`EMBEDDING_HOST_PORT`，并同步修改本地 `.env` 和模型 YAML 的地址。
+- QA/Embedding 在 Model Hub 看不到槽位或 token/s：确认调用地址使用 `11535` Gateway。ReRank 的指标能力待 VOS 联调确认。
+- ReRank 下拉框没有模型或显示 `${ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME}`：更新代码后完全重启 `$DEV app`/Air，再刷新页面；仅刷新浏览器不会同步 YAML。若该模型已经过人工编辑，需在模型管理中修正名称和地址。
+- ReRank 请求失败：检查 `31537/v1/models`、`31537/v1/rerank`，确认 Model Hub 版本、模型下载状态和名称；代理不会把失败请求转到 QA 或 vLLM。
+- 端口冲突：修改 `QA_HOST_PORT`、`EMBEDDING_HOST_PORT`、`RERANK_HOST_PORT`，并同步修改本地 `.env` 和模型 YAML 的地址。

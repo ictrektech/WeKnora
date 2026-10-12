@@ -115,3 +115,18 @@ builtin_models:
         dimension: 1024
         truncate_prompt_tokens: 8192
         supports_dimension_override: false
+
+  - id: ictrek-model-hub-ollama-rerank
+    name: "${ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME:-qllama/bge-reranker-v2-m3:q8_0}"
+    display_name: "${ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME:-qllama/bge-reranker-v2-m3:q8_0} (Model Hub Ollama ReRank)"
+    type: Rerank
+    source: remote
+    description: ReRank model from the VOS Model Hub rerank proxy.
+    is_default: false
+    parameters:
+      base_url: "${ICTREK_DEV_MODEL_HUB_RERANK_BASE_URL:-http://127.0.0.1:31537/v1}"
+      api_key: ""
+      interface_type: openai
+      provider: generic
+      extra_config:
+        score_scale: probability
