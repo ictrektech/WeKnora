@@ -32,22 +32,12 @@ output_dir="$(cd "$output_dir" && pwd)"
 build_dir="$(mktemp -d /tmp/weknora-bsk-build.XXXXXX)"
 trap 'rm -rf "$build_dir"' EXIT
 
-git init -q "$build_dir/source"
-git -C "$build_dir/source" remote add origin https://github.com/Tencent/BrowserSkill.git
-fetched=0
-# Keep GitHub as the source of truth, but mainland builders need a TLS fallback.
-for source_url in \
-  https://github.com/Tencent/BrowserSkill.git \
-  https://ghfast.top/https://github.com/Tencent/BrowserSkill.git; do
-  git -C "$build_dir/source" remote set-url origin "$source_url"
-  if git -c http.version=HTTP/1.1 -C "$build_dir/source" fetch --depth=1 origin "$source_commit"; then
-    fetched=1
-    break
-  fi
-  echo "BrowserSkill fetch failed via $source_url; trying the next source" >&2
-done
-[ "$fetched" = "1" ] || { echo "Failed to fetch BrowserSkill commit $source_commit" >&2; exit 1; }
-git -C "$build_dir/source" checkout -q --detach FETCH_HEAD
+# Build hosts receive pinned source archives and never access Git repositories.
+mkdir -p "$build_dir/source"
+curl --fail --location --retry 3 --connect-timeout 20 --max-time 600 \
+  "https://codeload.github.com/Tencent/BrowserSkill/tar.gz/$source_commit" \
+  -o "$build_dir/source.tar.gz"
+tar -xzf "$build_dir/source.tar.gz" --strip-components=1 -C "$build_dir/source"
 (
   cd "$build_dir/source"
   npx --yes pnpm@10.17.0 install --frozen-lockfile

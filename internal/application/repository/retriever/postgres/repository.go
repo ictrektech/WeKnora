@@ -24,6 +24,12 @@ type pgRepository struct {
 // NewPostgresRetrieveEngineRepository creates a new PostgreSQL retriever repository
 func NewPostgresRetrieveEngineRepository(db *gorm.DB) interfaces.RetrieveEngineRepository {
 	logger.GetLogger(context.Background()).Info("[Postgres] Initializing PostgreSQL retriever engine repository")
+	var version string
+	if err := db.Raw("SELECT extversion FROM pg_extension WHERE extname = 'pg_search'").Scan(&version).Error; err != nil {
+		logger.GetLogger(context.Background()).Warnf("[Postgres] Cannot verify pg_search version: %v", err)
+	} else if pgSearchNeedsUpgrade(version) {
+		logger.GetLogger(context.Background()).Warnf("[Postgres] pg_search %q is missing or older than validated 0.22.6; upgrade PGV and complete BM25 index maintenance before keyword/hybrid retrieval", version)
+	}
 	return &pgRepository{db: db}
 }
 
@@ -94,6 +100,7 @@ func (g *pgRepository) Save(ctx context.Context, indexInfo *types.IndexInfo, add
 	embeddingDB := toDBVectorEmbedding(indexInfo, additionalParams)
 	err := g.db.WithContext(ctx).Clauses(upsertBySource).Create(embeddingDB).Error
 	if err != nil {
+		err = diagnoseBM25Error(err)
 		logger.GetLogger(ctx).Errorf("[Postgres] Failed to save index: %v", err)
 		return err
 	}
@@ -126,6 +133,7 @@ func (g *pgRepository) BatchSave(
 	}
 	err := g.db.WithContext(ctx).Clauses(upsertBySource).Create(indexInfoDBList).Error
 	if err != nil {
+		err = diagnoseBM25Error(err)
 		logger.GetLogger(ctx).Errorf("[Postgres] Batch save failed: %v", err)
 		return err
 	}
@@ -256,6 +264,7 @@ func (g *pgRepository) KeywordsRetrieve(ctx context.Context,
 		return nil, nil
 	}
 	if err != nil {
+		err = diagnoseBM25Error(err)
 		logger.GetLogger(ctx).Errorf("[Postgres] Keywords retrieval failed: %v", err)
 		return nil, err
 	}

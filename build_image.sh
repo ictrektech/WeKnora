@@ -180,6 +180,7 @@ ensure_dockerfile_base_images() {
 
   while IFS= read -r image; do
     [[ -n "$image" ]] || continue
+    image="${image//'${TARGETARCH}'/${BUILD_PLATFORM#linux/}}"
     if [[ "$dockerfile" == "docker/Dockerfile.sandbox" && "$image" == "ghcr.io/tencentcloud/cubesandbox-base:"* ]]; then
       log "Skipping Cube-only base image for default sandbox target: ${image}"
       continue
@@ -836,6 +837,7 @@ fi
 
 # The runtime installs hundreds of packages; Aliyun is more reliable on mainland build hosts.
 APP_BUILD_ARGS=(
+  --build-arg "TARGETARCH=${BUILD_PLATFORM#linux/}"
   --build-arg "APK_MIRROR_ARG=${APK_MIRROR_ARG:-mirrors.aliyun.com}"
   --build-arg "GOPROXY_ARG=${GOPROXY_ARG:-https://goproxy.cn,direct}"
   --build-arg "GOPRIVATE_ARG=${GOPRIVATE_ARG:-}"

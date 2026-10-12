@@ -1,9 +1,13 @@
 # Build extension and daemon from the same pinned source on the runtime architecture.
-FROM --platform=$TARGETPLATFORM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS browserskill
+ARG TARGETARCH=amd64
+FROM --platform=$TARGETPLATFORM swr.cn-southwest-2.myhuaweicloud.com/ictrek/node:${TARGETARCH}_24-bookworm-slim AS browserskill
 WORKDIR /build
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git python3 ca-certificates curl build-essential cmake pkg-config && \
     rm -rf /var/lib/apt/lists/*
+ARG RUSTUP_DIST_SERVER_ARG=https://mirrors.tuna.tsinghua.edu.cn/rustup
+ARG RUSTUP_UPDATE_ROOT_ARG=https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup
+ENV RUSTUP_DIST_SERVER=$RUSTUP_DIST_SERVER_ARG RUSTUP_UPDATE_ROOT=$RUSTUP_UPDATE_ROOT_ARG
 ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo
 ENV PATH=/usr/local/cargo/bin:$PATH
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
@@ -19,7 +23,7 @@ RUN --mount=type=cache,target=/root/.npm \
     bash scripts/build_browserskill.sh /opt/weknora/browserskill "${TARGETOS}/${TARGETARCH}"
 
 # Build stage
-FROM golang:1.26-bookworm AS builder
+FROM swr.cn-southwest-2.myhuaweicloud.com/ictrek/golang:${TARGETARCH}_1.26-bookworm AS builder
 
 WORKDIR /app
 
@@ -95,7 +99,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 RUN --mount=type=cache,target=/go/pkg/mod cp -r /go/pkg/mod/github.com/yanyiwu/ /app/yanyiwu/
 
 # Final stage
-FROM debian:12.12-slim
+FROM swr.cn-southwest-2.myhuaweicloud.com/ictrek/debian:${TARGETARCH}_12.12-slim
 
 WORKDIR /app
 
