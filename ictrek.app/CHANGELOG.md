@@ -2,38 +2,53 @@
 
 记录 VOS HybRAG 应用的可验证变化。
 
-## [Unreleased]
+## [0.1.65] - 2026-10-12
 
 ### 重点变化
 
-- **通用 Ollama rerank 接入** — 使用 ictrek Ollama 的 `/v1/rerank` 和标准 `query/documents` → `results` 协议；移除 `/api/embed` 第一维评分适配。默认模型行使用 generic provider 和 probability 分数标度，已有 Ollama/local rerank 行仍可接入。
-
-- **知识库图片画廊与按需 OCR** — 知识库新增画廊视图，支持搜索、属性筛选、排序、翻页和全屏查看；开启 `image_attrs_enabled` 后，VLM 在生成描述时同步观察 `contain.text` 和 `contain.data_visual`，再由 `image_actions` 决定是否追加 OCR。默认仍保持原有的描述加 OCR 行为；历史图片若需属性筛选，需重新处理文档。
+- **通用 Ollama rerank 接入** — rerank（对召回候选重新评分排序）使用 ictrek Ollama 的 `/v1/rerank` 和标准 `query/documents` → `results` 协议；移除 `/api/embed` 第一维评分适配。默认模型行使用 `provider=generic` 和 `score_scale=probability`（按概率解释分数），已有 Ollama/local rerank 行仍可接入。
+- **知识库图片画廊与按需 OCR** — 知识库新增画廊视图，支持搜索、属性筛选、排序、翻页和全屏查看；开启 `image_attrs_enabled` 后，VLM（理解图片的视觉语言模型）在生成描述时同步观察 `contain.text` 和 `contain.data_visual`，再由 `image_actions` 决定是否追加 OCR（识别图片中的文字）。默认仍保持原有的描述加 OCR 行为；历史图片若需属性筛选，需重新处理文档。
 - **引用直达原文** — 点击知识库引用可打开原始文件并定位高亮，覆盖文字或扫描 PDF、Word、PPT、Excel/CSV、Markdown/TXT/EPUB 和带分段时间的音频；新入库分块保存 `source_locators`，旧文档继续按文字回退定位，重新解析后可获得精确位置。同步修复了重叠 PDF 文本、片段化 Markdown、表格高亮、文档预览启动失败以及历史会话引用浮层初始化。
-- **统一检索与 rerank 语义** — 页面问答、Agent `search_knowledge`、`POST /knowledge-search` 和 `POST /knowledge-bases/:id/hybrid-search` 共用同一套 rerank、分数归一化、MMR 去重和降级逻辑；两个 API 可控制召回阈值和 `rerank` 对象，并通过 `meta.rerank` 返回模型、阈值、候选数和降级原因。候选与返回上限统一约束为 200，模型加载或调用失败时按召回顺序返回。
-- **系统管理员模型目录** — 「设置 → 系统管理 → 模型目录」可编辑、预览、发布、恢复和导入导出模型目录覆盖；`GET/POST/PUT /api/v1/system/admin/model-catalog` 使用版本和部署基线检测冲突，其他实例约 5 秒内同步。控制台不接受凭据、请求头、`base_url` 或环境变量展开，这些仍由部署配置管理。
+- **统一检索与 rerank 语义** — 页面问答、Agent（可调用工具的智能体）`search_knowledge`、`POST /knowledge-search` 和 `POST /knowledge-bases/:id/hybrid-search` 共用同一套 rerank、分数归一化、MMR（兼顾相关性与内容差异的候选选择）去重和降级逻辑；两个 API 可控制召回阈值和 `rerank` 对象，并通过 `meta.rerank` 返回模型、阈值、候选数和降级原因。候选与返回上限统一约束为 200，模型加载或调用失败时按召回顺序返回；未配置 `request_timeout_seconds` 时，重排调用默认超时为 60 秒。
+- **系统管理员模型目录** — 「设置 → 系统管理 → 模型目录」可编辑、预览、发布、恢复和导入导出模型目录覆盖；读取和发布使用 `GET/PUT /api/v1/system/admin/model-catalog`，预览使用 `POST /api/v1/system/admin/model-catalog/preview`。更新使用版本和部署基线检测冲突，其他实例约 5 秒内同步。控制台不接受凭据、请求头、`base_url` 或环境变量展开，这些仍由部署配置管理。
 
 ### 新增
 
-- **跨知识库 Wiki 搜索** — 新增 `POST /api/v1/wiki-search`，可在多个自有或共享知识库中按标题、slug、摘要和正文排序，返回 `match_snippet`；要求 Viewer 及 API Key `retrieve`/full 权限，并在检查 Wiki 开关前完成每个知识库的访问授权。
+- **台湾繁体中文** — 主界面和嵌入聊天新增 `zh-TW`，采用台湾用语；`zh-Hant`、`zh-HK`、`zh-MO` 等繁体语言标记映射为 `zh-TW`，后端语言校验也接受该值。
+- **保留模型标识的配置复制** — 新增 `POST /api/v1/models/:id/copy`，Admin（管理员）及以上角色可复制当前工作空间的非内置模型；副本只改 `display_name`，保留上游模型 `name` 和服务端已存凭据。已就绪的本地模型不再重复下载，前端生成符合长度限制的副本展示名。
+- **跨知识库 Wiki 搜索** — 新增 `POST /api/v1/wiki-search`，可在多个自有或共享知识库中按标题、`slug`（页面路径标识）、摘要和正文排序，返回 `match_snippet`；要求 Viewer（只读角色）及 API Key `retrieve`/`full` 权限，并在检查 Wiki 开关前完成每个知识库的访问授权。
 - **MinerU 4.0 V1 自建服务** — `mineru` 引擎会通过 `GET /v1/health` 自动选择 MinerU 4.0 V1 任务流或旧版 `/file_parse`；V1 支持 SHA-256 去重上传、任务轮询、取消、zip 结果和同源 API Key 限制。新增 `mineru_server_api_key`、`mineru_tier` 以及 `WEKNORA_MINERU_TIMEOUT` / `WEKNORA_MINERU_CLOUD_TIMEOUT`；MinerU 3.x 参数与协议保持兼容。
-- **Confluence 子树和私有图片同步** — Confluence 数据源可选择页面子树并解析需鉴权的附件图片，单页内联图片总量限制为 50 MiB。Server/Data Center 返回重复尾页链接时会停止无穷翻页，并逐页确认未列出内容后才执行删除对齐，避免部分列表误删文档。
-- **语雀目录层级同步** — 语雀数据源新增 `folder_mode=toc` 和 `toc_only`，可按「书名/分组/文档」保留目录层级；新建来源默认启用 TOC，已有来源保持 `folder_mode=none`。切换模式后需执行一次全量同步；`toc_only` 只停止新的同步入库，不自动删除已存文档。
+- **Confluence 子树和私有图片同步** — Confluence 数据源可选择页面子树并解析需鉴权的附件图片，单页内联图片总量限制为 50 MiB（1 MiB 为 2²⁰ 字节）。Server/Data Center 返回重复尾页链接时会停止无穷翻页，并逐页确认未列出内容后才执行删除对齐，避免部分列表误删文档。
+- **语雀目录层级同步** — 语雀数据源新增 `folder_mode=toc` 和 `toc_only`，可按「书名/分组/文档」保留目录层级；新建来源默认启用 TOC（目录层级），已有来源保持 `folder_mode=none`。切换模式后需执行一次全量同步；`toc_only` 只停止新的同步入库，不自动删除已存文档。
 
 ### 优化
 
-- **数据源调度与失败边界** — `sync_schedule` 统一按含秒的六段 cron 校验，空字符串表示仅手动同步；无效创建、更新或恢复请求返回 `400` 且不改写已存调度。Notion 资源发现失败会中止增量同步，飞书 Wiki 重复分页 token 会明确报错，RSS 响应超限时不再静默截断正文。
-- **Wiki 积压并发清理** — 标准 Redis 模式会按 `ingest_max_inflight` 补充 Wiki 后续批次，同时用每知识库预留和恢复探针限制排队、运行与重试中的后续任务，避免积压退化为单批串行或并发完成时重复放大队列；Lite 和限流路径仍保持单后续任务。
-- **前端资源刷新一致性** — 知识库、Agent、组织和模型等列表取消 60 秒 TTL，改为进行中请求去重、显式失效和旧响应隔离；`/auth/me` 与系统信息的重复请求同步收敛。`/platform/settings` 只挂载一个设置弹窗，避免双弹窗之间出现旧数据。
-- **自动会话标题** — 标题生成会把首条问题当作数据而非指令，并移除思考块、Markdown 表格、标题、列表和链接格式；输出仍不合法时使用用户问题的 30 个 Unicode 字符作为纯文本标题。
+- **自动语言跟随** — VOS 内的自动模式优先采用平台语言，通过 `window.vos_platform.getState()` 和 `locale-change` 广播接收初始值与切换；延迟快照不会覆盖更新的事件。手动选择不被平台覆盖，切回自动采用最近的平台语言；缺少平台语言或独立打开时回退到浏览器首选语言、部署默认和 `zh-CN`。切换不刷新页面，保留未保存输入；旧 VOS 继续兼容同源语言存储。详见[语言设置与验证边界](README.md#安装与升级)。
+- **回答语言跟随当前问题** — 问答和 Agent 提示词优先遵循用户显式语言要求，其次采用最新问题的主要语言，无法判断时才使用配置默认；来源文档和历史回答不改变该优先级。旧保存模板中的固定语言规则在渲染时兼容替换，自我介绍的角色名称也按回答语言生成。
+- **查询扩展减少重复向量调用** — 初次召回不足时，本地生成的查询变体只执行关键词检索，不再逐个计算向量并重复语义召回；关闭关键词匹配时跳过扩展。
+- **数据源调度与失败边界** — `sync_schedule` 统一按含秒的六段 cron（定时执行表达式）校验，空字符串表示仅手动同步；无效创建、更新或恢复请求返回 `400` 且不改写已存调度。Notion 资源发现失败会中止增量同步，飞书 Wiki 重复分页 token 会明确报错，RSS 响应超限时不再静默截断正文。
+- **Wiki 积压并发清理** — 标准 Redis 模式会按 `ingest_max_inflight` 补充 Wiki 后续批次，同时用每知识库预留和恢复探针限制排队、运行与重试中的后续任务，避免积压退化为单批串行或并发完成时重复放大队列；Lite（轻量运行模式）和限流路径仍保持单后续任务。
+- **前端资源刷新一致性** — 知识库、Agent、组织和模型等列表取消 60 秒 TTL（缓存有效期），改为进行中请求去重、显式失效和旧响应隔离；`/auth/me` 与系统信息的重复请求同步收敛。`/platform/settings` 只挂载一个设置弹窗，避免双弹窗之间出现旧数据。
+- **自动会话标题** — 标题生成会把首条问题当作数据而非指令，并移除思考块、Markdown 表格、标题、列表和链接格式；输出仍不合法时使用用户问题的 30 个 Unicode 字符作为纯文本标题。Web 问答等待回答完成后再调用标题模型，避免抢占单并发模型；标题调用限制为 10 秒、最多 64 token（模型输出单位），超时或无可用标题时保存兜底标题。
 - **应用内帮助链接** — 模型、沙箱、API、图谱和系统信息等页面的帮助入口改为打开已发布文档站，不再直接展示 GitHub 原始 Markdown；测试会校验每个页面和锚点存在。
 
 ### 修复
 
+- **跨存储检索排序** — RRF（按各检索列表名次融合结果）改为逐列表排名并归一化融合分，关键词分也按各自列表缩放，避免返回顺序或不同分数尺度压低有效候选。OpenSearch、Weaviate 和 Milvus L2 路径同时换算向量分与阈值，按余弦相似度比较；相关排序和阈值命中可能与旧版本不同。
+- **FAQ 混合范围过滤** — 检索范围包含 FAQ（常见问答条目）库时，即使主库是文档库或 FAQ 来自共享库，也会执行反例问题过滤；主库为 FAQ 时按每个向量列表是否满额决定扩大召回，并沿用首轮融合规则。
+- **快速问答结尾重复** — 快速问答不再重复追加流的最后片段，保存历史和 `final_content` 与实际回答保持一致。
+- **空问题生成结果** — 模型没有返回可用问题时明确报错；全部分块生成失败时返回任务错误，部分失败记录为 `partial_failure`，不再把空结果记作成功。
+- **摘要目标语言优先级** — 摘要生成提示词要求所有生成字段优先采用目标语言，包括主题标签和文档类型，避免源文档语言覆盖指定语言。
+- **Agent 文档内搜索续读** — `read_document` 的关键词匹配结果达到数量或输出长度上限时返回 `next_offset`，可用同一查询继续读取后续匹配，不再只能通过整份文档翻页查找遗漏片段。
+- **Agent 图谱查询** — `query_knowledge_graph` 实际读取图谱实体、关系和来源分块，再以文字检索补充证据，图谱专用知识库不再只走普通文本检索。文档或标签范围会过滤来源证据和关系；单次最多使用 8 个实体查询词、每知识库 10 个证据分块，并返回最多 30 条关系。
+- **未知问答意图回退** — 模型返回的意图忽略大小写和分隔符差异；无法识别的标签按需要检索处理，避免意外跳过知识库后直接生成无检索依据的回答。
+- **仅上传图片或文件的问答** — 内联图片或附件带有上传数据时允许空 `query`，使用当前语言的默认问题调用模型，并保留用户原本的空文字；历史回放不会丢掉这一轮。仅有图片 URL、预上传附件 ID 或完全空的请求仍返回 `400`。
+- **合同 PDF 预览资源回收** — 切换文档、过期加载和离开页面时通过 PDF 加载任务清理资源，避免预览组件调用不匹配的销毁方法。
+- **AnyDoc 解析完整性** — AnyDoc（进程内文档解析引擎）从 `0.1.9` 升至 `0.2.4`，保留公式和复选框节点；需要 OCR 的混合或扫描 PDF 回退到 builtin，缺少回退解析器时明确失败。图片 Markdown 和图片资源复用一次解析，减少重复处理。
 - **FAQ 条目清理与校验** — FAQ 写入前会去除问题和答案首尾空白，丢弃空值并去重；仅含空白的答案现在会被拒绝，不再把无效或重复内容保存到知识库。
 - **会话知识库范围恢复** — 切换到未保存知识库范围的历史会话时会清空上一个会话的选择，避免继续把过期的 `@KB` 范围发送给服务端；离开会话后仍恢复浏览器级默认选择。
 - **表格摘要任务边界** — 已删除或不属于任务租户的文档不会继续执行遗留的表格摘要任务；模型返回空摘要时改为明确失败并进入既有重试路径，不再保存空的表格或列说明。
-- **数据源内容与增量同步** — 钉钉同步会记录跳过、失败和尚未建模的块类型，并保留列表、代码、附件及可读的未知块内容；GitLab 按提交快照比较强推或重置后的变化；飞书云盘重复分页 token 会终止并报错；Notion 页面清空后会覆盖旧正文；RSS 全文抓取失败后会在下次同步重试。
+- **数据源内容与增量同步** — 钉钉同步会记录跳过、失败和尚未建模的块类型，并保留列表、代码、附件及可读的未知块内容；GitLab 按提交快照比较强推或重置后的变化；飞书云盘重复分页 token 会终止并报错；Notion 页面清空后会覆盖旧正文，IMA 笔记清空后以标题覆盖旧内容；RSS 全文抓取失败后会在下次同步重试。
 - **Lite 关键词字面匹配** — SQLite 查询为 `%`、`_` 和 `\` 补齐显式 `ESCAPE` 语义，文档、知识库、标签、租户、成员、会话及分块/FAQ 搜索不再静默漏掉或扩大包含这些字符的关键词；PostgreSQL 保持相同字面匹配行为。
 - **Embed Host context 追问** — 嵌入渠道调用 `WeKnora.setContext` 后，追问建议可识别合法的 `[Host context]` 信封，不再因归因文本不完全相等返回 `400`；生成回答期间未实际发送的点击也不会污染下一条消息。
 - **本机 Skill 密钥标签** — 环境变量设置中的本机 Skill 密钥卡片使用当前语言的“本机”标签，不再在其他语言界面显示后端原始配置名称。
@@ -47,26 +62,42 @@
 
 ### 打包与部署
 
+- **文档生成语言默认跟随请求** — AMD64、ARM64 打包模板将 `WEKNORA_LANGUAGE` 默认值改为空，摘要和问题生成采用 `Accept-Language`（请求中的语言偏好），缺少该头时回退到 `zh-CN`；显式非空配置仍优先。安装配置新增对应语言项，需重新打包并升级、重建后端容器后生效，已有生成内容不自动改写。
+- **ARM64 沙箱构建** — 沙箱镜像按目标平台选择基础镜像，并校验系统与目标架构一致，避免将 AMD64 文件系统误标为 ARM64；Cube 变体也校验 `envd`（沙箱命令服务）的架构。ARM64 Cube 仍要求原生 KVM（内核虚拟机）环境。
+- **镜像迁移验证等待数据库就绪** — `build_image.sh` 的迁移检查改为通过 PostgreSQL TCP 端口探测就绪，避免初始化阶段的临时 Unix socket 服务被误判为可用后过早执行迁移。
 - **新功能数据库迁移** — PostgreSQL 新增 `000133_model_catalog_config`、`000134_embeddings_knowledge_chunk_index`、`000135_chunk_images` 和 `000136_chunk_source_locators`；SQLite 新增 `000041_model_catalog_config`、`000042_chunk_images` 和 `000043_chunk_source_locators`。升级部署需确保对应 `up` 迁移执行成功，否则模型目录、画廊或精确引用定位不可用。
 
 ### 模型与运行
 
-- **Rerank 与思考等级兼容** — 阿里云 `qwen3-rerank` 恢复使用 DashScope 原生 rerank 协议并重新出现在选择器中；仅支持布尔思考开关的通用模型只展示 `off` / `auto`，显式声明 `supports_reasoning_effort` 的模型才展示分级档位，并将 `reasoning_effort` 实际写入请求。
+- **显式零温度参数（部分落地）** — Completions、Responses、Anthropic 和 Gemini 请求构造器在 `TemperatureSet=true` 时会发送 `temperature=0`；厂商不支持温度、固定温度或思考模式的限制继续生效。当前业务调用尚未设置该标记，不能据此认为界面或 Agent 中配置的零温度已生效。
+- **Rerank 与思考等级兼容** — 阿里云 `qwen3-rerank` 恢复使用 DashScope 原生 rerank 协议并重新出现在选择器中；仅支持布尔思考开关的通用模型只展示 `off` / `auto`，显式声明 `supports_reasoning_effort` 的模型才展示分级档位，并将 `reasoning_effort` 实际写入请求。恢复旧配置 `thinking_control=think` 的 `think:true/false` 和 `thinking_control=reasoning_effort` 的 `medium/none` 行为，未指定开关时不发送；VOS 默认 QA（问答模型）/VLM 使用后者。
 - **模型限流重试** — Agent 对 `429` / `503` 响应同时支持秒数和 HTTP 日期格式的 `Retry-After`，按其与线性退避的较大值等待，并将服务端建议限制在 30 秒内，减少仍处于限流窗口时耗尽重试。
 - **上下文压缩取消语义** — 摘要流因请求取消而关闭时会返回取消错误，不再把空摘要当作成功 checkpoint 保存；供应商错误、自然结束和原有停滞重试语义保持不变。
-- **中断流识别与 SDK SSE 解析** — Completions、Responses 和 Gemini 流在没有 finish reason 就结束时会标记为不完整并返回流错误，不再把半截回答存为完成；重试按结构化 HTTP/传输错误分类且可响应取消。Go client 同时按 SSE 规则合并多行 `data:` 并忽略空帧。
-- **MCP 连接有界关闭** — 服务停止时会注册并并发关闭 MCP 连接，且设置总时间边界，避免远程 session 留待超时或串行断开阻塞进程退出。
+- **中断流识别与 SDK SSE 解析** — Completions、Responses 和 Gemini 流在没有 finish reason（结束原因）就结束时会标记为不完整并返回流错误，不再把半截回答存为完成；重试按结构化 HTTP/传输错误分类且可响应取消。Go client 同时按 SSE（服务器推送事件）规则合并多行 `data:` 并忽略空帧。
+- **MCP 连接有界关闭** — 服务停止时会注册并并发关闭 MCP（模型连接外部工具的协议）连接，且设置总时间边界，避免远程 session 留待超时或串行断开阻塞进程退出。
 - **信号关闭资源回收** — `SIGTERM` / `SIGINT` 关闭会在同一 `server.shutdown_timeout` 内划分连接排空和清理预算，并继续执行 BrowserSkill、沙箱、IM、任务池和 Langfuse 等清理钩子，避免监听器竞态触发 `os.Exit(1)` 后跳过回收。
 
 ### 安全与权限
 
+- **邀请注册档位与升级动作** — 密码注册新增 `auth.registration_mode=invite_register`，只有有效邀请链接允许新用户注册；`self_serve` 保持公开注册。`invite_only` 现在同时禁止公开和邀请注册，邀请仅供已有账号加入空间；此前依赖邀请创建账号的部署需切换为 `invite_register`，历史 `DISABLE_REGISTRATION=true` 仍对应禁止注册。
+- **登录令牌持久化失败** — access token 或 refresh token 保存失败时登录返回错误，不再返回下一次请求就无法使用的令牌；令牌查询失败报告基础设施错误，不再误报已撤销。
+- **GitLab 下载体积边界** — 普通 API JSON 响应限制为 16 MiB，compare 响应为 128 MiB，单个原始文件为 512 MiB；超限返回错误，不再无界读入或把截断内容入库，base64 文件回退也设有响应上限。
 - **共享 Agent 本地浏览器归属** — 共享空间 Agent 的 `local_browser` 从当前调用者而非 Agent 所有者解析设备范围，已与调用者配对的浏览器不再误报未配对，且仍不跨用户控制设备。
-- **LLM 调试日志路径限制** — 来自 `X-Request-ID` 的文件名只保留安全标识符，阻止 `../` 选择日志目录外的路径；含完整 prompt 的记录以 `0600` 写入 `0700` 目录。
+- **LLM 调试日志路径限制** — LLM（大语言模型）日志中来自 `X-Request-ID` 的文件名只保留安全标识符，阻止 `../` 选择日志目录外的路径；含完整 prompt（模型输入）的记录以 `0600` 写入 `0700` 目录。
 - **Embed 签名密钥诊断** — 启动时会检测可用的 `SYSTEM_SIGNING_KEY` 并输出 `[startup-env]` 警告，Embed session 缺少密钥时的 `503` 错误也会指明配置项，便于升级后识别已失效的示例 `SYSTEM_AES_KEY`。
 
 ### 文档与验证
 
+- **上游同步兼容检查** — [上游同步指南](docs/upstream-sync.md)增加合并前固定提交、本地定制行为与测试迁移核查，以及思考参数从配置到请求的回归要求；自动发现全部定制和阻断回归的专用检查仍未实现。
 - **API 快速入门工作空间变量** — API 示例会从登录响应提取 `active_tenant.id` 为 `TENANT_ID`，并说明需要 Bash、curl、jq 以及已加入工作空间的账号，后续创建 API Key 的命令可直接执行。
+
+### 移除与不兼容
+
+- **Ollama 重排服务要求** — 不再使用 `/api/embed` 评分和 `ollama_rerank_template` 自定义模板；升级后重排服务必须提供标准 `/v1/rerank`。旧 Ollama/local 模型配置自动转为通用协议，不会恢复旧评分适配。
+
+### 已知限制
+
+- **VOS 语言切换验证范围** — 已有回归测试覆盖模拟平台接口、事件竞争、手动选择保护和未保存输入；真实 VOS 登录会话切换及升级后的线上行为仍待验证。等待平台接口注入时，首屏可能短暂显示浏览器回退语言。
 
 ## [0.1.64] - 2026-09-28
 
@@ -177,7 +208,6 @@
 
 - **数据库驱动范围** — 运行时的 `DB_DRIVER` 当前只接入 PostgreSQL 和 SQLite；仓库中的 `migrations/mysql/` 仅作未接入的参考脚本，不能据此声称已支持 MySQL。
 
-[Unreleased]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.64...HEAD
 [0.1.64]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.63...vos-hybrag-v0.1.64
 [0.1.63]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.62...vos-hybrag-v0.1.63
 [0.1.62]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.61...vos-hybrag-v0.1.62
