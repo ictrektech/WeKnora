@@ -25,5 +25,10 @@ BEGIN
         RETURN;
     END IF;
 
-    ALTER EXTENSION pg_search UPDATE TO '0.22.6';
+    BEGIN
+        ALTER EXTENSION pg_search UPDATE TO '0.22.6';
+    EXCEPTION
+        WHEN insufficient_privilege THEN
+            RAISE NOTICE 'PGV administrator must upgrade pg_search to 0.22.6 and rebuild the BM25 index; the application account leaves the extension unchanged';
+    END;
 END $$;

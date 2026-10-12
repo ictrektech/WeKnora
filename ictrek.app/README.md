@@ -470,7 +470,8 @@ gh release view "v${VERSION}" --repo ictrektech/WeKnora
 
 共享 PGV 保持 PostgreSQL 16，`pg_search` 使用验证版本 0.22.6。
 先在维护窗口备份数据库、停止导入和检索，升级 PGV 并完成 provision 的扩展升级
-和一次性 BM25 索引重建，再恢复 HybRAG。普通应用账号不执行扩展升级或自动 REINDEX。
+和一次性 BM25 索引重建，再恢复 HybRAG。普通应用账号不执行扩展升级或自动 REINDEX；旧版扩展迁移遇到权限不足时
+会提示由 PGV 管理员处理，不再将应用迁移置为失败。
 若启动日志提示扩展缺失或低于 0.22.6，检查 PGV 的 provision 是否真正完成。
 遇到 `XX000` 的 CTID/heap 页面访问错误时，后端日志会给出 PGV 管理员恢复指引；
 使用 PGV 包内 `/init/pg-search-upgrade.sql` 的 `force_rebuild=true` 重建索引后，
