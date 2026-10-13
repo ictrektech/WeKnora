@@ -1265,7 +1265,10 @@ export default {
     "noResourcesDesc_seafile": "該權杖能存取的資料庫為空，或全部為加密資料庫（不支持同步）",
     "guideStep1_seafile": "登入 Seafile，確認帳號至少擁有一個未加密資料庫的讀取權限",
     "guideStep2_seafile": "在「設定 → Web API 權杖」中生成或重新生成權杖",
-    "guideStep3_seafile": "回到這裡填入新權杖並點重新載入"
+    "guideStep3_seafile": "回到這裡填入新權杖並點重新載入",
+    "dingtalkIngestLabel": "釘釘攝取範圍",
+    "dingtalkIncludeUploadedFiles": "攝取知識庫中的上傳檔案（docx / pptx / xlsx / pdf）",
+    "dingtalkIncludeUploadedFilesHint": "預設關閉。開啟後，所選範圍內的 Word / PowerPoint / Excel / PDF 上傳檔案會被下載並解析入庫，單一檔案上限 64 MiB；這些檔案的正文會計入儲存與向量化成本。關閉時它們只會被跳過，同步日誌會說明開關未開啟，不會刪除知識庫中已有的副本。"
   },
   "ollama": {
     "unknown": "未知",
@@ -2638,7 +2641,15 @@ export default {
       "thinking": "思考模式",
       "thinkingDesc": "僅對支援思考模式的模型生效",
       "thinkOn": "思考開啟",
-      "thinkOff": "思考關閉"
+      "thinkOff": "思考關閉",
+      "similarityMode": "相似度",
+      "similarityQuery": "查詢文字",
+      "similarityQueryPlaceholder": "輸入一條查詢，例如：草地上奔跑的狗",
+      "similarityCandidates": "候選文字",
+      "similarityCandidatesPlaceholder": "每行輸入一個候選文字",
+      "similarityHint": "查詢按檢索查詢方式向量化，候選按文件方式向量化，與線上檢索一致；結果按餘弦相似度由高到低排列",
+      "similarityImage": "候選圖片（可選）",
+      "similarityImageCandidate": "圖片"
     },
     "builtinModels": {
       "title": "內建模型",
@@ -3302,6 +3313,8 @@ export default {
         "regionDesc": "RunRerank supports ap-beijing, ap-guangzhou, etc. Default: ap-guangzhou",
         "rerankCredentialHint": "Rerank uses Tencent Cloud API signature. Create SecretId/SecretKey in the CAM console."
       },
+      "embeddingImageInputLabel": "圖片輸入",
+      "embeddingImageInputDesc": "模型能把圖片編碼到與文字相同的向量空間。目錄內的模型會自動識別，自訂模型需手動宣告",
     }
   },
   "error": {
@@ -4138,7 +4151,10 @@ export default {
       "sessionEnded": "終端會話已結束",
       "idleDisconnected": "終端空閒已斷開，沙箱將按工作區 TTL 自行暫停。可重新連接。",
       "authRevoked": "登入狀態已失效，終端已斷開。請重新登入後再連接。",
-      "desktopPlaceholder": "桌面可視化即將支援"
+      "desktopPlaceholder": "桌面可視化即將支援",
+      "stopped": "本會話的沙箱未在執行：可能已停止，或因長時間閒置已被回收。啟動終端會重新啟動它；若已被回收，則會新建一個沙箱，先前的檔案和安裝的軟體不會保留。",
+      "idleDisconnectedNewShell": "終端閒置已斷開，其中的 shell 已結束（nohup 啟動的背景任務不受影響）。重新連結會開啟一個新的 shell。",
+      "disconnectedNewShell": "連結已斷開，終端中的 shell 已結束（nohup 啟動的背景任務不受影響）。重新連結會開啟一個新的 shell。"
     },
     "questionMinimapTitle": "問答",
     "questionMinimapPosition": "第 {current} 輪 · 共 {total} 輪",
@@ -4316,7 +4332,10 @@ export default {
         "imageAttrsOcrConditionsDesc": "當觀察到的屬性滿足以下條件時，對圖片進行 OCR",
         "imageAttrsOcrOnUnobserved": "圖片屬性觀察失敗時仍執行 OCR",
         "imageAttrsOcrOnUnobservedDesc": "當模型未能正確觀察到圖片屬性時，預設仍執行 OCR 兜底，以免漏掉正文文字；關閉則跳過。（採用 4B 等小參數視覺模型，或自定義的圖片解析提示詞與系統提示詞衝突時，可能造成觀察失敗；8B 及以上模型的失敗概率很低，不建議關閉）",
-        "imagePipelineKbNote": "預設跟隨知識庫設定，可針對本次任務調整"
+        "imagePipelineKbNote": "預設跟隨知識庫設定，可針對本次任務調整",
+        "imageVectorLabel": "圖片向量檢索",
+        "imageVectorDescription": "開啟後，產生圖片描述之後再用向量模型直接對圖片編碼，檢索時可依圖片內容找回描述中沒寫到的資訊。需要向量模型支援圖片輸入；每張圖片多一次向量呼叫，向量檢索的候選範圍也會擴大。僅對之後匯入或重新解析的文件生效，掃描版 PDF 頁面不會產生",
+        "imageVectorModelUnsupported": "目前的向量模型未宣告支援圖片輸入，開啟後不會產生或檢索圖片向量"
       },
       "tableMetadataInstructions": {
         "label": "表格元資料生成要求",
@@ -4715,11 +4734,11 @@ export default {
         "imageLoadError": "圖片載入失敗",
         "noCaption": "暫無描述",
         "noOcr": "未識別到文字",
-        "caption": "描述",
-        "ocr": "圖中文字（OCR）",
-        "attributes": "屬性",
+        "caption": "圖片描述",
+        "ocr": "圖中文字",
+        "attributes": "圖片屬性",
         "source": "來源文件",
-        "details": "詳細資訊",
+        "details": "基本資訊",
         "dimensions": "尺寸",
         "status": "狀態",
         "openSource": "打開來源文件",
@@ -7266,7 +7285,12 @@ export default {
     "pdfForceScanned": {
       "label": "按掃描件解析 PDF",
       "description": "適用於網頁打印、掃描件、圖片型 PDF。開啟後會逐頁 OCR，解析更完整但耗時和模型調用更多。"
-    }
+    },
+    "imageEmbeddingModel": "圖像索引 Embedding 模型",
+    "imageIndexInherited": "圖像索引使用知識庫綁定的 Embedding 模型；如需更換，請前往知識庫設定。",
+    "imageVectorIndex": "本次圖片向量索引",
+    "imageVectorIndexHint": "為本次上傳或重新解析的圖片產生向量，不改變知識庫預設設定。是否參與檢索仍由知識庫的「圖片向量檢索」開關決定。",
+    "imageVectorRequiresIndex": "請先在知識庫設定中開啟向量索引。"
   },
   "knowledgeBase": {
     "tagAddAction": "新增標籤",
@@ -7555,8 +7579,8 @@ export default {
     "statusDraft": "草稿",
     "noDescription": "無描述",
     "emptyKnowledgeDragDrop": "知識為空，拖放上傳",
-    "pdfDocFormat": "pdf、doc 格式文件，不超過10M",
-    "textMarkdownFormat": "text、markdown格式文件，不超過200K",
+    "pdfDocFormat": "pdf、doc 格式檔案，不超過{size}M",
+    "textMarkdownFormat": "text、markdown格式檔案，不超過{size}M",
     "dragFileNotText": "請拖拽文件而不是文字或連結",
     "searchPlaceholder": "搜尋知識庫...",
     "docSearchPlaceholder": "搜尋檔案名稱稱...",

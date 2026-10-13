@@ -46,6 +46,7 @@ var versionedSQLiteTables = []string{
 	"document_parse_artifacts",
 	"fork_snapshot_leases",
 	"mcp_endpoints",
+	"mcp_metadata",
 	"message_artifacts",
 	"tenant_skills",
 	"tenant_skill_snapshots",
@@ -73,6 +74,7 @@ var versionedSQLiteColumns = map[string][]string{
 	"im_channels":        {"locale"},                         // 000132
 	"chunks":             {"source_locators"},                // 000043
 	"mcp_oauth_tokens":   {"principal_type", "principal_id"}, // 000064
+	"mcp_services":       {"usage_instructions"},             // SQLite 000044
 	"mcp_tool_approvals": {"enabled"},                        // 000100
 	"message_artifacts":  {"deleted_at"},                     // 000125
 	"tenant_skills": {
@@ -84,7 +86,7 @@ var versionedSQLiteColumns = map[string][]string{
 	}, // 000038
 }
 
-const expectedSQLiteMigrationVersion = 43
+const expectedSQLiteMigrationVersion = 44
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

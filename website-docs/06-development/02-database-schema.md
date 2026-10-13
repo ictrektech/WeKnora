@@ -115,8 +115,9 @@ SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 | 000037 | `sessions.sandbox_config_tenant_id`（PG 000130；Lite 无共享空间，不回填） |
 | 000038 | 补建 `tenant_skills`、`tenant_skill_snapshots`、`tenant_skill_catalog`、`tenant_user_env_vars`（fork PG 000088、000094、000095、000098、000099、000105、000122）。此前 Lite 缺这四张表，技能读取凭据时报 `no such table` |
 | 000039–000040 | `sessions.host_workspace_dir`（PG 000131）、`im_channels.locale`（PG 000132） |
+| 000044 | `mcp_services.usage_instructions` 与 `mcp_metadata` 工具目录快照（PG 000108）；保留已有服务数据 |
 
-PG `000108`（`mcp_metadata`、`mcp_services.usage_instructions`）与 `000117`（pg_search 升级）没有 SQLite 对应版本。
+PG `000117`（pg_search 升级）没有 SQLite 对应版本。SQLite `000044_mcp_metadata` 从 fork 已发布的 `000043` 升级；上游原编号 `000034` 已被本地 Smart Archive 迁移占用，不能复用或重编号已有迁移。
 
 基线 schema 与后续增量共同决定新建库和已有库的最终结果；不能只看新增迁移文件名判断 Lite 是否有某张表。
 

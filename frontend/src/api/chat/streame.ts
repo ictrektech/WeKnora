@@ -60,7 +60,8 @@ export function useStream() {
 
   // 启动流式请求
   const startStream = async (params: { session_id: any; query: any; knowledge_base_ids?: string[]; knowledge_ids?: string[]; tag_ids?: string[]; agent_enabled?: boolean; agent_id?: string; agent_source_tenant_id?: string | number; web_search_enabled?: boolean; local_browser_enabled?: boolean; enable_memory?: boolean; summary_model_id?: string; reasoning_effort?: string; mcp_service_ids?: string[]; skill_names?: string[]; mentioned_items?: Array<{id: string; name: string; type: string; kb_type?: string; kb_id?: string; kb_name?: string; service_id?: string; skill_name?: string}>; images?: Array<{data: string}>; attachment_uploads?: Array<{data: string; file_name: string; file_size: number}>; attachment_ids?: string[]; suggestion_attribution?: { suggestion_set_id: string; question_id: string }; question_origin?: { knowledge_base_id: string; knowledge_id?: string }; method: string; url: string; embed_token?: string; embed_session_sig?: string; embed_visitor_id?: string }) => {
-    const streamKey = `${params.method}:${params.url}:${params.session_id}:${params.query}`
+    // One subscription per session; switching to a follow-up keeps other sessions running.
+    const streamKey = String(params.session_id)
     controllers.get(streamKey)?.abort()
     const currentController = new AbortController()
     const streamAbort = currentController
@@ -238,6 +239,7 @@ export function useStream() {
         },
 
         onclose: () => {
+          currentController.abort()
           if (controllers.get(streamKey) !== currentController) return
           controllers.delete(streamKey)
           streamSessions.delete(streamKey)
