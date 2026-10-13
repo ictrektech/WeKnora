@@ -6917,7 +6917,7 @@ export default {
       "rerankModel": "ReRank 模型",
       "rerankModelDesc": "用於對知識庫檢索結果進行重排序，提高回答準確性",
       "rerankModelPlaceholder": "請選擇 ReRank 模型",
-      "rerankModelOptionalHint": "目前作用域內暫無 RAG 類型知識庫，可不填；後續若加入 RAG 知識庫，將自動使用空間預設重排模型，仍建議顯式設定。",
+      "rerankModelOptionalHint": "快速問答可留空以關閉重新排序，不會自動使用空間預設模型。智慧推理關閉「搜尋知識庫」工具後也可留空；重新啟用該工具時須設定模型。",
       "maxIterations": "最大迭代次數",
       "maxIterationsLimit": "限制",
       "maxIterationsUnlimited": "不限制",

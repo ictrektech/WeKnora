@@ -3485,19 +3485,12 @@ const contextTemplatePlaceholder = computed(() => {
   return t('agent.editor.contextTemplatePlaceholder');
 });
 
-// 是否需要配置 ReRank 模型（仅当关联的知识库中有 RAG 类型时需要）
+// 与对话入口共用规则：仅智能推理启用知识库搜索时需要重排模型。
 const needsRerankModel = computed(() => {
-  if (!hasKnowledgeBase.value) return false;
-  const mode = kbSelectionMode.value;
-  if (mode === 'all') {
-    // "全部"模式下，只要存在任何一个 RAG 知识库就需要
-    return kbOptions.value.some(kb => kb.ragEnabled);
-  }
-  if (mode === 'selected') {
-    const selectedIds = formData.value.config.knowledge_bases || [];
-    return kbOptions.value.some(kb => selectedIds.includes(kb.value) && kb.ragEnabled);
-  }
-  return false;
+  return isAgentMode.value && agentRequiresRerankModel({
+    kb_selection_mode: kbSelectionMode.value,
+    allowed_tools: formData.value.config.allowed_tools,
+  });
 });
 
 let editorInitializationGeneration = 0;

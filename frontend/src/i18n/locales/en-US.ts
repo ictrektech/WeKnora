@@ -1413,7 +1413,7 @@ export default {
       rerankModel: 'ReRank Model',
       rerankModelDesc: 'Used to rerank knowledge base retrieval results for better accuracy',
       rerankModelPlaceholder: 'Select ReRank Model',
-      rerankModelOptionalHint: 'No RAG knowledge base in current scope, so this is optional. If a RAG knowledge base is added later, the workspace default rerank model will be used as a fallback. Configuring it explicitly is still recommended.',
+      rerankModelOptionalHint: 'In Quick Answer, leave blank to disable reranking without falling back to the workspace default model. Smart Reasoning also allows this when Search Knowledge is disabled; configure a model when you enable that tool again.',
       maxIterations: 'Max Iterations',
       maxIterationsLimit: 'Limit',
       maxIterationsUnlimited: 'Unlimited',

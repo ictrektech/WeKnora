@@ -1413,7 +1413,7 @@ export default {
       rerankModel: 'リランクモデル',
       rerankModelDesc: 'ナレッジベースの検索結果を並べ替えて精度を高めます',
       rerankModelPlaceholder: 'リランクモデルを選択',
-      rerankModelOptionalHint: '現在の範囲にRAG型のナレッジベースがないため任意です。後からRAG型ナレッジベースを追加した場合は、ワークスペースのデフォルトリランクモデルが自動的に使用されます。明示的に設定することを推奨します。',
+      rerankModelOptionalHint: 'クイック回答では空欄にするとリランキングを無効にできます。ワークスペースの既定モデルは使用しません。スマート推論でもナレッジベース検索ツールを無効にすれば空欄にできます。再度有効にする場合はモデルの設定が必要です。',
       maxIterations: '最大反復回数',
       maxIterationsLimit: '上限あり',
       maxIterationsUnlimited: '無制限',

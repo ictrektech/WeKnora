@@ -6923,7 +6923,7 @@ export default {
       rerankModel: 'ReRank Model',
       rerankModelDesc: 'Used to rerank knowledge base retrieval results for better accuracy',
       rerankModelPlaceholder: 'Select ReRank Model',
-      rerankModelOptionalHint: 'В текущей области нет RAG-базы знаний, поэтому поле необязательное. Если RAG-база будет добавлена позже, будет использоваться модель ReRank по умолчанию для пространства; всё же рекомендуется настроить её явно.',
+      rerankModelOptionalHint: 'В режиме быстрого ответа оставьте поле пустым, чтобы отключить переранжирование без перехода к модели пространства по умолчанию. В режиме умного рассуждения поле также можно оставить пустым, отключив поиск по базе знаний. При повторном включении этого инструмента необходимо настроить модель.',
       maxIterations: 'Max Iterations',
       maxIterationsLimit: 'Лимит',
       maxIterationsUnlimited: 'Без ограничения',

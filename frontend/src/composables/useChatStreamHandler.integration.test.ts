@@ -58,7 +58,8 @@ function setup(t: TestContext, mode: 'ordinary' | 'quick-timeline' | 'agent') {
     setAttribute: (key: string, value: string) => { attrs[key] = value },
     removeAttribute: (key: string) => { delete attrs[key] },
   }
-  const root = { querySelectorAll: () => [img] } as unknown as ParentNode
+  const root = { querySelectorAll: (selector: string) =>
+    selector.startsWith('img') && !selector.includes('data-chat-image-state') ? [img] : [] } as unknown as ParentNode
   const message = vue.reactive<Record<string, any>>({
     id: 'assistant', assistant_message_id: 'assistant', request_id: 'request', role: 'assistant',
     content: '', is_completed: false, isAgentMode: mode !== 'ordinary',
