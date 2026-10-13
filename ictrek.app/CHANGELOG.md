@@ -208,6 +208,7 @@
 
 - **数据库驱动范围** — 运行时的 `DB_DRIVER` 当前只接入 PostgreSQL 和 SQLite；仓库中的 `migrations/mysql/` 仅作未接入的参考脚本，不能据此声称已支持 MySQL。
 
+[0.1.65]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.64...vos-hybrag-v0.1.65
 [0.1.64]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.63...vos-hybrag-v0.1.64
 [0.1.63]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.62...vos-hybrag-v0.1.63
 [0.1.62]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.61...vos-hybrag-v0.1.62

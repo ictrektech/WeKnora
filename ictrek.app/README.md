@@ -375,7 +375,7 @@ Model Hub 下载、预热和原生 Ollama 接口检查见 [docs/vos-ollama-prewa
 | `patch` | `0.0.1 -> 0.0.2`，默认值 |
 | `minor` | `0.0.1 -> 0.1.0` |
 | `major` | `0.0.1 -> 1.0.0` |
-| `--with-changelog` | 校验目标版本的 changelog；有未提交修改时与 `VERSION` 一起提交，已提交时只提交 `VERSION`；除 changelog 外不允许有其他未提交改动 |
+| `--with-changelog` | 校验目标版本标题和比较链接；有未提交修改时与 `VERSION` 一起提交，已提交时只提交 `VERSION`；除 changelog 外不允许有其他未提交改动 |
 
 脚本会：
 
@@ -384,9 +384,11 @@ Model Hub 下载、预热和原生 Ollama 接口检查见 [docs/vos-ollama-prewa
 3. 创建并推送 `vos-hybrag-v${VERSION}` 触发 tag。
 4. GitHub Actions 收到 tag 后执行 `.github/workflows/vos-release.yml`。
 
-`--with-changelog` 不会调用或生成 changelog；它要求 `$cl` 已经写入下一版本标题 `## [${VERSION}] - YYYY-MM-DD`，并且工作区除 `ictrek.app/CHANGELOG.md` 外没有其他改动，也接受干净工作区。已提交不等于已归档：只有 `[Unreleased]`、没有目标版本标题时仍会退出，且不会修改版本或创建发布提交。这样既兼容先提交 changelog 的流程，也保留版本与日志的对应校验。应用代码必须在执行发布脚本前单独提交。
+`--with-changelog` 不会调用或生成 changelog；它要求 `$cl` 已经写入下一版本标题 `## [${VERSION}] - YYYY-MM-DD`，并且工作区除 `ictrek.app/CHANGELOG.md` 外没有其他改动，也接受干净工作区。应用代码必须在执行发布脚本前单独提交。
 
-回归验证：在仓库根目录运行 `bash ictrek.app/scripts/test_update_version.sh`，使用临时仓库和本地远端，检查已提交、未暂存、已暂存 changelog 可发布，缺少目标版本或存在其他改动时拒绝发布，以及默认模式仍要求工作区干净。
+已实现：目标版本必须有且只有一条 `[${VERSION}]: https://github.com/<owner>/<repo>/compare/<baseline-tag>...vos-hybrag-v${VERSION}` 引用定义（为版本标题指定跳转地址）。基线 tag（标记某次提交的版本标签）必须存在于本地且是当前提交的祖先；目标 tag 由本次发布创建。`$cl` 在归档时预先写入该链接，推送 tag 后才可在线访问。缺少标题、缺少或重复链接、链接格式或目标 tag 错误、基线缺失或不属于当前历史时，脚本会在修改 `VERSION`、提交和创建 tag 前退出。脚本只校验格式和本地基线，不检查网页可访问性；审计范围和仓库地址由 `$cl` 核实。
+
+回归验证：在仓库根目录运行 `bash ictrek.app/scripts/test_update_version.sh`，使用临时仓库和本地远端，检查已提交、未暂存、已暂存 changelog 可发布，缺少目标版本、链接异常、基线缺失或不属于当前历史、存在其他改动时拒绝发布，以及默认模式仍要求工作区干净。
 
 GitHub Actions 会：
 

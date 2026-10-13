@@ -20,7 +20,7 @@ standard SemVer release tag.
 Commit application code changes before running this script.
 
 Options:
-  --with-changelog  validate the prepared ictrek.app/CHANGELOG.md and include
+  --with-changelog  validate the prepared changelog heading and compare link; include
                      pending changes in the release commit; already committed
                      changelog is allowed; no other pending changes are allowed.
 EOF
@@ -102,9 +102,24 @@ version="$(bump_version_from "$(tr -d '[:space:]' < "$VERSION_FILE")" "$part")"
 tag="${TAG_PREFIX}${version}"
 public_tag="v${version}"
 
-if [[ "$include_changelog" == true ]] && ! grep -Eq "^## \[${version//./\.}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" "$CHANGELOG_FILE"; then
+if [[ "$include_changelog" == true ]] && ! grep -Eq "^## \[${version//./\\.}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" "$CHANGELOG_FILE"; then
   echo "${CHANGELOG_PATH} must contain ## [${version}] - YYYY-MM-DD" >&2
   exit 1
+fi
+
+if [[ "$include_changelog" == true ]]; then
+  mapfile -t changelog_links < <(grep -E "^\[${version//./\\.}\]:" "$CHANGELOG_FILE")
+  link_pattern="^\[${version//./\\.}\]: https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/compare/(${TAG_PREFIX}[0-9]+\.[0-9]+\.[0-9]+)\.\.\.${tag//./\\.}$"
+  if [[ "${#changelog_links[@]}" != 1 ]] || [[ ! "${changelog_links[0]}" =~ $link_pattern ]]; then
+    echo "${CHANGELOG_PATH} must contain exactly one [${version}]: https://github.com/<owner>/<repo>/compare/<baseline-tag>...${tag}" >&2
+    exit 1
+  fi
+  baseline_tag="${BASH_REMATCH[1]}"
+  if ! git rev-parse --verify --quiet "refs/tags/${baseline_tag}^{commit}" >/dev/null ||
+     ! git merge-base --is-ancestor "refs/tags/${baseline_tag}" HEAD; then
+    echo "changelog baseline tag must exist and be an ancestor of HEAD: ${baseline_tag}" >&2
+    exit 1
+  fi
 fi
 
 if remote_tag_exists "$tag"; then
