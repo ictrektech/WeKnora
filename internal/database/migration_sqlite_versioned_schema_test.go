@@ -86,7 +86,7 @@ var versionedSQLiteColumns = map[string][]string{
 	}, // 000038
 }
 
-const expectedSQLiteMigrationVersion = 44
+const expectedSQLiteMigrationVersion = 46
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)
@@ -117,6 +117,8 @@ func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 
 	require.True(t, sqliteIndexExists(t, db, "idx_messages_session_created_id"),
 		"SQLite migrations must add the session/created_at index") // 000124
+	require.True(t, sqliteIndexExists(t, db, "idx_messages_live_attachments"),
+		"SQLite migrations must index live user message references")
 	assertSQLiteAgentHistoryQueriesUseTheIndex(t, db)
 
 	var catalogVersion int

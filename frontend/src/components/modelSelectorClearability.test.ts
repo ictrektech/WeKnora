@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { computed, ref } from 'vue'
 import { agentRequiresRerankModel } from '../utils/agent-readiness'
+import { allowedToolsToSave } from '../utils/agent-tool-list'
 
 const selector = readFileSync(new URL('./ModelSelector.vue', import.meta.url), 'utf8')
 const agentEditor = readFileSync(new URL('../views/agent/AgentEditorModal.vue', import.meta.url), 'utf8')
@@ -48,8 +49,9 @@ test('ReRank 可清空规则跟随运行模式、知识库范围及检索工具�
     isAgentMode: ref(false),
     kbSelectionMode: ref('all'),
     formData: ref({ config: { allowed_tools: ['search_knowledge', 'read_document'] } }),
+    keepAllowedToolsUnset: ref(false),
   }
-  const required = runInNewContext(`${declaration}\nneedsRerankModel`, { computed, agentRequiresRerankModel, ...state })
+  const required = runInNewContext(`${declaration}\nneedsRerankModel`, { computed, agentRequiresRerankModel, ...state, allowedToolsToSave: () => allowedToolsToSave(state.formData.value.config.allowed_tools, state.keepAllowedToolsUnset.value) })
 
   for (const mode of ['all', 'selected']) {
     state.kbSelectionMode.value = mode
@@ -66,7 +68,9 @@ test('ReRank 可清空规则跟随运行模式、知识库范围及检索工具�
   state.formData.value.config.allowed_tools = ['wiki_search', 'wiki_read_page']
   assert.equal(required.value, false, '仅 Wiki 的范围无需重排')
   state.formData.value.config.allowed_tools = []
-  assert.equal(required.value, true, '空工具列表会启用后端默认检索工具')
+  assert.equal(required.value, false, '显式空工具列表不启用检索，应可清空重排模型')
+  state.keepAllowedToolsUnset.value = true
+  assert.equal(required.value, true, '目录不可用时保持未设置，默认检索仍需要重排模型')
   state.kbSelectionMode.value = 'none'
   assert.equal(required.value, false, '无知识库时无需重排')
 })

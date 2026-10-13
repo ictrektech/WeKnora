@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -36,12 +37,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMain whitelists the loopback host: several vendors ship a placeholder
-// default URL (self-hosted runtimes) or a templated one (Azure), which the
-// SSRF guard rejects before any request is built. Those cases are re-pointed
-// at 127.0.0.1 by reachableBaseURL.
+// Request-shape tests never send requests to catalog endpoints; avoid making
+// their construction depend on public DNS. Placeholder URLs use loopback.
 func TestMain(m *testing.M) {
-	secutils.SetSSRFWhitelistFromRaw("127.0.0.1")
+	hosts := []string{"127.0.0.1"}
+	for _, vendor := range modelruntime.List() {
+		if endpoint, err := url.Parse(vendor.GetDefaultURL(types.ModelTypeKnowledgeQA)); err == nil && endpoint.Hostname() != "" {
+			hosts = append(hosts, endpoint.Hostname())
+		}
+	}
+	secutils.SetSSRFWhitelistFromRaw(strings.Join(hosts, ","))
 	defer secutils.ResetSSRFWhitelistForTest()
 	os.Exit(m.Run())
 }

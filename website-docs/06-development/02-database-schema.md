@@ -52,7 +52,7 @@ migrations/
 | 000078 | 分块编辑与自定义元数据 | `chunks` 增加 `source_content`/`content_revision`/`index_status`/`last_editor_id`/`context_header`，新增 `chunk_revisions` 表，`knowledges` 增加 `custom_metadata` |
 | 000079 | 上游合并修复 | Wiki 与租户 API key 兼容修复 |
 
-### Fork 迁移编号（000080–000132） {#_2-2-fork-迁移编号-000080–000132}
+### Fork 迁移编号（000080–000140） {#_2-2-fork-迁移编号-000080–000132}
 
 迁移编号以下表中的 fork 版本为准。上游最近增加的 PG 迁移经重编号后与 fork 的对应关系列在“上游 PG”列。
 
@@ -88,6 +88,11 @@ migrations/
 | 000130 | 000108 | `sessions.sandbox_config_tenant_id`，记录沙箱配置所属空间 |
 | 000131 | 000109 | `sessions.host_workspace_dir`，Lite 桌面版主机沙箱项目目录 |
 | 000132 | 000110 | `im_channels.locale`，固定渠道回复语言；空串使用部署默认值 |
+| 000133–000136 | 000111–000114 | 模型目录覆盖配置、处理 spans 的尝试标识、独立图片资产及图片语义向量 |
+| 000137 | 000115 | 服务器提供对应扩展包时升级 `pg_search` 到 0.25.11、`vector` 到 0.8.4；权限不足时提示管理员处理 |
+| 000138 | 000116 | 将智能推理旧版空工具列表写为显式默认工具，保留既有能力 |
+| 000139 | 000117 | 活跃用户消息附件引用索引，供过期附件保留检查使用 |
+| 000140 | 000118 | MCP OAuth 时间戳改为带时区类型；已有字面值按 UTC 解释 |
 
 SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 
@@ -115,9 +120,12 @@ SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 | 000037 | `sessions.sandbox_config_tenant_id`（PG 000130；Lite 无共享空间，不回填） |
 | 000038 | 补建 `tenant_skills`、`tenant_skill_snapshots`、`tenant_skill_catalog`、`tenant_user_env_vars`（fork PG 000088、000094、000095、000098、000099、000105、000122）。此前 Lite 缺这四张表，技能读取凭据时报 `no such table` |
 | 000039–000040 | `sessions.host_workspace_dir`（PG 000131）、`im_channels.locale`（PG 000132） |
+| 000041–000043 | 模型目录覆盖配置、独立图片资产及图片向量状态（PG 000133、000135–000136） |
 | 000044 | `mcp_services.usage_instructions` 与 `mcp_metadata` 工具目录快照（PG 000108）；保留已有服务数据 |
 
-PG `000117`（pg_search 升级）没有 SQLite 对应版本。SQLite `000044_mcp_metadata` 从 fork 已发布的 `000043` 升级；上游原编号 `000034` 已被本地 Smart Archive 迁移占用，不能复用或重编号已有迁移。
+| 000045–000046 | 显式默认工具、活跃用户消息附件引用索引（PG 000138–000139） |
+
+PG `000117`、`000137`（pg_search 升级）及 `000140`（OAuth 时间戳类型）没有 SQLite 对应版本。SQLite `000044–000046` 从 fork 已发布的 `000043` 升级；上游原编号 `000034–000036` 已被本地 Smart Archive 迁移占用，不能复用或重编号已有迁移。
 
 基线 schema 与后续增量共同决定新建库和已有库的最终结果；不能只看新增迁移文件名判断 Lite 是否有某张表。
 
@@ -422,7 +430,7 @@ make migrate-up
 
 BM25 索引（`USING bm25`、Lindera 中文分词）只在 ParadeDB 可用；原生 Postgres 部署需保证相应迁移的条件分支生效或改用 Elasticsearch 等外部检索引擎。存量原生 Postgres 库切到 ParadeDB 可参考 `migrations/paradedb/01-migrate-to-paradedb.sql`。
 
-官方镜像自 v0.8.2 起为 `paradedb/paradedb:v0.22.6-pg17`。迁移 000117 只把已安装的 pg_search 0.22.2–0.22.5 升级到 0.22.6：若启动日志提示 `pg_search 0.22.6 is not available`，说明数据库镜像还没换，换镜像后手工执行 `ALTER EXTENSION pg_search UPDATE TO '0.22.6'`；其他版本线不会被自动升级或降级。
+官方镜像为 `paradedb/paradedb:v0.25.11-pg17`（v0.8.2 起曾为 `v0.22.6-pg17`）。迁移 `000137` 在服务器提供对应扩展包时，把已安装的 pg_search 0.22.0–0.25.10 升级到 0.25.11、pgvector 0.8.0–0.8.3 升级到 0.8.4；历史迁移 `000117` 仅在仍使用 `v0.22.6-pg17` 镜像时生效。其他版本线不会被自动升级或降级。扩展 catalog 必须与镜像版本一致，否则调用部分扩展函数会使数据库崩溃；手工升级见《ParadeDB 存量库升级》，在新镜像上不要执行 `ALTER EXTENSION pg_search UPDATE TO '0.22.6'`。
 
 ### 版本文件冲突 {#_7-5-版本文件冲突}
 
