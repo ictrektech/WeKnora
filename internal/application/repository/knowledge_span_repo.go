@@ -263,6 +263,8 @@ func (r *knowledgeSpanRepository) CancelOpenSpansBeforeAttempt(
 	if knowledgeID == "" || attempt <= 1 {
 		return 0, nil
 	}
+	errorCode = common.CleanInvalidUTF8(errorCode)
+	reason = common.CleanInvalidUTF8(reason)
 	now := time.Now()
 	res := r.db.WithContext(ctx).Model(&types.KnowledgeProcessingSpan{}).
 		Where("knowledge_id = ? AND attempt < ? AND status IN ?",
