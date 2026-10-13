@@ -18,6 +18,8 @@ HybRAG 是企业知识库、RAG 问答、Wiki 知识图谱和智能体平台。�
 
 ## 安装配置
 
+安装或升级 HybRAG 前，先将 Model Hub 升级到 `>=0.0.92`，以提供 ReRank（对检索结果重新评分和排序）所需的 ictrek Ollama `/v1/rerank` 接口。最低依赖版本以 [manifest.yml](manifest.yml) 为准。
+
 已实现（安装模板）：Application Config（安装参数）中的“文档生成语言”对应 `WEKNORA_LANGUAGE`，类型为 `string`，默认留空。留空时跟随 `Accept-Language`（请求中的语言偏好），未提供该请求头时回退到 `zh-CN`；填写 `zh-CN`、`en-US` 等值可指定文档摘要和问题生成的语言。非空值也会覆盖内置智能体名称和描述的请求语言。修改配置并重建后端容器后对新任务生效，已生成内容不会自动改变。
 
 安装 UI 不再要求选择 HybRAG 私有数据路径。VOS 自动分配 `VOS_APP_STORAGE_PATH`，运行数据分别写入其 `files`、`docreader`、`redis`、`neo4j` 子目录；模型下载、预热、常驻和 Ollama 资源参数由依赖的 Model Hub 应用管理。Docker sandbox 固定挂载宿主机 `/var/run/docker.sock`，不允许在安装表单中改写。

@@ -67,7 +67,7 @@ commit 或写入 `.git-commit`，否则系统设置会显示 `(unknown)`。
 
 安装前先确认 VOS 中已经安装并运行：
 
-- `com.ictrek.model-hub`：提供 `model-hub-ollama-qa` 和 `model-hub-ollama-embedding` 两个服务。
+- `com.ictrek.model-hub >=0.0.92`：提供 `model-hub-ollama-qa`、`model-hub-ollama-embedding` 和 `model-hub-ollama-rerank` 三个服务；旧版 Model Hub 需先升级，以提供 ReRank（对检索结果重新评分和排序）所需的 `/v1/rerank` 接口。
 - `com.ictrek.pgv`：提供 `shared-pgv:5432` PostgreSQL/pgvector 服务。
 
 HybRAG 安装包不启动 Model Hub 和 PGV，也不启动自己的 Ollama。安装包只包含 HybRAG app、frontend、docreader、sandbox、Redis 和 Neo4j。安装时选择 `amd` 或 `arm` profile，VOS 会按包内 `.env` 拉取飞书表中记录的四个 HybRAG 镜像。
@@ -311,7 +311,7 @@ docker compose --profile arm config
 
 ## 依赖和模型
 
-`manifest.yml` 固定最低兼容依赖为 `com.ictrek.model-hub >=0.0.54` 和 `com.ictrek.pgv >=0.0.21`。正式打包必须原样保留这两个最低版本，不能自动改成依赖仓库的最新 release；提高最低版本需要显式修改 manifest 并在 AMD、ARM VOS 上重新验证安装。`docker-compose.yml` 不启动 model_hub 或 Postgres 服务。HybRAG 通过 Model Hub Ollama 的原生 `11434` 接口调用模型，通过 Model Hub 管理 API 下载缺失模型并读取进度。
+最低依赖版本以 [src/manifest.yml](src/manifest.yml) 为准：`com.ictrek.model-hub >=0.0.92` 和 `com.ictrek.pgv >=0.0.21`。Model Hub 的最低版本用于保证 ictrek Ollama 提供 `/v1/rerank`，不再使用 `/api/embed` 评分适配。正式打包必须保留 manifest 中的最低版本，不能自动改成依赖仓库的最新 release。此次版本调整后的 AMD、ARM VOS 安装验证待完成；后续提高最低版本时也需重新验证。`docker-compose.yml` 不启动 model_hub 或 Postgres 服务。HybRAG 通过 Model Hub Ollama 的原生 `11434` 接口调用模型，通过 Model Hub 管理 API 下载缺失模型并读取进度。
 
 PGV 文档中默认预置给 WeKnora/HybRAG 使用的连接信息是：
 
@@ -331,11 +331,11 @@ HybRAG 不再启动自己的 Ollama 容器，也不再挂载 Model Hub 模型目
 | --- | --- | --- | --- |
 | QA / VLM | `model-hub-ollama-qa` | `http://model-hub-ollama-qa:11434/v1` | `qwen3.5:2b` |
 | Embedding | `model-hub-ollama-embedding` | `http://model-hub-ollama-embedding:11434/v1` | `bge-m3` |
-| ReRank | `model-hub-ollama-rerank` | `http://model-hub-ollama-rerank:11434` | `qllama/bge-reranker-v2-m3:q8_0` |
+| ReRank | `model-hub-ollama-rerank` | `http://model-hub-ollama-rerank:11434/v1` | `qllama/bge-reranker-v2-m3:q8_0` |
 
 模型存储、预热、常驻、上下文和 Ollama 并发由 Model Hub 管理。HybRAG 打开时会检查默认模型，通过 Model Hub 管理 API 触发缺失模型下载并显示进度。安装 UI 不再暴露 Ollama 模型名和地址；如果 Model Hub 修改服务名或端口，需要同步修改 HybRAG 包模板或运行后在 UI 中手动调整模型行。
 
-HybRAG 默认模型行指向 Model Hub Ollama 原生接口。QA、VLM 和 embedding 使用 OpenAI-compatible `http://<ollama-service>:11434/v1`；ReRank 通过 `/api/embed` 适配，base URL 使用 `http://model-hub-ollama-rerank:11434`。VOS 包内默认 `OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434`。
+HybRAG 默认模型行指向 Model Hub Ollama 原生接口。QA、VLM 和 embedding 使用 OpenAI-compatible `http://<ollama-service>:11434/v1`；ReRank 调用 ictrek Ollama 的 `/v1/rerank`，base URL 使用 `http://model-hub-ollama-rerank:11434/v1`。VOS 包内默认 `OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434`。
 
 VOS 安装包不会放额外 `config/` 目录。App 容器启动脚本会在运行时生成 `builtin_models.yaml`，自动创建四条 YAML 托管模型行，并在界面里用 `display_name` 区分三个 Ollama 后端：
 
@@ -344,7 +344,7 @@ VOS 安装包不会放额外 `config/` 目录。App 容器启动脚本会在运�
 | KnowledgeQA | `Model Hub Ollama QA (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11434/v1` |
 | VLLM | `Model Hub Ollama VLM (model-hub-ollama-qa)` | `http://model-hub-ollama-qa:11434/v1` |
 | Embedding | `Model Hub Ollama Embedding (model-hub-ollama-embedding)` | `http://model-hub-ollama-embedding:11434/v1` |
-| Rerank | `Model Hub Ollama ReRank (model-hub-ollama-rerank)` | `http://model-hub-ollama-rerank:11434` |
+| Rerank | `Model Hub Ollama ReRank (model-hub-ollama-rerank)` | `http://model-hub-ollama-rerank:11434/v1` |
 
 这些模型行不写在镜像里，也不随 VOS 包以目录形式挂载；当前 VOS parser 只接受固定顶层文件，包内不要加入 `config/`。`name` 固定为 `qwen3.5:2b`、`bge-m3` 和 `qllama/bge-reranker-v2-m3:q8_0`，endpoint 指向 Model Hub Ollama 原生接口。ReRank 只进入默认模型列表，不会自动写入知识库的 `rerank_model_id`；是否在知识库或智能体中启用，由用户配置决定。运行后也可以在 HybRAG UI 中添加或修改其他模型；如果管理员手动接管某条 YAML 模型行，需要清空该行的 `managed_by`，否则后续安装包升级会按 YAML 继续同步。
 

@@ -17,7 +17,7 @@ This document covers the same deployment instructions as `README.zh-CN.md`. The 
 
 `manifest.yml` requires:
 
-- `com.ictrek.model-hub >= 0.0.54`: provides Ollama runtimes with native OpenAI-compatible `/v1/*` and Ollama `/api/*` endpoints on port `11434`.
+- `com.ictrek.model-hub >= 0.0.92`: provides QA, vision, embedding, and ReRank (scoring and sorting retrieved documents) runtimes on port `11434`, including ictrek Ollama's `/v1/rerank` endpoint. Upgrade older Model Hub installations before installing or upgrading HybRAG.
 - `com.ictrek.pgv >= 0.0.21`: minimum compatible version; provides the Postgres/pgvector service at `shared-pgv:5432`.
 
 HybRAG's `docker-compose.yml` does not start Model Hub or Postgres.

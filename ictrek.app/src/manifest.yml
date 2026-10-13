@@ -22,7 +22,7 @@ platform:
 dependencies:
   apps:
   - id: com.ictrek.model-hub
-    version: '>=0.0.54'
+    version: '>=0.0.92'
     optional: false
   - id: com.ictrek.pgv
     version: '>=0.0.21'

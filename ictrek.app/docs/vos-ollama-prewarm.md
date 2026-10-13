@@ -1,6 +1,6 @@
 # VOS Model Hub 模型预热与常驻
 
-本文说明 HybRAG VOS app 如何复用 Model Hub 的预热 Ollama 运行时。HybRAG 现在不再启动自己的 Ollama 容器。
+本文说明 HybRAG VOS app 如何复用 Model Hub 的预热 Ollama 运行时。安装或升级 HybRAG 前，先将 Model Hub 升级到 `>=0.0.92`，以提供 ReRank（对检索结果重新评分和排序）所需的 ictrek Ollama `/v1/rerank` 接口；最低依赖版本见 [manifest.yml](../src/manifest.yml)。HybRAG 现在不再启动自己的 Ollama 容器。
 
 ## 默认行为
 
@@ -24,7 +24,7 @@ QA、VLM 和 embedding 使用 Ollama 原生的 OpenAI 兼容 `/v1` 接口；ReRa
 
 ## 启动顺序
 
-1. 先安装并启动 Model Hub。
+1. 先安装或升级 Model Hub 到 `>=0.0.92`，再启动它。
 2. 在 Model Hub 运行管理页确认 `model-hub-ollama-qa`、`model-hub-ollama-embedding` 和 `model-hub-ollama-rerank` 在线。
 3. 安装或启动 HybRAG；若默认模型缺失，页面会触发 Model Hub 下载并显示进度。
 
