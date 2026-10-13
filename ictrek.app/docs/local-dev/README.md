@@ -9,6 +9,7 @@
 | Go 后端源码调试 | 已实现 | 支持 `go run`；安装 Air 后自动热重载。 |
 | 前端源码调试 | 已实现 | Vite 热更新，默认代理到 `127.0.0.1:8080`。 |
 | 基础设施 | 已实现 | 使用本目录的隔离 Compose 和 `/data/hybrag-dev-data`。 |
+| PostgreSQL 镜像对齐 | 已实现 | 使用 VOS PGV（提供 PostgreSQL 与检索扩展的应用）的 PostgreSQL 16 镜像；手动替换旧镜像，旧测试数据可重建，见[操作说明](#postgresql-镜像替换)。 |
 | Model Hub ReRank（检索结果重排） | 已实现 | 本机 Model Hub `0.0.92` 与三端口代理已验证；旧代理需重建，见 [接入前提](model-hub-ollama-proxy.md#前置条件)。 |
 | 模型初始化 | 部分落地 | `auto` 会按主机环境选择 profile：Jetson 复用已运行的 VOS Model Hub，非 Jetson ARM64 使用宿主机 Ollama，x86_64 使用 tc232 vLLM。 |
 | VOS iframe 免登录 | 未启用 | 本地源码模式使用普通注册/登录，`HYBRAG_VOS_SSO_ENABLED=false`。 |
@@ -201,6 +202,25 @@ curl -fsS http://127.0.0.1:31537/v1/models
 
 `stop` 只移除开发容器和网络，不删除 `/data/hybrag-dev-data`。如需清空本地数据库，请先确认目标路径，再单独备份或删除该目录。
 
+### PostgreSQL 镜像替换
+
+**已实现：**开发库默认使用 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv:amd_16_20261012`，开发脚本在 ARM64（64 位 ARM 架构）主机选择 `arm_16_20261012`。镜像及 `shared_preload_libraries=pg_search,pg_cron,vchord.so,vectors.so`（启动时预加载的扩展库）与本次核查的 VOS PGV `0.0.45` 部署一致。通过 `ICTREK_DEV_PGV_IMAGE` 可手动指定同架构的 PostgreSQL 16 镜像；镜像版本不会自动跟随 VOS 更新。
+
+开发库使用独立端口、凭证和数据目录。旧 `paradedb/paradedb:v0.22.2-pg17` 数据不能直接由 PostgreSQL 16 读取；开发测试数据按可重建处理，不要求迁移。替换时先停止 Go 后端，再在仓库根目录执行以下命令。**清空步骤会删除当前开发库的全部数据**；已有 PostgreSQL 16 数据且需要保留时跳过该步骤。
+
+```bash
+PGV_COMPOSE=(docker compose --project-name weknora-ictrek-local-dev
+  --env-file .env -f ictrek.app/docs/local-dev/docker-compose.yml)
+"${PGV_COMPOSE[@]}" stop postgres
+"${PGV_COMPOSE[@]}" run --rm --no-deps --entrypoint sh postgres -c \
+  'find /var/lib/postgresql/data -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +'
+"${PGV_COMPOSE[@]}" up -d --no-deps postgres
+```
+
+随后重新运行 `$DEV app`，由后端初始化应用表。启动失败时查看开发库容器日志，核对镜像架构和数据目录主版本。直接运行 Compose 默认使用 AMD 镜像；ARM 主机须在 `.env` 设置完整的 `ICTREK_DEV_PGV_IMAGE`。
+
+**已验证：**本机开发库与 VOS PGV 的镜像 ID（镜像内容标识）相同，运行 PostgreSQL `16.13`、`pg_search 0.22.6`；数据库与后端健康检查、关键词和向量查询通过。核查的 VOS 数据库仍安装 `pg_search 0.22.2`，已有数据库的扩展版本不会随镜像自动升级。ARM 启动及完整上传、聊天流程仍**待验证**。
+
 ## 常用命令
 
 ```bash
@@ -260,6 +280,7 @@ go install github.com/air-verse/air@latest
 | `ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME` | `qllama/bge-reranker-v2-m3:q8_0` | Model Hub ReRank 模型名。 |
 | `ICTREK_DEV_DATA_DIR` | `/data/hybrag-dev-data` 或项目目录回退 | 基础设施持久化根目录；`/data` 不存在或不可写时自动使用 `.local-dev-data`，也可手工改成其他路径。 |
 | `ICTREK_DEV_DB_PORT` | `15432` | 宿主机 PostgreSQL 端口。 |
+| `ICTREK_DEV_PGV_IMAGE` | 按主机架构选择 `pgv:amd_16_20261012` 或 `pgv:arm_16_20261012` | 完整镜像地址使用 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv`；只覆盖为相同架构的 PostgreSQL 16 镜像。 |
 | `ICTREK_DEV_REDIS_PORT` | `6380` | 宿主机 Redis 端口。 |
 | `ICTREK_DEV_DOCREADER_PORT` | `15051` | 宿主机 DocReader 端口。 |
 | `ICTREK_DEV_NEO4J_BOLT_PORT` | `27687` | 宿主机 Neo4j Bolt 端口。 |

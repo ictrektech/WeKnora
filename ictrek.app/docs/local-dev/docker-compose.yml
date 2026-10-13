@@ -7,7 +7,8 @@
 
 services:
   postgres:
-    image: paradedb/paradedb:v0.22.2-pg17
+    image: ${ICTREK_DEV_PGV_IMAGE:-swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv:amd_16_20261012}
+    command: ["postgres", "-c", "shared_preload_libraries=pg_search,pg_cron,vchord.so,vectors.so"]
     ports:
       - "127.0.0.1:${ICTREK_DEV_DB_PORT:-15432}:5432"
     environment:

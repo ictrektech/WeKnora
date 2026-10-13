@@ -609,6 +609,11 @@ refresh_config() {
 }
 
 export_compose_env() {
+    local pgv_arch=amd
+    case "$(host_arch)" in
+        aarch64|arm64) pgv_arch=arm ;;
+    esac
+    export ICTREK_DEV_PGV_IMAGE="${ICTREK_DEV_PGV_IMAGE:-swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv:${pgv_arch}_16_20261012}"
     export ICTREK_DEV_DATA_DIR="$DEV_DATA_DIR"
     export ICTREK_DEV_DB_PORT="$DEV_DB_PORT"
     export ICTREK_DEV_REDIS_PORT="$DEV_REDIS_PORT"
