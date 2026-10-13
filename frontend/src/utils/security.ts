@@ -3,6 +3,7 @@
  */
 
 import DOMPurify from 'dompurify';
+import { hydrateChatImageVisibility } from './chatImageLoading.ts';
 import { applyProtectedFile, responseFileName, RESOURCE_PREVIEW_EVENT, type LoadedProtectedFile } from './protectedResource.ts';
 import type { Config, NodeHook } from 'dompurify';
 import {
@@ -606,6 +607,7 @@ export async function hydrateProtectedFileImages(
     return;
   }
 
+  hydrateChatImageVisibility(root);
   ensureProtectedResourceCardClicks();
 
   const images = root.querySelectorAll<HTMLImageElement>(
@@ -716,4 +718,5 @@ export async function hydrateProtectedFileImages(
       img.dataset.authHydrated = '0';
     }
   }));
+  hydrateChatImageVisibility(root);
 }

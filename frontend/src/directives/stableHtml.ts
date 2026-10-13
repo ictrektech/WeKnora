@@ -40,7 +40,7 @@ function morphImage(current: HTMLImageElement, next: HTMLImageElement): void {
   if (sameProtectedSource && current.hasAttribute('data-protected-hidden')) {
     // The authenticated loader keeps missing images addressable for the final
     // retry. Do not reveal their 1px placeholder between streaming patches.
-    syncAttributes(current, next, new Set(['style', 'data-protected-hidden']));
+    syncAttributes(current, next, new Set(['style', 'data-protected-hidden', 'data-chat-image-state']));
     return;
   }
 
@@ -53,11 +53,12 @@ function morphImage(current: HTMLImageElement, next: HTMLImageElement): void {
       'data-protected-src',
       'data-img-loading',
       'data-auth-hydrated',
+      'data-chat-image-state',
     ]));
     return;
   }
 
-  syncAttributes(current, next);
+  syncAttributes(current, next, sameIdentity ? new Set(['data-chat-image-state']) : undefined);
 }
 
 function isMermaidCanvas(el: Element): boolean {
@@ -108,8 +109,16 @@ function morphNode(current: Node, next: Node): void {
     && nextImage?.tagName === 'IMG'
     && Boolean(currentImage?.getAttribute('data-protected-src'))
     && currentImage?.getAttribute('data-protected-src') === nextImage?.getAttribute('data-protected-src');
+  const keepImageParagraphState = currentElement.tagName === 'P'
+    && currentElement.hasAttribute('data-chat-image-state')
+    && nextElement.children.length === 1 && !nextElement.textContent?.trim()
+    && currentImage instanceof HTMLImageElement && nextImage instanceof HTMLImageElement
+    && imageIdentity(currentImage) === imageIdentity(nextImage);
   syncAttributes(currentElement, nextElement,
-    keepHiddenParagraph ? new Set(['style', 'data-protected-hidden']) : undefined);
+    new Set([
+      ...(keepHiddenParagraph ? ['style', 'data-protected-hidden'] : []),
+      ...(keepImageParagraphState ? ['data-chat-image-state'] : []),
+    ]));
   morphChildren(currentElement, nextElement);
 }
 

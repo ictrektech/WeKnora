@@ -1,3 +1,5 @@
+import { prepareChatImage } from './chatImageLoading.ts';
+
 export const domPurifyForbidTags = ['script', 'style', 'object', 'embed', 'form', 'input'] as const;
 export const domPurifyForbidAttr = ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'] as const;
 
@@ -65,6 +67,7 @@ export const markdownDomPurifySecurityHooks = {
       element.setAttribute('rel', 'noopener noreferrer');
       element.setAttribute('target', '_blank');
     }
+    prepareChatImage(element);
   },
 };
 
@@ -84,7 +87,7 @@ export const markdownDomPurifyConfig = {
   ALLOWED_ATTR: [
     'href', 'title', 'target', 'rel', 'data-tooltip', 'data-url', 'data-kb-id',
     'data-chunk-id', 'data-doc', 'data-slug', 'class', 'role', 'tabindex', 'src', 'alt', 'data-protected-src', 'data-img-loading',
-    'data-artifact-index', 'data-protected-resource', 'download',
+    'data-artifact-index', 'data-protected-resource', 'data-chat-image-state', 'download',
     'width', 'height', 'style', 'id', 'type', 'aria-label', 'data-mermaid', 'disabled',
     'd', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
     'stroke-dasharray', 'stroke-dashoffset', 'stroke-miterlimit', 'stroke-opacity',

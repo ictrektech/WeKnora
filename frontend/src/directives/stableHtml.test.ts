@@ -35,8 +35,11 @@ function parse(html: string): any {
         el.setAttribute('style', `${rest}${value ? `;display:${value}` : ''}`)
       },
     }
-    el.querySelectorAll = (selector: string) => Array.from(el.getElementsByTagName('img'))
-      .filter((img: any) => selector.includes('src^=') || img.hasAttribute('data-protected-src'))
+    el.querySelectorAll = (selector: string) => selector.includes('data-chat-image-state')
+      ? Array.from(el.getElementsByTagName(selector.startsWith('p') ? 'p' : 'img'))
+        .filter((child: any) => child.hasAttribute('data-chat-image-state'))
+      : Array.from(el.getElementsByTagName('img'))
+        .filter((img: any) => selector.includes('src^=') || img.hasAttribute('data-protected-src'))
     for (const child of el.children) adapt(child)
   }
   adapt(root)

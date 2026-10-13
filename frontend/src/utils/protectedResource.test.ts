@@ -30,7 +30,8 @@ test('download filenames preserve Unicode and remove path components', () => {
 // Minimal DOM adapter exercises the actual hydration/fetch pipeline without
 // adding a browser-emulation dependency to the application.
 function imageRoot(source: string) {
-  const root: any = { replacement: null, removed: false, querySelectorAll: () => root.replacement || root.removed ? [] : [img] }
+  const root: any = { replacement: null, removed: false, querySelectorAll: (selector: string) =>
+    root.replacement || root.removed || selector.includes('data-chat-image-state') ? [] : [img] }
   const attrs: Record<string, string> = { src: source }
   const img: any = {
     alt: '比赛 PPT', dataset: {}, style: { display: '' },

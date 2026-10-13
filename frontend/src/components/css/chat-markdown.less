@@ -17,6 +17,12 @@
   letter-spacing: normal;
   -webkit-font-smoothing: antialiased;
 
+  // A valid URL can still return an error page or fail on the user's network.
+  :deep([data-chat-image-state="pending"]),
+  :deep([data-chat-image-state="failed"]) {
+    display: none !important;
+  }
+
   // Trailing fade on the newest streamed characters: the tail is wrapped in
   // this span (see applyStreamingTailFade) so its right edge dissolves, giving
   // a soft "just typed" reveal that settles once streaming stops and the wrap
@@ -627,7 +633,7 @@
     100% { background-position: -100% 0; }
   }
 
-  :deep(p:has(> img:only-child)) {
+  :deep(p[data-chat-image-state]) {
     margin: 1.25em 0;
     line-height: 0;
   }

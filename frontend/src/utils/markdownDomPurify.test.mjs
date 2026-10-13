@@ -52,3 +52,14 @@ test('protected resource download cards stay in the current tab', () => {
 
   assert.equal(attributes.has('target'), false);
 });
+
+test('answer images start hidden even if model HTML claims they loaded', () => {
+  const attributes = new Map([['src', 'https://example.com/broken.png'], ['data-chat-image-state', 'loaded']]);
+  const img = {
+    tagName: 'IMG',
+    getAttribute: name => attributes.get(name) ?? null,
+    setAttribute: (name, value) => attributes.set(name, value),
+  };
+  markdownDomPurifySecurityHooks.afterSanitizeElements(img);
+  assert.equal(attributes.get('data-chat-image-state'), 'pending');
+});
