@@ -34,7 +34,8 @@
         <div class="connection-result__details" tabindex="0">{{ saveError }}</div>
       </div>
       <div v-if="formData.source === 'remote'" class="connection-feedback" aria-live="polite">
-        <p class="connection-hint">{{ $t(isEdit ? 'model.editor.testDraftEditHint' : 'model.editor.testDraftHint') }}</p>
+        <p v-if="isEdit" class="connection-hint">{{ $t('model.editor.testDraftEditHint') }}</p>
+        <p v-if="activeModelType === 'chat'" class="connection-hint">{{ $t('model.editor.testColdStartHint') }}</p>
         <p v-if="remoteStale" class="connection-hint">{{ $t('model.editor.testStale') }}</p>
         <div v-if="remoteChecked && !remoteAvailable" class="connection-result error">
           <div class="connection-result__header">

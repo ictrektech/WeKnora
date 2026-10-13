@@ -345,7 +345,7 @@ export function checkRemoteModel(modelConfig: {
     message?: string;
 }> {
     return new Promise((resolve, reject) => {
-        post('/api/v1/initialization/remote/check', modelConfig)
+        post('/api/v1/initialization/remote/check', modelConfig, { timeout: 90000 })
             .then((response: any) => {
                 resolve(response.data || {});
             })
