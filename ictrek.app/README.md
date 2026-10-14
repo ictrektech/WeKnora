@@ -470,19 +470,24 @@ gh release view "v${VERSION}" --repo ictrektech/WeKnora
 
 ### PGV BM25 索引升级与故障恢复
 
-共享 PGV 保持 PostgreSQL 16，`pg_search` 使用验证版本 0.22.6。
-先在维护窗口备份数据库、停止导入和检索，升级 PGV 并完成 provision 的扩展升级
-和一次性 BM25 索引重建，再恢复 HybRAG。普通应用账号不执行扩展升级或自动 REINDEX；旧版扩展迁移遇到权限不足时
-会提示由 PGV 管理员处理，不再将应用迁移置为失败。新增迁移 `000137` 同样保留此权限处理；只有数据库服务器提供 `pg_search` 0.25.11 或 `vector` 0.8.4 扩展包时才尝试对应升级，不改变当前 PGV 的 PostgreSQL 16 / `pg_search` 0.22.6 配置。
-若启动日志提示扩展缺失或低于 0.22.6，检查 PGV 的 provision 是否真正完成。
-遇到 `XX000` 的 CTID/heap 页面访问错误时，后端日志会给出 PGV 管理员恢复指引；
-使用 PGV 包内 `/init/pg-search-upgrade.sql` 的 `force_rebuild=true` 重建索引后，
-重试失败文档和混合检索。扩展版本检查不会禁用向量检索。
+**已验证：**2026-10-14 核查的 AMD64 VOS 实例中，PGV `0.0.48` 与 HybRAG `0.1.67` 配合使用，实际运行 PostgreSQL `17.11`、`pg_search 0.25.11`（关键词检索扩展）和 `vector 0.8.4`（向量检索扩展）。应用账号连接、迁移版本 `140`（`dirty=false`）、已有数据的关键词与向量查询通过。同一 PGV 镜像的隔离库中，普通应用账号执行全部 141 个迁移文件及现有 Go 检索集成测试通过；写入、更新、删除、禁用过滤和索引查询通过。ARM64、持续大量导入及升级前后逐表数据一致性仍**待验证**。
 
-### 暂时保留 Compose 的旧版 ParadeDB
+PGV `0.0.48` 的默认 ParadeDB 基础镜像为 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/paradedb:amd64_0.25.11-pg17` 或 `arm64_0.25.11-pg17`；基础镜像不是完整 PGV 应用镜像。HybRAG 继续连接外部 `shared-pgv:5432`，不自行启动数据库，也不因本次验证提高 manifest 的最低依赖版本。
 
-已实现（配置）：`docker-compose.yml` 与 `docker-compose.dev.yml` 的 `postgres`、`langfuse-db-init` 暂时固定为 `paradedb/paradedb:v0.22.6-pg17`。此选择只适用于 PostgreSQL 17 Compose 部署；上面的共享 VOS PGV 配置仍使用 PostgreSQL 16。
+升级前备份数据库和角色、暂停导入和检索。PostgreSQL 16 → 17 是主版本迁移（数据库存储格式可能变化），不能只换镜像复用旧数据目录；由 PGV 管理员按 PGV 的迁移流程处理。已有数据库的扩展 SQL 定义也必须与镜像中的扩展库一致。仅换镜像不会更新 `pg_extension`（记录已安装扩展版本的系统表），应在使用扩展函数或恢复业务前确认升级完成。
 
-适用范围：新建数据库或尚未升级到 `pg_search` 0.25.11 的旧库。已升级的新库不能仅换旧镜像回退，必须使用升级前备份恢复。保留新版应用迁移；旧镜像未提供目标扩展包时，`000137` 跳过扩展升级并记为已执行，后续更换新版镜像后需管理员手工升级扩展，见 [ParadeDB 升级操作](../website-docs/01-getting-started/06-paradedb-upgrade.md)。
+应用迁移 `000117`、`000137` 遇到扩展升级权限不足时提示管理员处理，继续迁移；因此 `dirty=false` 本身不能证明扩展已升级。`000137` 仅在服务器提供目标包时尝试升级到 `pg_search 0.25.11`、`vector 0.8.4`，已执行的迁移不会因后来更换镜像再次运行。具体版本范围见 [ParadeDB 升级操作](../website-docs/01-getting-started/06-paradedb-upgrade.md#自动迁移的范围)。启动检查仍以 `pg_search 0.22.6` 为最低版本告警线，不用于判断扩展 SQL 定义与二进制是否匹配，也不会禁用向量检索。
 
-已知限制：上游报告旧镜像在持续批量导入时可能出现数据库崩溃和索引损坏，见 [上游修复说明](https://github.com/Tencent/WeKnora/pull/4120)。本配置用于短期保留现有版本；开始持续批量导入或出现数据库反复恢复时，应重新评估升级。待验证：旧版 PostgreSQL 17 镜像下的实际部署负载；配置校验不代表运行验证。
+遇到 `XX000` 的 CTID（数据库行的物理位置）或 heap（表数据页）访问错误时，先由管理员核对扩展与镜像版本。在维护窗口备份、暂停写入和检索后，以索引所有者或管理员身份连接 `WeKnora` 数据库，按需重建 BM25（关键词相关性评分）索引：
+
+```sql
+REINDEX INDEX public.embeddings_search_idx;
+```
+
+重建后验证关键词与向量检索，再恢复业务并重试失败文档。应用不会自动重建索引。当前 PGV `0.0.48` 容器不提供旧指引中的 `/init/pg-search-upgrade.sql`；不要按旧脚本路径恢复，也不要将扩展降到 `0.22.6`。正常升级不要求无条件重建全部索引；重建后仍失败时保留原始错误和备份，由管理员继续排查。
+
+### Compose 数据库版本与升级边界
+
+**已实现（配置）：**根目录 `docker-compose.yml` 与 `docker-compose.dev.yml` 的 `postgres`、`langfuse-db-init` 均使用 `paradedb/paradedb:v0.25.11-pg17`。健康检查通过 `127.0.0.1` 的 TCP（网络连接）探测，避免将仅开放本地 socket（进程间通信接口）的初始化临时服务器判为就绪。本地 ictrek 开发环境使用完整 PGV 镜像，见 [本地开发镜像替换](docs/local-dev/README.md#postgresql-镜像替换)。
+
+新库直接使用新配置；已有 PostgreSQL 17 库须先备份并完成扩展 SQL 升级，见 [ParadeDB 升级操作](../website-docs/01-getting-started/06-paradedb-upgrade.md)。PostgreSQL 16 库需要主版本数据迁移。更新 Compose 不会自动迁移数据，也不会重新执行已完成的 `000137`。回滚须恢复升级前备份，不能只把镜像标签改回旧版。Helm 与历史部署模板未纳入本次版本更新；各自的旧配置不能当作当前 VOS 或本地开发配置使用。

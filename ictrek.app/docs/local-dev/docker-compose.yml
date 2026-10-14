@@ -7,7 +7,8 @@
 
 services:
   postgres:
-    image: ${ICTREK_DEV_PGV_IMAGE:-swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv:amd_16_20261012}
+    # PG16 data needs migration or a new data directory before starting PG17.
+    image: ${ICTREK_DEV_PGV_IMAGE:-swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv:amd_17_20261014}
     command: ["postgres", "-c", "shared_preload_libraries=pg_search,pg_cron,vchord.so,vectors.so"]
     ports:
       - "127.0.0.1:${ICTREK_DEV_DB_PORT:-15432}:5432"
@@ -18,7 +19,7 @@ services:
     volumes:
       - "${ICTREK_DEV_DATA_DIR:-/data/hybrag-dev-data}/postgres:/var/lib/postgresql/data"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-WeKnora}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-WeKnora}"]
       interval: 10s
       timeout: 10s
       retries: 5

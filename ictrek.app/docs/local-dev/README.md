@@ -9,7 +9,7 @@
 | Go 后端源码调试 | 已实现 | 支持 `go run`；安装 Air 后自动热重载。 |
 | 前端源码调试 | 已实现 | Vite 热更新，默认代理到 `127.0.0.1:8080`。 |
 | 基础设施 | 已实现 | 使用本目录的隔离 Compose 和 `/data/hybrag-dev-data`。 |
-| PostgreSQL 镜像对齐 | 已实现 | 使用 VOS PGV（提供 PostgreSQL 与检索扩展的应用）的 PostgreSQL 16 镜像；手动替换旧镜像，旧测试数据可重建，见[操作说明](#postgresql-镜像替换)。 |
+| PostgreSQL 镜像对齐 | 已实现（配置） | 默认使用 VOS PGV（提供 PostgreSQL 与检索扩展的应用）`0.0.48` 的 PostgreSQL 17 镜像；旧 PG16 数据须迁移或保留并改用新目录，见[操作说明](#postgresql-镜像替换)。 |
 | Model Hub ReRank（检索结果重排） | 已实现 | 本机 Model Hub `0.0.92` 与三端口代理已验证；旧代理需重建，见 [接入前提](model-hub-ollama-proxy.md#前置条件)。 |
 | 模型初始化 | 部分落地 | `auto` 会按主机环境选择 profile：Jetson 复用已运行的 VOS Model Hub，非 Jetson ARM64 使用宿主机 Ollama，x86_64 使用 tc232 vLLM。 |
 | VOS iframe 免登录 | 未启用 | 本地源码模式使用普通注册/登录，`HYBRAG_VOS_SSO_ENABLED=false`。 |
@@ -204,22 +204,25 @@ curl -fsS http://127.0.0.1:31537/v1/models
 
 ### PostgreSQL 镜像替换
 
-**已实现：**开发库默认使用 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv:amd_16_20261012`，开发脚本在 ARM64（64 位 ARM 架构）主机选择 `arm_16_20261012`。镜像及 `shared_preload_libraries=pg_search,pg_cron,vchord.so,vectors.so`（启动时预加载的扩展库）与本次核查的 VOS PGV `0.0.45` 部署一致。通过 `ICTREK_DEV_PGV_IMAGE` 可手动指定同架构的 PostgreSQL 16 镜像；镜像版本不会自动跟随 VOS 更新。
+**已实现（配置）：**开发库默认使用 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv:amd_17_20261014`，脚本在 ARM64（64 位 ARM 架构）主机选择 `arm_17_20261014`。镜像与 `shared_preload_libraries=pg_search,pg_cron,vchord.so,vectors.so`（启动时预加载的扩展库）对齐 VOS PGV `0.0.48`。`ICTREK_DEV_PGV_IMAGE` 可覆盖为同架构完整 PGV 镜像；不要用仅含 ParadeDB 的基础镜像替换后继续预加载 PGV 专用扩展。标签固定，不会自动跟随 VOS 更新。
 
-开发库使用独立端口、凭证和数据目录。旧 `paradedb/paradedb:v0.22.2-pg17` 数据不能直接由 PostgreSQL 16 读取；开发测试数据按可重建处理，不要求迁移。替换时先停止 Go 后端，再在仓库根目录执行以下命令。**清空步骤会删除当前开发库的全部数据**；已有 PostgreSQL 16 数据且需要保留时跳过该步骤。
+开发库继续使用独立端口、凭证和数据目录。**旧 PostgreSQL 16 数据不能直接由 PostgreSQL 17 读取**，更新配置不会自动迁移或清空数据。保留数据时，先在旧库仍运行时做逻辑备份（导出数据库对象和数据），再按 [PostgreSQL 主版本升级说明](https://www.postgresql.org/docs/17/upgrading.html) 迁移到独立新目录并验证；本脚本不执行主版本迁移。
+
+若只需新建开发数据，先停止 Go 后端，再在仓库根目录执行以下命令。原目录保留；新目录用于本套开发基础设施的全部数据，包括 Redis 和 Neo4j，而不只是 PostgreSQL。
 
 ```bash
-PGV_COMPOSE=(docker compose --project-name weknora-ictrek-local-dev
-  --env-file .env -f ictrek.app/docs/local-dev/docker-compose.yml)
-"${PGV_COMPOSE[@]}" stop postgres
-"${PGV_COMPOSE[@]}" run --rm --no-deps --entrypoint sh postgres -c \
-  'find /var/lib/postgresql/data -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +'
-"${PGV_COMPOSE[@]}" up -d --no-deps postgres
+DEV=./ictrek.app/docs/local-dev/ictrek-dev.sh
+$DEV stop
+export ICTREK_DEV_DATA_DIR=/data/hybrag-dev-data-pg17
+$DEV start
+$DEV app
 ```
 
-随后重新运行 `$DEV app`，由后端初始化应用表。启动失败时查看开发库容器日志，核对镜像架构和数据目录主版本。直接运行 Compose 默认使用 AMD 镜像；ARM 主机须在 `.env` 设置完整的 `ICTREK_DEV_PGV_IMAGE`。
+后端在新库初始化应用表。后续命令保持同一 `ICTREK_DEV_DATA_DIR`，或将新路径写入 `.env`；若 `.env.local` 也设置了该值，须同步修改。数据库健康检查等待 TCP（网络连接）服务就绪，避免在初始化临时服务器运行时提前启动后端；等待失败时 `start` 返回失败，不再报告基础设施启动成功。失败时查看日志，核对镜像架构、扩展预加载和数据目录主版本，不要删库重试。
 
-**已验证：**本机开发库与 VOS PGV 的镜像 ID（镜像内容标识）相同，运行 PostgreSQL `16.13`、`pg_search 0.22.6`；数据库与后端健康检查、关键词和向量查询通过。核查的 VOS 数据库仍安装 `pg_search 0.22.2`，已有数据库的扩展版本不会随镜像自动升级。ARM 启动及完整上传、聊天流程仍**待验证**。
+直接运行 Compose 默认使用 AMD 镜像；ARM 主机须设置完整的 `ICTREK_DEV_PGV_IMAGE`。已有 PostgreSQL 17 库只升级扩展版本时，遵循 [ParadeDB 存量库升级](../../../website-docs/01-getting-started/06-paradedb-upgrade.md)，将数据库命令替换为本目录的 Compose 文件、项目名和实际环境文件；迁移 `000137` 已执行时仍需管理员完成扩展升级。
+
+**已验证：**AMD/ARM 标签均已在镜像仓库确认存在；脚本选型、显式覆盖、Compose 默认值、预加载、健康检查配置及 PostgreSQL 就绪失败的返回行为通过本目录 `test-pgv.sh`。本地 Compose 的 AMD PG17 服务在独立项目与数据卷启动成功，实际运行 PostgreSQL `17.11`、`pg_search 0.25.11`、`vector 0.8.4`；Go 检索集成测试和中文关键词索引重建后查询通过。同一镜像的另一隔离库中，全部 141 个迁移 SQL 文件通过。现有本机开发容器仍使用 PG16 数据，本次未自动替换或清空。ARM 运行、现有开发数据迁移和完整上传、聊天流程仍**待验证**。
 
 ## 常用命令
 
@@ -280,7 +283,7 @@ go install github.com/air-verse/air@latest
 | `ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME` | `qllama/bge-reranker-v2-m3:q8_0` | Model Hub ReRank 模型名。 |
 | `ICTREK_DEV_DATA_DIR` | `/data/hybrag-dev-data` 或项目目录回退 | 基础设施持久化根目录；`/data` 不存在或不可写时自动使用 `.local-dev-data`，也可手工改成其他路径。 |
 | `ICTREK_DEV_DB_PORT` | `15432` | 宿主机 PostgreSQL 端口。 |
-| `ICTREK_DEV_PGV_IMAGE` | 按主机架构选择 `pgv:amd_16_20261012` 或 `pgv:arm_16_20261012` | 完整镜像地址使用 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv`；只覆盖为相同架构的 PostgreSQL 16 镜像。 |
+| `ICTREK_DEV_PGV_IMAGE` | 按主机架构选择 `pgv:amd_17_20261014` 或 `pgv:arm_17_20261014` | 完整镜像地址使用 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv`；覆盖镜像须匹配主机架构、预加载扩展和数据目录主版本。 |
 | `ICTREK_DEV_REDIS_PORT` | `6380` | 宿主机 Redis 端口。 |
 | `ICTREK_DEV_DOCREADER_PORT` | `15051` | 宿主机 DocReader 端口。 |
 | `ICTREK_DEV_NEO4J_BOLT_PORT` | `27687` | 宿主机 Neo4j Bolt 端口。 |

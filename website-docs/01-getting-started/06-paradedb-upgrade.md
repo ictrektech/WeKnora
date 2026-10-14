@@ -1,13 +1,13 @@
 # ParadeDB 存量库升级
 
-当前 fork 的生产与开发 Compose 暂时固定 `paradedb/paradedb:v0.22.6-pg17`；适用范围和限制见 [旧版 ParadeDB 保留说明](../../ictrek.app/README.md#暂时保留-compose-的旧版-paradedb)。本文提供后续升级操作，处理 **0.22.x → 0.25.11、PostgreSQL 主版本保持 17** 的升级；不适用于 PostgreSQL 跨主版本升级，也不代表 Helm 中其他旧版本可以直接套用。
+当前 fork 的根目录生产与开发 Compose 已使用 `paradedb/paradedb:v0.25.11-pg17`；现有数据库仍须先备份并完成扩展升级，再恢复应用。本文处理 **0.22.x → 0.25.11、PostgreSQL 主版本保持 17** 的升级；不适用于 PostgreSQL 跨主版本升级，也不代表 Helm 中其他旧版本可以直接套用。配置范围见 [Compose 数据库说明](../../ictrek.app/README.md#compose-数据库版本与升级边界)。
 
-该版本线相对 `v0.22.6-pg17` 带来 PostgreSQL 17.9 → 17.11、pgvector 0.8.1 → 0.8.4（修复并行 HNSW 构建缓冲区溢出与 HNSW vacuum 期间的索引损坏）以及 pg_search 基于 WAL 的崩溃恢复（0.24.0 起，见 paradedb#4901）。
+该版本线相对 `v0.22.6-pg17` 带来 PostgreSQL `17.9` → `17.11`、pgvector（向量检索扩展）`0.8.1` → `0.8.4`，修复并行 HNSW（图结构向量索引）构建缓冲区溢出与 VACUUM（清理过期行）期间的索引损坏，见 [pgvector 变更记录](https://github.com/pgvector/pgvector/blob/v0.8.4/CHANGELOG.md)。pg_search（关键词检索扩展）从 `0.24.0` 起采用 WAL（预写日志）进行崩溃恢复，见 [paradedb#4901](https://github.com/paradedb/paradedb/pull/4901)。
 
 > [!WARNING]
-> 替换镜像后**必须**把扩展 catalog 升级到与镜像一致的版本。catalog 停留在旧版本时，部分扩展 SQL 函数（例如 `paradedb.version_info()`）会因签名与新二进制不匹配而触发段错误，导致整个 PostgreSQL 实例崩溃并进入恢复。也**不要**在新镜像上执行 `ALTER EXTENSION pg_search UPDATE TO '0.22.6'`，它同样会造成上述不匹配。
+> 替换镜像后**必须**把扩展 catalog（SQL 定义与版本记录）升级到与镜像一致的版本。catalog 停留在旧版本时，部分扩展 SQL 函数（例如 `paradedb.version_info()`）会因签名与新二进制不匹配而触发段错误，导致整个 PostgreSQL 实例崩溃并进入恢复。也**不要**在新镜像上执行 `ALTER EXTENSION pg_search UPDATE TO '0.22.6'`，它同样会造成上述不匹配。
 
-共享 VOS PGV（独立管理的数据库应用）使用 PostgreSQL 16，维护要求见 [HybRAG 运维说明](../../ictrek.app/README.md#pgv-bm25-索引升级与故障恢复)。本文的 PostgreSQL 17 Compose 步骤不适用于该部署。
+共享 VOS PGV（独立管理的数据库应用）`0.0.48` 已使用 PostgreSQL 17，版本核查与维护要求见 [HybRAG 运维说明](../../ictrek.app/README.md#pgv-bm25-索引升级与故障恢复)。VOS 的数据库容器由 PGV 应用管理，不套用本文根目录 Compose 命令；本地 ictrek 开发环境的旧 PostgreSQL 16 数据处理见 [开发镜像替换](../../ictrek.app/docs/local-dev/README.md#postgresql-镜像替换)。
 
 ## 升级步骤
 

@@ -548,8 +548,8 @@ services:
 
   # 修改的PostgreSQL配置
   postgres:
-    # shortcut: pin the existing deployment version; upgrade before sustained bulk ingestion (ictrek.app/README.md).
-    image: paradedb/paradedb:v0.22.6-pg17
+    # Existing databases also need extension SQL upgrades; see the ParadeDB upgrade guide.
+    image: paradedb/paradedb:v0.25.11-pg17
     container_name: WeKnora-postgres
     environment:
       - POSTGRES_USER=${DB_USER}
@@ -560,7 +560,7 @@ services:
     networks:
       - WeKnora-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s # 增加时间间隔
       timeout: 10s # 增加超时时间
       retries: 3 # 减少重试次数，让失败更快反馈
@@ -827,7 +827,7 @@ services:
   # 一次性初始化脚本：在已有的 WeKnora-postgres 里创建 langfuse 数据库（幂等，数据库已存在则跳过）
   # 复用 WeKnora-postgres 的 ParadeDB 镜像，避免多拉一个 postgres 镜像
   langfuse-db-init:
-    image: paradedb/paradedb:v0.22.6-pg17
+    image: paradedb/paradedb:v0.25.11-pg17
     container_name: WeKnora-langfuse-db-init
     depends_on:
       postgres:
