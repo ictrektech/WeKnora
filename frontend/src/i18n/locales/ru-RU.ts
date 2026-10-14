@@ -5351,7 +5351,7 @@ export default {
     },
   },
   createChat: {
-    title: 'Привет, я WeKnora — ваши знания всегда под рукой',
+    title: 'Привет, я Vivibit AI-помощник — ваши знания всегда под рукой',
     newSessionTitle: 'Новая сессия',
     openProject: 'Выбрать проект',
     clearProject: 'Снять привязку',

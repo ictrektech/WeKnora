@@ -5349,7 +5349,7 @@ export default {
     }
   },
   "createChat": {
-    "title": "Hi，我是 WeKnora，讓你的知識觸手可及",
+    "title": "Hi，我是 Vivibit 小助手，讓你的知識觸手可及",
     "newSessionTitle": "新會話",
     "openProject": "選擇項目",
     "clearProject": "取消綁定",

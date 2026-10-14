@@ -3023,7 +3023,7 @@ export default {
     placeholderAgent: "Ask {name}",
   },
   createChat: {
-    title: 'Hi, I am WeKnora — your knowledge, within reach',
+    title: 'Hi, I am Vivibit AI Assistant — your knowledge, within reach',
     newSessionTitle: 'New Session',
     openProject: 'Select project',
     clearProject: 'Clear',
