@@ -1,6 +1,6 @@
 # ParadeDB 存量库升级
 
-仓库的生产与开发 Compose 使用 `paradedb/paradedb:v0.25.11-pg17`。本文处理 **0.22.x → 0.25.11、PostgreSQL 主版本保持 17** 的升级；不适用于 PostgreSQL 跨主版本升级，也不代表 Helm 中其他旧版本可以直接套用。
+当前 fork 的生产与开发 Compose 暂时固定 `paradedb/paradedb:v0.22.6-pg17`；适用范围和限制见 [旧版 ParadeDB 保留说明](../../ictrek.app/README.md#暂时保留-compose-的旧版-paradedb)。本文提供后续升级操作，处理 **0.22.x → 0.25.11、PostgreSQL 主版本保持 17** 的升级；不适用于 PostgreSQL 跨主版本升级，也不代表 Helm 中其他旧版本可以直接套用。
 
 该版本线相对 `v0.22.6-pg17` 带来 PostgreSQL 17.9 → 17.11、pgvector 0.8.1 → 0.8.4（修复并行 HNSW 构建缓冲区溢出与 HNSW vacuum 期间的索引损坏）以及 pg_search 基于 WAL 的崩溃恢复（0.24.0 起，见 paradedb#4901）。
 
@@ -31,7 +31,7 @@
 
    若旧镜像在当前 CPU 上无法启动，先保存停止状态的数据卷快照，在兼容机器上制作逻辑备份或验证快照可恢复，再改动唯一的数据副本。
 
-3. 使用更新后的 Compose，只替换数据库容器：
+3. 决定升级时，先将所用 Compose 中 `postgres` 和 `langfuse-db-init` 的镜像均改为 `paradedb/paradedb:v0.25.11-pg17`，再只替换数据库容器：
 
    ```bash
    docker compose pull postgres

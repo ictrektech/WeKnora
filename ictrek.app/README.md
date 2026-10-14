@@ -478,3 +478,11 @@ gh release view "v${VERSION}" --repo ictrektech/WeKnora
 遇到 `XX000` 的 CTID/heap 页面访问错误时，后端日志会给出 PGV 管理员恢复指引；
 使用 PGV 包内 `/init/pg-search-upgrade.sql` 的 `force_rebuild=true` 重建索引后，
 重试失败文档和混合检索。扩展版本检查不会禁用向量检索。
+
+### 暂时保留 Compose 的旧版 ParadeDB
+
+已实现（配置）：`docker-compose.yml` 与 `docker-compose.dev.yml` 的 `postgres`、`langfuse-db-init` 暂时固定为 `paradedb/paradedb:v0.22.6-pg17`。此选择只适用于 PostgreSQL 17 Compose 部署；上面的共享 VOS PGV 配置仍使用 PostgreSQL 16。
+
+适用范围：新建数据库或尚未升级到 `pg_search` 0.25.11 的旧库。已升级的新库不能仅换旧镜像回退，必须使用升级前备份恢复。保留新版应用迁移；旧镜像未提供目标扩展包时，`000137` 跳过扩展升级并记为已执行，后续更换新版镜像后需管理员手工升级扩展，见 [ParadeDB 升级操作](../website-docs/01-getting-started/06-paradedb-upgrade.md)。
+
+已知限制：上游报告旧镜像在持续批量导入时可能出现数据库崩溃和索引损坏，见 [上游修复说明](https://github.com/Tencent/WeKnora/pull/4120)。本配置用于短期保留现有版本；开始持续批量导入或出现数据库反复恢复时，应重新评估升级。待验证：旧版 PostgreSQL 17 镜像下的实际部署负载；配置校验不代表运行验证。
