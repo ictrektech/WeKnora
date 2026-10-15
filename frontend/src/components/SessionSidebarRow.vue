@@ -5,6 +5,7 @@
     batchMode && selectedIds.includes(item.id) ? 'submenu_item_selected' : '',
     batchMode ? 'submenu_item_batch' : '',
     menuOpen ? 'submenu_item--menu-open' : '',
+    showUnread ? 'submenu_item--unread' : '',
   ]" role="button" :tabindex="titleEditing ? -1 : 0"
     :aria-current="!batchMode && activePath === item.path ? 'page' : undefined"
     @mouseenter="emit('hover-in')" @mouseleave="emit('hover-out')"
@@ -21,11 +22,17 @@
       <span v-if="apiOwnerTag" class="session-owner-tag" :class="`session-owner-tag--${apiOwnerTag.kind}`"
         :title="apiOwnerTag.full">{{ apiOwnerTag.label }}</span>
     </span>
-    <span v-if="running" class="session-running-indicator" role="status" :aria-label="t('menu.sessionInProgress')"
-      :title="t('menu.sessionInProgress')"><span class="session-running-indicator__spinner" aria-hidden="true" /></span>
-    <div v-if="!batchMode || item.parent_session_id" class="session-row-menu-wrap"
-      :class="{ 'session-row-menu-wrap--fork': item.parent_session_id }" @click.stop>
-      <span v-if="item.parent_session_id" class="session-fork-indicator" role="img" aria-label="由其他会话分叉而来">
+    <div v-if="!batchMode || hasBadge" class="session-row-menu-wrap"
+      :class="{ 'session-row-menu-wrap--badge': hasBadge }" @click.stop>
+      <span v-if="running" class="session-row-badge session-running-indicator" role="status"
+        :aria-label="t('menu.sessionInProgress')" :title="t('menu.sessionInProgress')">
+        <span class="session-running-indicator__spinner" aria-hidden="true" />
+      </span>
+      <span v-else-if="showUnread" class="session-row-badge session-unread-indicator" role="status"
+        :aria-label="t('menu.sessionUnread')" :title="t('menu.sessionUnread')">
+        <span class="session-unread-indicator__dot" aria-hidden="true" />
+      </span>
+      <span v-else-if="item.parent_session_id" class="session-row-badge session-fork-indicator" role="img" aria-label="由其他会话分叉而来">
         <t-icon name="git-branch" class="submenu_fork_icon" />
       </span>
       <t-popup v-if="!batchMode" v-model:visible="menuOpen" :overlay-class-name="menuOverlayClass" trigger="click" destroy-on-close
@@ -91,6 +98,7 @@ const props = defineProps<{
   selectedIds: string[]
   menuOptions: SessionMenuOption[]
   running?: boolean
+  unread?: boolean
   /** 渠道文件夹下的会话（样式与聊天区会话共用文案列对齐） */
   nested?: boolean
 }>()
@@ -113,6 +121,9 @@ const titleDraft = ref('')
 const titleInputRef = ref<HTMLInputElement | null>(null)
 const titleTextRef = ref<HTMLElement | null>(null)
 useSessionTitleMotion(titleTextRef, () => props.item.id, () => props.item.title)
+
+const showUnread = computed(() => Boolean(props.unread) && !props.running && props.activePath !== props.item.path)
+const hasBadge = computed(() => Boolean(props.running || showUnread.value || props.item.parent_session_id))
 
 const menuOverlayClass = computed(() => (
   menuMode.value === 'menu'
@@ -229,13 +240,6 @@ const confirmDangerAction = (): void => {
 }
 
 .session-running-indicator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 16px;
-  width: 16px;
-  height: 16px;
-  margin-left: 4px;
   color: var(--td-brand-color);
 }
 
@@ -256,6 +260,18 @@ const confirmDangerAction = (): void => {
   }
 }
 
+.session-unread-indicator__dot {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--td-brand-color);
+}
+
+.submenu_item--unread .submenu_title-text {
+  font-weight: 500;
+}
+
 .session-row-menu-wrap {
   position: relative;
   flex: 0 0 0;
@@ -265,7 +281,9 @@ const confirmDangerAction = (): void => {
   pointer-events: none;
 }
 
-.session-row-menu-wrap--fork {
+// A status badge (running / unread / fork) and the "more" button share one
+// 24px slot, so hovering swaps them in place instead of reflowing the title.
+.session-row-menu-wrap--badge {
   flex-basis: 24px;
   width: 24px;
   height: 24px;
@@ -275,18 +293,19 @@ const confirmDangerAction = (): void => {
   .menu-more-wrap { opacity: 0; }
 }
 
-.submenu_item_batch .session-row-menu-wrap--fork { pointer-events: none; }
+.submenu_item_batch .session-row-menu-wrap--badge { pointer-events: none; }
 
-.session-fork-indicator {
+.session-row-badge {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
-
-  .submenu_fork_icon { font-size: var(--app-text-sm); }
+  transition: opacity var(--app-motion-base) ease;
 }
+
+.session-fork-indicator .submenu_fork_icon { font-size: var(--app-text-sm); }
 
 .submenu_item:hover,
 .submenu_item:focus-within,
@@ -301,8 +320,15 @@ const confirmDangerAction = (): void => {
 
 .submenu_item:not(.submenu_item_batch) {
   &:hover, &:focus-within, &.submenu_item--menu-open {
-    .session-fork-indicator { opacity: 0; }
-    .session-row-menu-wrap--fork .menu-more-wrap { opacity: 1; }
+    .session-row-menu-wrap--badge .menu-more-wrap { opacity: 1; }
+  }
+}
+
+@media (hover: hover) {
+  .submenu_item:not(.submenu_item_batch) {
+    &:hover, &:focus-within, &.submenu_item--menu-open {
+      .session-row-badge { opacity: 0; }
+    }
   }
 }
 
@@ -315,7 +341,19 @@ const confirmDangerAction = (): void => {
   }
   .submenu_item:not(.submenu_item_batch) {
     .session-fork-indicator { display: none; }
-    .session-row-menu-wrap--fork .menu-more-wrap { opacity: 1; }
+    .session-row-menu-wrap--badge .menu-more-wrap { opacity: 1; }
+  }
+  // The "more" button never hides on touch, so the badge sits beside it.
+  .session-row-menu-wrap--badge {
+    display: flex;
+    align-items: center;
+    flex-basis: auto;
+    width: auto;
+  }
+  .session-row-badge:not(.session-fork-indicator) {
+    position: static;
+    flex: 0 0 16px;
+    height: 24px;
   }
 }
 

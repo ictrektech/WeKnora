@@ -8,7 +8,7 @@ WeKnora 使用版本化迁移维护数据库结构，PostgreSQL 与 SQLite 分�
 
 | `DB_DRIVER` | 说明 |
 | --- | --- |
-| `postgres` | 标准模式。既支持原生 PostgreSQL（+pgvector），也支持 **ParadeDB**（PostgreSQL 分支，内置 `pg_search`/BM25，官方 compose 默认镜像 `paradedb/paradedb:v0.22.6-pg17`）。GORM DSN 由 `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` 拼装，强制 `sslmode=disable`、`TimeZone=UTC` |
+| `postgres` | 标准模式。既支持原生 PostgreSQL（+pgvector），也支持 **ParadeDB**（PostgreSQL 分支，内置 `pg_search`/BM25，当前 fork compose 固定 `paradedb/paradedb:v0.22.6-pg17`；上游默认 `v0.25.11-pg17`）。GORM DSN 由 `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` 拼装，强制 `sslmode=disable`、`TimeZone=UTC` |
 | `sqlite` | Lite 模式。路径取 `DB_PATH`（默认 `./data/weknora.db`），DSN 附加 `_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on`，并加载 `sqlite-vec` 扩展（`sqlite_vec.Auto()`）做向量检索 |
 | 其他值 | 直接报错 `unsupported database driver` |
 
@@ -20,14 +20,14 @@ WeKnora 使用版本化迁移维护数据库结构，PostgreSQL 与 SQLite 分�
 
 ```text
 migrations/
-├── versioned/     # PostgreSQL/ParadeDB 版本化迁移：000000-000132
-├── sqlite/        # SQLite 迁移：000000_init（压平的全量 schema）+ 000001-000040 增量版本
+├── versioned/     # PostgreSQL/ParadeDB 版本化迁移：000000-000141
+├── sqlite/        # SQLite 迁移：000000_init（压平的全量 schema）+ 000001-000047 增量版本
 ├── paradedb/      # ParadeDB 附加脚本：00-init-db.sql、01-migrate-to-paradedb.sql（存量库切换）
 └── mysql/         # 00-init-db.sql，遗留的一次性 MySQL 建表脚本（未接入代码）
 ```
 
-- PostgreSQL 的 `versioned/` 从 `000000_init` 到 fork 迁移 `000132_im_channel_locale`；上游新增迁移在 fork 中追加为 `000131` 和 `000132`。
-- `sqlite/` 以 `000000_init` 作为压平后的全量初始化（JSONB→TEXT、SERIAL→AUTOINCREMENT 等方言差异已适配），增量迁移到 fork 版本 `000040_im_channel_locale`，同样由 golang-migrate 顺序执行。
+- PostgreSQL 的 `versioned/` 从 `000000_init` 到 fork 迁移 `000141_agent_prompts`；上游迁移编号与 fork 的对应关系见下表。
+- `sqlite/` 以 `000000_init` 作为压平后的全量初始化（JSONB→TEXT、SERIAL→AUTOINCREMENT 等方言差异已适配），增量迁移到 fork 版本 `000047_agent_prompts`，同样由 golang-migrate 顺序执行。
 - `uuid-ossp`、`vector`、`pg_trgm`、`pg_search` 等扩展由 `versioned/` 迁移自行创建；BM25 索引使用中文 Lindera 分词器建在 `embeddings.content` 上。
 - `paradedb/00-init-db.sql` 含旧版建表语句，**没有被 compose 或代码引用**。不要把它挂成数据库 initdb 脚本：它先建出的旧表会让 `000000_init` 失败。
 
@@ -93,6 +93,7 @@ migrations/
 | 000138 | 000116 | 将智能推理旧版空工具列表写为显式默认工具，保留既有能力 |
 | 000139 | 000117 | 活跃用户消息附件引用索引，供过期附件保留检查使用 |
 | 000140 | 000118 | MCP OAuth 时间戳改为带时区类型；已有字面值按 UTC 解释 |
+| 000141 | 000119 | 智能体人工交互提示与暂停状态表、`messages.run_state` |
 
 SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 
@@ -122,8 +123,8 @@ SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 | 000039–000040 | `sessions.host_workspace_dir`（PG 000131）、`im_channels.locale`（PG 000132） |
 | 000041–000043 | 模型目录覆盖配置、独立图片资产及图片向量状态（PG 000133、000135–000136） |
 | 000044 | `mcp_services.usage_instructions` 与 `mcp_metadata` 工具目录快照（PG 000108）；保留已有服务数据 |
-
 | 000045–000046 | 显式默认工具、活跃用户消息附件引用索引（PG 000138–000139） |
+| 000047 | 智能体人工交互提示与暂停状态（PG 000141；上游 SQLite 000037 已被本地迁移占用） |
 
 PG `000117`、`000137`（pg_search 升级）及 `000140`（OAuth 时间戳类型）没有 SQLite 对应版本。SQLite `000044–000046` 从 fork 已发布的 `000043` 升级；上游原编号 `000034–000036` 已被本地 Smart Archive 迁移占用，不能复用或重编号已有迁移。
 
@@ -148,6 +149,8 @@ PG `000117`、`000137`（pg_search 升级）及 `000140`（OAuth 时间戳类型
 | `system_settings` | 系统级设置（000053） | `key`、`value`/`value_type`、`category`、`is_secret`、`requires_restart`、`last_modified_by` |
 | `audit_logs` | 审计日志（000044） | `tenant_id`、`actor_user_id`/`actor_role`、`action`、`target_type`/`target_id`/`target_user_id`、`request_path`/`request_method`、`outcome`（success/denied）、`scope_type`/`scope_id`、`details`（JSONB） |
 
+v0.8.3 新增的 `model_catalog_configs` 保存部署级管理员覆盖（单行 id=1）、版本与历史；`chunk_images` 是 `chunks.image_info` 的可查询投影，触发器保持其与分块写入、删除和状态变化一致。附件保留由有效会话消息引用决定，`expires_at` 只清理已经不被引用的过期附件。
+
 ### 模型与知识库 {#_3-2-模型与知识库}
 
 | 表 | 用途 | 关键字段 |
@@ -171,9 +174,11 @@ PG `000117`、`000137`（pg_search 升级）及 `000140`（OAuth 时间戳类型
 | `message_artifacts` | 技能生成的文件，一行一个（000121） | `session_id`、`message_id`、`position`（消息内序号，即下载接口的 index；与 `message_id` 唯一）、`url`（存储或 resource:// 引用，不返回客户端）、`file_name`/`file_type`/`file_size`、`content_hash`、`source_path`（同会话同路径视为同一文件的多个版本）、`mod_time`（RFC 3339 文本，保留纳秒精度供采集器比对）、`created_at`、`deleted_at`（000125，删除后保留墓碑行，保持 `position` 稳定且不被重新采集）。消息被软删除时其文件一并隐藏 |
 | `message_suggestion_sets` | 建议问题集（000067） | `tenant_id`、`session_id`、`assistant_message_id`、`placement`（starter/follow_up）、`config_hash`+`locale`（缓存键，唯一）、`status`、`questions`（JSONB）、token/延迟统计、`lease_until` |
 | `message_suggestion_events` | 建议问题曝光/点击事件 | `suggestion_set_id`（FK，CASCADE）、`question_id`、`event_type`、`actor_id` |
-| `temporary_documents` | 会话内临时文档（000070） | `tenant_id`、`session_id`、`resource_ref`、`file_name`/`file_type`/`file_size`、`status`（uploaded/processing/ready/expired）、`content`、`chunks`（JSONB）、`expires_at` |
+| `temporary_documents` | 会话内临时文档（000070） | `tenant_id`、`session_id`、`resource_ref`、`file_name`/`file_type`/`file_size`、`status`（uploaded/processing/ready/failed）、`content`、`chunks`（JSONB）、`expires_at` |
 
 ### Agent 与 MCP {#_3-4-agent-与-mcp}
+
+迁移 `000141`（SQLite `000047`）新增 `agent_prompts`（持久化用户待处理提示）和 `agent_run_suspensions`（保存智能体恢复所需的执行快照）。`messages.run_state=awaiting_input` 表示等待用户回答，消息仍未最终完成；回答后继续原消息，过期或被新问题替代时收尾。
 
 | 表 | 用途 | 关键字段 |
 | --- | --- | --- |
@@ -387,7 +392,7 @@ make migrate-goto version=60       # 迁移/回滚到指定版本
 
 ## 如何新增一个迁移 {#_6-如何新增一个迁移}
 
-1. **创建文件**：`make migrate-create name=add_my_feature`，在 `migrations/versioned/` 下生成下一个版本号（当前最大为 `000132`；创建前再次检查目录，使用下一个空闲版本的 up/down 文件）；
+1. **创建文件**：`make migrate-create name=add_my_feature`，在 `migrations/versioned/` 下生成下一个版本号（创建前检查目录，使用下一个空闲版本的 up/down 文件）；
 2. **编写 up SQL**：注意 PostgreSQL 方言（JSONB、部分索引、`TIMESTAMP WITH TIME ZONE`）；若涉及 `embeddings` 表，参考既有迁移用 `app.skip_embedding` GUC 做条件门控（`SELECT current_setting('app.skip_embedding', true)`），保证非 postgres 检索引擎部署也能通过迁移；
 3. **编写 down SQL**：必须可逆（drop column/table/index），否则回滚链会断；
 4. **同步 SQLite**：在 `migrations/sqlite/` 追加下一个空闲版本的增量迁移，镜像同一变更（注意方言转换：JSONB→TEXT、SERIAL→INTEGER AUTOINCREMENT、TIMESTAMPTZ→DATETIME 等）。已有 Lite 库不会重放 `000000_init`，只改基线会让老库缺列/缺表。同时更新 `internal/database/migration_sqlite_versioned_schema_test.go` 中的表/列清单与期望版本号；

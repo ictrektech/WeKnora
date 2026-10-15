@@ -1586,7 +1586,9 @@ export default {
       "switchManagedDesc": "由智慧體的其他設定控制，而不是由此列表決定，在此勾選不會啟用它。取消勾選即可移除。",
       "unrecognizedDesc": "目前版本不提供此工具，智慧體無法呼叫它。取消勾選即可移除。",
       "keptUnknownWarning": "已儲存。以下已儲存的工具在目前版本中不提供，已保留，但智慧體無法呼叫：{names}",
-      "droppedWarning": "已儲存。以下工具由智慧體的其他設定控制，已從工具列表中移除：{names}"
+      "droppedWarning": "已儲存。以下工具由智慧體的其他設定控制，已從工具列表中移除：{names}",
+      "askUser": "向使用者提問",
+      "askUserDesc": "在缺少關鍵資訊時向使用者提問，並等待回答後繼續"
     },
     "desc": {
       "name": "為智能體設定一個易於識別的名稱",
@@ -1846,7 +1848,8 @@ export default {
       "shellExec": "執行沙箱命令",
       "dataAnalysis": "資料分析",
       "dataSchema": "資料結構",
-      "databaseQuery": "資料庫查詢"
+      "databaseQuery": "資料庫查詢",
+      "askUser": "向使用者提問"
     },
     "skillFiles": {
       "heading": "技能文件",
@@ -1888,7 +1891,8 @@ export default {
       "authorizedToast": "授權成功，正在繼續",
       "startFailed": "發起授權失敗",
       "resumeFailed": "恢復執行失敗，請重試",
-      "skipFailed": "跳過失敗，請重試"
+      "skipFailed": "跳過失敗，請重試",
+      "dockQuestion": "需要授權 {target} 才能繼續"
     },
     "toolApproval": {
       "waiting": "等待審核 · {target}",
@@ -1905,7 +1909,11 @@ export default {
       "invalidJson": "參數不是合法 JSON",
       "submitted": "已提交",
       "submitFailed": "提交失敗",
-      "userRejected": "使用者拒絕"
+      "userRejected": "使用者拒絕",
+      "dockQuestion": "允許呼叫 {target}？",
+      "parked": "已轉入背景等待，可稍後處理",
+      "parkedUntil": "已轉入背景等待，{time} 前可處理",
+      "abandonedTag": "已放棄"
     },
     "attachmentTarget": {
       "list": "全部附件",
@@ -1922,6 +1930,32 @@ export default {
       "imageLabel": "圖片 #{n}",
       "noDescription": "未能生成描述",
       "remaining": "還有 {count} 張未查看"
+    },
+    "askUser": {
+      "title": "向你提問",
+      "selectPlaceholder": "請選擇",
+      "textPlaceholder": "輸入你的回答",
+      "otherPlaceholder": "其他（選填）",
+      "decline": "不回答",
+      "submit": "提交",
+      "declinedTag": "已拒絕回答",
+      "submitted": "已提交",
+      "answeredTag": "已回答",
+      "timedOutTag": "逾時未回答",
+      "canceledTag": "已取消",
+      "unansweredTag": "未回答",
+      "submitFailed": "提交失敗"
+    },
+    "promptDock": {
+      "approvalTitle": "需要你審核",
+      "oauthTitle": "需要你授權",
+      "waiting": "等待你處理",
+      "handle": "去處理",
+      "pager": "{current} / {total}",
+      "previous": "上一個",
+      "next": "下一個",
+      "collapse": "收起",
+      "expand": "展開"
     }
   },
   "kbSettings": {
@@ -2032,7 +2066,8 @@ export default {
     "getDocumentInfo": "獲取文件資訊",
     "queryKnowledgeGraph": "查詢知識圖譜",
     "think": "深度思考",
-    "todoWrite": "制定計劃"
+    "todoWrite": "制定計劃",
+    "askUser": "向使用者提問"
   },
   "commandPalette": {
     "placeholder": "搜尋知識庫、文件、對話…",
@@ -2458,7 +2493,10 @@ export default {
     "instructionsRequired": "使用說明不能為空",
     "generated": "已生成，請檢查後保存",
     "generateFailed": "生成失敗，請確認 Tools 已同步且已設定可用的對話模型後重試。",
-    "saveNext": "保存並下一步"
+    "saveNext": "保存並下一步",
+    "columnTool": "工具",
+    "columnEnabled": "啟用",
+    "columnApproval": "需審批"
   },
   "mcpServiceDialog": {
     "addTitle": "新增 MCP 服務",
@@ -4198,7 +4236,8 @@ export default {
       "failed": "回滾失敗，請重試",
       "skipped": "對話已回滾，工作區未改動",
       "skipNoSandbox": "對話已回滾，工作區未改動（目前沒有沙箱）",
-      "skipNoCheckpoint": "對話已回滾，工作區未改動（沒有可回退的檢查點）"
+      "skipNoCheckpoint": "對話已回滾，工作區未改動（沒有可回退的檢查點）",
+      "confirmTitle": "回滾到這裡？"
     },
     "requestInfoTitle": "請求資訊",
     "requestInfoRequestId": "Request ID",
@@ -5545,7 +5584,13 @@ export default {
     "mcpStale": "需重新同步",
     "belongsToKb": "所屬知識庫：",
     "belongsToOrg": "所屬空間：",
-    "noCompatibleKbForAgent": "目前智能體的工具與作用域內知識庫的能力不匹配，暫無可引用的知識庫。"
+    "noCompatibleKbForAgent": "目前智能體的工具與作用域內知識庫的能力不匹配，暫無可引用的知識庫。",
+    "tag": "標籤",
+    "searchPlaceholder": "搜尋知識庫、檔案、技能等",
+    "searchInGroup": "在{group}中搜尋…",
+    "typeToSearch": "在 {'@'} 後繼續輸入以搜尋…",
+    "viewAll": "檢視全部",
+    "back": "返回"
   },
   "common": {
     "add": "新增",
@@ -5781,7 +5826,16 @@ export default {
     "toasts": {
       "saveSuccess": "檢索設定已保存",
       "saveFailed": "保存設定失敗: {message}"
-    }
+    },
+    "recallTab": "召回",
+    "rerankTab": "重排序",
+    "rrfTitle": "結果融合（RRF）",
+    "rrfKLabel": "RRF 平滑常數 (K)",
+    "rrfKDescription": "值越大，排名靠前結果的優勢越小。預設 60；設為 0 使用預設值。",
+    "rrfVectorWeightLabel": "RRF 向量權重",
+    "rrfVectorWeightDescription": "控制向量檢索對融合結果的影響。預設 0.7；設為 0 使用預設值。兩項權重之和無需等於 1。",
+    "rrfKeywordWeightLabel": "RRF 關鍵詞權重",
+    "rrfKeywordWeightDescription": "控制關鍵詞檢索對融合結果的影響。預設 0.3；設為 0 使用預設值。兩項權重之和無需等於 1。"
   },
   "memorySettings": {
     "title": "我的記憶",
@@ -6525,7 +6579,8 @@ export default {
         "clearConfirm": "清除 {name} 的空間共用值？聲明會保留，沒有自己值的成員之後會缺少這個值。",
         "clearSuccess": "已清除空間共用值。",
         "valueTooLong": "單個值不能超過 {max} 字節。"
-      }
+      },
+      "skillTranscriptPrompt": "安裝指令"
     },
     "skills": {
       "title": "技能管理",
@@ -6614,7 +6669,8 @@ export default {
       "servedWhileUpgradingPlain": "升級中，仍在使用舊版本",
       "servedAfterFailure": "升級失敗，仍在使用 {version}",
       "servedAfterFailurePlain": "升級失敗，仍在使用舊版本",
-      "loadFailed": "載入失敗"
+      "loadFailed": "載入失敗",
+      "installAction": "安裝"
     },
     "mcpService": "MCP服務",
     "versionInfo": "版本資訊",
@@ -8094,7 +8150,8 @@ export default {
     "logoutSuccess": "已退出登入",
     "myChats": "我的對話",
     "apiChats": "API 會話",
-    "noSessions": "暫無對話"
+    "noSessions": "暫無對話",
+    "sessionUnread": "有新回覆"
   },
   "modelHubDownload": {
     "title": "Model Hub 正在準備模型",

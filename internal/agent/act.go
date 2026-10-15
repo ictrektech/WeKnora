@@ -177,6 +177,7 @@ var toolDisplayNames = map[string]string{
 	agenttools.LegacyToolListKnowledgeChunks: "查看文档分块",
 	agenttools.LegacyToolGetDocumentInfo:     "获取文档信息",
 	agenttools.ToolSearchConversations:       "回顾历史对话",
+	agenttools.ToolAskUser:                   "向用户提问",
 	agenttools.ToolSearchMemory:              "查询长期记忆",
 	agenttools.ToolDatabaseQuery:             "查询数据",
 	agenttools.ToolDataAnalysis:              "数据分析",
@@ -224,13 +225,16 @@ func formatToolHint(name string, args map[string]any) string {
 // executeToolCalls runs every tool call in the LLM response, appending results to step.ToolCalls.
 // It also emits tool-call and tool-result events, and optionally runs reflection after each call.
 // When ParallelToolCalls is enabled and there are 2+ tool calls, they execute concurrently.
+//
+// A call that suspends on a user prompt stops the round: it and the calls
+// after it do not run and are not appended, and the suspension is returned.
 func (e *AgentEngine) executeToolCalls(
 	ctx context.Context, response *types.ChatResponse,
 	step *types.AgentStep, state *types.AgentState,
 	iteration int, sessionID, assistantMessageID string,
-) {
+) *types.PromptSuspension {
 	if len(response.ToolCalls) == 0 {
-		return
+		return nil
 	}
 
 	round := iteration + 1
@@ -245,36 +249,27 @@ func (e *AgentEngine) executeToolCalls(
 			"refusing %d tool call(s) with possibly truncated arguments",
 			round, response.FinishReason, n)
 		e.failTruncatedToolCalls(ctx, response, step, iteration, sessionID)
-		return
+		return nil
 	}
 
-	pending := make([]types.LLMToolCall, 0, len(response.ToolCalls))
-	for i, tc := range response.ToolCalls {
-		if skipped, ok := e.skippedRepeatedFailedToolCall(ctx, tc, i, state, iteration, round, sessionID); ok {
-			step.ToolCalls = append(step.ToolCalls, skipped)
-			continue
-		}
-		tc.ID = agenttools.NormalizeToolCallID(tc.ID, tc.Function.Name, i)
-		pending = append(pending, tc)
-	}
-	if len(pending) == 0 {
-		return
-	}
+	// Keep original call indices so suspension snapshots include skipped calls.
+	e.progress.mu.Lock()
+	e.progress.state = state
+	e.progress.mu.Unlock()
 
-	n = len(pending)
 	logger.Infof(ctx, "[Agent][Round-%d] Executing %d tool call(s)", round, n)
 
 	// Use parallel execution when enabled and there are multiple tool calls
 	if e.config.ParallelToolCalls && n >= 2 {
-		filtered := *response
-		filtered.ToolCalls = pending
-		e.executeToolCallsParallel(ctx, &filtered, step, iteration, sessionID, assistantMessageID)
-		return
+		return e.executeToolCallsParallel(ctx, response, step, iteration, sessionID, assistantMessageID)
 	}
 
-	for i, tc := range pending {
-		e.executeSingleToolCall(ctx, tc, i, step, iteration, round, sessionID, assistantMessageID)
+	for i, tc := range response.ToolCalls {
+		if s := e.executeSingleToolCall(ctx, tc, i, step, iteration, round, sessionID, assistantMessageID); s != nil {
+			return s
+		}
 	}
+	return nil
 }
 
 func (e *AgentEngine) skippedRepeatedFailedToolCall(
@@ -326,32 +321,6 @@ func (e *AgentEngine) skippedRepeatedFailedToolCall(
 			Arguments:  args,
 			Iteration:  iteration,
 			Hint:       formatToolHint(tc.Function.Name, args),
-		},
-	})
-	e.eventBus.Emit(ctx, event.Event{
-		ID:        tc.ID + "-tool-result",
-		Type:      event.EventAgentToolResult,
-		SessionID: sessionID,
-		Data: event.AgentToolResultData{
-			ToolCallID: tc.ID,
-			ToolName:   tc.Function.Name,
-			Output:     msg,
-			Error:      msg,
-			Success:    false,
-			Iteration:  iteration,
-		},
-	})
-	e.eventBus.Emit(ctx, event.Event{
-		ID:        tc.ID + "-tool-exec",
-		Type:      event.EventAgentTool,
-		SessionID: sessionID,
-		Data: event.AgentActionData{
-			Iteration:  iteration,
-			ToolName:   tc.Function.Name,
-			ToolInput:  args,
-			ToolOutput: msg,
-			Success:    false,
-			Error:      msg,
 		},
 	})
 
@@ -420,7 +389,7 @@ func (e *AgentEngine) failTruncatedToolCalls(
 func (e *AgentEngine) executeToolCallsParallel(
 	ctx context.Context, response *types.ChatResponse,
 	step *types.AgentStep, iteration int, sessionID, assistantMessageID string,
-) {
+) *types.PromptSuspension {
 	round := iteration + 1
 	n := len(response.ToolCalls)
 	logger.Infof(ctx, "[Agent][Round-%d] Parallel execution of %d tool calls", round, n)
@@ -437,6 +406,12 @@ func (e *AgentEngine) executeToolCallsParallel(
 			// before starting later reads. Preserve model order across barriers.
 			_ = g.Wait()
 			results[i] = e.runToolCall(ctx, tc, i, iteration, round, sessionID, assistantMessageID)
+			if s := suspensionOf(results[i]); s != nil {
+				// Everything before the barrier has finished; keep it.
+				e.appendToolOutcomes(ctx, step, results[:i], iteration, sessionID)
+				return s
+			}
+			e.recordCall(i, results[i])
 			g, gCtx = errgroup.WithContext(ctx)
 			g.SetLimit(8)
 			continue
@@ -453,20 +428,30 @@ func (e *AgentEngine) executeToolCallsParallel(
 					mu.Lock()
 					results[i] = panickedToolCall(tc, i)
 					mu.Unlock()
+					e.recordCall(i, results[i])
 				}
 			}()
 			toolCall := e.runToolCall(readCtx, tc, i, iteration, round, sessionID, assistantMessageID)
 			mu.Lock()
 			results[i] = toolCall
 			mu.Unlock()
+			e.recordCall(i, toolCall)
 			return nil // best-effort: don't cancel siblings on failure
 		})
 	}
 
 	_ = g.Wait()
 
-	// Append results and emit events in original order
-	for _, toolCall := range results {
+	e.appendToolOutcomes(ctx, step, results, iteration, sessionID)
+	return nil
+}
+
+// appendToolOutcomes appends finished calls to step and emits their events
+// in original order.
+func (e *AgentEngine) appendToolOutcomes(
+	ctx context.Context, step *types.AgentStep, calls []types.ToolCall, iteration int, sessionID string,
+) {
+	for _, toolCall := range calls {
 		step.ToolCalls = append(step.ToolCalls, toolCall)
 		e.emitToolOutcome(ctx, toolCall, iteration, sessionID)
 	}
@@ -531,13 +516,20 @@ func (e *AgentEngine) emitToolOutcome(
 }
 
 // executeSingleToolCall runs one tool call sequentially (original behavior).
+// A call suspended on a user prompt is not appended; its suspension is
+// returned instead.
 func (e *AgentEngine) executeSingleToolCall(
 	ctx context.Context, tc types.LLMToolCall, i int,
 	step *types.AgentStep, iteration, round int, sessionID, assistantMessageID string,
-) {
+) *types.PromptSuspension {
 	toolCall := e.runToolCall(ctx, tc, i, iteration, round, sessionID, assistantMessageID)
+	if s := suspensionOf(toolCall); s != nil {
+		return s
+	}
+	e.recordCall(i, toolCall)
 	step.ToolCalls = append(step.ToolCalls, toolCall)
 	e.emitToolOutcome(ctx, toolCall, iteration, sessionID)
+	return nil
 }
 
 // runToolCall handles argument parsing, execution, logging, and pipeline events for a single tool call.
@@ -546,6 +538,22 @@ func (e *AgentEngine) runToolCall(
 	ctx context.Context, tc types.LLMToolCall, i int,
 	iteration, round int, sessionID, assistantMessageID string,
 ) types.ToolCall {
+	return e.runToolCallAnswered(ctx, tc, i, iteration, round, sessionID, assistantMessageID, nil)
+}
+
+// runToolCallAnswered is runToolCall for a call whose prompt may already be
+// answered (see ToolExecContext.Answered).
+func (e *AgentEngine) runToolCallAnswered(
+	ctx context.Context, tc types.LLMToolCall, i int,
+	iteration, round int, sessionID, assistantMessageID string, answered *types.AgentPrompt,
+) types.ToolCall {
+	e.progress.mu.Lock()
+	state := e.progress.state
+	e.progress.mu.Unlock()
+	if skipped, ok := e.skippedRepeatedFailedToolCall(ctx, tc, i, state, iteration, round, sessionID); ok {
+		return skipped
+	}
+
 	tc.ID = agenttools.NormalizeToolCallID(tc.ID, tc.Function.Name, i)
 	total := "?" // unknown in isolation; callers log the batch size
 	toolTag := fmt.Sprintf("[Agent][Round-%d][Tool %s (%d/%s)]",
@@ -699,6 +707,9 @@ func (e *AgentEngine) runToolCall(
 		// so MCP tool human-approval (issue #1173) can legitimately block longer.
 		ApprovalCtx: toolCtx,
 		ExecTimeout: execTimeout,
+		Snapshot:    e.snapshotFunc(i),
+		Answered:    answered,
+		Interactive: e.interactive,
 	})
 
 	var result *types.ToolResult
