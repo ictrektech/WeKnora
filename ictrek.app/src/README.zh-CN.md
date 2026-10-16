@@ -107,3 +107,6 @@ QA、VLM 和 embedding 模型行使用 Ollama 原生 `11434/v1`；ReRank 使用 
 启动时，HybRAG 会等待 Model Hub 两个 Ollama 的 `/v1/models` 可访问后再触发失败文档补交。打开页面会检查默认模型，缺失时通过 Model Hub 发起下载并显示进度。默认按 QA 总槽位 `8`、聊天预留 `2`、后台共享 `6` 调度；embedding 后台使用 `2`；ReRank worker 按 Model Hub 配置提供 `2` 个槽位。
 
 详细预热、常驻和排错说明见仓库文档 `ictrek.app/docs/vos-ollama-prewarm.md`。
+# 旧模型服务兼容
+
+旧 Model Hub / V-Router 可继续由 `HYBRAG_MODEL_BACKEND=model-hub` 使用，但不再作为安装依赖声明，避免已安装的旧服务版本阻止 V-Scheduler 模式升级。使用旧模式前请自行确认对应服务可用。

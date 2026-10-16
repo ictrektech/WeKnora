@@ -101,3 +101,6 @@ Model Hub manages model storage, download tasks, and Ollama concurrency. When Hy
 ## Troubleshooting
 
 For detailed instructions on prewarming, keeping models loaded, and troubleshooting, see `ictrek.app/docs/vos-ollama-prewarm.md` in the repository.
+# Legacy model service compatibility
+
+Existing Model Hub / V-Router services remain supported through `HYBRAG_MODEL_BACKEND=model-hub`, but are not installation dependencies: an older installed legacy service must not block an upgrade using V-Scheduler. Verify those services are available before selecting legacy mode.

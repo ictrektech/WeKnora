@@ -21,12 +21,6 @@ platform:
   version: '>=3.0.0'
 dependencies:
   apps:
-  - id: com.ictrek.model-hub
-    version: latest
-    optional: true
-  - id: com.ictrek.v-router
-    version: latest
-    optional: true
   - id: com.ictrek.v-scheduler
     version: latest
     optional: true
