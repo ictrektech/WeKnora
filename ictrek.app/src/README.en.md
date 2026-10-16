@@ -17,8 +17,9 @@ This document covers the same deployment instructions as `README.zh-CN.md`. The 
 
 `manifest.yml` requires:
 
-- `com.ictrek.model-hub >= 0.0.92`: provides QA, vision, embedding, and ReRank (scoring and sorting retrieved documents) runtimes on port `11434`, including ictrek Ollama's `/v1/rerank` endpoint. Upgrade older Model Hub installations before installing or upgrading HybRAG.
-- `com.ictrek.pgv >= 0.0.21`: minimum compatible version; provides the Postgres/pgvector service at `shared-pgv:5432`.
+- `com.ictrek.pgv`: the only required installation dependency; packaging resolves its minimum version from the latest published release. Provides Postgres/pgvector at `shared-pgv:5432`.
+
+V-Scheduler and Model Hub are optional. Each available service automatically contributes models without replacing cloud models or user defaults. Cloud-only operation does not require either local service. See the [V-Scheduler application integration guide](https://github.com/ictrektech/V-Scheduler/blob/main/docs/application-integration.md) for its gateway and scheduling contract.
 
 HybRAG's `docker-compose.yml` does not start Model Hub or Postgres.
 
