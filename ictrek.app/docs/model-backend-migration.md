@@ -2,6 +2,8 @@
 
 `HYBRAG_MODEL_BACKEND=auto` 独立发现统一 V-Scheduler 和旧 V-Router 发布的 Model Hub 模型，两者存在时同时加入可用列表，模型 ID 分开保存。自动添加不覆盖用户的云模型和默认模型选择。两套本地服务均未安装时生成空内置列表，应用仍可启动并使用用户添加的云模型。可显式设置 `scheduler` 或 `model-hub` 限定后端；推理失败不会跨后端回退。
 
+仅存在旧 Model Hub 时沿用已有 `hybrag-ollama-*` 模型 ID，保留知识库引用；两套服务并存时，这些 ID 接入统一后端，旧服务以独立 `hybrag-modelhub-*` ID 补充显示。
+
 统一后端使用 `HYBRAG_V_ROUTER_URL`（默认 `http://v-scheduler-gateway:8080`）的 `/v1` API，独立别名由 V-Scheduler 0.0.28 提供，避免旧 Router 同名 DNS 冲突。QA、图片理解、Embedding、Rerank 分别使用 `v-scheduler/ollama-qa/<HYBRAG_QA_MODEL>`、相同 QA 模型、`v-scheduler/ollama-embedding/<HYBRAG_EMBEDDING_MODEL>`、`v-scheduler/ollama-rerank/<HYBRAG_RERANK_MODEL>`。原生模型必须已安装并出现在统一模型目录。Embedding 默认保留 1024 维 bge-m3；已有知识库变更模型需要重新索引。
 
 统一后端通过 `/api/v1/scheduler/gateway-binding` 声明能力并接收 V-Scheduler 自动下发的受限网关身份。

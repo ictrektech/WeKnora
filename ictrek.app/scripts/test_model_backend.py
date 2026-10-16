@@ -32,7 +32,7 @@ class ModelBackendTests(unittest.TestCase):
             result = subprocess.run([sys.executable, '-', str(path)], input=prefix + CONVERTER, text=True, capture_output=True, env=env)
             return result, yaml.safe_load(path.read_text()), path.stat().st_mode & 0o777
 
-    def legacy_result(self, published):
+    def legacy_result(self, published, backend='model-hub', scheduler_available=None):
         observed = []
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
@@ -46,7 +46,7 @@ class ModelBackendTests(unittest.TestCase):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            result, config, permissions = self.render('model-hub', HYBRAG_V_ROUTER_URL=f'http://127.0.0.1:{server.server_port}', HYBRAG_V_ROUTER_API_KEY='legacy-key')
+            result, config, permissions = self.render(backend, scheduler_available=scheduler_available, HYBRAG_V_ROUTER_URL=f'http://127.0.0.1:{server.server_port}', HYBRAG_V_ROUTER_API_KEY='legacy-key', HYBRAG_LEGACY_V_ROUTER_URL=f'http://127.0.0.1:{server.server_port}', HYBRAG_LEGACY_V_ROUTER_API_KEY='legacy-key')
             return result, config, permissions, observed
         finally:
             server.shutdown()
@@ -126,6 +126,15 @@ class ModelBackendTests(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+    def test_auto_legacy_only_preserves_existing_knowledge_base_model_ids(self):
+        result, config, _, _ = self.legacy_result(['model-hub/qwen3.5:2b', 'model-hub/bge-m3:latest', 'model-hub/qllama/bge-reranker-v2-m3:q8_0'], backend='auto', scheduler_available=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        models = config['builtin_models']
+        self.assertEqual(len(models), 4)
+        self.assertTrue(all(model['id'].startswith('hybrag-ollama-') for model in models))
+        self.assertEqual(models[2]['id'], 'hybrag-ollama-bge-m3-embedding')
+        self.assertTrue(all(model['name'].startswith('model-hub/') for model in models))
 
 
 if __name__ == '__main__':

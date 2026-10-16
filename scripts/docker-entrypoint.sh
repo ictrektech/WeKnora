@@ -187,7 +187,7 @@ if backend in {"auto", "scheduler", "model-hub"}:
             entry = entry.replace("Model Hub Ollama", "V-Scheduler Ollama" if target == "scheduler" else "Model Hub via V-Router")
             if backend == "auto":
                 entry = entry.replace("is_default: true", "is_default: false")
-                if target == "model-hub":
+                if target == "model-hub" and scheduler_available:
                     entry = entry.replace("hybrag-ollama-", "hybrag-modelhub-", 1)
             entries.append("  - id: " + entry.rstrip() + "\n\n")
     path.write_text("builtin_models:\n" + "".join(entries) if entries else "builtin_models: []\n")
