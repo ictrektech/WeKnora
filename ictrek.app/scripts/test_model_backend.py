@@ -4,6 +4,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import yaml
 
@@ -23,10 +26,41 @@ class ModelBackendTests(unittest.TestCase):
             result = subprocess.run([sys.executable, '-', str(path)], input=CONVERTER, text=True, capture_output=True, env=env)
             return result, yaml.safe_load(path.read_text()), path.stat().st_mode & 0o777
 
-    def test_legacy_models_remain_unchanged(self):
-        result, config, _ = self.render('model-hub')
+    def legacy_result(self, published):
+        observed = []
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                observed.append((self.path, self.headers.get('Authorization')))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({'data': [{'id': model} for model in published]}).encode())
+            def log_message(self, *args):
+                pass
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            result, config, permissions = self.render('model-hub', HYBRAG_V_ROUTER_URL=f'http://127.0.0.1:{server.server_port}', HYBRAG_V_ROUTER_API_KEY='legacy-key')
+            return result, config, permissions, observed
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_legacy_models_use_verified_legacy_router_ids(self):
+        result, config, permissions, observed = self.legacy_result(['model-hub/qwen3.5:2b', 'model-hub/bge-m3', 'model-hub/qllama/bge-reranker-v2-m3:q8_0'])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(config, yaml.safe_load(TEMPLATE))
+        self.assertEqual(permissions, 0o600)
+        self.assertEqual(observed, [('/v1/models', 'Bearer legacy-key')])
+        models = config['builtin_models']
+        self.assertEqual(models[0]['name'], 'model-hub/qwen3.5:2b')
+        self.assertEqual(models[2]['name'], 'model-hub/bge-m3')
+        self.assertEqual(models[3]['name'], 'model-hub/qllama/bge-reranker-v2-m3:q8_0')
+        self.assertTrue(all('model-hub-ollama-' not in model['parameters']['base_url'] for model in models))
+
+    def test_missing_legacy_router_models_do_not_fall_back_to_direct_ollama(self):
+        result, _, _, _ = self.legacy_result(['model-hub/qwen3.5:2b'])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('direct Ollama fallback is disabled', result.stderr)
 
     def test_scheduler_uses_qualified_ids_unified_gateway_and_explicit_key(self):
         result, config, permissions = self.render('scheduler', HYBRAG_QA_MODEL='qwen3:4b', HYBRAG_V_ROUTER_API_KEY='test-key')
