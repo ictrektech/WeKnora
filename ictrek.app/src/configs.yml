@@ -27,7 +27,7 @@ configs:
   type: string
   title: {zh-CN: Embedding 原生模型名, en: Embedding Native Model Name}
   description: {zh-CN: 使用 1024 维 bge-m3，已有知识库更换模型须重新索引。, en: Use 1024-dimensional bge-m3. Changing an existing knowledge-base model requires reindexing.}
-  default: bge-m3
+  default: bge-m3:latest
 - name: HYBRAG_RERANK_MODEL
   type: string
   title: {zh-CN: Rerank 原生模型名, en: Rerank Native Model Name}

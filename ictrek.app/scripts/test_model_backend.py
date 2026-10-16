@@ -47,13 +47,13 @@ class ModelBackendTests(unittest.TestCase):
             server.server_close()
 
     def test_legacy_models_use_verified_legacy_router_ids(self):
-        result, config, permissions, observed = self.legacy_result(['model-hub/qwen3.5:2b', 'model-hub/bge-m3', 'model-hub/qllama/bge-reranker-v2-m3:q8_0'])
+        result, config, permissions, observed = self.legacy_result(['model-hub/qwen3.5:2b', 'model-hub/bge-m3:latest', 'model-hub/qllama/bge-reranker-v2-m3:q8_0'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(permissions, 0o600)
         self.assertEqual(observed, [('/v1/models', 'Bearer legacy-key')])
         models = config['builtin_models']
         self.assertEqual(models[0]['name'], 'model-hub/qwen3.5:2b')
-        self.assertEqual(models[2]['name'], 'model-hub/bge-m3')
+        self.assertEqual(models[2]['name'], 'model-hub/bge-m3:latest')
         self.assertEqual(models[3]['name'], 'model-hub/qllama/bge-reranker-v2-m3:q8_0')
         self.assertTrue(all('model-hub-ollama-' not in model['parameters']['base_url'] for model in models))
 
@@ -69,7 +69,7 @@ class ModelBackendTests(unittest.TestCase):
         models = config['builtin_models']
         self.assertEqual(models[0]['name'], 'v-scheduler/ollama-qa/qwen3:4b')
         self.assertEqual(models[1]['name'], models[0]['name'])
-        self.assertEqual(models[2]['name'], 'v-scheduler/ollama-embedding/bge-m3')
+        self.assertEqual(models[2]['name'], 'v-scheduler/ollama-embedding/bge-m3:latest')
         self.assertEqual(models[3]['name'], 'v-scheduler/ollama-rerank/qllama/bge-reranker-v2-m3:q8_0')
         self.assertTrue(all(model['parameters']['base_url'] == 'http://v-router:8080/v1' for model in models))
         self.assertTrue(all(model['parameters']['api_key'] == 'test-key' for model in models))

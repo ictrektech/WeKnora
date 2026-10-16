@@ -152,6 +152,7 @@ if backend in {"scheduler", "model-hub"}:
     base = os.environ.get("HYBRAG_V_ROUTER_URL", "http://v-router:8080").rstrip("/")
     key = os.environ.get("HYBRAG_V_ROUTER_API_KEY", "")
     selected_models = {role: os.environ.get("HYBRAG_" + role.upper() + "_MODEL", native) for role, native in (("qa", "qwen3.5:2b"), ("embedding", "bge-m3"), ("rerank", "qllama/bge-reranker-v2-m3:q8_0"))}
+    selected_models = {role: model if ":" in model.rsplit("/", 1)[-1] else model + ":latest" for role, model in selected_models.items()}
     if backend == "model-hub":
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, *args, **kwargs):
