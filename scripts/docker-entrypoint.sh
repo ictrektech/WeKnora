@@ -64,13 +64,6 @@ PY
     export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
 elif [ "${HYBRAG_DEFAULT_BUILTIN_MODELS:-false}" = "true" ]; then
     mkdir -p "$RUNTIME_CONFIG_DIR"
-    if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "auto" ]; then
-        if getent hosts v-scheduler-model-hub >/dev/null 2>&1; then
-            export HYBRAG_MODEL_BACKEND=scheduler
-        else
-            export HYBRAG_MODEL_BACKEND=model-hub
-        fi
-    fi
     cat > "$RUNTIME_BUILTIN_MODELS_FILE" <<EOF
 builtin_models:
   - id: hybrag-ollama-qwen35-2b-qa
@@ -138,22 +131,17 @@ import sys
 import urllib.request
 
 backend = os.environ.get("HYBRAG_MODEL_BACKEND", "model-hub")
-if backend == "auto":
-    try:
-        socket.getaddrinfo("v-scheduler-model-hub", 6005)
-        backend = "scheduler"
-    except socket.gaierror:
-        backend = "model-hub"
-if backend not in {"scheduler", "model-hub"}:
+if backend not in {"auto", "scheduler", "model-hub"}:
     raise SystemExit("HYBRAG_MODEL_BACKEND must be auto, scheduler or model-hub")
-if backend in {"scheduler", "model-hub"}:
+if backend in {"auto", "scheduler", "model-hub"}:
     path = pathlib.Path(sys.argv[1])
     text = path.read_text()
     base = os.environ.get("HYBRAG_V_ROUTER_URL", "http://v-router:8080").rstrip("/")
     key = os.environ.get("HYBRAG_V_ROUTER_API_KEY", "")
     selected_models = {role: os.environ.get("HYBRAG_" + role.upper() + "_MODEL", native) for role, native in (("qa", "qwen3.5:2b"), ("embedding", "bge-m3"), ("rerank", "qllama/bge-reranker-v2-m3:q8_0"))}
     selected_models = {role: model if ":" in model.rsplit("/", 1)[-1] else model + ":latest" for role, model in selected_models.items()}
-    if backend == "model-hub":
+    published = set()
+    if backend in {"auto", "model-hub"}:
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, *args, **kwargs):
                 return None
@@ -165,21 +153,40 @@ if backend in {"scheduler", "model-hub"}:
             if len(body) > 4194304:
                 raise ValueError()
             published = {row["id"] for row in json.loads(body)["data"]}
-            if not {"model-hub/" + model for model in selected_models.values()} <= published:
+            if backend == "model-hub" and not {"model-hub/" + model for model in selected_models.values()} <= published:
                 raise ValueError()
         except Exception:
-            raise SystemExit("Legacy Model Hub mode requires an authenticated V-Router publishing all selected model-hub/<native> models; direct Ollama fallback is disabled") from None
-    for role, native in (("qa", "qwen3.5:2b"), ("embedding", "bge-m3"), ("rerank", "qllama/bge-reranker-v2-m3:q8_0")):
-        selected = selected_models[role]
-        qualified = "v-scheduler/ollama-" + role + "/" + selected if backend == "scheduler" else "model-hub/" + selected
-        text = text.replace("name: " + native + "\n", "name: " + json.dumps(qualified) + "\n")
-        text = text.replace("http://model-hub-ollama-" + role + ":11434/v1", base + "/v1")
-    text = text.replace("api_key: EMPTY", "api_key: " + json.dumps(key))
-    text = text.replace("Model Hub Ollama", "V-Scheduler Ollama" if backend == "scheduler" else "Model Hub via V-Router")
-    path.write_text(text)
+            if backend == "model-hub":
+                raise SystemExit("Legacy Model Hub mode requires an authenticated V-Router publishing all selected model-hub/<native> models; direct Ollama fallback is disabled") from None
+    scheduler_available = backend == "scheduler"
+    if backend == "auto":
+        try:
+            socket.getaddrinfo("v-scheduler-model-hub", 6005)
+            scheduler_available = True
+        except socket.gaierror:
+            pass
+    entries = []
+    for target in (["scheduler"] if scheduler_available else []) + (["model-hub"] if backend == "model-hub" or published else []):
+        for entry in text.split("  - id: ")[1:]:
+            role = "embedding" if "type: Embedding\n" in entry else "rerank" if "type: Rerank\n" in entry else "qa"
+            selected = selected_models[role]
+            qualified = "v-scheduler/ollama-" + role + "/" + selected if target == "scheduler" else "model-hub/" + selected
+            if target == "model-hub" and qualified not in published:
+                continue
+            native = {"qa": "qwen3.5:2b", "embedding": "bge-m3", "rerank": "qllama/bge-reranker-v2-m3:q8_0"}[role]
+            entry = entry.replace("name: " + native + "\n", "name: " + json.dumps(qualified) + "\n")
+            entry = entry.replace("http://model-hub-ollama-" + role + ":11434/v1", base + "/v1")
+            entry = entry.replace("api_key: EMPTY", "api_key: " + json.dumps(key))
+            entry = entry.replace("Model Hub Ollama", "V-Scheduler Ollama" if target == "scheduler" else "Model Hub via V-Router")
+            if backend == "auto":
+                entry = entry.replace("is_default: true", "is_default: false")
+                if target == "model-hub":
+                    entry = entry.replace("hybrag-ollama-", "hybrag-modelhub-", 1)
+            entries.append("  - id: " + entry.rstrip() + "\n\n")
+    path.write_text("builtin_models:\n" + "".join(entries) if entries else "builtin_models: []\n")
     path.chmod(0o600)
 PYBACKEND
-    if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "scheduler" ] || [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "model-hub" ]; then
+    if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "scheduler" ] || [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "model-hub" ] || [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "auto" ]; then
         export OLLAMA_BASE_URL="${HYBRAG_V_ROUTER_URL:-http://v-router:8080}"
         export WEKNORA_REPARSE_WAIT_URLS="${HYBRAG_V_ROUTER_URL:-http://v-router:8080}/health"
         export SSRF_WHITELIST_EXTRA="${SSRF_WHITELIST_EXTRA:-},v-router,v-router-backend,v-scheduler-model-hub"

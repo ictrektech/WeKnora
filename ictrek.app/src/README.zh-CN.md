@@ -109,4 +109,6 @@ QA、VLM 和 embedding 模型行使用 Ollama 原生 `11434/v1`；ReRank 使用 
 详细预热、常驻和排错说明见仓库文档 `ictrek.app/docs/vos-ollama-prewarm.md`。
 # 旧模型服务兼容
 
+默认 `HYBRAG_MODEL_BACKEND=auto` 会独立添加 V-Scheduler 与旧 Model Hub 的可用模型，两者可以同时显示；不会替换用户的云模型或默认模型。未安装任何本地模型服务时仍可使用自建云模型，PGV 是唯一必需依赖。
+
 旧 Model Hub / V-Router 可继续由 `HYBRAG_MODEL_BACKEND=model-hub` 使用，但不再作为安装依赖声明，避免已安装的旧服务版本阻止 V-Scheduler 模式升级。使用旧模式前请自行确认对应服务可用。

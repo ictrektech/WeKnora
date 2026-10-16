@@ -3,8 +3,8 @@ configs:
   type: string
   title: {zh-CN: 模型服务, en: Model Backend}
   description:
-    zh-CN: auto 优先使用已安装的 V-Scheduler，未安装时使用旧 Model Hub；可固定为 scheduler 或 model-hub。调度或推理失败不会自动回退。
-    en: auto prefers installed V-Scheduler and otherwise uses legacy Model Hub. Select scheduler or model-hub explicitly when needed. Inference failures never trigger a fallback.
+    zh-CN: auto 独立发现 V-Scheduler 和旧 Model Hub，将可用模型同时加入列表；均未安装时仍可使用自建云模型。可固定为 scheduler 或 model-hub，推理失败不自动回退。
+    en: auto independently adds available V-Scheduler and legacy Model Hub models. Cloud models work without either service. Select scheduler or model-hub explicitly if needed; inference failures never trigger a fallback.
   default: auto
 - name: HYBRAG_V_ROUTER_URL
   type: string

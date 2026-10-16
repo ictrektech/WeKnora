@@ -18,12 +18,18 @@ CONVERTER = ENTRYPOINT.split("<<'PYBACKEND'\n", 1)[1].split('\nPYBACKEND\n', 1)[
 
 
 class ModelBackendTests(unittest.TestCase):
-    def render(self, backend, **values):
+    def render(self, backend, scheduler_available=None, **values):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'models.yaml'
             path.write_text(TEMPLATE)
             env = dict(os.environ, HYBRAG_MODEL_BACKEND=backend, **values)
-            result = subprocess.run([sys.executable, '-', str(path)], input=CONVERTER, text=True, capture_output=True, env=env)
+            prefix = ''
+            if scheduler_available is not None:
+                prefix = 'import socket\noriginal_getaddrinfo = socket.getaddrinfo\n'
+                prefix += 'def resolve(host, *args, **kwargs):\n    if host == "v-scheduler-model-hub":\n'
+                prefix += '        return []\n' if scheduler_available else '        raise socket.gaierror()\n'
+                prefix += '    return original_getaddrinfo(host, *args, **kwargs)\nsocket.getaddrinfo = resolve\n'
+            result = subprocess.run([sys.executable, '-', str(path)], input=prefix + CONVERTER, text=True, capture_output=True, env=env)
             return result, yaml.safe_load(path.read_text()), path.stat().st_mode & 0o777
 
     def legacy_result(self, published):
@@ -82,6 +88,40 @@ class ModelBackendTests(unittest.TestCase):
     def test_unknown_backend_is_rejected(self):
         result, _, _ = self.render('invalid')
         self.assertNotEqual(result.returncode, 0)
+
+    def test_auto_without_local_services_keeps_cloud_only_startup_available(self):
+        result, config, _ = self.render('auto', scheduler_available=False, HYBRAG_V_ROUTER_URL='http://127.0.0.1:1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(config['builtin_models'], [])
+
+    def test_auto_scheduler_does_not_replace_cloud_defaults(self):
+        result, config, _ = self.render('auto', scheduler_available=True, HYBRAG_V_ROUTER_URL='http://127.0.0.1:1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(config['builtin_models']), 4)
+        self.assertTrue(all(not model['is_default'] for model in config['builtin_models']))
+
+    def test_auto_adds_both_services_with_distinct_model_ids(self):
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({'data': [{'id': 'model-hub/qwen3.5:2b'}]}).encode())
+            def log_message(self, *args):
+                pass
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            result, config, _ = self.render('auto', scheduler_available=True, HYBRAG_V_ROUTER_URL=f'http://127.0.0.1:{server.server_port}')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            models = config['builtin_models']
+            self.assertEqual(len(models), 6)
+            self.assertEqual(len({model['id'] for model in models}), 6)
+            self.assertEqual(sum(model['name'].startswith('model-hub/') for model in models), 2)
+            self.assertTrue(all(not model['is_default'] for model in models))
+        finally:
+            server.shutdown()
+            server.server_close()
 
 
 if __name__ == '__main__':

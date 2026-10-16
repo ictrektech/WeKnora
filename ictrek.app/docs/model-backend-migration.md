@@ -1,6 +1,6 @@
 # Model Hub 与 V-Scheduler
 
-`HYBRAG_MODEL_BACKEND=auto` 按 VOS 网络内是否存在 `v-scheduler-model-hub` 选择统一后端；没有时保留旧 Model Hub。可显式设置 `scheduler` 或 `model-hub`。已选择 V-Scheduler 后，鉴权、容量或推理失败不会自动切回旧后端。
+`HYBRAG_MODEL_BACKEND=auto` 独立发现统一 V-Scheduler 和旧 V-Router 发布的 Model Hub 模型，两者存在时同时加入可用列表，模型 ID 分开保存。自动添加不覆盖用户的云模型和默认模型选择。两套本地服务均未安装时生成空内置列表，应用仍可启动并使用用户添加的云模型。可显式设置 `scheduler` 或 `model-hub` 限定后端；推理失败不会跨后端回退。
 
 统一后端使用 `HYBRAG_V_ROUTER_URL`（默认 `http://v-router:8080`）的 `/v1` API。QA、图片理解、Embedding、Rerank 分别使用 `v-scheduler/ollama-qa/<HYBRAG_QA_MODEL>`、相同 QA 模型、`v-scheduler/ollama-embedding/<HYBRAG_EMBEDDING_MODEL>`、`v-scheduler/ollama-rerank/<HYBRAG_RERANK_MODEL>`。原生模型必须已安装并出现在统一模型目录。Embedding 默认保留 1024 维 bge-m3；已有知识库变更模型需要重新索引。
 
@@ -19,4 +19,4 @@ POST 仅接受 VOS userinfo 核验为启用的 `com.ictrek.v-scheduler` 应用�
 无显式 tag 的 Ollama 名称归一为实际目录使用的 `:latest`（如 `bge-m3:latest`），避免把原生别名误当成已发布的统一模型 ID。
 启动会用显式旧网关凭据检查 `/v1/models` 是否真实发布全部选定模型；缺路由、鉴权失败或缺模型时拒绝启动，
 不回退到 Ollama 原生端口。旧链路必须安装并配置旧 Model Hub、V-Router 和其调度服务，只有旧管理 API 可达并不表示可调度。
-自定义 `HYBRAG_BUILTIN_MODELS_YAML` 仍由管理员管理，不会被新模式重写。应用包的两个模型后端依赖均为可选，PGV 为必需；运行时至少安装并配置所选模型后端。打包阶段实时核验发布记录和可下载包，不使用手写旧版本。
+自定义 `HYBRAG_BUILTIN_MODELS_YAML` 仍由管理员管理，不会被新模式重写。PGV 是唯一必需依赖；V-Scheduler 为可选依赖，旧 Model Hub / V-Router 不声明安装版本约束，避免旧服务阻止统一模式升级。纯云模型模式无需本地模型服务。打包阶段实时核验声明依赖的发布记录和可下载包，不使用手写旧版本。
