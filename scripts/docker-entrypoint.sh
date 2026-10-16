@@ -13,6 +13,9 @@ MOUNT_DIRS=(
     /data/files
 )
 
+mkdir -p /data
+chown appuser:appuser /data 2>/dev/null || true
+
 for dir in "${MOUNT_DIRS[@]}"; do
     if [ -d "$dir" ]; then
         chown -R appuser:appuser "$dir" 2>/dev/null || true

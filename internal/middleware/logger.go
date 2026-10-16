@@ -98,6 +98,9 @@ func sanitizeQuery(raw string) string {
 
 // readRequestBody 读取请求体（限制大小用于日志，但把剩余字节原样交还后续handler）
 func readRequestBody(c *gin.Context) string {
+	if c.Request.URL.Path == "/api/v1/scheduler/gateway-binding" {
+		return "[private Scheduler binding omitted]"
+	}
 	if c.Request.Body == nil {
 		return ""
 	}

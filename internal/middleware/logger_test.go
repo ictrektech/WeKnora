@@ -95,6 +95,18 @@ func TestSanitizeBody(t *testing.T) {
 	}
 }
 
+func TestGatewayBindingBodyIsNeverReadForLogging(t *testing.T) {
+	payload := `{"\u0074oken":"private-gateway-key"}`
+	context, counter := newJSONContext(t, "/api/v1/scheduler/gateway-binding", payload)
+	if value := readRequestBody(context); strings.Contains(value, "private-gateway-key") || counter.read != 0 {
+		t.Fatal("private binding body reached request logging")
+	}
+	rest, err := io.ReadAll(context.Request.Body)
+	if err != nil || string(rest) != payload {
+		t.Fatal("logging changed the private binding body")
+	}
+}
+
 // The logging middleware is registered ahead of Auth and of every route
 // handler, so whatever it buffers is buffered before a route's own body cap can
 // refuse the request. These tests pin both halves of that: the middleware stays
