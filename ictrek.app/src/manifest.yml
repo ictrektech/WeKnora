@@ -24,6 +24,9 @@ dependencies:
   - id: com.ictrek.model-hub
     version: latest
     optional: true
+  - id: com.ictrek.v-router
+    version: latest
+    optional: true
   - id: com.ictrek.v-scheduler
     version: latest
     optional: true
