@@ -7,11 +7,6 @@ import (
 	"strings"
 )
 
-var builtinIDs = map[string]bool{
-	"hybrag-ollama-qwen35-2b-qa": true, "hybrag-ollama-qwen35-2b-vlm": true,
-	"hybrag-ollama-bge-m3-embedding": true, "hybrag-ollama-bge-reranker-v2-m3-rerank": true,
-}
-
 type transport struct {
 	base     http.RoundTripper
 	filename string
@@ -39,7 +34,7 @@ func (wrapper transport) RoundTrip(request *http.Request) (*http.Response, error
 }
 
 func Client(modelID, baseURL, remoteModel string, original *http.Client) *http.Client {
-	if Backend() != "scheduler" || !builtinIDs[modelID] || strings.TrimRight(baseURL, "/") != Gateway || !strings.HasPrefix(remoteModel, "v-scheduler/ollama-") {
+	if Backend() != "scheduler" || strings.TrimRight(baseURL, "/") != Gateway {
 		return original
 	}
 	client := http.Client{}

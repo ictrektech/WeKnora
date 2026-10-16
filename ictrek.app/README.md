@@ -511,3 +511,13 @@ REINDEX INDEX public.embeddings_search_idx;
 ## 模型后端迁移
 
 HybRAG 同时兼容旧 Model Hub 与 V-Scheduler。安装参数、后台鉴权、完整模型 ID、调度责任和保留旧模式的方式见 [模型后端迁移](docs/model-backend-migration.md)。
+
+### 从 V-Scheduler 添加模型 / Add models from V-Scheduler
+
+在模型设置中打开“添加模型”，从 V-Scheduler 下拉框选择 Router 已注册且对 HybRAG 应用身份可见的模型，按所需用途选择聊天、视觉、Embedding 或 ReRank 类型后保存。列表每次打开都会重新加载，也可点击“刷新模型列表”。模型 ID 原样保留；网关地址自动填写，无需复制 API Key。服务端使用 V-Scheduler 为 HybRAG 下发的应用绑定凭证，并在凭证轮换后自动读取新值。绑定未完成时会提示加载失败，请先在 V-Scheduler 完成应用绑定。列表不根据模型名称猜测能力，实际支持的用途以网关调用结果为准。
+
+Open Add Model in model settings, choose a registered Router model visible to the HybRAG app identity from the V-Scheduler dropdown, select its intended model type, and save. The list refreshes on open or with Refresh models. Model IDs are preserved and the gateway address is filled automatically. No API key needs to be copied: the server uses and reloads HybRAG's Scheduler app binding. Complete the app binding in V-Scheduler if discovery fails. Model capabilities are not guessed from names; use a model supporting the selected task.
+
+当前应用绑定仅允许聊天（含视觉）、Embedding 和 ReRank；ASR 继续使用原有独立配置。个人私有上游不会因应用绑定而自动共享给 HybRAG。
+
+The current app binding permits chat (including vision), embeddings and reranking. ASR keeps its existing separate configuration. Private personal upstreams are not automatically shared with the HybRAG app.

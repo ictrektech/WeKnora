@@ -128,14 +128,24 @@ func TestLongLivedTransportReloadsRotationAndRejectsOtherOrigins(t *testing.T) {
 func TestCustomModelsAndLegacyCredentialsAreUntouched(t *testing.T) {
 	original := &http.Client{}
 	t.Setenv("HYBRAG_MODEL_BACKEND", "scheduler")
-	if Client("user-model", Gateway, "v-scheduler/ollama-qa/test", original) != original || Client("hybrag-ollama-qwen35-2b-qa", "http://custom/v1", "v-scheduler/ollama-qa/test", original) != original {
+	if Client("hybrag-ollama-qwen35-2b-qa", "http://custom/v1", "v-scheduler/ollama-qa/test", original) != original {
 		t.Fatal("custom model transport replaced")
 	}
 	if Client("hybrag-ollama-qwen35-2b-qa", Gateway, "v-scheduler/ollama-qa/test", original) == original {
-		t.Fatal("built-in scheduler model did not enable dynamic credentials")
+		t.Fatal("scheduler model did not enable dynamic credentials")
 	}
 	t.Setenv("HYBRAG_MODEL_BACKEND", "model-hub")
 	if Client("hybrag-ollama-qwen35-2b-qa", Gateway, "v-scheduler/ollama-qa/test", original) != original {
 		t.Fatal("legacy model transport replaced")
+	}
+}
+
+func TestRegisteredModelsUseBinding(t *testing.T) {
+	t.Setenv("HYBRAG_MODEL_BACKEND", "scheduler")
+	original := &http.Client{}
+	for _, name := range []string{"upstream/qwen", "v-scheduler/ollama-embedding/bge-m3"} {
+		if Client("user-model", Gateway, name, original) == original {
+			t.Fatal("registered model did not use app binding")
+		}
 	}
 }

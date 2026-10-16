@@ -121,6 +121,19 @@
       <section class="setting-drawer__section">
         <h4 class="setting-drawer__section-title">{{ $t('model.editor.sectionSource') }}</h4>
 
+        <div v-if="schedulerEnabled && activeModelType !== 'asr'" class="form-item">
+          <label class="form-label">V-Scheduler</label>
+          <t-select :model-value="schedulerSelection" filterable clearable :loading="schedulerLoading"
+            :placeholder="currentLocale.startsWith('zh') ? '选择已注册模型' : 'Select a registered model'"
+            @change="selectSchedulerModel">
+            <t-option v-for="id in schedulerModels" :key="id" :value="id" :label="id" />
+          </t-select>
+          <t-button variant="text" size="small" :loading="schedulerLoading" @click="loadSchedulerModels">
+            {{ currentLocale.startsWith('zh') ? '刷新模型列表' : 'Refresh models' }}
+          </t-button>
+          <p v-if="schedulerError" class="form-desc" role="alert">{{ schedulerError }}</p>
+        </div>
+
         <div class="form-item">
           <!--
             Section title already says 「模型来源」，所以这里不再重复 label，
@@ -741,6 +754,7 @@ import {
   type ResolvedModelCatalog,
 } from '@/api/initialization'
 import {
+  listSchedulerModels,
   getWeKnoraCloudStatus,
   putModelCredentials,
   deleteModelCredentialField,
@@ -908,6 +922,42 @@ const selectedProvider = computed<ModelProviderOption | undefined>(() => {
   if (!id) return undefined
   return providerOptions.value.find(p => p.value === id) || providersStore.providerById(id)
 })
+
+const schedulerModels = ref<string[]>([])
+const schedulerEnabled = ref(false)
+const schedulerLoading = ref(false)
+const schedulerError = ref('')
+const schedulerBaseURL = 'http://v-scheduler-gateway:8080/v1'
+const schedulerSelection = computed(() => formData.value.baseUrl === schedulerBaseURL ? formData.value.modelName : '')
+const loadSchedulerModels = async () => {
+  schedulerLoading.value = true
+  schedulerError.value = ''
+  try {
+    const result = await listSchedulerModels()
+    schedulerEnabled.value = result.enabled
+    schedulerModels.value = result.data || []
+  } catch {
+    schedulerEnabled.value = true
+    schedulerModels.value = []
+    schedulerError.value = currentLocale.value.startsWith('zh')
+      ? '无法加载 V-Scheduler 模型，请检查网关绑定后重试。'
+      : 'Unable to load V-Scheduler models. Check the gateway binding and retry.'
+  } finally {
+    schedulerLoading.value = false
+  }
+}
+const selectSchedulerModel = async (value: unknown) => {
+  if (typeof value !== 'string' || !value) return
+  formData.value.source = 'remote'
+  formData.value.provider = 'generic'
+  await nextTick()
+  formData.value.baseUrl = schedulerBaseURL
+  formData.value.apiKey = ''
+  formData.value.extraConfig = {}
+  formData.value.appSecret = ''
+  formData.value.customHeaders = []
+  formData.value.modelName = value
+}
 
 const currentLocale = computed(() => String(locale.value || ''))
 const providerDisplayLabel = (p: ModelProviderOption) => providerLabel(p, currentLocale.value)
@@ -1659,6 +1709,8 @@ watch(() => props.visible, (val) => {
     // Sync the entry type before loading its catalog; the previous draft may
     // belong to another settings tab (including the initial chat default).
     draftModelType.value = props.modelType
+
+    void loadSchedulerModels()
 
     // 检查Ollama服务状态
     checkOllamaServiceStatus()

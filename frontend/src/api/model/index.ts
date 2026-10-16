@@ -371,3 +371,7 @@ export function getWeKnoraCloudStatus(): Promise<WeKnoraCloudStatusResult> {
       })
   })
 }
+
+export async function listSchedulerModels(): Promise<{ data: string[]; enabled: boolean; base_url?: string }> {
+  return await get('/api/v1/models/scheduler') as any
+}
