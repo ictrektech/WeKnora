@@ -36,6 +36,15 @@ func TestBindingIdentityRevisionAndPrivatePersistence(t *testing.T) {
 		return response
 	}
 	binding := fixtureBinding(1, "a")
+	legacy := fixtureBinding(1, "a")
+	legacy.URL = "http://v-router:8080/v1"
+	if err := store.save(legacy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readBinding(store.Filename); err == nil {
+		t.Fatal("legacy alias accepted for inference")
+	}
+	binding.BindingRevision = 2
 	for _, subject := range []string{"admin", "com.ictrek.other", ""} {
 		if post(subject, binding).Code != 403 {
 			t.Fatal("non-Scheduler identity accepted")
@@ -48,16 +57,16 @@ func TestBindingIdentityRevisionAndPrivatePersistence(t *testing.T) {
 	if info.Mode().Perm() != 0600 {
 		t.Fatal("binding file is not private")
 	}
-	conflict := fixtureBinding(1, "b")
+	conflict := fixtureBinding(2, "b")
 	if post("com.ictrek.v-scheduler", conflict).Code != 409 {
 		t.Fatal("same revision changed token accepted")
 	}
-	rotated := fixtureBinding(2, "b")
+	rotated := fixtureBinding(3, "b")
 	if post("com.ictrek.v-scheduler", rotated).Code != 200 || post("com.ictrek.v-scheduler", binding).Code != 409 {
 		t.Fatal("rotation monotonicity failed")
 	}
 	rotated.URL = "http://untrusted/v1"
-	rotated.BindingRevision = 3
+	rotated.BindingRevision = 4
 	if post("com.ictrek.v-scheduler", rotated).Code != 422 {
 		t.Fatal("foreign gateway accepted")
 	}
@@ -103,7 +112,7 @@ func TestLongLivedTransportReloadsRotationAndRejectsOtherOrigins(t *testing.T) {
 	if observed[0] != "Bearer "+fixtureBinding(1, "a").Token || observed[1] != "Bearer "+fixtureBinding(2, "b").Token || request.Header.Get("Authorization") != "Bearer old-row-key" {
 		t.Fatal("rotation or caller-header isolation failed")
 	}
-	for _, url := range []string{"http://untrusted/v1/embeddings", "http://v-router:8080/api/admin", "https://v-router:8080/v1/embeddings"} {
+	for _, url := range []string{"http://untrusted/v1/embeddings", "http://v-router:8080/v1/embeddings", "http://v-router:8080/api/admin", "https://v-router:8080/v1/embeddings"} {
 		if _, err := wrapper.RoundTrip(httptest.NewRequest(http.MethodPost, url, nil)); err == nil {
 			t.Fatal("credential escaped fixed inference origin")
 		}

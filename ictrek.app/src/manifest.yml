@@ -21,9 +21,6 @@ platform:
   version: '>=3.0.0'
 dependencies:
   apps:
-  - id: com.ictrek.v-scheduler
-    version: latest
-    optional: true
   - id: com.ictrek.pgv
     version: latest
     optional: false

@@ -20,7 +20,7 @@ type transport struct {
 func (wrapper transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	allowed := request.Method == http.MethodGet && request.URL.Path == "/v1/models" || request.Method == http.MethodPost &&
 		(request.URL.Path == "/v1/chat/completions" || request.URL.Path == "/v1/embeddings" || request.URL.Path == "/v1/rerank")
-	if Backend() != "scheduler" || request.URL.Scheme != "http" || request.URL.Host != "v-router:8080" || !allowed {
+	if Backend() != "scheduler" || request.URL.Scheme != "http" || request.URL.Host != "v-scheduler-gateway:8080" || !allowed {
 		return nil, errors.New("gateway credential is limited to fixed inference routes")
 	}
 	key := ""

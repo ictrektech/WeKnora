@@ -126,6 +126,7 @@ EOF
 import json
 import os
 import pathlib
+import platform
 import socket
 import sys
 import urllib.request
@@ -136,8 +137,11 @@ if backend not in {"auto", "scheduler", "model-hub"}:
 if backend in {"auto", "scheduler", "model-hub"}:
     path = pathlib.Path(sys.argv[1])
     text = path.read_text()
-    base = os.environ.get("HYBRAG_V_ROUTER_URL", "http://v-router:8080").rstrip("/")
+    base = os.environ.get("HYBRAG_V_ROUTER_URL", "http://v-scheduler-gateway:8080").rstrip("/")
     key = os.environ.get("HYBRAG_V_ROUTER_API_KEY", "")
+    architecture = "arm" if platform.machine().lower() in {"aarch64", "arm64"} else "amd"
+    legacy_base = (os.environ.get("HYBRAG_LEGACY_V_ROUTER_URL") or (os.environ.get("HYBRAG_V_ROUTER_URL", "http://v-router:8080") if backend == "model-hub" else "http://v-router-backend-" + architecture + ":8080")).rstrip("/")
+    legacy_key = os.environ.get("HYBRAG_LEGACY_V_ROUTER_API_KEY") or (key if backend == "model-hub" else "")
     selected_models = {role: os.environ.get("HYBRAG_" + role.upper() + "_MODEL", native) for role, native in (("qa", "qwen3.5:2b"), ("embedding", "bge-m3"), ("rerank", "qllama/bge-reranker-v2-m3:q8_0"))}
     selected_models = {role: model if ":" in model.rsplit("/", 1)[-1] else model + ":latest" for role, model in selected_models.items()}
     published = set()
@@ -145,9 +149,9 @@ if backend in {"auto", "scheduler", "model-hub"}:
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, *args, **kwargs):
                 return None
-        headers = {"Authorization": "Bearer " + key} if key else {}
+        headers = {"Authorization": "Bearer " + legacy_key} if legacy_key else {}
         try:
-            request = urllib.request.Request(base + "/v1/models", headers=headers)
+            request = urllib.request.Request(legacy_base + "/v1/models", headers=headers)
             with urllib.request.build_opener(NoRedirect).open(request, timeout=10) as response:
                 body = response.read(4194305)
             if len(body) > 4194304:
@@ -161,7 +165,7 @@ if backend in {"auto", "scheduler", "model-hub"}:
     scheduler_available = backend == "scheduler"
     if backend == "auto":
         try:
-            socket.getaddrinfo("v-scheduler-model-hub", 6005)
+            socket.getaddrinfo("v-scheduler-gateway", 8080)
             scheduler_available = True
         except socket.gaierror:
             pass
@@ -175,8 +179,8 @@ if backend in {"auto", "scheduler", "model-hub"}:
                 continue
             native = {"qa": "qwen3.5:2b", "embedding": "bge-m3", "rerank": "qllama/bge-reranker-v2-m3:q8_0"}[role]
             entry = entry.replace("name: " + native + "\n", "name: " + json.dumps(qualified) + "\n")
-            entry = entry.replace("http://model-hub-ollama-" + role + ":11434/v1", base + "/v1")
-            entry = entry.replace("api_key: EMPTY", "api_key: " + json.dumps(key))
+            entry = entry.replace("http://model-hub-ollama-" + role + ":11434/v1", (base if target == "scheduler" else legacy_base) + "/v1")
+            entry = entry.replace("api_key: EMPTY", "api_key: " + json.dumps(key if target == "scheduler" else legacy_key))
             entry = entry.replace("Model Hub Ollama", "V-Scheduler Ollama" if target == "scheduler" else "Model Hub via V-Router")
             if backend == "auto":
                 entry = entry.replace("is_default: true", "is_default: false")
@@ -187,9 +191,15 @@ if backend in {"auto", "scheduler", "model-hub"}:
     path.chmod(0o600)
 PYBACKEND
     if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "scheduler" ] || [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "model-hub" ] || [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "auto" ]; then
-        export OLLAMA_BASE_URL="${HYBRAG_V_ROUTER_URL:-http://v-router:8080}"
-        export WEKNORA_REPARSE_WAIT_URLS="${HYBRAG_V_ROUTER_URL:-http://v-router:8080}/health"
-        export SSRF_WHITELIST_EXTRA="${SSRF_WHITELIST_EXTRA:-},v-router,v-router-backend,v-scheduler-model-hub"
+        export OLLAMA_BASE_URL="${HYBRAG_V_ROUTER_URL:-http://v-scheduler-gateway:8080}"
+        if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "model-hub" ]; then
+            export OLLAMA_BASE_URL="${HYBRAG_LEGACY_V_ROUTER_URL:-${HYBRAG_V_ROUTER_URL:-http://v-router:8080}}"
+        fi
+        export WEKNORA_REPARSE_WAIT_URLS="${OLLAMA_BASE_URL}/healthz"
+        if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "auto" ]; then
+            export WEKNORA_REPARSE_WAIT_URLS=""
+        fi
+        export SSRF_WHITELIST_EXTRA="${SSRF_WHITELIST_EXTRA:-},v-router,v-router-backend,v-scheduler-model-hub,v-scheduler-gateway,v-router-backend-amd,v-router-backend-arm"
     fi
     export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
 fi

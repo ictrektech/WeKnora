@@ -22,7 +22,7 @@ func TestBuiltinSchedulerConnectionsUseDynamicPrivateTransport(t *testing.T) {
 		{"hybrag-ollama-bge-m3-embedding", types.ModelTypeEmbedding, "v-scheduler/ollama-embedding/test"},
 		{"hybrag-ollama-bge-reranker-v2-m3-rerank", types.ModelTypeRerank, "v-scheduler/ollama-rerank/test"},
 	} {
-		resolved, err := modelruntime.Resolve(modelruntime.Ref{Provider: "generic", Model: item.name, BaseURL: "http://v-router:8080/v1"})
+		resolved, err := modelruntime.Resolve(modelruntime.Ref{Provider: "generic", Model: item.name, BaseURL: "http://v-scheduler-gateway:8080/v1"})
 		require.NoError(t, err)
 		original := &http.Client{Timeout: 42 * time.Second}
 		endpoint, err := resolved.Endpoint(item.kind, modelruntime.Connection{ModelID: item.id, Client: original})

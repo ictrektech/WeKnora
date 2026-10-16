@@ -26,7 +26,7 @@ class ModelBackendTests(unittest.TestCase):
             prefix = ''
             if scheduler_available is not None:
                 prefix = 'import socket\noriginal_getaddrinfo = socket.getaddrinfo\n'
-                prefix += 'def resolve(host, *args, **kwargs):\n    if host == "v-scheduler-model-hub":\n'
+                prefix += 'def resolve(host, *args, **kwargs):\n    if host == "v-scheduler-gateway":\n'
                 prefix += '        return []\n' if scheduler_available else '        raise socket.gaierror()\n'
                 prefix += '    return original_getaddrinfo(host, *args, **kwargs)\nsocket.getaddrinfo = resolve\n'
             result = subprocess.run([sys.executable, '-', str(path)], input=prefix + CONVERTER, text=True, capture_output=True, env=env)
@@ -77,7 +77,7 @@ class ModelBackendTests(unittest.TestCase):
         self.assertEqual(models[1]['name'], models[0]['name'])
         self.assertEqual(models[2]['name'], 'v-scheduler/ollama-embedding/bge-m3:latest')
         self.assertEqual(models[3]['name'], 'v-scheduler/ollama-rerank/qllama/bge-reranker-v2-m3:q8_0')
-        self.assertTrue(all(model['parameters']['base_url'] == 'http://v-router:8080/v1' for model in models))
+        self.assertTrue(all(model['parameters']['base_url'] == 'http://v-scheduler-gateway:8080/v1' for model in models))
         self.assertTrue(all(model['parameters']['api_key'] == 'test-key' for model in models))
 
     def test_empty_key_is_not_invalid_placeholder_bearer(self):
@@ -112,13 +112,17 @@ class ModelBackendTests(unittest.TestCase):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            result, config, _ = self.render('auto', scheduler_available=True, HYBRAG_V_ROUTER_URL=f'http://127.0.0.1:{server.server_port}')
+            result, config, _ = self.render('auto', scheduler_available=True, HYBRAG_LEGACY_V_ROUTER_URL=f'http://127.0.0.1:{server.server_port}', HYBRAG_LEGACY_V_ROUTER_API_KEY='legacy-only', HYBRAG_V_ROUTER_API_KEY='scheduler-only')
             self.assertEqual(result.returncode, 0, result.stderr)
             models = config['builtin_models']
             self.assertEqual(len(models), 6)
             self.assertEqual(len({model['id'] for model in models}), 6)
             self.assertEqual(sum(model['name'].startswith('model-hub/') for model in models), 2)
             self.assertTrue(all(not model['is_default'] for model in models))
+            for model in models:
+                legacy = model['name'].startswith('model-hub/')
+                self.assertEqual(model['parameters']['api_key'], 'legacy-only' if legacy else 'scheduler-only')
+                self.assertEqual(model['parameters']['base_url'], f'http://127.0.0.1:{server.server_port}/v1' if legacy else 'http://v-scheduler-gateway:8080/v1')
         finally:
             server.shutdown()
             server.server_close()

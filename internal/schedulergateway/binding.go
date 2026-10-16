@@ -16,7 +16,7 @@ import (
 
 const AppID = "com.ictrek.hybrag"
 const Endpoint = "/api/v1/scheduler/gateway-binding"
-const Gateway = "http://v-router:8080/v1"
+const Gateway = "http://v-scheduler-gateway:8080/v1"
 
 var bindingMutex sync.Mutex
 var tokenPattern = regexp.MustCompile(`^vs-app-[a-f0-9]{64}$`)
@@ -33,7 +33,7 @@ type Binding struct {
 func Backend() string {
 	backend := os.Getenv("HYBRAG_MODEL_BACKEND")
 	if backend == "auto" {
-		if _, err := net.LookupHost("v-scheduler-model-hub"); err == nil {
+		if _, err := net.LookupHost("v-scheduler-gateway"); err == nil {
 			return "scheduler"
 		}
 	}
@@ -53,6 +53,10 @@ func (binding Binding) valid() bool {
 }
 
 func readBinding(filename string) (Binding, error) {
+	return readStoredBinding(filename, false)
+}
+
+func readStoredBinding(filename string, forRebinding bool) (Binding, error) {
 	var binding Binding
 	info, err := os.Lstat(filename)
 	if err != nil {
@@ -68,7 +72,14 @@ func readBinding(filename string) (Binding, error) {
 	defer file.Close()
 	decoder := json.NewDecoder(io.LimitReader(file, 16385))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&binding) != nil || !binding.valid() {
+	if decoder.Decode(&binding) != nil {
+		return Binding{}, errors.New("invalid gateway binding")
+	}
+	validation := binding
+	if forRebinding && validation.URL == "http://v-router:8080/v1" {
+		validation.URL = Gateway
+	}
+	if !validation.valid() {
 		return Binding{}, errors.New("invalid gateway binding")
 	}
 	if decoder.Decode(new(any)) != io.EOF {
@@ -154,7 +165,7 @@ func (store *Store) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 	}
 	bindingMutex.Lock()
 	defer bindingMutex.Unlock()
-	old, err := readBinding(store.Filename)
+	old, err := readStoredBinding(store.Filename, true)
 	if err == nil && old.BindingRevision >= binding.BindingRevision {
 		if old != binding {
 			writer.WriteHeader(http.StatusConflict)

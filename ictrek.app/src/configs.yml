@@ -10,7 +10,17 @@ configs:
   type: string
   title: {zh-CN: 统一模型网关, en: Unified Model Gateway}
   description: {zh-CN: V-Scheduler 模型网关地址，不含 /v1。, en: V-Scheduler model gateway URL without /v1.}
-  default: http://v-router:8080
+  default: http://v-scheduler-gateway:8080
+- name: HYBRAG_LEGACY_V_ROUTER_URL
+  type: string
+  title: {zh-CN: 旧 Model Hub 网关, en: Legacy Model Hub Gateway}
+  description: {zh-CN: 留空时自动发现旧 V-Router 独立服务地址，不能与统一网关混用。, en: Empty automatically discovers the independent legacy V-Router service. Never use the unified gateway address here.}
+  default: ''
+- name: HYBRAG_LEGACY_V_ROUTER_API_KEY
+  type: string
+  title: {zh-CN: 旧网关 API Key, en: Legacy Gateway API Key}
+  description: {zh-CN: 旧 V-Router 启用鉴权时配置其专用密钥，不使用 V-Scheduler 自动下发的私钥。, en: Dedicated legacy V-Router key when authentication is enabled. Never uses the automatically issued V-Scheduler credential.}
+  default: ''
 - name: HYBRAG_V_ROUTER_API_KEY
   type: string
   title: {zh-CN: 模型网关 API Key, en: Model Gateway API Key}
