@@ -10,13 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuiltinSchedulerConnectionsUseDynamicPrivateTransport(t *testing.T) {
+func TestSchedulerConnectionsUseDynamicPrivateTransport(t *testing.T) {
 	t.Setenv("HYBRAG_MODEL_BACKEND", "scheduler")
 	for _, item := range []struct {
 		id   string
 		kind types.ModelType
 		name string
 	}{
+		{"registered-model", types.ModelTypeKnowledgeQA, "registered/chat"},
 		{"hybrag-ollama-qwen35-2b-qa", types.ModelTypeKnowledgeQA, "v-scheduler/ollama-qa/test"},
 		{"hybrag-ollama-qwen35-2b-vlm", types.ModelTypeVLLM, "v-scheduler/ollama-qa/test"},
 		{"hybrag-ollama-bge-m3-embedding", types.ModelTypeEmbedding, "v-scheduler/ollama-embedding/test"},
@@ -31,6 +32,7 @@ func TestBuiltinSchedulerConnectionsUseDynamicPrivateTransport(t *testing.T) {
 		require.Equal(t, original.Timeout, endpoint.Client.Timeout)
 		custom, err := resolved.Endpoint(item.kind, modelruntime.Connection{ModelID: "user-created-model", Client: original})
 		require.NoError(t, err)
-		require.Same(t, original, custom.Client)
+		require.NotSame(t, original, custom.Client)
+		require.Equal(t, original.Timeout, custom.Client.Timeout)
 	}
 }
