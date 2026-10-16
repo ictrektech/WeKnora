@@ -788,7 +788,7 @@ resolve_commit_id() {
     candidate="${GITHUB_SHA:0:7}"
   fi
 
-  if [[ -z "$candidate" ]] && command -v git >/dev/null 2>&1; then
+  if [[ -z "$candidate" && -e "${SCRIPT_DIR}/.git" ]] && command -v git >/dev/null 2>&1; then
     candidate="$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || true)"
   fi
 
