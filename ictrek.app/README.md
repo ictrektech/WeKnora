@@ -505,3 +505,7 @@ REINDEX INDEX public.embeddings_search_idx;
 **已实现（配置）：**根目录 `docker-compose.yml` 与 `docker-compose.dev.yml` 的 `postgres`、`langfuse-db-init` 均使用 `paradedb/paradedb:v0.25.11-pg17`。健康检查通过 `127.0.0.1` 的 TCP（网络连接）探测，避免将仅开放本地 socket（进程间通信接口）的初始化临时服务器判为就绪。本地 ictrek 开发环境使用完整 PGV 镜像，见 [本地开发镜像替换](docs/local-dev/README.md#postgresql-镜像替换)。
 
 新库直接使用新配置；已有 PostgreSQL 17 库须先备份并完成扩展 SQL 升级，见 [ParadeDB 升级操作](../website-docs/01-getting-started/06-paradedb-upgrade.md)。PostgreSQL 16 库需要主版本数据迁移。更新 Compose 不会自动迁移数据，也不会重新执行已完成的 `000137`。回滚须恢复升级前备份，不能只把镜像标签改回旧版。Helm 与历史部署模板未纳入本次版本更新；各自的旧配置不能当作当前 VOS 或本地开发配置使用。
+
+## 模型后端迁移
+
+HybRAG 同时兼容旧 Model Hub 与 V-Scheduler。安装参数、后台鉴权、完整模型 ID、调度责任和保留旧模式的方式见 [模型后端迁移](docs/model-backend-migration.md)。

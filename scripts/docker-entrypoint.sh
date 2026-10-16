@@ -61,6 +61,13 @@ PY
     export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
 elif [ "${HYBRAG_DEFAULT_BUILTIN_MODELS:-false}" = "true" ]; then
     mkdir -p "$RUNTIME_CONFIG_DIR"
+    if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "auto" ]; then
+        if getent hosts v-scheduler-model-hub >/dev/null 2>&1; then
+            export HYBRAG_MODEL_BACKEND=scheduler
+        else
+            export HYBRAG_MODEL_BACKEND=model-hub
+        fi
+    fi
     cat > "$RUNTIME_BUILTIN_MODELS_FILE" <<EOF
 builtin_models:
   - id: hybrag-ollama-qwen35-2b-qa
@@ -119,6 +126,42 @@ builtin_models:
       extra_config:
         score_scale: probability
 EOF
+    python3 - "$RUNTIME_BUILTIN_MODELS_FILE" <<'PYBACKEND'
+import json
+import os
+import pathlib
+import socket
+import sys
+
+backend = os.environ.get("HYBRAG_MODEL_BACKEND", "model-hub")
+if backend == "auto":
+    try:
+        socket.getaddrinfo("v-scheduler-model-hub", 6005)
+        backend = "scheduler"
+    except socket.gaierror:
+        backend = "model-hub"
+if backend not in {"scheduler", "model-hub"}:
+    raise SystemExit("HYBRAG_MODEL_BACKEND must be auto, scheduler or model-hub")
+if backend == "scheduler":
+    path = pathlib.Path(sys.argv[1])
+    text = path.read_text()
+    base = os.environ.get("HYBRAG_V_ROUTER_URL", "http://v-router:8080").rstrip("/")
+    key = os.environ.get("HYBRAG_V_ROUTER_API_KEY", "")
+    for role, native in (("qa", "qwen3.5:2b"), ("embedding", "bge-m3"), ("rerank", "qllama/bge-reranker-v2-m3:q8_0")):
+        selected = os.environ.get("HYBRAG_" + role.upper() + "_MODEL", native)
+        qualified = "v-scheduler/ollama-" + role + "/" + selected
+        text = text.replace("name: " + native + "\n", "name: " + json.dumps(qualified) + "\n")
+        text = text.replace("http://model-hub-ollama-" + role + ":11434/v1", base + "/v1")
+    text = text.replace("api_key: EMPTY", "api_key: " + json.dumps(key))
+    text = text.replace("Model Hub Ollama", "V-Scheduler Ollama")
+    path.write_text(text)
+    path.chmod(0o600)
+PYBACKEND
+    if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "scheduler" ]; then
+        export OLLAMA_BASE_URL="${HYBRAG_V_ROUTER_URL:-http://v-router:8080}"
+        export WEKNORA_REPARSE_WAIT_URLS="${HYBRAG_V_ROUTER_URL:-http://v-router:8080}/health"
+        export SSRF_WHITELIST_EXTRA="${SSRF_WHITELIST_EXTRA:-},v-router,v-router-backend,v-scheduler-model-hub"
+    fi
     export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
 fi
 

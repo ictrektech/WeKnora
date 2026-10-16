@@ -736,6 +736,7 @@ if [[ -f "${SRC_DIR}/icon.png" ]]; then
   cp "${SRC_DIR}/icon.png" "${STAGE_DIR}/icon.png"
 fi
 render_compose_file "${SRC_DIR}/docker-compose.yml" "${STAGE_DIR}/docker-compose.yml" "$ENV_FILE"
+"${PYTHON_BIN}" "${ROOT_DIR}/scripts/resolve_dependencies.py" "${STAGE_DIR}/manifest.yml" --repositories "${ROOT_DIR}/scripts/dependency-releases.json"
 if grep -q '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml"; then
   grep '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml" >&2
   die "unresolved image placeholder remains in rendered docker-compose.yml"

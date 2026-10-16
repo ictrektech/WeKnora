@@ -3,9 +3,9 @@ name:
   zh-CN: HybRAG
   en: HybRAG
 description:
-  zh-CN: 企业知识库、RAG 问答、Wiki 知识图谱与智能体平台，默认复用 Model Hub 预热的 QA、图片理解和 embedding 后端。
-  en: Enterprise knowledge-base, RAG, Wiki graph, and agent platform using Model Hub
-    prewarmed QA, vision, and embedding backends by default.
+  zh-CN: 企业知识库、RAG 问答、Wiki 知识图谱与智能体平台，兼容 Model Hub 和 V-Scheduler 的 QA、图片理解、Embedding 与 Rerank。
+  en: Enterprise knowledge-base, RAG, Wiki graph, and agent platform supporting Model Hub
+    and V-Scheduler QA, vision, embedding, and rerank backends.
 version: __APP_VERSION__
 author: ictrek
 category:
@@ -22,10 +22,13 @@ platform:
 dependencies:
   apps:
   - id: com.ictrek.model-hub
-    version: '>=0.0.92'
-    optional: false
+    version: latest
+    optional: true
+  - id: com.ictrek.v-scheduler
+    version: latest
+    optional: true
   - id: com.ictrek.pgv
-    version: '>=0.0.21'
+    version: latest
     optional: false
 oauth2:
   client:

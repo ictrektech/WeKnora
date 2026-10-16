@@ -1,4 +1,38 @@
 configs:
+- name: HYBRAG_MODEL_BACKEND
+  type: string
+  title: {zh-CN: 模型服务, en: Model Backend}
+  description:
+    zh-CN: auto 优先使用已安装的 V-Scheduler，未安装时使用旧 Model Hub；可固定为 scheduler 或 model-hub。调度或推理失败不会自动回退。
+    en: auto prefers installed V-Scheduler and otherwise uses legacy Model Hub. Select scheduler or model-hub explicitly when needed. Inference failures never trigger a fallback.
+  default: auto
+- name: HYBRAG_V_ROUTER_URL
+  type: string
+  title: {zh-CN: 统一模型网关, en: Unified Model Gateway}
+  description: {zh-CN: V-Scheduler 模型网关地址，不含 /v1。, en: V-Scheduler model gateway URL without /v1.}
+  default: http://v-router:8080
+- name: HYBRAG_V_ROUTER_API_KEY
+  type: string
+  title: {zh-CN: 模型网关 API Key, en: Model Gateway API Key}
+  description:
+    zh-CN: 由管理员配置的网关 API Key；网关启用鉴权时必填。不是 Scheduler submitter token。仅保存在服务端安装配置。
+    en: Administrator-configured gateway API key, required when gateway authentication is enabled. This is not a Scheduler submitter token. Stored only in server installation configuration.
+  default: ''
+- name: HYBRAG_QA_MODEL
+  type: string
+  title: {zh-CN: QA 原生模型名, en: QA Native Model Name}
+  description: {zh-CN: V-Scheduler QA 目录中的原生模型名。, en: Native model name in the V-Scheduler QA catalog.}
+  default: qwen3.5:2b
+- name: HYBRAG_EMBEDDING_MODEL
+  type: string
+  title: {zh-CN: Embedding 原生模型名, en: Embedding Native Model Name}
+  description: {zh-CN: 使用 1024 维 bge-m3，已有知识库更换模型须重新索引。, en: Use 1024-dimensional bge-m3. Changing an existing knowledge-base model requires reindexing.}
+  default: bge-m3
+- name: HYBRAG_RERANK_MODEL
+  type: string
+  title: {zh-CN: Rerank 原生模型名, en: Rerank Native Model Name}
+  description: {zh-CN: V-Scheduler rerank 目录中的原生模型名。, en: Native model name in the V-Scheduler rerank catalog.}
+  default: qllama/bge-reranker-v2-m3:q8_0
 - name: WEKNORA_LANGUAGE
   type: string
   title:
