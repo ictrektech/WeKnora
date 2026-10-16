@@ -24,7 +24,7 @@ for arch in amd64 arm64; do
     unset ICTREK_DEV_PGV_IMAGE
     ICTREK_DEV_HOST_ARCH="$arch"
     export_compose_env
-    [[ "$ICTREK_DEV_PGV_IMAGE" == *":${arch%64}_17_20261014" ]]
+    [[ "$ICTREK_DEV_PGV_IMAGE" == *":${arch%64}_17_20261015" ]]
     check_compose "$ICTREK_DEV_PGV_IMAGE"
 done
 ICTREK_DEV_PGV_IMAGE=explicit-pgv-image
@@ -32,7 +32,7 @@ export_compose_env
 [[ "$ICTREK_DEV_PGV_IMAGE" == explicit-pgv-image ]]
 check_compose explicit-pgv-image
 unset ICTREK_DEV_PGV_IMAGE
-check_compose swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv:amd_17_20261014
+check_compose swr.cn-southwest-2.myhuaweicloud.com/ictrek/pgv:amd_17_20261015
 (
     load_env() { return 0; }
     refresh_config() { DEV_MODEL_BACKEND=ollama; }

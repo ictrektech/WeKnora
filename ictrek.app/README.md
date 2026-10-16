@@ -76,6 +76,8 @@ HybRAG 私有数据统一使用 VOS 分配的 `VOS_APP_STORAGE_PATH`，并放入
 
 升级时不要手工复用旧独立部署 compose，也不要把 `docs/legacy/deploy-template/` 当成当前安装模板。VOS app 的最终 compose 只来自 `ictrek.app/src/docker-compose.yml` 经打包流程渲染出的安装包。
 
+PGV 与 HybRAG 分步升级的操作和验证结果见 [ARM VOS 顺序升级验证](#arm-vos-顺序升级验证)。
+
 从旧版路径配置升级时，应先把原 `files`、`docreader`、`redis`、`neo4j` 数据迁移到新版本对应的 VOS 应用存储子目录。历史版本如果在数据库里留下 `hybrag-ollama-qa` 或 `hybrag-ollama-embedding` 模型地址，新 app 镜像启动时会把内置模型行修正到 Model Hub Ollama 原生 `11434/v1` 地址。
 
 VOS 中打开 HybRAG 时，前端优先走 VOS OIDC Fastpath：同域 iframe 内使用 `window.vos_platform.api.v1000.oauth2` 完成 `authorize -> token`，然后把 VOS OIDC 应用 access token 交给 HybRAG 后端；后端调用 `HYBRAG_VOS_OIDC_USERINFO_URL` 指向的 `/v1000/oauth2/userinfo` 校验后，自动创建或登录 `${username}@local`。旧的 `/v1000/user/check` token exchange 仍保留为老 VOS 版本降级路径。`admin` 用户对应 `admin@local`，并拥有系统管理员权限。
@@ -311,7 +313,7 @@ docker compose --profile arm config
 
 ## 依赖和模型
 
-最低依赖版本以 [src/manifest.yml](src/manifest.yml) 为准：`com.ictrek.model-hub >=0.0.92` 和 `com.ictrek.pgv >=0.0.21`。Model Hub 的最低版本用于保证 ictrek Ollama 提供 `/v1/rerank`，不再使用 `/api/embed` 评分适配。正式打包必须保留 manifest 中的最低版本，不能自动改成依赖仓库的最新 release。此次版本调整后的 AMD、ARM VOS 安装验证待完成；后续提高最低版本时也需重新验证。`docker-compose.yml` 不启动 model_hub 或 Postgres 服务。HybRAG 通过 Model Hub Ollama 的原生 `11434` 接口调用模型，通过 Model Hub 管理 API 下载缺失模型并读取进度。
+最低依赖版本以 [src/manifest.yml](src/manifest.yml) 为准：`com.ictrek.model-hub >=0.0.92` 和 `com.ictrek.pgv >=0.0.21`。Model Hub 的最低版本用于保证 ictrek Ollama 提供 `/v1/rerank`，不再使用 `/api/embed` 评分适配。正式打包必须保留 manifest 中的最低版本，不能自动改成依赖仓库的最新 release。此次版本调整后的 AMD、ARM VOS 全新安装验证待完成；后续提高最低版本时也需重新验证。`docker-compose.yml` 不启动 model_hub 或 Postgres 服务。HybRAG 通过 Model Hub Ollama 的原生 `11434` 接口调用模型，通过 Model Hub 管理 API 下载缺失模型并读取进度。
 
 PGV 文档中默认预置给 WeKnora/HybRAG 使用的连接信息是：
 
@@ -470,7 +472,7 @@ gh release view "v${VERSION}" --repo ictrektech/WeKnora
 
 ### PGV BM25 索引升级与故障恢复
 
-**已验证：**2026-10-14 核查的 AMD64 VOS 实例中，PGV `0.0.48` 与 HybRAG `0.1.67` 配合使用，实际运行 PostgreSQL `17.11`、`pg_search 0.25.11`（关键词检索扩展）和 `vector 0.8.4`（向量检索扩展）。应用账号连接、迁移版本 `140`（`dirty=false`）、已有数据的关键词与向量查询通过。同一 PGV 镜像的隔离库中，普通应用账号执行全部 141 个迁移文件及现有 Go 检索集成测试通过；写入、更新、删除、禁用过滤和索引查询通过。ARM64、持续大量导入及升级前后逐表数据一致性仍**待验证**。
+**已验证：**2026-10-14 核查的 AMD64 VOS 实例中，PGV `0.0.48` 与 HybRAG `0.1.67` 配合使用，实际运行 PostgreSQL `17.11`、`pg_search 0.25.11`（关键词检索扩展）和 `vector 0.8.4`（向量检索扩展）。应用账号连接、迁移版本 `140`（`dirty=false`）、已有数据的关键词与向量查询通过。同一 PGV 镜像的隔离库中，普通应用账号执行全部 141 个迁移文件及现有 Go 检索集成测试通过；写入、更新、删除、禁用过滤和索引查询通过。ARM VOS 的单文档升级验证见[顺序升级记录](#arm-vos-顺序升级验证)；持续大量导入及 VOS 升级前后逐表数据一致性仍**待验证**。
 
 PGV `0.0.48` 的默认 ParadeDB 基础镜像为 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/paradedb:amd64_0.25.11-pg17` 或 `arm64_0.25.11-pg17`；基础镜像不是完整 PGV 应用镜像。HybRAG 继续连接外部 `shared-pgv:5432`，不自行启动数据库，也不因本次验证提高 manifest 的最低依赖版本。
 
@@ -485,6 +487,18 @@ REINDEX INDEX public.embeddings_search_idx;
 ```
 
 重建后验证关键词与向量检索，再恢复业务并重试失败文档。应用不会自动重建索引。当前 PGV `0.0.48` 容器不提供旧指引中的 `/init/pg-search-upgrade.sql`；不要按旧脚本路径恢复，也不要将扩展降到 `0.22.6`。正常升级不要求无条件重建全部索引；重建后仍失败时保留原始错误和备份，由管理员继续排查。
+
+### ARM VOS 顺序升级验证
+
+**已验证（用户实测反馈，记录于 2026-10-16）：**在 ARM 架构的 VOS `1.1.0-20261011.1.f0232367` 上，HybRAG `0.1.56` + PGV `0.0.33` 按先升级 PGV、再升级 HybRAG 的顺序，升级至 HybRAG `0.1.67` + PGV `0.0.49`。升级前及每一步升级后，从原文档已生成的问题发起对话，均返回正常回答。
+
+| 步骤 | HybRAG | PGV | 操作与验收 | 结果 |
+| --- | --- | --- | --- | --- |
+| 升级前基线 | `0.1.56` | `0.0.33` | 向知识库上传一份文档，待解析并生成问题后，在聊天中选择生成的问题提问。 | 已验证：返回正常回答。 |
+| 先升级 PGV | `0.1.56` | `0.0.49` | 仅升级 PGV，再从原文档已生成的问题提问。 | 已验证：返回正常回答。 |
+| 再升级 HybRAG | `0.1.67` | `0.0.49` | 升级 HybRAG，再从原文档已生成的问题提问。 | 已验证：返回正常回答。 |
+
+后续复测沿用上述顺序，每一步确认回答正常后再继续。证据来源为用户反馈，尚未核对运行日志、数据库及扩展实际版本。该结果覆盖本次 ARM 环境中的单文档问答升级；反向升级顺序、全新安装、全量数据一致性及其他 ARM 硬件仍**待验证**。
 
 ### Compose 数据库版本与升级边界
 
