@@ -4,6 +4,8 @@
 
 当前只发布 pull 模式安装包：本地 `update_version.sh` 负责更新版本、创建 release commit 和触发 tag，GitHub Actions 负责读取飞书和依赖 release、打包并发布正式 release。需要把 VOS changelog 随版本一起提交时，先用 `$cl` 准备并审核 `ictrek.app/CHANGELOG.md`，再使用 `--with-changelog`。
 
+后端镜像在 appuser 与 root 的默认 DuckDB 缓存目录均预装同版本 spatial/excel 扩展。VOS root 模式启动不依赖外网下载扩展，也不需要禁用 DuckDB 或 XLSX 能力。
+
 系统设置的“版本信息”会同时显示代码构建版本、VOS App 版本以及当前 profile 使用的 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 镜像 tag。VOS App 版本由 `package.sh` 将 `__APP_VERSION__` 渲染为发布版本；四个镜像引用由 GitHub Actions 打包时从飞书读取并写入 compose，随后作为环境变量传给后端。普通非 VOS 部署不设置这些变量时不会显示对应行，也不影响启动。
 
 ## 文档结构
