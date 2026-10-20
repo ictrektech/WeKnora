@@ -1953,6 +1953,24 @@ export default {
         clearSuccess: 'ワークスペースの値をクリアしました。',
         valueTooLong: '値は{max}バイトを超えることはできません。'
       },
+
+      allocationMode: 'Sandbox allocation',
+      allocationModeHint: 'Only affects sessions that have not used a sandbox yet; existing sessions keep their placement and files are never moved.',
+      allocationModeSession: 'One sandbox per session (default)',
+      allocationModeUser: "Share one sandbox across a user's sessions",
+      allocationModeUnavailable: 'Shared sandboxes are not enabled on this deployment (set WEKNORA_SANDBOX_USER_ALLOCATION=enabled on every replica; Redis is required).',
+      userSandboxRetentionDays: 'Keep an empty shared sandbox for (days)',
+      userSandboxRetentionHint: 'After every session on a shared sandbox is deleted, it is removed once it has been empty this long (1–90 days). This is not a minimum file retention: Docker idle cleanup or provider failures may remove it sooner.',
+      userSandboxesInInventory: "{count} of them are shared user sandboxes; each affects all of that user's sessions on this config.",
+      userSandboxesTitle: 'Shared user sandboxes',
+      userSandboxOwner: 'Owner',
+      userSandboxOwnerOtherWorkspace: 'A user from another workspace',
+      userSandboxLiveSessions: 'Sessions',
+      userSandboxEmptySince: 'Empty since',
+      userSandboxReclaimAfter: 'Reclaimed after',
+      userSandboxRelease: 'Release',
+      userSandboxReleaseConfirm: "Releasing deletes the files and installed packages of all of this user's sessions on this config; a new sandbox is created on next use. Release it?",
+      userSandboxBusy: 'A terminal, desktop or command is still running on this sandbox. Try again later.',
     },
     skills: {
       title: 'スキル管理',
@@ -9190,6 +9208,10 @@ export default {
       "confirm": "変更のたびに一時停止して承認を求めます。よく使う操作は詳細で継続承認にできます。",
       "auto_write": "元に戻せる変更はそのまま実行し、削除などは引き続き承認を待ちます。"
     }
+,
+    model: "実行モデル",
+    modelHelp: "エージェントの既定モデルを使うか、この自動化専用のモデルを選択します。変更は次回以降の実行に適用されます。",
+    modelDefault: "エージェントの既定モデル",
   },
   "schedule": {
     "kinds": {
@@ -9292,6 +9314,11 @@ export default {
     "queued": "実行を開始しました",
     "notFound": "オートメーションは存在しないか削除されました"
   }
+,
+  conversationNotice: "この会話は自動化タスクが実行します。手動でメッセージは送信できません。保留中のリクエストは上で対応してください。",
+  scheduleEnded: '終了',
+  scheduleEndedHint: 'この一回限りのスケジュールは終了しました。今すぐ実行するか、実行日時を変更してから再開してください。',
+  runConfirm: '「{name}」を今すぐ実行しますか？スケジュールを変更せずに追加で実行します。',
 },
 "notifications": {
   "title": "通知",
@@ -9304,6 +9331,20 @@ export default {
     "automation_awaiting_approval": "オートメーション承認待ち",
     "automation_paused": "オートメーション一時停止"
   }
+,
+  pending: "対応が必要",
+  history: "通知履歴",
+  clearRead: "既読を削除",
+  clearReadConfirm: "既読の通知を削除しますか？実行履歴、会話、未対応の項目は保持されます。",
+  handle: "対応する",
+  review: "承認を確認",
+  unreadCount: "未読 {count} 件",
+  unread: "未読",
+  newItems: "新しい通知があります。更新",
+  loadError: "通知を読み込めませんでした",
+  awaitingApproval: "操作の承認待ち",
+  awaitingAuthorization: "認可の完了待ち",
+  awaitingReply: "返信待ち",
 },
 "assistant": {
   "title": "Vivibit アシスタント",

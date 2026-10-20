@@ -210,6 +210,10 @@ export default {
         confirm: 'Каждое изменение приостанавливает запуск до вашего подтверждения. Повторяющиеся можно разрешить навсегда в деталях.',
         auto_write: 'Обратимые изменения выполняются сразу; удаление и подобное по-прежнему ждут подтверждения.',
       },
+
+      model: "Модель запуска",
+      modelHelp: "Используйте модель агента по умолчанию или выберите другую для этой автоматизации. Изменения применяются к последующим запускам.",
+      modelDefault: "Модель агента по умолчанию",
     },
     schedule: {
       kinds: {
@@ -312,6 +316,11 @@ export default {
       queued: 'Запуск начат',
       notFound: 'Автоматизация не найдена или удалена',
     },
+
+    conversationNotice: "Этот диалог выполняется автоматизацией. Отправка сообщений вручную недоступна. Обработайте ожидающие запросы выше.",
+    scheduleEnded: 'Завершено',
+    scheduleEndedHint: 'Время однократного запуска прошло. Запустите сейчас или измените время перед возобновлением.',
+    runConfirm: 'Запустить «{name}» сейчас? Дополнительный запуск не изменит расписание.',
   },
   notifications: {
     title: 'Уведомления',
@@ -324,6 +333,20 @@ export default {
       automation_awaiting_approval: 'Автоматизация ждёт подтверждения',
       automation_paused: 'Автоматизация приостановлена',
     },
+
+    pending: "Требуют внимания",
+    history: "История уведомлений",
+    clearRead: "Удалить прочитанные",
+    clearReadConfirm: "Удалить прочитанные уведомления? История запусков, диалоги и ожидающие действия сохранятся.",
+    handle: "Открыть",
+    review: "Рассмотреть",
+    unreadCount: "Непрочитанных: {count}",
+    unread: "Не прочитано",
+    newItems: "Новые уведомления — обновить",
+    loadError: "Не удалось загрузить уведомления",
+    awaitingApproval: "Ожидается ваше одобрение",
+    awaitingAuthorization: "Ожидается авторизация",
+    awaitingReply: "Ожидается ваш ответ",
   },
   toolbox: {
     "title": "Инструменты",
@@ -7291,6 +7314,24 @@ export default {
         clearSuccess: 'Значение рабочего пространства очищено.',
         valueTooLong: 'Значение не может превышать {max} байт.'
       },
+
+      allocationMode: 'Sandbox allocation',
+      allocationModeHint: 'Only affects sessions that have not used a sandbox yet; existing sessions keep their placement and files are never moved.',
+      allocationModeSession: 'One sandbox per session (default)',
+      allocationModeUser: "Share one sandbox across a user's sessions",
+      allocationModeUnavailable: 'Shared sandboxes are not enabled on this deployment (set WEKNORA_SANDBOX_USER_ALLOCATION=enabled on every replica; Redis is required).',
+      userSandboxRetentionDays: 'Keep an empty shared sandbox for (days)',
+      userSandboxRetentionHint: 'After every session on a shared sandbox is deleted, it is removed once it has been empty this long (1–90 days). This is not a minimum file retention: Docker idle cleanup or provider failures may remove it sooner.',
+      userSandboxesInInventory: "{count} of them are shared user sandboxes; each affects all of that user's sessions on this config.",
+      userSandboxesTitle: 'Shared user sandboxes',
+      userSandboxOwner: 'Owner',
+      userSandboxOwnerOtherWorkspace: 'A user from another workspace',
+      userSandboxLiveSessions: 'Sessions',
+      userSandboxEmptySince: 'Empty since',
+      userSandboxReclaimAfter: 'Reclaimed after',
+      userSandboxRelease: 'Release',
+      userSandboxReleaseConfirm: "Releasing deletes the files and installed packages of all of this user's sessions on this config; a new sandbox is created on next use. Release it?",
+      userSandboxBusy: 'A terminal, desktop or command is still running on this sandbox. Try again later.',
     },
     skills: {
       title: 'Управление навыками',

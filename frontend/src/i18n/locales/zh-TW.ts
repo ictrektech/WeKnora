@@ -6963,6 +6963,24 @@ export default {
         "valueTooLong": "單個值不能超過 {max} 字節。"
       },
       "skillTranscriptPrompt": "安裝指令"
+,
+      allocationMode: '沙箱分配方式',
+      allocationModeHint: '只影響還沒有用過沙箱的會話；已有會話保持原來的分配，不會搬遷檔案。',
+      allocationModeSession: '每個會話一台沙箱（預設）',
+      allocationModeUser: '同一使用者的會話共用一台沙箱',
+      allocationModeUnavailable: '目前部署未開啟共用沙箱（需在所有實例設定 WEKNORA_SANDBOX_USER_ALLOCATION=enabled，並設定 Redis）。',
+      userSandboxRetentionDays: '空置沙箱保留天數',
+      userSandboxRetentionHint: '某台共用沙箱上的會話全部刪除後，空置滿這個天數會被自動刪除（1–90 天）。這不是檔案最少保留時間：Docker 空閒回收或服務商故障可能更早刪除。',
+      userSandboxesInInventory: '其中 {count} 台是使用者共用沙箱，影響該使用者在此設定下的全部會話。',
+      userSandboxesTitle: '使用者共用沙箱',
+      userSandboxOwner: '使用者',
+      userSandboxOwnerOtherWorkspace: '其他空間的使用者',
+      userSandboxLiveSessions: '會話數',
+      userSandboxEmptySince: '空置起點',
+      userSandboxReclaimAfter: '預計回收',
+      userSandboxRelease: '釋放',
+      userSandboxReleaseConfirm: '釋放後，該使用者在此設定下全部會話的檔案和已安裝的套件都會遺失，下次使用時會新建沙箱。確定釋放？',
+      userSandboxBusy: '這台沙箱上還有終端、桌面或命令在執行，請稍後再試。',
     },
     "skills": {
       "title": "技能管理",
@@ -9134,6 +9152,10 @@ export default {
       "confirm": "每次修改前暫停並通知你審批；可在詳情裡把常用操作設為長期授權。",
       "auto_write": "可復原的修改直接執行；刪除等操作仍暫停等待審批。"
     }
+,
+    model: "執行模型",
+    modelHelp: "預設沿用智慧體的模型設定，也可以為此自動化單獨指定。修改後用於後續執行。",
+    modelDefault: "跟隨智慧體預設模型",
   },
   "schedule": {
     "kinds": {
@@ -9236,6 +9258,11 @@ export default {
     "queued": "已開始執行",
     "notFound": "自動化不存在或已刪除"
   }
+,
+  conversationNotice: "此對話由自動化任務執行，無法手動傳送訊息。請在上方處理待審批事項。",
+  scheduleEnded: '已結束',
+  scheduleEndedHint: '一次性排程已結束。可立即執行，或修改執行時間後恢復。',
+  runConfirm: '立即執行「{name}」？這會啟動一次額外執行，不影響原有排程。',
 },
 "notifications": {
   "title": "通知",
@@ -9248,6 +9275,20 @@ export default {
     "automation_awaiting_approval": "自動化等待審批",
     "automation_paused": "自動化已暫停"
   }
+,
+  pending: "待處理",
+  history: "通知記錄",
+  clearRead: "清理已讀",
+  clearReadConfirm: "清理已讀通知？不會刪除執行記錄、對話或待處理事項。",
+  handle: "去處理",
+  review: "去審批",
+  unreadCount: "{count} 則未讀",
+  unread: "未讀",
+  newItems: "有新通知，點擊重新整理",
+  loadError: "通知載入失敗",
+  awaitingApproval: "等待你確認操作",
+  awaitingAuthorization: "等待你完成授權",
+  awaitingReply: "等待你回覆",
 },
 "assistant": {
   "title": "Vivibit 助手",

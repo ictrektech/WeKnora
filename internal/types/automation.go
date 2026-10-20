@@ -102,6 +102,8 @@ type Automation struct {
 	// AgentID is the agent that runs it; the WeKnora assistant's ID runs the
 	// assistant.
 	AgentID string `json:"agent_id" gorm:"type:varchar(64);not null" extensions:"x-agent"`
+	// ModelID overrides the agent's chat model; empty follows the agent default.
+	ModelID string `json:"model_id" gorm:"type:varchar(64);not null;default:''" extensions:"x-agent"`
 	// Instruction is the task, sent as the user message of each run after
 	// its variables are filled in.
 	Instruction string            `json:"instruction" gorm:"type:text;not null" extensions:"x-agent,x-agent-detail"`
@@ -170,6 +172,9 @@ type AutomationRun struct {
 	Resume bool `json:"-" gorm:"not null;default:false"`
 	// CancelRequested stops the run at its next check.
 	CancelRequested bool `json:"cancel_requested" gorm:"not null;default:false"`
+	// ExecutionDurationMS accumulates execution segments across approvals;
+	// queued time and time spent waiting for an answer do not consume it.
+	ExecutionDurationMS int64 `json:"-" gorm:"not null;default:0"`
 	// Answer is the start of the final answer, for listings.
 	Answer     string     `json:"answer"      gorm:"type:text;not null;default:''" extensions:"x-agent,x-agent-response"`
 	Error      string     `json:"error"       gorm:"type:text;not null;default:''" extensions:"x-agent,x-agent-response"`
@@ -197,6 +202,8 @@ type AutomationPatch struct {
 	Description *string `json:"description" extensions:"x-agent"`
 	// Agent that runs it, from agent.list; empty runs the WeKnora assistant
 	AgentID *string `json:"agent_id" extensions:"x-agent"`
+	// Optional chat model from model.list; empty follows the agent default
+	ModelID *string `json:"model_id" extensions:"x-agent"`
 	// The task, sent as the user message of each run. May name now,
 	// last_run_at, last_success_at, run_id or automation_name inside double
 	// curly braces to have it filled in

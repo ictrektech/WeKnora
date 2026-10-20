@@ -113,6 +113,7 @@ func attachTenantlessUserContext(c *gin.Context, user *types.User) {
 		User:        user,
 		Principal:   types.Principal{Type: types.PrincipalWebUser, ID: user.ID},
 		SystemAdmin: user.IsSystemAdmin,
+		AuthSource:  types.AuthSourceWeb,
 	})
 }
 
@@ -541,6 +542,7 @@ func authenticateJWTUser(
 		Tenant:      tenant,
 		Role:        role,
 		SystemAdmin: user.IsSystemAdmin,
+		AuthSource:  types.AuthSourceWeb,
 	})
 	return true
 }
@@ -747,6 +749,7 @@ func attachPlatformAPIKeyAuthContext(c *gin.Context, key *types.TenantAPIKey) {
 			FullAccess:   false,
 			Capabilities: key.Capabilities,
 		},
+		AuthSource: types.AuthSourceAPIPlatformKey,
 	})
 }
 
@@ -782,12 +785,14 @@ func attachAPIKeyAuthContext(
 
 	var user *types.User
 	var principal types.Principal
+	var authSource string
 	if key != nil && key.IsPlatform() {
 		// A platform key keeps one stable machine identity while selecting the
 		// target workspace through X-Tenant-ID. Tenant API-principal modes and
 		// tenant-owned synthetic users must not rewrite that identity.
 		principal, user = platformAPIKeyIdentity(key)
 		user.TenantID = tenantID
+		authSource = types.AuthSourceAPIPlatformKey
 	} else {
 		if key != nil && strings.TrimSpace(key.OwnerUserID) != "" {
 			user, err = userService.GetUserByID(c.Request.Context(), strings.TrimSpace(key.OwnerUserID))
@@ -808,7 +813,7 @@ func attachAPIKeyAuthContext(
 		user.TenantID = tenantID
 
 		var principalErr error
-		principal, principalErr = resolveAPIPrincipal(c.Request.Context(), t, c.Request.Header)
+		principal, authSource, principalErr = resolveAPIPrincipal(c.Request.Context(), t, c.Request.Header)
 		if principalErr != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": apiPrincipalAuthErrorMessage(principalErr)})
 			c.Abort()
@@ -825,11 +830,12 @@ func attachAPIKeyAuthContext(
 		apiKeyTenantRoleContext = types.TenantRoleOwner
 	}
 	session := authSession{
-		User:      user,
-		Principal: principal,
-		TenantID:  tenantID,
-		Tenant:    t,
-		Role:      apiKeyTenantRoleContext,
+		User:       user,
+		Principal:  principal,
+		TenantID:   tenantID,
+		Tenant:     t,
+		Role:       apiKeyTenantRoleContext,
+		AuthSource: authSource,
 	}
 	if key != nil {
 		session.APIKeyScope = &types.TenantAPIKeyScope{
@@ -845,53 +851,52 @@ func attachAPIKeyAuthContext(
 	applyAuthSession(c, session)
 }
 
-func resolveAPIPrincipal(ctx context.Context, tenant *types.Tenant, header http.Header) (types.Principal, error) {
+func resolveAPIPrincipal(
+	ctx context.Context, tenant *types.Tenant, header http.Header,
+) (types.Principal, string, error) {
 	tenantID := uint64(0)
 	if tenant != nil {
 		tenantID = tenant.ID
 	}
-	fallback := types.Principal{
-		Type: types.PrincipalAPITenant,
-		ID:   strconv.FormatUint(tenantID, 10),
-	}
+	fallback := types.Principal{Type: types.PrincipalAPITenant, ID: strconv.FormatUint(tenantID, 10)}
 	if tenant == nil || tenantID == 0 {
-		return fallback, nil
+		return fallback, types.AuthSourceAPITenantKey, nil
 	}
 	cfg := tenant.APIPrincipalConfig
 	if cfg == nil || cfg.Mode == "" || cfg.Mode == types.APIPrincipalModeTenant {
-		return fallback, nil
+		return fallback, types.AuthSourceAPITenantKey, nil
 	}
 	switch cfg.Mode {
 	case types.APIPrincipalModeDirect:
 		externalUserID := strings.TrimSpace(header.Get(defaultExternalUserIDHeader))
 		if externalUserID == "" {
 			if cfg.RequireDirectHeader {
-				return types.Principal{}, errMissingDirectHeader
+				return types.Principal{}, "", errMissingDirectHeader
 			}
-			return fallback, nil
+			return fallback, types.AuthSourceAPITenantKey, nil
 		}
 		if err := validateExternalUserID(externalUserID); err != nil {
-			return types.Principal{}, fmt.Errorf("%w: %v", errInvalidExternalUserID, err)
+			return types.Principal{}, "", fmt.Errorf("%w: %v", errInvalidExternalUserID, err)
 		}
 		return types.Principal{
 			Type: types.PrincipalAPIExternalUser,
 			ID:   strconv.FormatUint(tenantID, 10) + ":" + externalUserID,
-		}, nil
+		}, types.AuthSourceAPIDirectHeader, nil
 	case types.APIPrincipalModeSignedToken:
 		externalUserID, err := verifyExternalUserJWT(header.Get(defaultExternalUserTokenHeader), tenantID, cfg.HMACSecret)
 		if err != nil || externalUserID == "" {
 			logger.Warnf(ctx, "invalid external user token for tenant=%d: %v", tenantID, err)
-			return types.Principal{}, fmt.Errorf("%w: %w", errInvalidExternalUserToken, err)
+			return types.Principal{}, "", fmt.Errorf("%w: %w", errInvalidExternalUserToken, err)
 		}
 		if err := validateExternalUserID(externalUserID); err != nil {
-			return types.Principal{}, fmt.Errorf("%w: %v", errInvalidExternalUserID, err)
+			return types.Principal{}, "", fmt.Errorf("%w: %v", errInvalidExternalUserID, err)
 		}
 		return types.Principal{
 			Type: types.PrincipalAPIExternalUser,
 			ID:   strconv.FormatUint(tenantID, 10) + ":" + externalUserID,
-		}, nil
+		}, types.AuthSourceAPISignedToken, nil
 	default:
-		return fallback, nil
+		return fallback, types.AuthSourceAPITenantKey, nil
 	}
 }
 

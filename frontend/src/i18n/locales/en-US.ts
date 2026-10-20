@@ -1953,6 +1953,24 @@ export default {
         clearSuccess: 'Workspace value cleared.',
         valueTooLong: 'A value cannot exceed {max} bytes.'
       },
+
+      allocationMode: 'Sandbox allocation',
+      allocationModeHint: 'Only affects sessions that have not used a sandbox yet; existing sessions keep their placement and files are never moved.',
+      allocationModeSession: 'One sandbox per session (default)',
+      allocationModeUser: "Share one sandbox across a user's sessions",
+      allocationModeUnavailable: 'Shared sandboxes are not enabled on this deployment (set WEKNORA_SANDBOX_USER_ALLOCATION=enabled on every replica; Redis is required).',
+      userSandboxRetentionDays: 'Keep an empty shared sandbox for (days)',
+      userSandboxRetentionHint: 'After every session on a shared sandbox is deleted, it is removed once it has been empty this long (1–90 days). This is not a minimum file retention: Docker idle cleanup or provider failures may remove it sooner.',
+      userSandboxesInInventory: "{count} of them are shared user sandboxes; each affects all of that user's sessions on this config.",
+      userSandboxesTitle: 'Shared user sandboxes',
+      userSandboxOwner: 'Owner',
+      userSandboxOwnerOtherWorkspace: 'A user from another workspace',
+      userSandboxLiveSessions: 'Sessions',
+      userSandboxEmptySince: 'Empty since',
+      userSandboxReclaimAfter: 'Reclaimed after',
+      userSandboxRelease: 'Release',
+      userSandboxReleaseConfirm: "Releasing deletes the files and installed packages of all of this user's sessions on this config; a new sandbox is created on next use. Release it?",
+      userSandboxBusy: 'A terminal, desktop or command is still running on this sandbox. Try again later.',
     },
     skills: {
       title: 'Skill Management',
@@ -9196,6 +9214,10 @@ export default {
       "confirm": "Each change pauses the run for your approval. Recurring ones can be allowed for good in the details.",
       "auto_write": "Reversible changes run directly; deletions and similar still pause for approval."
     }
+,
+    model: "Run model",
+    modelHelp: "Use the agent’s default model or choose one for this automation. Changes apply to future runs.",
+    modelDefault: "Use agent default",
   },
   "schedule": {
     "kinds": {
@@ -9298,6 +9320,11 @@ export default {
     "queued": "Run started",
     "notFound": "The automation no longer exists"
   }
+,
+  conversationNotice: "This conversation is run by an automation. Manual messages are unavailable; handle pending requests above.",
+  scheduleEnded: 'Ended',
+  scheduleEndedHint: 'This one-time schedule has ended. Run it now, or edit the run time before resuming.',
+  runConfirm: 'Run "{name}" now? This starts an extra run without changing its schedule.',
 },
 "notifications": {
   "title": "Notifications",
@@ -9310,6 +9337,20 @@ export default {
     "automation_awaiting_approval": "Automation needs approval",
     "automation_paused": "Automation paused"
   }
+,
+  pending: "Needs attention",
+  history: "Notification history",
+  clearRead: "Clear read",
+  clearReadConfirm: "Clear read notifications? Run records, conversations, and pending actions will be kept.",
+  handle: "Open",
+  review: "Review",
+  unreadCount: "{count} unread",
+  unread: "Unread",
+  newItems: "New notifications — refresh",
+  loadError: "Could not load notifications",
+  awaitingApproval: "Waiting for your approval",
+  awaitingAuthorization: "Waiting for authorization",
+  awaitingReply: "Waiting for your reply",
 },
 "assistant": {
   "title": "Vivibit Assistant",

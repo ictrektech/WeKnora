@@ -210,6 +210,10 @@ export default {
         confirm: '每次修改前暂停并通知你审批；可在详情里把常用操作设为长期授权。',
         auto_write: '可恢复的修改直接执行；删除等操作仍暂停等待审批。',
       },
+
+      model: "运行模型",
+      modelHelp: "默认沿用智能体的模型设置，也可以为此自动化单独指定。修改后用于后续运行。",
+      modelDefault: "跟随智能体默认模型",
     },
     schedule: {
       kinds: {
@@ -312,6 +316,11 @@ export default {
       queued: '已开始运行',
       notFound: '自动化不存在或已删除',
     },
+
+    conversationNotice: "此会话由自动化任务运行，不能手动发送消息。请在上方处理待审批事项。",
+    scheduleEnded: '已结束',
+    scheduleEndedHint: '一次性计划已结束。可立即运行，或修改运行时间后恢复。',
+    runConfirm: '立即运行「{name}」？这将启动一次额外运行，不影响原有计划。',
   },
   notifications: {
     title: '通知',
@@ -324,6 +333,20 @@ export default {
       automation_awaiting_approval: '自动化等待审批',
       automation_paused: '自动化已暂停',
     },
+
+    pending: "待处理",
+    history: "通知记录",
+    clearRead: "清理已读",
+    clearReadConfirm: "清理已读通知？不会删除运行记录、对话或待处理事项。",
+    handle: "去处理",
+    review: "去审批",
+    unreadCount: "{count} 条未读",
+    unread: "未读",
+    newItems: "有新通知，点击刷新",
+    loadError: "通知加载失败",
+    awaitingApproval: "等待你确认操作",
+    awaitingAuthorization: "等待你完成授权",
+    awaitingReply: "等待你回复",
   },
   toolbox: {
     "title": "工具箱",
@@ -7292,6 +7315,24 @@ export default {
         clearSuccess: '已清除空间共用值。',
         valueTooLong: '单个值不能超过 {max} 字节。'
       },
+
+      allocationMode: '沙箱分配方式',
+      allocationModeHint: '只影响还没有用过沙箱的会话；已有会话保持原来的分配，不会搬迁文件。',
+      allocationModeSession: '每个会话一台沙箱（默认）',
+      allocationModeUser: '同一用户的会话共用一台沙箱',
+      allocationModeUnavailable: '当前部署未开启共用沙箱（需在所有实例设置 WEKNORA_SANDBOX_USER_ALLOCATION=enabled，并配置 Redis）。',
+      userSandboxRetentionDays: '空置沙箱保留天数',
+      userSandboxRetentionHint: '某台共用沙箱上的会话全部删除后，空置满这个天数会被自动删除（1–90 天）。这不是文件最少保留时间：Docker 空闲回收或服务商故障可能更早删除。',
+      userSandboxesInInventory: '其中 {count} 台是用户共用沙箱，影响该用户在此配置下的全部会话。',
+      userSandboxesTitle: '用户共用沙箱',
+      userSandboxOwner: '用户',
+      userSandboxOwnerOtherWorkspace: '其他空间的用户',
+      userSandboxLiveSessions: '会话数',
+      userSandboxEmptySince: '空置起点',
+      userSandboxReclaimAfter: '预计回收',
+      userSandboxRelease: '释放',
+      userSandboxReleaseConfirm: '释放后，该用户在此配置下全部会话的文件和已安装的包都会丢失，下次使用时会新建沙箱。确定释放？',
+      userSandboxBusy: '这台沙箱上还有终端、桌面或命令在运行，请稍后再试。',
     },
     skills: {
       title: '技能管理',

@@ -72,6 +72,7 @@ type AutomationService struct {
 	messages interfaces.MessageService
 	grants   interfaces.AgentGrantRepository
 	notices  *NotificationService
+	models   interfaces.ModelService
 
 	sessions interfaces.SessionService
 	broker   *hitl.Broker
@@ -80,6 +81,8 @@ type AutomationService struct {
 	// Events publishes a run to its message's event stream; see
 	// AgentCollaboration.ChildEvents.
 	Events func(context.Context, *types.Session, *types.Message, *event.EventBus) func(context.Context) error
+	// StopDelegation fences children and discards recoverable parent waits.
+	StopDelegation func(context.Context, uint64, string, string, string) error
 
 	cfg      AutomationConfig
 	instance string
@@ -101,10 +104,11 @@ func NewAutomationService(
 	messages interfaces.MessageService,
 	grants interfaces.AgentGrantRepository,
 	notices *NotificationService,
+	models interfaces.ModelService,
 ) *AutomationService {
 	s := &AutomationService{
 		db: db, agents: agents, users: users, members: members, tenants: tenants,
-		messages: messages, grants: grants, notices: notices,
+		messages: messages, grants: grants, notices: notices, models: models,
 		instance: uuid.NewString(),
 		now:      time.Now,
 		wake:     make(chan struct{}, 1),
@@ -239,6 +243,9 @@ func applyAutomationPatch(a *types.Automation, p *types.AutomationPatch) {
 	if p.AgentID != nil {
 		a.AgentID = strings.TrimSpace(*p.AgentID)
 	}
+	if p.ModelID != nil {
+		a.ModelID = strings.TrimSpace(*p.ModelID)
+	}
 	if p.Instruction != nil {
 		a.Instruction = strings.TrimSpace(*p.Instruction)
 	}
@@ -283,6 +290,9 @@ func (s *AutomationService) validate(ctx context.Context, a *types.Automation) (
 		a.AgentID = types.BuiltinWeKnoraAssistantID
 	}
 	if _, err := s.runnableAgent(ctx, a.AgentID, a.TenantID); err != nil {
+		return nil, apperrors.NewBadRequestError(err.Error())
+	}
+	if err := s.validateModel(ctx, a.ModelID, a.TenantID); err != nil {
 		return nil, apperrors.NewBadRequestError(err.Error())
 	}
 	sched, err := automation.Parse(a.Trigger)
@@ -355,6 +365,22 @@ func (s *AutomationService) runnableAgent(ctx context.Context, id string, tenant
 	return agent, nil
 }
 
+func (s *AutomationService) validateModel(ctx context.Context, id string, tenantID uint64) error {
+	if id == "" {
+		return nil
+	}
+	if s.models == nil {
+		return errors.New("model service is unavailable")
+	}
+	model, err := s.models.GetModelByID(ctx, id)
+	if err != nil || model == nil || model.DeletedAt.Valid ||
+		(!model.IsBuiltin && model.TenantID != tenantID) ||
+		model.Type != types.ModelTypeKnowledgeQA || model.Status != types.ModelStatusActive {
+		return errors.New("the selected chat model is unavailable in this workspace")
+	}
+	return nil
+}
+
 // Create adds an automation owned by the caller.
 func (s *AutomationService) Create(ctx context.Context, p *types.AutomationPatch) (*types.Automation, error) {
 	tenantID, userID, err := automationOwner(ctx)
@@ -389,7 +415,7 @@ func (s *AutomationService) Create(ctx context.Context, p *types.AutomationPatch
 }
 
 var automationEditable = []string{
-	"name", "description", "agent_id", "instruction", "trigger_config", "session_mode", "carry_last_result",
+	"name", "description", "agent_id", "model_id", "instruction", "trigger_config", "session_mode", "carry_last_result",
 	"misfire_policy", "overlap_policy", "access_level", "approval_timeout_minutes", "limits",
 	"notify_on_success", "enabled", "next_run_at", "paused_reason", "consecutive_failures", "version",
 	"updated_at",
@@ -621,14 +647,35 @@ func (s *AutomationService) cancelRun(ctx context.Context, run *types.Automation
 			Update("cancel_requested", true).Error; err != nil {
 			return err
 		}
+		stopErr := s.stopRunDelegation(ctx, run)
 		s.mu.Lock()
 		cancel := s.running[run.ID]
 		s.mu.Unlock()
 		if cancel != nil {
 			cancel()
 		}
+		return stopErr
 	}
 	return nil
+}
+
+func (s *AutomationService) stopRunDelegation(ctx context.Context, run *types.AutomationRun) error {
+	if s.StopDelegation == nil {
+		return nil
+	}
+	// The caller may hold the row from before the executor created its turn.
+	var current types.AutomationRun
+	if err := s.db.WithContext(ctx).Where("id = ?", run.ID).Take(&current).Error; err != nil {
+		return err
+	}
+	if current.SessionID == "" || current.AssistantMessageID == "" {
+		return nil
+	}
+	a, err := s.automationOf(ctx, &current)
+	if err != nil {
+		return err
+	}
+	return s.StopDelegation(ctx, a.TenantID, a.OwnerUserID, current.SessionID, current.AssistantMessageID)
 }
 
 // closePrompt ends the open prompt id a run waits on and completes the

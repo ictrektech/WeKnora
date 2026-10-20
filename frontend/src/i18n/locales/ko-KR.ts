@@ -210,6 +210,10 @@ export default {
         confirm: '변경할 때마다 일시 중지하고 승인을 요청합니다. 자주 쓰는 작업은 상세에서 상시 승인할 수 있습니다.',
         auto_write: '되돌릴 수 있는 변경은 바로 실행하고, 삭제 등은 여전히 승인을 기다립니다.',
       },
+
+      model: "실행 모델",
+      modelHelp: "에이전트의 기본 모델을 사용하거나 이 자동화에 사용할 모델을 선택하세요. 변경 사항은 다음 실행부터 적용됩니다.",
+      modelDefault: "에이전트 기본 모델 사용",
     },
     schedule: {
       kinds: {
@@ -312,6 +316,11 @@ export default {
       queued: '실행을 시작했습니다',
       notFound: '자동화가 없거나 삭제되었습니다',
     },
+
+    conversationNotice: "자동화 작업이 실행하는 대화입니다. 메시지를 직접 보낼 수 없습니다. 대기 중인 요청은 위에서 처리하세요.",
+    scheduleEnded: '종료됨',
+    scheduleEndedHint: '일회성 일정이 종료되었습니다. 지금 실행하거나 실행 시간을 변경한 후 재개하세요.',
+    runConfirm: '"{name}"을(를) 지금 실행할까요? 기존 일정을 변경하지 않고 추가로 실행합니다.',
   },
   notifications: {
     title: '알림',
@@ -324,6 +333,20 @@ export default {
       automation_awaiting_approval: '자동화 승인 필요',
       automation_paused: '자동화 일시 중지',
     },
+
+    pending: "처리 필요",
+    history: "알림 기록",
+    clearRead: "읽은 알림 삭제",
+    clearReadConfirm: "읽은 알림을 삭제할까요? 실행 기록, 대화 및 처리 대기 항목은 유지됩니다.",
+    handle: "열기",
+    review: "승인 검토",
+    unreadCount: "읽지 않음 {count}개",
+    unread: "읽지 않음",
+    newItems: "새 알림이 있습니다. 새로고침",
+    loadError: "알림을 불러오지 못했습니다",
+    awaitingApproval: "작업 승인 대기 중",
+    awaitingAuthorization: "인증 완료 대기 중",
+    awaitingReply: "답변 대기 중",
   },
   toolbox: {
     "title": "도구함",
@@ -7291,6 +7314,24 @@ export default {
         clearSuccess: '워크스페이스 공용 값을 삭제했습니다.',
         valueTooLong: '값 하나는 {max}바이트를 초과할 수 없습니다.'
       },
+
+      allocationMode: 'Sandbox allocation',
+      allocationModeHint: 'Only affects sessions that have not used a sandbox yet; existing sessions keep their placement and files are never moved.',
+      allocationModeSession: 'One sandbox per session (default)',
+      allocationModeUser: "Share one sandbox across a user's sessions",
+      allocationModeUnavailable: 'Shared sandboxes are not enabled on this deployment (set WEKNORA_SANDBOX_USER_ALLOCATION=enabled on every replica; Redis is required).',
+      userSandboxRetentionDays: 'Keep an empty shared sandbox for (days)',
+      userSandboxRetentionHint: 'After every session on a shared sandbox is deleted, it is removed once it has been empty this long (1–90 days). This is not a minimum file retention: Docker idle cleanup or provider failures may remove it sooner.',
+      userSandboxesInInventory: "{count} of them are shared user sandboxes; each affects all of that user's sessions on this config.",
+      userSandboxesTitle: 'Shared user sandboxes',
+      userSandboxOwner: 'Owner',
+      userSandboxOwnerOtherWorkspace: 'A user from another workspace',
+      userSandboxLiveSessions: 'Sessions',
+      userSandboxEmptySince: 'Empty since',
+      userSandboxReclaimAfter: 'Reclaimed after',
+      userSandboxRelease: 'Release',
+      userSandboxReleaseConfirm: "Releasing deletes the files and installed packages of all of this user's sessions on this config; a new sandbox is created on next use. Release it?",
+      userSandboxBusy: 'A terminal, desktop or command is still running on this sandbox. Try again later.',
     },
     skills: {
       title: '스킬 관리',
