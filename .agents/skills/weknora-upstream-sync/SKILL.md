@@ -72,6 +72,7 @@ comm -12 \
 - `upstream/main` 已成功获取，且已经审查变更规模和重叠文件。
 - 双方共同修改的文件已逐个做语义审查；无 Git 冲突也不能视为代码正确。
 - 执行来源文档的[本地兼容保留检查](../../../ictrek.app/docs/upstream-sync.md#本地兼容保留检查)，记录受影响行为及替代测试。
+- 执行[迁移历史与升级验证](../../../ictrek.app/docs/upstream-sync.md#迁移历史与升级验证)中的合并前历史审查，确认两套迁移目录各自的既有历史上界及新增迁移依赖。
 - 重点审查 `ictrek.app/*`、`build_image.sh`、`docker-compose.override.yml`、`docker/Dockerfile.frontend*`、`config/builtin_models.yaml`、`config/prompt_templates/*.yaml`、登录页和用户菜单等本地定制面。
 
 ## 合并策略
@@ -113,14 +114,14 @@ git diff --cc <conflicted-file>
 git add <resolved-file>
 ~~~
 
-迁移编号是跨分支、跨部署环境的全局历史标识，不能只看文件名冲突是否被 Git 标记。迁移文件发生冲突时必须：
+每次同步都执行来源文档的[迁移历史与升级验证](../../../ictrek.app/docs/upstream-sync.md#迁移历史与升级验证)，不以 Git 冲突或重复编号为触发条件。必须遵守：
 
-1. 检查 `migrations/versioned/` 和 `migrations/sqlite/` 中每个数字编号是否唯一，以及每个编号是否有匹配的 `.up.sql`/`.down.sql` 对。
-2. 保留目标 fork 已经发布或可能已执行的迁移编号；不要重编号已有部署使用过的迁移。
-3. 对后合入且占用已有编号的迁移分配目标 fork 中下一个未使用的编号，同时用 `git mv` 成对重命名 `.up.sql` 和 `.down.sql`。
-4. 同步更新迁移文件内的镜像注释、文档链接、测试期望和版本说明；不能只改文件名。
+- 分别核对 `migrations/versioned/` 和 `migrations/sqlite/` 的新增、修改、删除及重命名，记录既有历史最高编号；已发布或可能已执行的迁移保持编号、路径和内容不变。
+- 新合入迁移的编号必须高于对应数据库的既有历史上界（按来源文档确认），不能填补旧空号。没有重号的低编号迁移也会被存量数据库跳过；按依赖顺序追加，使用 `git mv` 成对移动尚未进入 fork 部署历史的迁移，并同步注释、引用和测试。
+- 已进入 fork 历史的迁移若漏执行或结构不符，保留旧文件，追加补偿迁移；逐项检查实际结构和数据，不凭 `dirty=false` 判定完整。不得清空业务库、回退业务库迁移或手动修改迁移版本来通过验证。
+- 涉及迁移变更时，必须在隔离数据库完成空库全量迁移和受支持旧版本升级；验证字段类型、约束、数据保留、受影响接口及补偿迁移重复执行。缺少环境或基线时明确标为 `待验证`，不得报告迁移验证通过。
 
-当前 fork 的 `000097`–`000114` 已属于本地历史时，上游新增的 `000097`–`000102` 应顺延到 `000115`–`000120`，而不是重命名本地旧迁移。完成重编号后，在提交 merge 前必须运行本地门禁：
+在启动本地后端或提交 merge 前必须运行：
 
 ~~~bash
 bash scripts/check-migration-files.sh migrations/versioned
@@ -128,7 +129,7 @@ bash scripts/check-migration-files.sh migrations/sqlite
 git diff --check
 ~~~
 
-`check-migration-files.sh` 会拒绝重复编号、缺失配对文件、`.up.sql`/`.down.sql` 名称不一致和非法文件名。任一命令失败都不能启动本地后端或提交 merge；先修复迁移集合，再继续验证。需要时再用空数据库执行 PostgreSQL 全量迁移，确认不仅文件名有效，SQL 也能从版本 0 升级完成。
+`check-migration-files.sh` 仅检查文件名和配对，不检查历史内容、低编号新增迁移或存量数据库结构。任一命令失败都不能启动本地后端或提交 merge；检查通过仍须完成上述升级验证。
 
 完成冲突处理后先暂存并检查，验证通过前不要提交 merge：
 
@@ -159,7 +160,7 @@ git status --short --branch
 - `ictrek.app` 打包模板、镜像或迁移：按 `ictrek.app/docs/build-images.md` 和 VOS 文档选择相应验证。
 - 不要因为上游同步自动重启远程部署或发布镜像；部署、构建和发布必须由用户另行授权。
 
-`.github/workflows/vos-migration-check.yml` 只会在匹配路径的 `pull_request`，或推送到远端 `main` 后运行；本地 `git merge`、本地 `git commit` 和本地开发后端启动不会触发 GitHub Actions。该工作流会先运行 `scripts/check-migration-files.sh migrations/versioned`，再在空 PostgreSQL 数据库执行全量迁移，因此能拦截重复编号，但不能替代本地门禁，也不会检查 SQLite 迁移或当前本地开发数据库。未推送的本地合并必须把上面的检查命令视为必需步骤。
+`.github/workflows/vos-migration-check.yml` 只会在匹配路径的 `pull_request`，或推送到远端 `main` 后运行；本地 merge、commit 和后端启动不会触发。它检查 PostgreSQL 迁移文件并在空库全量执行，不覆盖 SQLite、存量升级或当前开发库。该工作流通过不能替代本地门禁和升级验证。
 
 验证通过后提交 merge：
 
@@ -197,6 +198,7 @@ git push
 - 获取的 `upstream/main` 提交和合并目标分支。
 - 是否产生 merge commit，以及实际解决的冲突文件和关键取舍。
 - 执行过的验证命令及结果；未执行的验证说明原因。
+- 迁移涉及的数据库类型、历史上界及依据、新旧编号映射、隔离验证基线、最终 `version/dirty`、结构与数据检查及接口结果；区分空库通过与存量升级通过，未验证环境单独列出。
 - 受影响的本地兼容契约、保留/迁移/废弃结果、对应测试证据及待验证项。
 - 子仓库和父仓库是否已提交、是否已推送。
 - 剩余风险，例如未配置 `upstream`、远程推送未授权、迁移编号待复核或部署未验证。

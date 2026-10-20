@@ -5,9 +5,9 @@
 | 项目 | 当前要求 |
 | --- | --- |
 | 支持 | 人工审查本地定制、兼容契约（已有配置必须保持的行为）及测试迁移 |
-| 必需 | 删除或重构定制实现时，逐项确认行为去向并运行对应回归测试 |
-| 未实现 | 自动发现全部 fork 定制或阻断兼容回归的专用 CI 门禁 |
-| 下一步 | 按下文固定提交，完成本地兼容保留检查后再合并 |
+| 必需 | 保留定制行为及已执行迁移历史；迁移变更须验证空库安装与存量升级 |
+| 未实现 | 自动发现全部 fork 定制、低编号新增迁移及存量升级回归的专用 CI 门禁 |
+| 下一步 | 固定提交，审查本地兼容与迁移历史，合并后完成对应验证再提交 |
 
 ## 2026-10-20 本地整合记录
 
@@ -104,13 +104,64 @@ git diff --name-status --find-renames "$base" "$upstream_target"
 
 历史案例：`f735f55c0` 删除旧思考适配及测试时遗漏了上述两项兼容，因此必须检查行为和测试的迁移去向。
 
-审查完成后，合并已固定的上游提交：
+完成本地兼容审查及下文[迁移历史与升级验证](#迁移历史与升级验证)的合并前历史审查后，合并已固定的上游提交：
 
 ```bash
 git merge --no-ff --no-commit "$upstream_target"
 ```
 
 `--no-ff` 保留 merge 拓扑，`--no-commit` 将提交留到验证通过后。
+
+## 迁移历史与升级验证
+
+每次同步都审查迁移差异，包括没有 Git 冲突、没有重复编号的情况。迁移工具按当前版本继续向前执行；`dirty=false` 只表示未标记为迁移中断，不证明历史字段和约束齐全。空库测试也不能证明存量升级成功。
+
+### 历史审查与编号
+
+合并前查看上游差异，合并并暂存后对照 `fork_before` 复核。禁用重命名识别，让旧路径的删除与新路径的新增都可见：
+
+```bash
+git diff --name-status --no-renames "$base" "$upstream_target" -- migrations/versioned/ migrations/sqlite/
+git diff --cached --name-status --no-renames "$fork_before" -- migrations/versioned/ migrations/sqlite/
+```
+
+两套目录独立编号、独立验证，不能相互比较版本大小。每套目录分别执行以下规则：
+
+1. 确认既有历史上界（不能被新迁移插入到其之前的最高编号）：取 `fork_before` 中的最高编号、受支持已发布版本的最高编号，以及已知目标环境的迁移版本三者的最大值。读取环境状态限于已授权范围；记录发布基线、版本及依据，不假定所有环境与本机相同。历史上界无法确认时，标记 `待验证`，不得宣称存量升级安全。
+2. 已发布或可能已执行的 `.up.sql` 和 `.down.sql` 保持编号、路径和内容不变。上游修改、删除或重命名这些文件时保留 fork 原文件，把需要的结构或数据修正写入追加迁移。
+3. 新进入 fork 部署历史的迁移必须高于该上界，按依赖顺序连续追加；禁止填补历史空号。未与已有文件重号但低于上界的迁移也必须追加。仅对尚未进入 fork 部署历史的上游文件使用 `git mv` 成对重编号；同步文件内注释、文档链接、测试期望和版本引用。
+4. 上游变更已由 fork 等效实现时，先核对结构、数据语义及依赖，再记录映射和不重复执行的依据，不能机械重复搬运 SQL（数据库操作语句）。
+
+目标数据库版本高于当前代码迁移集时，先确认其代码版本和额外迁移来源，不能只按本地最大编号分配新号或直接启动后端。
+
+例如，既有历史上界为 `141`，新合入的 `122` 即使没有编号冲突，也必须追加到 `142` 或更高的可用编号。如果旧 `122` 已在 fork 历史中、但某个版本为 `150` 的库缺少其字段，则保留旧文件，在确认历史上界后追加更高编号的补偿迁移；不能改旧文件期待它重新执行。
+
+补偿迁移应检查实际对象的类型、可空性、约束及数据。`ADD COLUMN IF NOT EXISTS` 只避免重名错误，不能修正已存在但类型错误的列。重复执行的安全性也应覆盖数据修正语句。
+
+### 必需验证与完成条件
+
+启动本地后端或提交合并前，先运行现有文件检查：
+
+```bash
+bash scripts/check-migration-files.sh migrations/versioned
+bash scripts/check-migration-files.sh migrations/sqlite
+git diff --check
+```
+
+这些命令只验证文件名、配对及差异格式，不验证历史不可变、低编号新增或数据库结构。失败时先修复，不得启动后端或提交合并。
+
+涉及迁移变更时，对受影响的数据库类型完成以下隔离验证。使用独立数据库或备份副本，禁止在业务库上试验、清库、回退迁移或手动修改迁移版本；不得用 `force` 或自动恢复 dirty 状态掩盖失败。
+
+| 验证路径 | 基线与验收条件 |
+| --- | --- |
+| 空库安装 | 使用合并后的完整迁移集从空库执行；检查最终 `version/dirty` 和受影响字段、类型、可空性、约束及索引。 |
+| 存量升级 | 至少覆盖上一发布版本；其他受支持版本有不同结构或数据路径时补充覆盖。用对应版本原始迁移集建库并写入代表性数据，或恢复备份副本，再切换到新迁移集执行升级。检查数据内容和关联保留，以及预期的数据转换，不能只看行数。 |
+| 历史漏项修复 | 在高版本但缺少目标对象的隔离副本上验证补偿迁移；同时覆盖对象已存在的正常库。补偿 SQL 重复执行后数据及结构仍符合预期，迁移工具再次升级应无待执行项。 |
+| 功能验证 | 调用受影响的真实接口并核对数据库写入和错误日志。异步安装等流程分别记录请求受理、记录写入和最终任务状态，`202` 不等于安装完成。 |
+
+记录基线提交或备份来源、初始与最终 `version/dirty`、新旧编号映射、结构及数据断言、接口结果和未覆盖环境。没有可用环境或基线时，明确列为 `待验证`；允许保存合并工作供审查，但不得报告迁移验证通过或同步验证完成。部署、重启和发布仍遵守原有授权范围。
+
+**已实现：** `scripts/check-migration-files.sh` 的文件检查，以及 `.github/workflows/vos-migration-check.yml` 的空 PostgreSQL 全量迁移检查。**未实现：** 低编号新增、已发布迁移内容不可变和存量升级的专用自动检查；上述人工审查与隔离验证不能由现有工作流通过代替。
 
 ## 合并后检查
 
@@ -303,28 +354,12 @@ After resolving each conflict:
 git add <resolved-file>
 ```
 
-Migration numbers are global history across branches and deployments. A Git
-merge can succeed while the migration source is still invalid. Before
-committing the merge:
-
-```bash
-bash scripts/check-migration-files.sh migrations/versioned
-bash scripts/check-migration-files.sh migrations/sqlite
-git diff --check
-```
-
-Keep migration numbers already published by the fork. If an incoming upstream
-migration uses one of those numbers, assign it the next unused number and
-rename its `.up.sql` and `.down.sql` files together with `git mv`. Update
-comments, documentation links, tests, and version references as well. For
-example, if the fork already owns `000097`–`000114`, incoming upstream
-`000097`–`000102` must become `000115`–`000120`; never rename the existing
-fork migrations.
-
-The checker rejects duplicate numbers, missing pairs, mismatched `.up.sql` /
-`.down.sql` names, and malformed filenames. Do not start the local backend or
-commit the merge while either checker fails. When practical, also execute the
-PostgreSQL migrations from an empty database.
+For every sync, follow [migration history and upgrade validation](#迁移历史与升级验证),
+even without conflicts. That section is the source of truth for numbering,
+immutable history, compensation migrations, and required isolated tests.
+New incoming migrations must be above the existing history ceiling for their
+database type; an unused lower number can still be skipped by existing databases.
+The file checker and empty-database workflow do not prove upgrade safety.
 
 After resolving conflicts, stage and inspect the result. Do not commit before
 the verification gates pass:
