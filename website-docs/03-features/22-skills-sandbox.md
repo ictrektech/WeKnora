@@ -55,6 +55,8 @@
 
 来源必须可匿名读取，下载不会附带用户的私有仓库凭据。私有技能可先导出 ZIP。`owner/slug` 有歧义，应改用 `@owner/slug` 或完整 URL。
 
+来源链接由应用服务器下载并解析，GitHub 来源会从 `codeload.github.com` 下载整个仓库压缩包，再提取技能目录；服务器需能直连该站点，当前下载器不读取 `HTTP_PROXY`/`HTTPS_PROXY`。单次来源下载最长 5 分钟。若服务器不能直连 GitHub，可在本机下载技能目录，将目录内文件压缩成 ZIP，并确保 `SKILL.md` 位于 ZIP 根目录后上传。
+
 技能包上限独立于普通文档：`MAX_SKILL_BUNDLE_SIZE_MB` 默认 256 MiB，未设置时至少为 `MAX_FILE_SIZE_MB`，最高 512 MiB。GitHub 下载按整个仓库压缩包计算，不只计算技能子目录。调整后重启 app 和 frontend，使应用与 Nginx 上限一致。
 
 ## 选择沙箱后端

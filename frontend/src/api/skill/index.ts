@@ -71,7 +71,7 @@ export function listSkillCatalog() {
 
 export function registerSkillCatalogFromSource(source: string) {
   return post<{ data: SkillCatalogRegisterResult }>('/api/v1/skills/catalog', { source }, {
-    timeout: 2 * 60 * 1000,
+    timeout: 6 * 60 * 1000,
   });
 }
 

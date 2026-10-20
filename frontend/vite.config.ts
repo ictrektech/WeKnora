@@ -174,10 +174,10 @@ export default defineConfig({
         // 沙箱终端等 WebSocket 升级请求也走 /api，必须开启 WS 转发，
         // 否则浏览器侧握手失败、前端表现为"一直正在连接"。
         ws: true,
-        // Cube fork snapshots pause a live MicroVM; 30s axios/proxy defaults
-        // abort the POST and the backend then 500s on a canceled persist.
-        timeout: 180_000,
-        proxyTimeout: 180_000,
+        // Cube forks may pause a live MicroVM; source registration may fetch a
+        // GitHub archive for 5 minutes. Keep this above backend/client budgets.
+        timeout: 420_000,
+        proxyTimeout: 420_000,
       },
       '/files': {
         target: DEV_PROXY_TARGET,
@@ -205,8 +205,8 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         ws: true,
-        timeout: 180_000,
-        proxyTimeout: 180_000,
+        timeout: 420_000,
+        proxyTimeout: 420_000,
       },
       '/files': {
         target: DEV_PROXY_TARGET,
