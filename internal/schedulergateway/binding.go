@@ -16,7 +16,14 @@ import (
 
 const AppID = "com.ictrek.hybrag"
 const Endpoint = "/api/v1/scheduler/gateway-binding"
-const Gateway = "http://v-scheduler-gateway:8080/v1"
+
+// Gateway is the primary unified V-Scheduler inference origin.
+const Gateway = "http://v-scheduler:8080/v1"
+
+// 仅允许统一容器及其固定兼容别名，保留已有绑定和模型配置。
+func trustedGateway(value string) bool {
+	return value == Gateway || value == "http://v-scheduler-gateway:8080/v1"
+}
 
 var bindingMutex sync.Mutex
 var tokenPattern = regexp.MustCompile(`^vs-app-[a-f0-9]{64}$`)
@@ -33,7 +40,7 @@ type Binding struct {
 func Backend() string {
 	backend := os.Getenv("HYBRAG_MODEL_BACKEND")
 	if backend == "auto" {
-		if _, err := net.LookupHost("v-scheduler-gateway"); err == nil {
+		if _, err := net.LookupHost("v-scheduler"); err == nil {
 			return "scheduler"
 		}
 	}
@@ -49,7 +56,8 @@ func bindingPath() string {
 
 func (binding Binding) valid() bool {
 	return binding.ProtocolVersion == 1 && binding.BindingRevision > 0 && binding.AppID == AppID &&
-		binding.URL == Gateway && binding.Scope == "gateway-inference-v1" && tokenPattern.MatchString(binding.Token)
+		trustedGateway(binding.URL) && binding.Scope == "gateway-inference-v1" &&
+		tokenPattern.MatchString(binding.Token)
 }
 
 func readBinding(filename string) (Binding, error) {
@@ -141,7 +149,13 @@ func (store *Store) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 	writer.Header().Set("Cache-Control", "no-store")
 	if request.Method == http.MethodGet {
 		binding, err := readBinding(store.Filename)
-		json.NewEncoder(writer).Encode(map[string]any{"protocol_version": 1, "app_id": AppID, "capabilities": []string{"gateway-inference-v1"}, "binding_endpoint": Endpoint, "backend": Backend(), "configured": err == nil && Backend() == "scheduler", "binding_revision": binding.BindingRevision})
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"protocol_version": 1, "app_id": AppID,
+			"capabilities":     []string{"gateway-inference-v1", "canonical-v-scheduler-v1"},
+			"binding_endpoint": Endpoint, "backend": Backend(),
+			"configured":       err == nil && Backend() == "scheduler",
+			"binding_revision": binding.BindingRevision,
+		})
 		return
 	}
 	if request.Method != http.MethodPost {

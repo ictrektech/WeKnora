@@ -20,7 +20,8 @@ func TestSchedulerCatalogUsesServerBindingAndReturnsOnlyIDs(t *testing.T) {
 	original := http.DefaultTransport
 	defer func() { http.DefaultTransport = original }()
 	http.DefaultTransport = schedulerCatalogTransport(func(r *http.Request) (*http.Response, error) {
-		if r.URL.String() != "http://v-scheduler-gateway:8080/v1/models" || r.Header.Get("Authorization") != "Bearer fixture-private-key" {
+		if r.URL.String() != "http://v-scheduler:8080/v1/models" ||
+			r.Header.Get("Authorization") != "Bearer fixture-private-key" {
 			t.Fatal("incorrect gateway request")
 		}
 		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"data":[{"id":"registered/chat","secret":"hidden"},{"id":"registered/chat"},{"id":"embedding/bge"},{"id":""}]}`))}, nil
