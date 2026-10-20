@@ -521,3 +521,5 @@ Open Add Model in model settings, choose a registered Router model visible to th
 当前应用绑定仅允许聊天（含视觉）、Embedding 和 ReRank；ASR 继续使用原有独立配置。个人私有上游不会因应用绑定而自动共享给 HybRAG。
 
 The current app binding permits chat (including vision), embeddings and reranking. ASR keeps its existing separate configuration. Private personal upstreams are not automatically shared with the HybRAG app.
+
+新安装推荐 `http://v-scheduler:8080`；`v-scheduler-gateway`、`v-router` 为固定兼容地址。后台私有身份支持前两个精确来源；`v-router` 旧记录仅允许重新绑定，避免与独立旧网关共存时发送凭据。通过能力协商迁移到正式地址，保留凭据及单调递增的 revision。显式配置和旧模型记录不自动改写。

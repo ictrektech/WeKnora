@@ -927,8 +927,8 @@ const schedulerModels = ref<string[]>([])
 const schedulerEnabled = ref(false)
 const schedulerLoading = ref(false)
 const schedulerError = ref('')
-const schedulerBaseURL = 'http://v-scheduler-gateway:8080/v1'
-const schedulerSelection = computed(() => formData.value.baseUrl === schedulerBaseURL ? formData.value.modelName : '')
+const schedulerBaseURL = 'http://v-scheduler:8080/v1'
+const schedulerSelection = computed(() => [schedulerBaseURL, 'http://v-scheduler-gateway:8080/v1'].includes(formData.value.baseUrl || '') ? formData.value.modelName : '')
 const loadSchedulerModels = async () => {
   schedulerLoading.value = true
   schedulerError.value = ''

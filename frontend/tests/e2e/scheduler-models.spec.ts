@@ -42,7 +42,7 @@ test('registered Scheduler models can be selected, refreshed and saved without c
   await scheduler.locator('.t-select').click()
   await page.getByText('registered/qwen-chat', { exact: true }).click()
   await expect(scheduler.locator('input')).toHaveValue('registered/qwen-chat')
-  expect(await page.locator('input').evaluateAll(inputs => inputs.some(input => (input as HTMLInputElement).value === 'http://v-scheduler-gateway:8080/v1'))).toBe(true)
+  expect(await page.locator('input').evaluateAll(inputs => inputs.some(input => (input as HTMLInputElement).value === 'http://v-scheduler:8080/v1'))).toBe(true)
   available = false
   await scheduler.getByRole('button').click()
   await scheduler.locator('.t-select').click()
@@ -52,7 +52,7 @@ test('registered Scheduler models can be selected, refreshed and saved without c
   await page.locator('.t-drawer__footer').getByRole('button', { name: /Save|保存|Confirm|确认/i }).last().click()
   await expect.poll(() => page.evaluate(() => (window as any).savedModel)).toMatchObject({
     modelName: 'registered/new-model', source: 'remote', provider: 'generic',
-    baseUrl: 'http://v-scheduler-gateway:8080/v1', apiKey: '',
+    baseUrl: 'http://v-scheduler:8080/v1', apiKey: '',
   })
   expect(errors).toEqual([])
 })

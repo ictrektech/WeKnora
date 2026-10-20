@@ -4,11 +4,11 @@
 
 仅存在旧 Model Hub 时沿用已有 `hybrag-ollama-*` 模型 ID，保留知识库引用；两套服务并存时，这些 ID 接入统一后端，旧服务以独立 `hybrag-modelhub-*` ID 补充显示。
 
-统一后端使用 `HYBRAG_V_ROUTER_URL`（默认 `http://v-scheduler-gateway:8080`）的 `/v1` API，独立别名由 V-Scheduler 0.0.28 提供，避免旧 Router 同名 DNS 冲突。QA、图片理解、Embedding、Rerank 分别使用 `v-scheduler/ollama-qa/<HYBRAG_QA_MODEL>`、相同 QA 模型、`v-scheduler/ollama-embedding/<HYBRAG_EMBEDDING_MODEL>`、`v-scheduler/ollama-rerank/<HYBRAG_RERANK_MODEL>`。原生模型必须已安装并出现在统一模型目录。Embedding 默认保留 1024 维 bge-m3；已有知识库变更模型需要重新索引。
+统一后端使用 `HYBRAG_V_ROUTER_URL`（默认 `http://v-scheduler:8080`）的 `/v1` API，独立别名由 V-Scheduler 0.0.28 提供，避免旧 Router 同名 DNS 冲突。QA、图片理解、Embedding、Rerank 分别使用 `v-scheduler/ollama-qa/<HYBRAG_QA_MODEL>`、相同 QA 模型、`v-scheduler/ollama-embedding/<HYBRAG_EMBEDDING_MODEL>`、`v-scheduler/ollama-rerank/<HYBRAG_RERANK_MODEL>`。原生模型必须已安装并出现在统一模型目录。Embedding 默认保留 1024 维 bge-m3；已有知识库变更模型需要重新索引。
 
 统一后端通过 `/api/v1/scheduler/gateway-binding` 声明能力并接收 V-Scheduler 自动下发的受限网关身份。
 POST 仅接受 VOS userinfo 核验为启用的 `com.ictrek.v-scheduler` 应用，固定网关为
-`http://v-scheduler-gateway:8080/v1`；修订必须递增，同修订同内容可重试。凭据原子保存在持久化
+`http://v-scheduler:8080/v1`；修订必须递增，同修订同内容可重试。凭据原子保存在持久化
 `/data/scheduler-gateway.local.json`（0600），不进入模型数据库、浏览器响应或日志。
 四个内置统一模型每次实际请求都会重新读取私有凭据，已有后台索引客户端无需重启即可轮换；
 请求仅可发到固定网关的模型列表、聊天、Embedding 和 Rerank 路径，禁止跟随重定向。

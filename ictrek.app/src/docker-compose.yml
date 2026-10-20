@@ -81,7 +81,7 @@ x-hybrag-app-env: &id001
   DOCREADER_ADDR: hybrag-docreader:50051
   DOCREADER_TRANSPORT: grpc
   OLLAMA_BASE_URL: http://model-hub-ollama-qa:11434
-  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-v-scheduler-gateway,model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+  SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-v-scheduler,v-scheduler-gateway,v-router,model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
   BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
   WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -123,7 +123,7 @@ x-hybrag-app-env: &id001
   WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
   HYBRAG_DEFAULT_BUILTIN_MODELS: 'true'
   HYBRAG_MODEL_BACKEND: ${HYBRAG_MODEL_BACKEND:-auto}
-  HYBRAG_V_ROUTER_URL: ${HYBRAG_V_ROUTER_URL:-http://v-scheduler-gateway:8080}
+  HYBRAG_V_ROUTER_URL: ${HYBRAG_V_ROUTER_URL:-http://v-scheduler:8080}
   HYBRAG_LEGACY_V_ROUTER_URL: ${HYBRAG_LEGACY_V_ROUTER_URL:-}
   HYBRAG_LEGACY_V_ROUTER_API_KEY: ${HYBRAG_LEGACY_V_ROUTER_API_KEY:-}
   HYBRAG_V_ROUTER_API_KEY: ${HYBRAG_V_ROUTER_API_KEY:-}
@@ -269,7 +269,7 @@ services:
       DOCREADER_ADDR: hybrag-docreader:50051
       DOCREADER_TRANSPORT: grpc
       OLLAMA_BASE_URL: http://model-hub-ollama-qa:11434
-      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-v-scheduler-gateway,model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-v-scheduler,v-scheduler-gateway,v-router,model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
       CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
       BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
       WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -311,7 +311,7 @@ services:
       WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
       HYBRAG_DEFAULT_BUILTIN_MODELS: 'true'
       HYBRAG_MODEL_BACKEND: ${HYBRAG_MODEL_BACKEND:-auto}
-      HYBRAG_V_ROUTER_URL: ${HYBRAG_V_ROUTER_URL:-http://v-scheduler-gateway:8080}
+      HYBRAG_V_ROUTER_URL: ${HYBRAG_V_ROUTER_URL:-http://v-scheduler:8080}
       HYBRAG_LEGACY_V_ROUTER_URL: ${HYBRAG_LEGACY_V_ROUTER_URL:-}
       HYBRAG_LEGACY_V_ROUTER_API_KEY: ${HYBRAG_LEGACY_V_ROUTER_API_KEY:-}
       HYBRAG_V_ROUTER_API_KEY: ${HYBRAG_V_ROUTER_API_KEY:-}
@@ -385,7 +385,7 @@ services:
       DOCREADER_ADDR: hybrag-docreader:50051
       DOCREADER_TRANSPORT: grpc
       OLLAMA_BASE_URL: http://model-hub-ollama-qa:11434
-      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-v-scheduler-gateway,model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
+      SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-v-scheduler,v-scheduler-gateway,v-router,model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
       CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
       BATCH_EMBED_SIZE: ${BATCH_EMBED_SIZE:-4}
       WEKNORA_ASYNQ_CORE_CONCURRENCY: ${WEKNORA_ASYNQ_CORE_CONCURRENCY:-1}
@@ -427,7 +427,7 @@ services:
       WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL: ${WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL:-}
       HYBRAG_DEFAULT_BUILTIN_MODELS: 'true'
       HYBRAG_MODEL_BACKEND: ${HYBRAG_MODEL_BACKEND:-auto}
-      HYBRAG_V_ROUTER_URL: ${HYBRAG_V_ROUTER_URL:-http://v-scheduler-gateway:8080}
+      HYBRAG_V_ROUTER_URL: ${HYBRAG_V_ROUTER_URL:-http://v-scheduler:8080}
       HYBRAG_LEGACY_V_ROUTER_URL: ${HYBRAG_LEGACY_V_ROUTER_URL:-}
       HYBRAG_LEGACY_V_ROUTER_API_KEY: ${HYBRAG_LEGACY_V_ROUTER_API_KEY:-}
       HYBRAG_V_ROUTER_API_KEY: ${HYBRAG_V_ROUTER_API_KEY:-}
