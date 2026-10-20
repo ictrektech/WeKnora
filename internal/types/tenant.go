@@ -121,6 +121,8 @@ type Tenant struct {
 	// Legal workspace config: tenant-level entry/access switch for contract review.
 	// Nil follows the deployment default; persisted tenant settings remain authoritative.
 	LegalWorkspaceConfig *LegalWorkspaceConfig `yaml:"legal_workspace_config" json:"legal_workspace_config" gorm:"column:legal_workspace_config;type:jsonb"`
+	// Assistant config: display name and access ceiling of the WeKnora assistant
+	AssistantConfig *AssistantConfig `yaml:"assistant_config" json:"assistant_config" gorm:"type:jsonb"`
 	// API principal config: controls how X-API-Key requests map to terminal principals.
 	APIPrincipalConfig *APIPrincipalConfig `yaml:"api_principal_config" json:"-" gorm:"type:jsonb"`
 	// Creation time

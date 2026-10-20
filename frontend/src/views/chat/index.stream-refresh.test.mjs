@@ -60,7 +60,7 @@ test('answer stream chunks merge snapshots without duplicating the same answer',
   assert.match(handlerSource, /if \(current === incoming\) return current/)
   assert.match(handlerSource, /if \(incoming\.startsWith\(current\)\) return incoming/)
   assert.match(handlerSource, /if \(current\.endsWith\(incoming\)\) return current/)
-  assert.match(handlerSource, /answerEvent\.content = mergeStreamText\(answerEvent\.content,\s*data\.content\)/)
+  assert.match(handlerSource, /answerEvent\.content = replaceAnswer \? String\(data\.content \|\| ""\) : mergeStreamText\(answerEvent\.content,\s*data\.content\)/)
   assert.match(handlerSource, /const hasLivePriorAnswer = stream\.some\(/)
   assert.match(handlerSource, /if \(!hasLivePriorAnswer\) \{[\s\S]*answerEvent\.content = message\.content/)
 })

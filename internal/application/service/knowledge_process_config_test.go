@@ -404,6 +404,12 @@ func TestValidateProcessOverrides_ImageArtifactRequiresInternalContext(t *testin
 	kb := &types.KnowledgeBase{VLMConfig: types.VLMConfig{Enabled: false}}
 	err := ValidateProcessOverrides(context.Background(), kb, &types.KnowledgeProcessOverrides{ParseArtifactID: "artifact-1"}, []string{"png"})
 	require.Error(t, err)
+	overrides := &types.KnowledgeProcessOverrides{ParseArtifactID: "artifact-1"}
+	_, err = resolveFileImportProcessConfig(context.Background(), kb, "png", overrides, nil)
+	require.ErrorContains(t, err, "reserved for smart archive imports")
+	_, err = ApplyKnowledgeProcessOverrides(context.Background(), kb, &types.Knowledge{}, overrides, []string{"png"}, nil)
+	require.ErrorContains(t, err, "reserved for smart archive imports")
+
 }
 
 func TestValidateProcessOverrides_AudioRequiresASR(t *testing.T) {

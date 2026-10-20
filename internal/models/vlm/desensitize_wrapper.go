@@ -20,6 +20,10 @@ func (w *desensitizeVLM) GetModelName() string { return w.inner.GetModelName() }
 func (w *desensitizeVLM) GetModelID() string   { return w.inner.GetModelID() }
 
 func (w *desensitizeVLM) Predict(ctx context.Context, images [][]byte, prompt string) (string, error) {
+	return w.PredictWithOptions(ctx, images, prompt, nil)
+}
+
+func (w *desensitizeVLM) PredictWithOptions(ctx context.Context, images [][]byte, prompt string, opts *PredictOptions) (string, error) {
 	sanitized, err := chat.DesensitizeText(ctx, w.baseURL, w.ner, prompt)
 	if err != nil {
 		return "", err
@@ -36,7 +40,7 @@ func (w *desensitizeVLM) Predict(ctx context.Context, images [][]byte, prompt st
 		}
 		images = sanitizedImages
 	}
-	return w.inner.Predict(ctx, images, sanitized)
+	return w.inner.PredictWithOptions(ctx, images, sanitized, opts)
 }
 
 func wrapVLMDesensitize(v VLM, config *Config, err error) (VLM, error) {

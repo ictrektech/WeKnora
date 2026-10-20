@@ -54,6 +54,11 @@ var versionedSQLiteTables = []string{
 	"tenant_user_env_vars",
 	"agent_prompts",
 	"agent_run_suspensions",
+	"agent_collaborations",
+	"agent_grants",
+	"automations",
+	"automation_runs",
+	"notifications",
 }
 
 // versionedSQLiteColumns maps each existing table to the columns that the
@@ -68,17 +73,18 @@ var versionedSQLiteColumns = map[string][]string{
 	"knowledge_bases":       {"profile_config", "generated_profile"},                                           // 000119
 	"messages":              {"attachments", "usage", "sandbox_checkpoint", "context_checkpoint", "run_state"}, // 000005/093/115/123/141
 	"sessions": {
+		"kind",
 		"parent_session_id", "forked_from_message_id", "fork_bootstrap", // 000115
 		"workspace_mode", "sandbox_config_tenant_id", "host_workspace_dir", // 000110/130/131
 	},
-	"tenant_invitations": {"token", "accepted_count"},        // 000054
-	"embed_channels":     {"allow_memory"},                   // 000060
-	"im_channels":        {"locale"},                         // 000132
-	"chunks":             {"source_locators"},                // 000043
-	"mcp_oauth_tokens":   {"principal_type", "principal_id"}, // 000064
-	"mcp_services":       {"usage_instructions"},             // SQLite 000044
-	"mcp_tool_approvals": {"enabled"},                        // 000100
-	"message_artifacts":  {"deleted_at"},                     // 000125
+	"tenant_invitations": {"token", "accepted_count"},          // 000054
+	"embed_channels":     {"allow_memory"},                     // 000060
+	"im_channels":        {"locale"},                           // 000132
+	"chunks":             {"source_locators"},                  // 000043
+	"mcp_oauth_tokens":   {"principal_type", "principal_id"},   // 000064
+	"mcp_services":       {"usage_instructions"},               // SQLite 000044
+	"mcp_tool_approvals": {"enabled", "risk", "observed_risk"}, // 000100, SQLite 000053
+	"message_artifacts":  {"deleted_at"},                       // 000125
 	"tenant_skills": {
 		"envs", "served", "catalog_id", "install_session_id", "install_message_id",
 	}, // 000038
@@ -88,7 +94,7 @@ var versionedSQLiteColumns = map[string][]string{
 	}, // 000038
 }
 
-const expectedSQLiteMigrationVersion = 47
+const expectedSQLiteMigrationVersion = 55
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)
@@ -416,4 +422,41 @@ func copySQLiteMigrationsThrough(t *testing.T, repoRoot string, maxVersion int) 
 	}
 	require.Greater(t, copied, 0)
 	return dest
+}
+
+func TestSQLiteSessionKindBackfillAndRollback(t *testing.T) {
+	repoRoot := sqliteRepoRoot(t)
+	chdirAndRestore(t, copySQLiteMigrationsThrough(t, repoRoot, 38))
+	dbPath := filepath.Join(t.TempDir(), "session-kind.db")
+	require.NoError(t, RunMigrationsWithOptions("sqlite3://unused", MigrationOptions{SQLiteDBPath: dbPath}))
+	db := openSQLiteDB(t, dbPath)
+	configs := []any{
+		nil, "invalid JSON", `{"agent_id":"builtin-weknora-assistant"}`, `{}`, `null`, `[]`,
+		`{"agent_id":"another-agent"}`, `{"agent_id":`,
+	}
+	for i, config := range configs {
+		_, err := db.Exec("INSERT INTO sessions (id, tenant_id, agent_config) VALUES (?, 1, ?)", fmt.Sprint(i), config)
+		require.NoError(t, err)
+	}
+	chdirAndRestore(t, repoRoot)
+	require.NoError(t, RunMigrationsWithOptions("sqlite3://unused", MigrationOptions{SQLiteDBPath: dbPath}))
+	for i := range configs {
+		var kind string
+		require.NoError(t, db.QueryRow("SELECT kind FROM sessions WHERE id = ?", fmt.Sprint(i)).Scan(&kind))
+		if i == 2 {
+			require.Equal(t, "assistant", kind)
+		} else {
+			require.Empty(t, kind)
+		}
+	}
+	require.True(t, sqliteIndexExists(t, db, "idx_sessions_tenant_kind_user_updated"))
+	down, err := os.ReadFile(filepath.Join(repoRoot, "migrations/sqlite/000049_session_kind.down.sql"))
+	require.NoError(t, err)
+	_, err = db.Exec(string(down))
+	require.NoError(t, err)
+	require.False(t, sqliteColumnExists(t, db, "sessions", "kind"))
+	require.False(t, sqliteIndexExists(t, db, "idx_sessions_tenant_kind_user_updated"))
+	var count int
+	require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&count))
+	require.Equal(t, len(configs), count)
 }

@@ -351,7 +351,9 @@ export default {
     myChats: 'マイチャット',
     apiChats: 'APIセッション',
     noSessions: '会話はまだありません'
-  },
+  ,
+"automations": "オートメーション"
+},
   chatHeader: {
     moreActions: 'その他の会話操作',
     toggleSandboxPanel: 'サンドボックスターミナル',
@@ -381,7 +383,19 @@ export default {
       attachments: '添付ファイル',
       references: '出典'
     }
-  },
+  ,
+"grants": {
+  "menu": "許可済みの操作",
+  "description": "この会話で確認なしに許可された操作です。取り消すと次回また確認されます。",
+  "empty": "許可済みの操作はありません",
+  "revoke": "取り消す",
+  "revoked": "取り消しました",
+  "revokeFailed": "取り消しに失敗しました",
+  "loadFailed": "読み込みに失敗しました"
+},
+"automationTask": "自動化",
+"automationOpen": "自動化「{name}」を開く"
+},
   newUserGuide: {
     stepOf: '{current} / {total}',
     skip: 'スキップ',
@@ -733,7 +747,10 @@ export default {
       renameSuccess: 'フォルダ名を変更しました',
       renameFailed: 'フォルダ名を変更できませんでした',
       renameInvalid: 'フォルダを自身の配下に移動することはできません',
-    },
+
+"emptyFolderWithSubfolders": "このフォルダに直接のドキュメントはありませんが、サブフォルダに {count} 件あります",
+"folderContentsCount": "{documents} 件のドキュメント / {folders} 個のフォルダ"
+},
     moveToFolder: {
       action: 'フォルダに移動',
       newFolder: '新しいサブフォルダ',
@@ -1040,7 +1057,9 @@ export default {
       "一部のファイルをアップロードしました（成功: {success}件、失敗: {fail}件）",
     allUploadFailed:
       "すべてのファイルのアップロードに失敗しました（{count}件）",
-  },
+
+"assistantDeleted": "アシスタントがこのナレッジベースを削除しました。"
+},
   uploadConfirm: {
     imageEmbeddingModel: "画像インデックス用 Embedding モデル",
     imageIndexInherited: "画像インデックスにはナレッジベースの Embedding モデルを使用します。変更はナレッジベース設定で行ってください。",
@@ -1491,7 +1510,10 @@ export default {
       sandboxNoConfigs: 'このワークスペースにはサンドボックスがないため、スキルのスクリプトは実行されません。',
       skillsInfoTitle: 'スキルとサンドボックスの連携について',
       skillsInfoContent: 'スキルは知識モジュールで、そのスクリプトは選択したサンドボックスで実行されます。一覧にはそこにインストール済みのスキルが表示されます。セッションのサンドボックスが一度作成されると、以降の添付ファイル、生成物、破棄はすべて作成時の設定に固定されます。そのため、サンドボックスを変更しても影響するのは以降に新規作成されるセッションだけです。'
-    },
+    ,
+"assistantChanged": "アシスタントがこのエージェントを変更しました。最新の設定を確認するには、開き直してください。",
+"assistantDeleted": "アシスタントがこのエージェントを削除しました。"
+},
     selector: {
       title: 'エージェントを選択',
       current: '現在',
@@ -1510,7 +1532,10 @@ export default {
       capabilityUnsupported: '非対応',
       capabilityUnconfigured: '未設定'
     }
-  },
+  ,
+"earlierSteps": "完了したステップ {count} 件",
+"viewReasoning": "思考を表示"
+},
   settings: {
     modelManagement: 'モデル管理',
     webSearchConfig: 'Web検索',
@@ -2970,7 +2995,23 @@ export default {
       publish: '公開'
     },
     description: "Markdownでナレッジを記述し、リアルタイムでプレビューできます",
-  },
+
+"assistant": {
+  "button": "アシスタント",
+  "tooltip": "アシスタントに書いてもらう",
+  "continue": "続きを書く",
+  "outline": "アウトラインを作成",
+  "polish": "全文を推敲",
+  "summarize": "要点をまとめる",
+  "open": "アシスタントを開く",
+  "prompts": {
+    "continue": "本文の末尾から、前の内容に続く段落を一つ書き足してください。",
+    "outline": "タイトルと現在の内容をもとに、この文書の構成がわかるアウトラインを作り、本文の先頭に書いてください。",
+    "polish": "本文を推敲してください。誤字や不自然な文を直し、意味は変えずに段落ごとに修正してください。",
+    "summarize": "この文書の要点をチャットでまとめてください。本文は変更しないでください。"
+  }
+}
+},
   input: {
     addModel: 'モデルを追加',
     placeholder: '質問や依頼内容を入力…',
@@ -3039,7 +3080,11 @@ export default {
     placeholderKbAndWeb:
       "質問を入力してください。ナレッジベースとWeb検索に基づいて回答します",
     placeholderAgent: "{name}に質問",
-  },
+
+"modelAuto": "既定",
+"modelFollowDefault": "既定に従う",
+"modelAutoHint": "現在のナレッジベースのチャットモデル。ナレッジベース外や未設定の場合は、最初に利用可能なチャットモデルを使用します"
+},
   createChat: {
     title: 'こんにちは、Vivibit AIアシスタントです。あなたのナレッジを、すぐそばに',
     newSessionTitle: '新しいセッション',
@@ -3286,7 +3331,10 @@ export default {
         apiKeyName: 'APIキー名',
         apiKeyId: 'APIキーID',
         details: '詳細'
-      },
+      ,
+"agentSessionId": "アシスタント会話 ID",
+"agentOperation": "アシスタントの操作"
+},
       drawer: {
         sectionSummary: '概要',
         sectionIdentifiers: '識別子',
@@ -3389,7 +3437,9 @@ export default {
         append: '追加',
         replace: '上書き'
       }
-    },
+    ,
+"viaAssistant": "Vivibit アシスタント経由"
+},
     titleCreate: 'ナレッジベースを作成',
     titleEdit: 'ナレッジベース設定',
     navGroups: {
@@ -3743,13 +3793,11 @@ export default {
       globalIssuesEmpty: '未処理のコンテンツ問題はありません',
       issuePagePrefix: 'ページ: ',
       issueGoFix: '修正に移動',
-      fixAssistantTitle: 'Wikiスマート修正アシスタント',
       issueFixSuggestions: 'コンテンツ最適化の提案（{count}）',
       issueFixSingle: '修正',
-      fixStartError: '修正アシスタントの起動に失敗しました',
-      issueFixPromptSingle: 'ページ [[{slug}]] の問題（ID: {id}）を修正してください。',
-      issueFixPromptAutoStart: 'ページ [[{slug}]] の次の問題を修正してください:'
-    },
+      issueFixPromptSingle: "この Wiki の問題を修正して：{description}",
+"issueFixPromptAll": "このページの未対応の問題 {count} 件を修正して"
+},
     buttons: {
       create: 'ナレッジベースを作成',
       save: '設定を保存',
@@ -4073,7 +4121,15 @@ export default {
         imageAttrsOcrOnUnobserved: '画像属性の観察に失敗した場合も OCR を実行',
         imageAttrsOcrOnUnobservedDesc: 'モデルが画像属性を正しく観察できなかった場合、本文テキストを逃さないようデフォルトで OCR を実行します。オフにするとスキップします。（4B など小規模な視覚モデルを使う場合や、カスタムの画像指示がシステムプロンプトと衝突する場合に観察が失敗することがあります。8B 以上は失敗の可能性が低く、オフは推奨しません）',
         imagePipelineKbNote: 'デフォルトはナレッジベースの設定に従い、今回のタスク向けに調整できます'
-      }
+      ,
+"imagePipelineSectionLabel": "画像解析方式",
+"imagePipelineSectionDescription": "マルチモーダル解析が有効な場合、画像の解析方式を選択できます。",
+"imagePipelineLabel": "解析方式",
+"imagePipelinePlaceholder": "解析方式を選択",
+"imagePipelineLoading": "パイプラインを読み込み中…",
+"imagePipelineLoadError": "パイプラインの読み込みに失敗しました",
+"imagePipelineValidateError": "現在の設定を検証できませんでした。保存時にバックエンドが再度检查します。"
+}
     }
   },
   chat: {
@@ -5671,7 +5727,9 @@ export default {
       testFailed: 'MCPサービスのテストに失敗しました',
       deleted: 'MCPサービスを削除しました',
       deleteFailed: 'MCPサービスの削除に失敗しました'
-    },
+    ,
+"linkedServiceMissing": "アシスタントがリンクした MCP サービスが見つかりません。削除された可能性があります"
+},
     deleteConfirmBody: 'MCPサービス「{name}」を削除しますか？この操作は取り消せません。',
     unnamed: '名称未設定',
     builtin: '組み込み',
@@ -5740,7 +5798,9 @@ export default {
       builtinCannotCopy: '組み込みモデルはコピーできません',
       copied: 'モデルをコピーしました',
       copyFailed: 'モデルのコピーに失敗しました'
-    },
+    ,
+"linkedModelMissing": "アシスタントがリンクしたモデルが見つかりません。削除された可能性があります"
+},
     copySuffix: ' のコピー',
     builtinModels: {
       title: '組み込みモデル',
@@ -6333,7 +6393,13 @@ export default {
       permissionReadonly: '読み取り専用',
       permissionEditable: '編集可能'
     }
-  },
+  ,
+"cardStats": {
+  "members": "メンバー {count}",
+  "knowledgeBases": "ナレッジベース {count}",
+  "agents": "エージェント {count}"
+}
+},
   preview: {
     tab: 'プレビュー',
     loading: 'ドキュメントのプレビューを読み込み中...',
@@ -6381,7 +6447,9 @@ export default {
       organizations: '共有スペースを開く',
       settings: '設定を開く',
       productTour: 'プロダクトツアー'
-    },
+    ,
+"assistant": "{name}を開く"
+},
     empty: {
       noResults: '一致する項目がありません',
       askAi: 'AIに直接質問する',
@@ -6521,7 +6589,9 @@ export default {
       canceledTag: 'キャンセル済み',
       unansweredTag: '未回答',
       submitFailed: '送信に失敗しました',
-    },
+
+"answerLabel": "あなたの回答"
+},
     promptDock: {
       approvalTitle: '承認が必要です',
       oauthTitle: '認可が必要です',
@@ -6553,7 +6623,75 @@ export default {
       submitted: '送信しました',
       submitFailed: '送信に失敗しました',
       userRejected: 'ユーザが拒否しました'
-    },
+    ,
+"title": "承認",
+"toolDescription": "ツールの説明",
+"delegatedTask": "委任されたタスク",
+"operationQuestion": "{action}「{target}」を許可しますか？",
+"operationQuestionNoTarget": "{action}を許可しますか？",
+"operationTarget": "{action}「{target}」",
+"reviewTitle": "承認 · {target}",
+"characterCount": "{count} 文字",
+"allowInSession": "この会話では同様の操作をすべて許可",
+"grantLapsed": {
+  "changed": "以前の許可は無効になりました。自動化の Agent 設定、ロール、または権限上限が変更されました。",
+  "expired": "以前の許可は期限切れです。",
+  "idle": "以前の許可は長期間使われなかったため無効になりました。"
+},
+"canceledTag": "キャンセル済み",
+"detail": {
+  "type": "種類",
+  "embeddingModel": "埋め込みモデル",
+  "summaryModel": "要約モデル",
+  "captionModel": "画像説明",
+  "speechModel": "音声認識",
+  "storage": "ストレージ",
+  "indexes": "インデックス",
+  "name": "名前",
+  "title": "タイトル",
+  "status": "状態",
+  "summary": "説明",
+  "model": "モデル",
+  "mode": "モード",
+  "url": "リンク",
+  "from": "移動元",
+  "to": "移動先",
+  "folder": "フォルダ",
+  "page": "ページ",
+  "version": "バージョン",
+  "documents": "ドキュメント",
+  "knowledgeBases": "ナレッジベース",
+  "mcpServices": "MCP サービス",
+  "skills": "スキル",
+  "webSearch": "ウェブ検索",
+  "multiTurn": "マルチターン",
+  "transport": "トランスポート",
+  "authentication": "認証方式",
+  "usageInstructions": "利用ガイド",
+  "displayName": "表示名",
+  "enabled": "有効",
+  "sandbox": "サンドボックス",
+  "sandboxes": "サンドボックス",
+  "systemPrompt": "システムプロンプト",
+  "content": "内容",
+  "kbScope": "ナレッジベースの範囲",
+  "mcpScope": "MCP の範囲",
+  "skillsScope": "スキルの範囲"
+},
+"value": {
+  "document": "ドキュメント",
+  "faq": "FAQ",
+  "wiki": "Wiki",
+  "on": "オン",
+  "off": "オフ",
+  "vector": "ベクトル",
+  "keyword": "キーワード",
+  "graph": "グラフ",
+  "quickAnswer": "クイック回答",
+  "smartReasoning": "スマート推論",
+  "indexSep": "、"
+}
+},
     mcpOAuth: {
       waiting: '認可待ち · {target}',
       waitingStatus: '認可待ち',
@@ -6604,7 +6742,23 @@ export default {
       dataAnalysis: 'データ分析',
       dataSchema: 'データスキーマ',
       databaseQuery: 'データベース照会'
-    },
+    ,
+"findOperations": "操作を検索",
+"runOperation": "操作を実行",
+"spawn_agent": "エージェントを起動",
+"list_agents": "エージェント一覧",
+"send_message": "メッセージを送信",
+"followup_task": "タスクを続行",
+"interrupt_agent": "エージェントを中断",
+"wait_agent": "エージェントを待機",
+"openPage": "ページを開く",
+"viewPage": "ページを確認",
+"searchWeKnoraDocs": "製品ドキュメントを検索",
+"readWeKnoraDoc": "製品ドキュメントを読む",
+"readPage": "ページを確認",
+"selectTab": "タブを選択",
+"fillPage": "ページに入力"
+},
     skillFiles: {
       heading: 'スキルファイル',
       script: 'スクリプト',
@@ -6763,7 +6917,248 @@ export default {
       emptyContent: '現在の応答は空のため、ナレッジベースに保存できません',
       editorOpened: 'エディタを開きました。ナレッジベースを選択して保存してください'
     }
+  ,
+"collaboration": {
+  "tabs": "タスクタブ",
+  "updates": "更新 {count} 件",
+  "mainConversation": "メインチャット",
+  "recentProgress": "最近の進捗",
+  "waitFailed": "タスク更新の待機に失敗しました",
+  "assignment": "タスク内容",
+  "title": "サブタスク",
+  "unnamed": "無名のタスク",
+  "waiting": "タスクの更新を待機中…",
+  "status": {
+    "queued": "待機中",
+    "running": "実行中",
+    "waiting": "入力待ち",
+    "succeeded": "完了",
+    "failed": "失敗",
+    "interrupted": "中断",
+    "cancelled": "キャンセル済み",
+    "needs_attention": "対応が必要",
+    "cancelling": "キャンセル中",
+    "unknown": "不明"
   },
+  "phase": {
+    "tool_running": "ツールを使用中",
+    "tool_succeeded": "ツール完了",
+    "tool_failed": "ツール失敗"
+  }
+},
+"pageAccess": {
+  "viewed": "現在のページを確認しました：{location}"
+},
+"pageEdit": {
+  "title": "{count} か所に入力しました",
+  "undo": "元に戻す",
+  "undone": "入力を元に戻しました",
+  "undoSkipped": "{count} か所は変更済みかページにないため、そのままにしました",
+  "unsaved": "まだ保存されていません。確認してからページで保存してください。"
+},
+"openPage": {
+  "open": "開く",
+  "openForm": "開いて入力",
+  "opened": "アシスタントが開きました",
+  "back": "戻る",
+  "endpoint": "接続先：",
+  "draftHint": "アシスタントが入力済みです。API キーなどの認証情報を入力し、確認してからご自身で保存してください。"
+},
+"operations": {
+  "names": {
+    "data_source": {
+      "list": "データソース一覧を取得",
+      "get": "データソース詳細を取得",
+      "test": "データソースの接続をテスト",
+      "sync": "データソースを同期",
+      "pause": "データソースの同期を一時停止",
+      "resume": "データソースの同期を再開",
+      "list_sync_logs": "データソースの同期履歴を取得",
+      "get_sync_log": "データソースの同期進捗を取得",
+      "list_resources": "同期可能なリソースを取得",
+      "update_sync": "データソースの同期設定を更新"
+    },
+    "agent": {
+      "list": "エージェント一覧を取得",
+      "create": "エージェントを作成",
+      "get": "エージェントの詳細を取得",
+      "delete": "エージェントを削除",
+      "update": "エージェントを更新",
+      "copy": "エージェントをコピー"
+    },
+    "chunk": {
+      "get": "チャンク詳細を取得",
+      "update": "チャンクを更新",
+      "list_revisions": "チャンクの変更履歴を取得",
+      "revert": "チャンクの過去の版を復元",
+      "list": "ナレッジチャンク一覧を取得"
+    },
+    "knowledge_base": {
+      "list_parser_engines": "利用可能な解析エンジンを取得",
+      "copy": "ナレッジベースの内容をコピー",
+      "duplicate": "ナレッジベースの設定をコピー",
+      "get_copy_progress": "ナレッジベースのコピー進捗を取得",
+      "list": "ナレッジベース一覧を取得",
+      "create": "ナレッジベースを作成",
+      "get": "ナレッジベースの詳細を取得",
+      "delete": "ナレッジベースを削除",
+      "update": "ナレッジベースを更新",
+      "list_activity": "ナレッジベースの操作履歴を取得",
+      "search": "ナレッジベースを検索",
+      "list_move_targets": "移動先のナレッジベース一覧を取得",
+      "generate_profile": "ナレッジベースの説明を生成",
+      "list_tags": "ナレッジベースのタグ一覧を取得",
+      "create_tag": "ナレッジベースのタグを作成",
+      "update_tag": "ナレッジベースのタグを更新",
+      "delete_tag": "ナレッジベースのタグを削除",
+      "list_shared": "共有ナレッジベース一覧を取得"
+    },
+    "faq": {
+      "batch_update": "FAQ の状態とタグを一括更新",
+      "list_entries": "FAQ 項目一覧を取得",
+      "delete_entries": "FAQ 項目を一括削除",
+      "get_entry": "FAQ 項目の詳細を取得",
+      "update_entry": "FAQ 項目を更新",
+      "add_similar_questions": "類似の質問を追加",
+      "create_entry": "FAQ 項目を作成"
+    },
+    "knowledge": {
+      "list": "ナレッジ一覧を取得",
+      "list_folders": "ナレッジフォルダー一覧を取得",
+      "rename_folder": "フォルダーの名前変更または移動",
+      "create_manual": "ナレッジを手動作成",
+      "create_from_url": "URL からナレッジを作成",
+      "batch_delete": "ナレッジを一括削除",
+      "batch_reparse": "ナレッジを一括再解析",
+      "move_to_folder": "ナレッジをフォルダーに移動",
+      "update_manual": "手動作成したナレッジを更新",
+      "move": "ナレッジを別のナレッジベースに移動",
+      "get_move_progress": "ナレッジの移動状況を取得",
+      "set_tags": "ナレッジのタグを設定",
+      "get": "ナレッジの詳細を取得",
+      "update": "ナレッジを更新",
+      "delete": "ナレッジを削除",
+      "cancel_parse": "ナレッジの解析をキャンセル",
+      "reparse": "ナレッジを再解析",
+      "get_parse_progress": "ナレッジの解析状況を取得"
+    },
+    "wiki": {
+      "list_folders": "Wiki フォルダー一覧を取得",
+      "create_folder": "Wiki フォルダーを作成",
+      "list_issues": "Wiki ページの問題一覧を取得",
+      "lint": "Wiki ページを検査",
+      "move_page": "Wiki ページを移動",
+      "get_page": "Wiki ページを取得",
+      "rebuild_links": "Wiki リンクを再構築",
+      "revert": "Wiki ページの版を復元",
+      "list_revisions": "Wiki ページの版一覧を取得",
+      "get_stats": "Wiki の統計を取得"
+    },
+    "system_admin": {
+      "list_admins": "システム管理者を取得",
+      "list_users": "プラットフォームユーザーを取得",
+      "list_settings": "システム設定を取得",
+      "get_queues": "タスクキューの稼働状況を取得",
+      "list_tasks": "キューのタスクを取得"
+    },
+    "workspace": {
+      "get": "現在のワークスペース情報を取得",
+      "update": "現在のワークスペース情報を変更",
+      "list_members": "現在のワークスペースのメンバーを取得"
+    },
+    "system": {
+      "get_info": "バージョンとシステム情報を取得"
+    },
+    "web_search_provider": {
+      "list": "ウェブ検索サービス一覧を取得",
+      "get": "ウェブ検索サービス詳細を取得",
+      "list_types": "ウェブ検索サービスの種類を取得",
+      "test": "ウェブ検索接続をテスト",
+      "update": "ウェブ検索サービスを更新",
+      "delete": "ウェブ検索サービスを削除"
+    },
+    "mcp_service": {
+      "list": "MCP サービス一覧を取得",
+      "create": "MCP サービスを作成",
+      "get": "MCP サービスの詳細を取得",
+      "update": "MCP サービスを更新",
+      "delete": "MCP サービスを削除",
+      "test": "MCP サービスの接続をテスト",
+      "list_tools": "MCP ツールをリアルタイムで取得",
+      "get_metadata": "同期済み MCP ツールを表示",
+      "refresh_metadata": "MCP ツール一覧を同期"
+    },
+    "message": {
+      "chat_history_stats": "チャット履歴の統計を取得",
+      "search": "会話履歴を検索",
+      "list": "メッセージ履歴を取得"
+    },
+    "model": {
+      "list": "モデル一覧を取得",
+      "list_providers": "モデルプロバイダー一覧を取得",
+      "get_provider": "モデルプロバイダーの詳細を取得",
+      "get": "モデルの詳細を取得",
+      "delete": "モデルを削除",
+      "update": "モデルの表示情報を更新",
+      "copy": "モデル設定をコピー"
+    },
+    "skill": {
+      "list_installed": "インストール済みスキル一覧を取得",
+      "install": "スキルをインストール",
+      "get_installed": "インストール済みスキルの詳細を取得",
+      "uninstall": "スキルをアンインストール",
+      "set_enabled": "スキルの有効状態を設定",
+      "list": "実行可能なスキル一覧を取得",
+      "list_catalog": "ワークスペースのスキル一覧を取得",
+      "get_catalog": "ワークスペースのスキルの詳細を取得",
+      "install_catalog": "カタログのスキルをサンドボックスにインストール"
+    },
+    "automation": {
+      "list": "自動化の一覧を取得",
+      "create": "自動化を作成",
+      "validate_trigger": "実行時刻を確認",
+      "get": "自動化の詳細を取得",
+      "update": "自動化を更新",
+      "delete": "自動化を削除",
+      "pause": "自動化を一時停止",
+      "resume": "自動化を再開",
+      "run_now": "自動化を今すぐ実行",
+      "list_runs": "自動化の実行履歴を取得"
+    },
+    "session": {
+      "list": "会話一覧を取得"
+    }
+  },
+  "found": "実行できる操作 {count} 件",
+  "unavailableCount": "現在使えない操作 {count} 件",
+  "empty": "一致する操作はありません",
+  "unavailableHeading": "現在使えません",
+  "parameters": "パラメータ",
+  "required": "必須",
+  "enum": "選択肢",
+  "range": "範囲 {min}–{max}",
+  "risk": {
+    "read": "読み取り",
+    "probe": "チェック",
+    "write": "書き込み",
+    "destructive": "取り消し不可"
+  },
+  "truncated": "結果は省略されています",
+  "emptyResult": "データはありません",
+  "failed": "操作に失敗しました",
+  "meta": "補足"
+},
+"weknoraDocs": {
+  "pages": "ドキュメント {count} 件",
+  "hits": "一致した節 {count} 件",
+  "empty": "一致するドキュメントはありません",
+  "outline": "目次",
+  "content": "本文",
+  "truncated": "本文は続きます",
+  "failed": "読み取れませんでした",
+  "openDoc": "ドキュメントサイトで開く"
+}
+},
   agentEditor: {
     builtinHint: 'これは組み込みエージェントです。名前と説明は変更できませんが、設定パラメータは調整できます。',
     navGroups: {
@@ -6844,7 +7239,7 @@ export default {
       model: 'エージェントが使用するLLMを選択します',
       temperature: '出力のランダム性を制御します。0が最も決定的、1が最もランダムです',
       maxTokens: 'モデルの応答の最大トークン数。デフォルトは2048です。カスタム値は入力したとおりに保存されます。',
-      maxTokensAgent: '推論の各ラウンドで生成される最大トークン数（ツール呼び出しのJSONを含む）。デフォルトは、サンドボックスなしの場合4096、サンドボックスがファイルの書き込みや編集を行える場合は24576です。カスタム値は入力したとおりに保存され、以降変更されません。',
+      maxTokensAgent: "推論の各ラウンドで生成される最大トークン数（ツール呼び出しのJSONを含む）。デフォルトは24576です。カスタム値は入力したとおりに保存されます。",
       thinking: '拡張思考機能を有効にします（モデルの対応が必要）',
       conversationSection: 'マルチターン会話とクエリのリライトに関するパラメータを設定します',
       conversationSectionAgent: 'スマート推論は常にマルチターンです。過去の会話はモデルのコンテキストウィンドウに収まる範囲で保持され、超えると古い部分が自動的に要約されます',
@@ -7082,7 +7477,10 @@ export default {
       authWaitTimeoutDesc: '会話中にOAuth認証を求められた際、完了を待機する最大秒数です。この時間を過ぎると、認証の確認は自動的にスキップされます（OAuthを使用するMCPサービスのみに影響します）。',
       authWaitTimeoutPlaceholder: 'デフォルト600秒',
       unavailableService: '利用できないサービス'
-    },
+    ,
+"accessLevel": "実行権限の上限",
+"accessLevelDesc": "データを変更するツール（MCP ツール、Wiki への書き込み）を確認なしで実行できるかどうか。読み取り専用ではこれらのツールを提供せず、変更前に確認では毎回確認します。承認が必要と設定された MCP ツールは常に確認します。"
+},
     llmCallTimeout: {
       label: 'LLM呼び出しタイムアウト',
       desc: 'LLMの1回の呼び出しの最大待機時間（秒）。この時間を超えると呼び出しは中止されます',
@@ -7490,7 +7888,15 @@ export default {
       seafile_ssrf_blocked: 'SeafileのダウンロードURLがSSRFポリシーでブロックされました。fileserverのホストをSSRF_WHITELISTに追加してください。',
       seafile_fetch_failed: 'Seafileからファイルを取得できませんでした。次回の同期で再試行します。'
     }
-  },
+  ,
+"parseModeLabel": "解析モード",
+"parseMode": {
+  "inherit": "サーバー設定を使用",
+  "blocks": "ブロック解析（デフォルト）",
+  "export": "エクスポート解析（docx）"
+},
+"parseModeHint": "Feishuクラウドドキュメントの解析方式。ブロック解析は高速でドキュメント内の添付ファイルを保持します。エクスポート解析はdocxに変換して解析し、画像とドキュメントの関連付けがより正確になります。"
+},
   integrations: {
     cli: {
       title: 'WeKnora CLI',
@@ -8697,4 +9103,388 @@ export default {
       }
     }
   }
+,
+"automation": {
+  "title": "オートメーション",
+  "description": "エージェントにスケジュールどおりあなたとしてタスクを実行させます。結果と承認待ちは通知されます。",
+  "add": "新規オートメーション",
+  "addHint": "Vivibit アシスタントに作成を頼むこともできます",
+  "paused": "一時停止中",
+  "nextRunAt": "次回 {time}",
+  "notScheduled": "予定なし",
+  "agentUnavailable": "エージェントを利用できません",
+  "deleteTitle": "オートメーションを削除",
+  "deleteBody": "実行中の処理を停止し、「{name}」の実行履歴・会話・継続承認を削除します。元に戻せません。",
+  "fields": {
+    "name": "名前",
+    "agent": "実行エージェント",
+    "instruction": "タスク",
+    "schedule": "スケジュール",
+    "timezone": "タイムゾーン",
+    "accessLevel": "実行権限",
+    "sessionMode": "会話の形式",
+    "carryLastResult": "前回成功した結果を引き継ぐ",
+    "overlapPolicy": "前回の実行が続いている場合",
+    "misfirePolicy": "実行されなかった回",
+    "approvalTimeout": "承認の待機期限",
+    "maxDuration": "1 回の最大実行時間",
+    "notifyOnSuccess": "成功時も通知",
+    "nextRun": "次回実行",
+    "enabled": "有効"
+  },
+  "editor": {
+    "createTitle": "新規オートメーション",
+    "editTitle": "オートメーションを編集",
+    "namePlaceholder": "例：毎日のナレッジベース要約",
+    "instructionPlaceholder": "何をするか、どの資料を使うか、結果をどう出すかを書いてください",
+    "variablesHint": "使える変数：",
+    "unattendedHint": "実行中は誰も見ていないため、エージェントは質問できません。承認が必要な操作は一時停止して通知します。",
+    "nameDesc": "一覧と通知に表示され、タスクを見分けるのに使います",
+    "agentDesc": "タスクを実行するエージェント。そのナレッジベース、ツール、スキルを使えます",
+    "frequency": "繰り返し",
+    "weekdays": "曜日",
+    "dayOfMonthDesc": "その日がない月は月末に実行します",
+    "runAt": "実行日時",
+    "cron": "Cron 式",
+    "timeOfDay": "時刻",
+    "timezoneDesc": "このタイムゾーンの時刻で実行します。夏時間も自動で考慮します",
+    "previewEmpty": "時刻を設定すると、この先の実行予定がここに表示されます",
+    "carryDesc": "新しい会話の冒頭に前回成功した結果を添えます。差分の要約に便利です",
+    "misfireDesc": "サービス停止中に逃した実行を、復旧後にどう扱うか",
+    "maxDurationDesc": "この時間を過ぎても終わらない実行は停止します",
+    "navGroups": {
+      "task": "タスク",
+      "run": "実行"
+    },
+    "sections": {
+      "basic": {
+        "title": "基本情報",
+        "desc": "タスクに名前を付け、実行するエージェントを選び、やることを書きます。"
+      },
+      "schedule": {
+        "title": "実行スケジュール",
+        "desc": "タスクを実行するタイミング。実行間隔は 5 分以上です。"
+      },
+      "execution": {
+        "title": "実行方法",
+        "desc": "実行時に許可する変更、使う会話、重複や実行漏れ時の扱い。"
+      },
+      "notify": {
+        "title": "承認と通知",
+        "desc": "実行結果と承認待ちの操作は右上の通知に表示されます。"
+      }
+    },
+    "sessionModeDesc": {
+      "per_run": "実行ごとに新しい会話を開きます",
+      "persistent": "すべての実行が同じ会話で行われ、以前の内容を参照できます"
+    },
+    "errors": {
+      "name": "名前を入力してください",
+      "instruction": "実行するタスクを入力してください",
+      "schedule": "有効なスケジュールを設定してください"
+    },
+    "approvalTimeoutHelp": "この期限を過ぎても未承認の実行は失敗になります",
+    "notifyHint": "失敗・承認待ち・自動停止は常に通知されます",
+    "access": {
+      "read_only": "閲覧のみで、何も変更しません。",
+      "confirm": "変更のたびに一時停止して承認を求めます。よく使う操作は詳細で継続承認にできます。",
+      "auto_write": "元に戻せる変更はそのまま実行し、削除などは引き続き承認を待ちます。"
+    }
+  },
+  "schedule": {
+    "kinds": {
+      "daily": "毎日",
+      "weekdays": "平日",
+      "weekly": "毎週",
+      "monthly": "毎月",
+      "hourly": "毎時",
+      "once": "1 回のみ",
+      "custom": "カスタム cron"
+    },
+    "atMinute": "毎時の何分",
+    "dayOfMonth": "毎月の日付",
+    "pickTime": "日時を選択",
+    "customHint": "5 項目：分 時 日 月 曜日。0 9 * * 1-5 は平日 9:00。最短間隔は 5 分です。",
+    "nextRuns": "次回：",
+    "invalid": "スケジュールが不正です",
+    "describe": {
+      "hourly": "毎時 {minute} 分",
+      "daily": "毎日 {time}",
+      "weekdays": "平日 {time}",
+      "weekly": "毎週 {days} {time}",
+      "monthly": "毎月 {day} 日 {time}",
+      "once": "{at} に 1 回",
+      "custom": "cron：{expr}",
+      "everyMinutes": "{n} 分ごと",
+      "everyHours": "{n} 時間ごと"
+    }
+  },
+  "sessionMode": {
+    "per_run": "毎回新しい会話",
+    "persistent": "同じ会話を継続"
+  },
+  "overlap": {
+    "skip": "今回はスキップ",
+    "queue": "前回の終了後に実行"
+  },
+  "misfire": {
+    "skip": "スキップ",
+    "run_once": "復旧後に 1 回実行"
+  },
+  "units": {
+    "hours": "時間",
+    "minutes": "分"
+  },
+  "status": {
+    "queued": "待機中",
+    "running": "実行中",
+    "awaiting_approval": "承認待ち",
+    "succeeded": "成功",
+    "failed": "失敗",
+    "cancelled": "停止済み",
+    "skipped": "スキップ",
+    "needs_attention": "要確認",
+    "paused": "一時停止中"
+  },
+  "runTrigger": {
+    "schedule": "スケジュール",
+    "manual": "手動",
+    "misfire": "補完実行"
+  },
+  "actions": {
+    "runNow": "今すぐ実行",
+    "pause": "一時停止",
+    "resume": "再開",
+    "review": "承認する",
+    "openConversation": "会話を開く",
+    "stop": "停止"
+  },
+  "detail": {
+    "overview": "概要",
+    "lastRun": "前回の実行",
+    "pausedBecause": "一時停止中：{reason}",
+    "runs": "実行履歴",
+    "noRuns": "まだ実行されていません",
+    "stopping": "停止中",
+    "grants": "継続承認",
+    "task": "タスク内容",
+    "durationSeconds": "{n} 秒",
+    "durationMinutes": "{n} 分"
+  },
+  "grants": {
+    "intro": "ここにある操作は以降の実行で再承認不要です。特定のリソースに限られ、エージェントやワークスペースでのロールが変わると無効になります。毎回承認が必要なツールは表示されません。",
+    "active": "承認済み",
+    "none": "継続承認はありません",
+    "lapsed": "設定が変わったため、現在は無効です",
+    "revoke": "取り消す",
+    "candidates": "過去の実行で承認を求めた操作",
+    "noCandidates": "継続承認にできる操作はまだありません",
+    "allow": "今後は常に許可",
+    "allowTitle": "以降の実行で許可",
+    "allowBody": "以降の実行では「{label}」を承認待ちなしで行います。",
+    "allowDestructiveBody": "「{label}」はデータを削除または上書きし、元に戻せません。許可すると、以降の実行は確認なしで行います。"
+  },
+  "risk": {
+    "write": "変更",
+    "destructive": "削除/上書き"
+  },
+  "messages": {
+    "queued": "実行を開始しました",
+    "notFound": "オートメーションは存在しないか削除されました"
+  }
+},
+"notifications": {
+  "title": "通知",
+  "markAllRead": "すべて既読",
+  "pendingInvitations": "保留中の招待 {count} 件",
+  "empty": "通知はありません",
+  "kinds": {
+    "automation_succeeded": "オートメーション完了",
+    "automation_failed": "オートメーション失敗",
+    "automation_awaiting_approval": "オートメーション承認待ち",
+    "automation_paused": "オートメーション一時停止"
+  }
+},
+"assistant": {
+  "title": "Vivibit アシスタント",
+  "newConversation": "新しい会話",
+  "history": "会話履歴",
+  "untitledConversation": "無題の会話",
+  "historyEmpty": "会話履歴はありません",
+  "historyFailed": "会話履歴を読み込めませんでした",
+  "loadMore": "さらに読み込む",
+  "resize": "アシスタントの幅を調整",
+  "layout": {
+    "dock": "右側に固定",
+    "float": "フローティング表示にする"
+  },
+  "welcomeTitle": "何をお手伝いしましょうか？",
+  "agentWelcomeDesc": "このエージェントの設定を確認したり、モデルを変更したり、検索可能なナレッジベースを確認できます。",
+  "welcomeDesc": "WeKnora の使い方にお答えするほか、ワークスペースのドキュメント解析、ナレッジベースの履歴、Wiki の問題を確認・対応し、エージェントの作成や設定もお手伝いできます。変更の前に確認するかどうかは、入力欄の下の権限レベルで決まります。",
+  "startFailed": "アシスタントを起動できませんでした。もう一度お試しください。",
+  "askAboutDocument": "{name}に聞く",
+  "askAboutAnswer": "この回答について{name}に聞く",
+  "selection": {
+    "label": "選択中",
+    "lines": "{count} 行を選択",
+    "detach": "選択内容を含めない",
+    "tip": "送信時に選択内容を含めます：{text}",
+    "tipField": "送信時に「{field}」の選択内容を含めます：{text}"
+  },
+  "bubble": {
+    "label": "アシスタントの操作",
+    "ask": "アシスタントに聞く",
+    "polish": "推敲",
+    "rewrite": "書き直し",
+    "translate": "翻訳",
+    "continue": "続きを書く",
+    "prompts": {
+      "polish": "選択したテキストを推敲してください。誤字や不自然な表現を直し、意味は変えずにその場で置き換えてください。",
+      "rewrite": "選択したテキストを、より明確で簡潔な表現に書き直し、その場で置き換えてください。",
+      "translate": "選択したテキストを翻訳してください。中国語は英語に、その他の言語は中国語にして、その場で置き換えてください。",
+      "continue": "選択したテキストの後に、文脈に合う段落を一つ書き足してください。"
+    }
+  },
+  "fillNotice": {
+    "title": "アシスタントが {count} か所に入力しました",
+    "undo": "元に戻す",
+    "dismiss": "閉じる"
+  },
+  "access": {
+    "title": "権限レベル",
+    "capped": "ワークスペース管理者が許可していません",
+    "page": {
+      "label": "現在のページの確認と入力",
+      "desc": "左側のページを読み取り、フォームに入力できます。ボタンのクリックや保存はしません。"
+    },
+    "levels": {
+      "read_only": {
+        "label": "読み取り専用",
+        "desc": "確認だけで、何も変更しません"
+      },
+      "confirm": {
+        "label": "変更前に確認",
+        "desc": "変更や削除のたびに事前に確認します"
+      },
+      "auto_write": {
+        "label": "自動実行",
+        "desc": "元に戻せる変更はそのまま実行し、削除は確認します"
+      }
+    }
+  },
+  "context": {
+    "detachedLabel": "ページ未添付",
+    "currentPage": "現在のページ",
+    "detach": "現在のページを含めない",
+    "attachedTip": "現在のページを含めています：{path}",
+    "detachedTip": "クリックして現在のページを含める：{path}",
+    "chatMessage": "この回答",
+    "pages": {
+      "knowledge_base": "ナレッジベース",
+      "wiki": "Wiki",
+      "agent_editor": "エージェント編集",
+      "settings_models": "モデル管理",
+      "mcp_services": "MCP サービス",
+      "chat": "チャット"
+    }
+  },
+  "starters": {
+    "agentConfig": "このエージェントの設定を確認して",
+    "agentModel": "モデルを変更して",
+    "agentKnowledge": "どのナレッジベースを検索できる？",
+    "wikiIssues": "このページの未対応の問題は？",
+    "wikiSummary": "この Wiki ページを要約して",
+    "documentStatus": "このドキュメントの解析状況は？",
+    "documentSummary": "このドキュメントを要約して",
+    "failedDocuments": "このナレッジベースで解析に失敗したドキュメントは？",
+    "recentActivity": "このナレッジベースの最近の変更は？",
+    "formats": "WeKnora はどのドキュメント形式に対応していますか？",
+    "createWiki": "Wiki ナレッジベースの作り方は？",
+    "agents": "どんなエージェントがあり、それぞれどのモデルを使っていますか？",
+    "messageSources": "この回答の根拠は何ですか？",
+    "messageCheck": "この回答に誤りはありますか？",
+    "modelCheck": "このモデルの設定を確認して",
+    "modelUsage": "どのエージェントとナレッジベースがこれらのモデルを使っていますか？",
+    "mcpTools": "この MCP サービスにはどんなツールがありますか？",
+    "mcpCheck": "なぜ接続できないのですか？",
+    "modelSetup": "ほかにどのモデルを設定する必要がありますか？",
+    "mcpSetup": "MCP サービスを接続するには？"
+  }
+},
+"assistantSettings": {
+  "title": "アシスタント",
+  "description": "{name}の入口、開き方、権限レベルを設定します。",
+  "introTitle": "アシスタントはあなたに許可された操作しかできません",
+  "introDescription": "アシスタントはあなたとして操作するため、見られる範囲と変更できる範囲はワークスペースでのロールと同じです。権限レベルはそれをさらに絞るだけで、広げることはありません。",
+  "personalGroup": "個人設定",
+  "accessLabel": "権限レベル",
+  "accessDescription": "アシスタントが変更する前に確認するかどうか。アシスタントの入力欄の下でもいつでも切り替えられます。",
+  "accessCeilingHint": "ワークスペース管理者が上限を「{level}」に設定しています。",
+  "entryLabel": "入口",
+  "entryDescription": "どれを選んでも、コマンドパレット（{shortcut}）からアシスタントを開けます。",
+  "entries": {
+    "sidebar": "サイドバー",
+    "launcher": "画面の右端",
+    "palette": "コマンドパレットのみ"
+  },
+  "layoutLabel": "開き方",
+  "layoutDescription": "右側に固定するとページが狭まり、フローティングではページの上に重なります。ウィンドウが狭いときは常にフローティングです。",
+  "layouts": {
+    "docked": "右側に固定",
+    "floating": "フローティング"
+  },
+  "workspaceGroup": "ワークスペース",
+  "adminOnly": "管理者のみ変更できます",
+  "nameLabel": "アシスタント名",
+  "nameDescription": "ワークスペースの全メンバーに表示される名前です。空欄なら既定の名前を使います。",
+  "ceilingLabel": "最高権限レベル",
+  "ceilingDescription": "メンバーが選べる最高レベルです。「読み取り専用」にすると、このワークスペースでアシスタントは何も変更しません。",
+  "saved": "保存しました",
+  "saveFailed": "保存できませんでした：{message}"
+},
+"imagePipeline": {
+  "errors": {
+    "noActionEnabled": "解析アクションを1つ以上オンにしてください。オフのままでは何も処理されません。"
+  },
+  "default": {
+    "name": "マニュアル",
+    "description": "タスクに合わせて解析アクションのスイッチを手動でオン/オフします。",
+    "enable_caption": {
+      "label": "画像説明",
+      "description": "各画像について一言の説明を生成し、キャプションとして保存します。"
+    },
+    "enable_ocr": {
+      "label": "文字認識",
+      "description": "画像内に出現するテキストを抽出します。"
+    },
+    "caption": {
+      "thinking": {
+        "label": "説明時に思考を有効",
+        "description": "説明を書く前にモデルに考えさせます。基本的に思考は必要ありません。有効にすると解析が遅くなるだけでなく、思考が長くなりすぎて本文が切り詰められ、タスクが失敗する可能性があります。必要だと判断した場合のみ有効にしてください。"
+      }
+    },
+    "ocr": {
+      "thinking": {
+        "label": "文字認識時に思考を有効",
+        "description": "テキストを抽出する前にモデルに考えさせます。基本的に思考は必要ありません。有効にすると解析が遅くなるだけでなく、思考が長くなりすぎて本文が切り詰められ、タスクが失敗する可能性があります。必要だと判断した場合のみ有効にしてください。"
+      }
+    }
+  },
+  "smartocr": {
+    "name": "スマート",
+    "caption": {
+      "thinking": {
+        "label": "説明時に思考を有効",
+        "description": "画像を説明し属性を報告する前にモデルに考えさせます。基本的に思考は必要ありません。有効にすると解析が遅くなるだけでなく、思考が長くなりすぎて本文が切り詰められ、タスクが失敗する可能性があります。必要だと判断した場合のみ有効にしてください。"
+      }
+    },
+    "ocr": {
+      "thinking": {
+        "label": "文字認識時に思考を有効",
+        "description": "テキストを抽出する前にモデルに考えさせます。基本的に思考は必要ありません。有効にすると解析が遅くなるだけでなく、思考が長くなりすぎて本文が切り詰められ、タスクが失敗する可能性があります。必要だと判断した場合のみ有効にしてください。"
+      }
+    },
+    "description": "まず画像の特徴を観察して説明を生成し、その特徴に基づいて OCR を実行するかどうかを判断します。モデル呼び出しを節約し、解析速度を向上させます。"
+  }
+}
 }

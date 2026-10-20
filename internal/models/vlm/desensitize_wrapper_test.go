@@ -14,11 +14,17 @@ import (
 
 type capturePromptVLM struct {
 	prompt string
+	opts   *PredictOptions
 }
 
 func (v *capturePromptVLM) GetModelName() string { return "test" }
 func (v *capturePromptVLM) GetModelID() string   { return "vlm-record-id" }
-func (v *capturePromptVLM) Predict(_ context.Context, _ [][]byte, prompt string) (string, error) {
+func (v *capturePromptVLM) Predict(ctx context.Context, images [][]byte, prompt string) (string, error) {
+	return v.PredictWithOptions(ctx, images, prompt, nil)
+}
+
+func (v *capturePromptVLM) PredictWithOptions(_ context.Context, _ [][]byte, prompt string, opts *PredictOptions) (string, error) {
+	v.opts = opts
 	v.prompt = prompt
 	return "ok", nil
 }
@@ -56,6 +62,14 @@ func TestDesensitizeVLMSanitizesTextPrompt(t *testing.T) {
 	if _, err := wrapper.Predict(context.Background(), nil, "识别 13812345678"); err != nil {
 		t.Fatal(err)
 	}
+	on := true
+	opts := &PredictOptions{Thinking: &on}
+	if _, err := wrapper.PredictWithOptions(context.Background(), nil, "识别 13812345678", opts); err != nil {
+		t.Fatal(err)
+	}
+	if inner.opts != opts {
+		t.Fatal("desensitization dropped the per-call thinking options")
+	}
 	if inner.prompt != "识别 [PHONE_NUMBER]" {
 		t.Fatalf("unexpected prompt sent to VLM: %q", inner.prompt)
 	}
@@ -68,7 +82,11 @@ type captureImageVLM struct {
 
 func (v *captureImageVLM) GetModelName() string { return "test" }
 func (v *captureImageVLM) GetModelID() string   { return "vlm-record-id" }
-func (v *captureImageVLM) Predict(_ context.Context, images [][]byte, prompt string) (string, error) {
+func (v *captureImageVLM) Predict(ctx context.Context, images [][]byte, prompt string) (string, error) {
+	return v.PredictWithOptions(ctx, images, prompt, nil)
+}
+
+func (v *captureImageVLM) PredictWithOptions(_ context.Context, images [][]byte, prompt string, _ *PredictOptions) (string, error) {
 	v.images = images
 	v.prompt = prompt
 	return "ok", nil

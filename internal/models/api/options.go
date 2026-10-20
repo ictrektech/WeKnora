@@ -39,6 +39,11 @@ const (
 // caller asks for, and the protocol package decides how (or whether) the
 // vendor can honour it.
 type Options struct {
+	// RuntimeNotice is trusted, request-scoped recovery context. Adapters append
+	// it after the conversation so stable instructions/history retain their cache
+	// prefix. Never populate it with user input or external tool output.
+	RuntimeNotice string `json:"-"`
+
 	Temperature float64 `json:"temperature"` // 温度参数
 	// TemperatureSet distinguishes an explicit zero from an unspecified value.
 	TemperatureSet bool    `json:"-"`

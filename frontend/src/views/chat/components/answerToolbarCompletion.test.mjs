@@ -21,7 +21,7 @@ test('non-agent actions wait for the typewriter buffer to finish', () => {
 test('agent actions reuse the fully-rendered answer state', () => {
   assert.match(agentStream, /const answerFullyRendered = computed/)
   assert.match(agentStream, /\(\) => isConversationDone\.value \|\| !hasActiveAnswerStream\.value/)
-  assert.match(agentStream, /v-if="answerFullyRendered && event\.content/)
+  assert.match(agentStream, /v-if="answerFullyRendered && event\.done && event\.content/)
 })
 
 test('answers stay plain text while streaming and render markdown only after completion', () => {
@@ -56,11 +56,14 @@ test('artifact count is a top-right overlay instead of t-badge', () => {
   assert.doesNotMatch(agentStream, /<t-badge/)
 })
 
-test('artifact toolbar opens the sandbox panel artifacts tab', () => {
+test('artifact toolbar supports the sandbox panel and session-local drawer', () => {
   assert.match(botMessage, /sandboxPanel.open\('artifacts'/)
   assert.match(agentStream, /sandboxPanel.open\('artifacts'/)
   assert.match(botMessage, /v-if="hasArtifacts && embeddedMode"/)
-  assert.match(agentStream, /v-if="hasArtifacts && embeddedMode/)
+  // Child and standalone viewers also need a drawer. Routing behavior and
+  // child session identity are covered by AgentStreamDisplay.artifacts.test.
+  assert.match(agentStream, /v-if="hasArtifacts && useArtifactDrawer/)
+  assert.match(agentStream, /if \(sandboxPanel && !useArtifactDrawer\.value\)/)
 })
 
 test('artifact toolbar uses a folder icon and replaces it while collecting', () => {

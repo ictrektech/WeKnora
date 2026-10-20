@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The fork's existing migration history reaches PostgreSQL 000130 and SQLite
-// 000037. New upstream additions are appended at PostgreSQL 000131–000132 and
-// SQLite 000038–000040. Loading each directory catches duplicate versions.
+// Preserve the fork history through PostgreSQL 000141 and SQLite 000047.
+// This sync appends upstream migrations at PostgreSQL 000142–000150 and
+// SQLite 000048–000055; loading either directory rejects duplicate versions.
 func TestMigrationDirectoriesLoad(t *testing.T) {
 	root := sqliteRepoRoot(t)
 	for _, dir := range []string{"versioned", "sqlite"} {

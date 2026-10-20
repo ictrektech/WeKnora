@@ -51,6 +51,8 @@ func ResolveProcessConfig(kb *types.KnowledgeBase, overrides *types.KnowledgePro
 		ImageAttrsEnabled:        imageCfg.ImageAttrsEnabled,
 		ImageVectorEnabled:       imageCfg.ImageVectorEnabled,
 		ImageActions:             types.ResolveImageActions(imageCfg.ImageActions),
+		ImagePipelineID:          types.ResolveImagePipelineID(&imageCfg),
+		ImagePipelineParams:      imageCfg.ImagePipelineParams,
 	}
 	if overrides == nil {
 		return eff
@@ -93,6 +95,25 @@ func ResolveProcessConfig(kb *types.KnowledgeBase, overrides *types.KnowledgePro
 	}
 	if overrides.ImageAttrsEnabled != nil {
 		eff.ImageAttrsEnabled = *overrides.ImageAttrsEnabled
+		if overrides.ImagePipelineID == nil {
+			// Legacy document overrides still select a pipeline. Parameters
+			// belong to the selected pipeline and cannot follow a switch.
+			id := types.ImagePipelineIDFor(eff.ImageAttrsEnabled)
+			if id != eff.ImagePipelineID {
+				eff.ImagePipelineParams = nil
+			}
+			eff.ImagePipelineID = id
+		}
+	}
+	if overrides.ImagePipelineID != nil {
+		// The pick and its params travel as one unit: params keyed for one
+		// pipeline say nothing to another, so an id without its params would
+		// silently run the new pipeline on the old pipeline's switches.
+		eff.ImagePipelineID = types.NormalizeImagePipelineID(*overrides.ImagePipelineID)
+		eff.ImagePipelineParams = overrides.ImagePipelineParams
+		// The explicit pick also decides the legacy switch, so the fallback
+		// path and the run agree on which pipeline this document asked for.
+		eff.ImageAttrsEnabled = eff.ImagePipelineID == types.ImagePipelineSmartOCR
 	}
 	if overrides.ImageVectorEnabled != nil {
 		eff.ImageVectorEnabled = *overrides.ImageVectorEnabled
@@ -161,7 +182,7 @@ func resolveFileImportProcessConfig(
 	}
 
 	if processOverrides != nil {
-		if err := ValidateProcessOverrides(ctx, kb, processOverrides, []string{fileType}); err != nil {
+		if err := validateEffectiveProcessOverrides(ctx, eff, []string{fileType}, processOverrides); err != nil {
 			return eff, err
 		}
 	} else if err := validateDefaultFileImportRequirements(ctx, kb, eff, fileType); err != nil {
@@ -181,11 +202,15 @@ func ValidateProcessOverrides(
 	if overrides == nil {
 		return nil
 	}
-	// Parse artifacts are an internal hand-off between Smart Archive's
-	// extraction pass and its managed Knowledge Base mirror. Never allow a
-	// caller to point an ordinary knowledge import at another tenant's parser
-	// output (the worker also verifies the source hash before consuming it).
-	if strings.TrimSpace(overrides.ParseArtifactID) != "" && !isSmartArchiveMutation(ctx) {
+	return validateEffectiveProcessOverrides(ctx, ResolveProcessConfig(kb, overrides), fileTypes, overrides)
+}
+
+// Validate the final config, including the legacy enableMultimodel argument
+// applied by upload and reparse callers, before persisting or enqueueing it.
+func validateEffectiveProcessOverrides(ctx context.Context, eff types.EffectiveProcessConfig, fileTypes []string, overrides *types.KnowledgeProcessOverrides) error {
+	// Parse artifacts are private to Smart Archive's internal mirror imports.
+	reusesArtifact := overrides != nil && strings.TrimSpace(overrides.ParseArtifactID) != ""
+	if reusesArtifact && !isSmartArchiveMutation(ctx) {
 		return werrors.NewBadRequestError("parse_artifact_id is reserved for smart archive imports")
 	}
 
@@ -200,14 +225,11 @@ func ValidateProcessOverrides(
 		}
 	}
 
-	eff := ResolveProcessConfig(kb, overrides)
-
 	if hasImage {
 		// Smart Archive has already performed OCR and persisted the normalized
 		// parser result. Its managed-KB mirror carries the artifact ID instead
 		// of a second VLM configuration; only that narrowly marked internal path
 		// may bypass the normal image-import prerequisite.
-		reusesArtifact := isSmartArchiveMutation(ctx) && strings.TrimSpace(overrides.ParseArtifactID) != ""
 		if !reusesArtifact && !eff.VLMConfig.IsEnabled() {
 			return werrors.NewBadRequestError("上传图片文件需要设置VLM模型")
 		}
@@ -219,6 +241,11 @@ func ValidateProcessOverrides(
 
 	if err := types.ValidateEffectiveProcessPromptInstructions(eff); err != nil {
 		return werrors.NewBadRequestError(err.Error())
+	}
+	if eff.EnableMultimodel {
+		if err := ValidateImagePipelineParams(eff.ImagePipelineID, eff.ImagePipelineParams); err != nil {
+			return werrors.NewBadRequestError(err.Error())
+		}
 	}
 
 	return nil
@@ -241,7 +268,7 @@ func ApplyKnowledgeProcessOverrides(
 	if processOverrides == nil {
 		return eff, nil
 	}
-	if err := ValidateProcessOverrides(ctx, kb, processOverrides, fileTypes); err != nil {
+	if err := validateEffectiveProcessOverrides(ctx, eff, fileTypes, processOverrides); err != nil {
 		return eff, err
 	}
 	if err := knowledge.SetProcessOverrides(processOverrides); err != nil {

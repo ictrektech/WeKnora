@@ -38,7 +38,7 @@ func streamEventTermination(evt interfaces.StreamEvent) (terminal, completed boo
 // @Param        session_id     path      string  true   "会话ID"
 // @Param        message_id     query     string  true   "消息ID"
 // @Param        resource_urls  query     string  false  "文件引用形式，public 返回可加载直链"  Enums(handle, public)  default(handle)
-// @Success      200            {object}  map[string]interface{}  "流式响应"
+// @Success      200            {string}  string  "SSE 事件流"
 // @Failure      404         {object}  errors.AppError         "会话或消息不存在"
 // @Security     Bearer
 // @Security     ApiKeyAuth
@@ -183,6 +183,8 @@ func (h *Handler) ContinueStream(c *gin.Context) {
 	logger.Debug(ctx, "Starting event update monitoring")
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+	heartbeat := time.NewTicker(10 * time.Second)
+	defer heartbeat.Stop()
 
 	for {
 		select {
@@ -190,6 +192,9 @@ func (h *Handler) ContinueStream(c *gin.Context) {
 			logger.Debug(ctx, "Client connection closed")
 			return
 
+		case <-heartbeat.C:
+			c.SSEvent("message", gin.H{"response_type": "heartbeat"})
+			c.Writer.Flush()
 		case <-ticker.C:
 			// Get new events from current offset
 			newEvents, newOffset, err := h.streamManager.GetEvents(ctx, sessionID, messageID, currentOffset)
@@ -311,6 +316,13 @@ func (h *Handler) StopSession(c *gin.Context) {
 		return
 	}
 
+	if h.stopCollaboration != nil {
+		if err := h.stopCollaboration(ctx, sessionID, assistantMessageID); err != nil {
+			c.JSON(500, gin.H{"error": "Failed to stop delegated tasks"})
+			return
+		}
+	}
+
 	// Check if message is already completed (stopped)
 	if message.IsCompleted {
 		logger.Infof(ctx, "Message %s is already completed, no need to stop", assistantMessageID)
@@ -365,6 +377,8 @@ func (h *Handler) handleAgentEventsForSSE(
 ) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+	heartbeat := time.NewTicker(10 * time.Second)
+	defer heartbeat.Stop()
 
 	lastOffset := 0
 	log := logger.GetLogger(ctx)
@@ -382,6 +396,9 @@ func (h *Handler) handleAgentEventsForSSE(
 			)
 			return
 
+		case <-heartbeat.C:
+			c.SSEvent("message", gin.H{"response_type": "heartbeat"})
+			c.Writer.Flush()
 		case <-ticker.C:
 			// Get new events from StreamManager using offset
 			events, newOffset, err := h.streamManager.GetEvents(ctx, sessionID, assistantMessageID, lastOffset)

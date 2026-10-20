@@ -3,11 +3,28 @@ package session
 import (
 	stderrors "errors"
 	"net/http"
+	"strings"
 
 	"github.com/Tencent/WeKnora/internal/errors"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/gin-gonic/gin"
 )
+
+// Prefer the answer's effective model, then the validated request selection.
+func (rc *qaRequestContext) titleModelID() string {
+	if rc.assistantMessage != nil {
+		if id := strings.TrimSpace(rc.assistantMessage.ModelID); id != "" {
+			return id
+		}
+	}
+	if rc.summaryModelID != "" {
+		return rc.summaryModelID
+	}
+	if rc.customAgent != nil {
+		return rc.customAgent.Config.ModelID
+	}
+	return ""
+}
 
 // GenerateTitle godoc
 // @Summary      生成会话标题

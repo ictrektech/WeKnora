@@ -744,7 +744,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next'
 import {
   checkOllamaModels, checkRemoteModel, testEmbeddingModel, checkRerankModel, checkASRModel, listOllamaModels,
@@ -868,6 +868,8 @@ interface Props {
   modelData?: ModelFormData | null
   personalOnly?: boolean
   saveModel?: (data: ModelFormData & { modelType?: EditorModelType }) => Promise<void>
+  /** Create mode only: fields to start the new model's form with. */
+  draft?: Partial<ModelFormData> | null
 }
 
 const { t, locale } = useI18n()
@@ -878,7 +880,8 @@ const providersStore = useModelProvidersStore()
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   modelData: null,
-  personalOnly: false
+  personalOnly: false,
+  draft: null
 })
 
 const personalOnly = computed(() => props.personalOnly)
@@ -1702,8 +1705,7 @@ const selectModelType = async (type: EditorModelType) => {
   }
 }
 
-// 监听 visible 变化，初始化表单
-watch(() => props.visible, (val) => {
+const initializeVisibleForm = (val: boolean) => {
   if (val) {
     const typeChanged = draftModelType.value !== props.modelType
     // Sync the entry type before loading its catalog; the previous draft may
@@ -1756,6 +1758,9 @@ watch(() => props.visible, (val) => {
             : [],
         }
         legacyThinkingControlLoaded.value = !!props.modelData.thinkingControl
+      } else if (props.draft) {
+        resetForm()
+        Object.assign(formData.value, props.draft)
       } else if (typeChanged || lastOpenedModelId.value !== null || !formData.value.id) {
         // 切换类型、上次是编辑某个模型，或第一次新增 → 重置成空白
         resetForm()
@@ -1784,7 +1789,12 @@ watch(() => props.visible, (val) => {
       }
     })
   }
-})
+}
+
+watch(() => props.visible, initializeVisibleForm)
+// An assistant link can open the dialog before its first mount. Wait until
+// setup has initialized the form helpers, then hydrate that initial draft too.
+onMounted(() => initializeVisibleForm(props.visible))
 
 watch(
   () => [
