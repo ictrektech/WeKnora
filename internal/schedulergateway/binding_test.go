@@ -149,3 +149,21 @@ func TestRegisteredModelsUseBinding(t *testing.T) {
 		}
 	}
 }
+
+func TestCanonicalAndCompatibilityGatewayOrigins(t *testing.T) {
+	for _, origin := range []string{Gateway, "http://v-scheduler-gateway:8080/v1"} {
+		binding := fixtureBinding(1, "a")
+		binding.URL = origin
+		if !binding.valid() {
+			t.Fatalf("known origin rejected: %s", origin)
+		}
+	}
+	for _, origin := range []string{
+		"http://v-router:8080/v1", "http://other:8080/v1",
+		"https://v-scheduler:8080/v1", "http://v-scheduler:8080/v1/else",
+	} {
+		if trustedGateway(origin) {
+			t.Fatalf("untrusted origin accepted: %s", origin)
+		}
+	}
+}

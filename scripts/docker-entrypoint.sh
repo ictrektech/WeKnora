@@ -137,11 +137,11 @@ if backend not in {"auto", "scheduler", "model-hub"}:
 if backend in {"auto", "scheduler", "model-hub"}:
     path = pathlib.Path(sys.argv[1])
     text = path.read_text()
-    base = os.environ.get("HYBRAG_V_ROUTER_URL", "http://v-scheduler-gateway:8080").rstrip("/")
+    base = os.environ.get("HYBRAG_V_ROUTER_URL", "http://v-scheduler:8080").rstrip("/")
     key = os.environ.get("HYBRAG_V_ROUTER_API_KEY", "")
     architecture = "arm" if platform.machine().lower() in {"aarch64", "arm64"} else "amd"
     legacy_default = "http://v-router-backend-" + architecture + ":8080"
-    if backend == "model-hub" and os.environ.get("HYBRAG_V_ROUTER_URL") not in {None, "", "http://v-scheduler-gateway:8080"}:
+    if backend == "model-hub" and os.environ.get("HYBRAG_V_ROUTER_URL") not in {None, "", "http://v-scheduler:8080", "http://v-scheduler-gateway:8080"}:
         legacy_default = os.environ["HYBRAG_V_ROUTER_URL"]
     legacy_base = (os.environ.get("HYBRAG_LEGACY_V_ROUTER_URL") or legacy_default).rstrip("/")
     legacy_key = os.environ.get("HYBRAG_LEGACY_V_ROUTER_API_KEY") or (key if backend == "model-hub" else "")
@@ -168,7 +168,7 @@ if backend in {"auto", "scheduler", "model-hub"}:
     scheduler_available = backend == "scheduler"
     if backend == "auto":
         try:
-            socket.getaddrinfo("v-scheduler-gateway", 8080)
+            socket.getaddrinfo("v-scheduler", 8080)
             scheduler_available = True
         except socket.gaierror:
             pass
@@ -194,12 +194,12 @@ if backend in {"auto", "scheduler", "model-hub"}:
     path.chmod(0o600)
 PYBACKEND
     if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "scheduler" ] || [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "model-hub" ] || [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "auto" ]; then
-        export OLLAMA_BASE_URL="${HYBRAG_V_ROUTER_URL:-http://v-scheduler-gateway:8080}"
+        export OLLAMA_BASE_URL="${HYBRAG_V_ROUTER_URL:-http://v-scheduler:8080}"
         if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "model-hub" ]; then
             legacy_arch=amd
             case "$(uname -m)" in aarch64|arm64) legacy_arch=arm ;; esac
             legacy_url="http://v-router-backend-${legacy_arch}:8080"
-            if [ -n "${HYBRAG_V_ROUTER_URL:-}" ] && [ "$HYBRAG_V_ROUTER_URL" != "http://v-scheduler-gateway:8080" ]; then
+            if [ -n "${HYBRAG_V_ROUTER_URL:-}" ] && [ "$HYBRAG_V_ROUTER_URL" != "http://v-scheduler:8080" ] && [ "$HYBRAG_V_ROUTER_URL" != "http://v-scheduler-gateway:8080" ]; then
                 legacy_url="$HYBRAG_V_ROUTER_URL"
             fi
             export OLLAMA_BASE_URL="${HYBRAG_LEGACY_V_ROUTER_URL:-$legacy_url}"
@@ -208,7 +208,7 @@ PYBACKEND
         if [ "${HYBRAG_MODEL_BACKEND:-model-hub}" = "auto" ]; then
             export WEKNORA_REPARSE_WAIT_URLS=""
         fi
-        export SSRF_WHITELIST_EXTRA="${SSRF_WHITELIST_EXTRA:-},v-router,v-router-backend,v-scheduler-model-hub,v-scheduler-gateway,v-router-backend-amd,v-router-backend-arm"
+        export SSRF_WHITELIST_EXTRA="${SSRF_WHITELIST_EXTRA:-},v-scheduler,v-router,v-router-backend,v-scheduler-model-hub,v-scheduler-gateway,v-router-backend-amd,v-router-backend-arm"
     fi
     export BUILTIN_MODELS_CONFIG="$RUNTIME_BUILTIN_MODELS_FILE"
 fi

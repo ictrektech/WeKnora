@@ -10,7 +10,7 @@ configs:
   type: string
   title: {zh-CN: 统一模型网关, en: Unified Model Gateway}
   description: {zh-CN: V-Scheduler 模型网关地址，不含 /v1。, en: V-Scheduler model gateway URL without /v1.}
-  default: http://v-scheduler-gateway:8080
+  default: http://v-scheduler:8080
 - name: HYBRAG_LEGACY_V_ROUTER_URL
   type: string
   title: {zh-CN: 旧 Model Hub 网关, en: Legacy Model Hub Gateway}

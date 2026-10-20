@@ -2,6 +2,14 @@
 
 记录 VOS HybRAG 应用的可验证变化。
 
+## [0.1.74] - 2026-10-20
+
+### 修复
+
+- 新建模型、自动发现和调度绑定统一使用正式 `v-scheduler` 地址；旧的统一网关兼容地址与已有模型配置继续可用。
+- 调度身份通过能力协商迁移，私钥仅发送到固定的统一容器地址和推理接口；独立 Model Hub/Router 模式继续使用原有独立配置和凭据。
+- 安装参数、启动脚本、模型选择界面与接入说明同步更新。此版本沿用 0.1.73 的发布基线，不包含另行合并到主分支的上游功能更新。
+
 ## [0.1.71] - 2026-10-16
 
 ### 修复
@@ -345,3 +353,5 @@
 [0.1.62]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.61...vos-hybrag-v0.1.62
 [0.1.61]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.60...vos-hybrag-v0.1.61
 [0.1.60]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.58...vos-hybrag-v0.1.60
+
+[0.1.74]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.73...vos-hybrag-v0.1.74
