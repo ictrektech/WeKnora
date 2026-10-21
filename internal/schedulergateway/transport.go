@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 type transport struct {
@@ -49,4 +50,16 @@ func Client(modelID, baseURL, remoteModel string, original *http.Client) *http.C
 	client.Transport = transport{base: base, filename: bindingPath()}
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return &client
+}
+
+// InferenceRequestTimeout includes bounded Scheduler queueing and cold loading.
+// Explicit model timeouts and caller context cancellation remain authoritative.
+func InferenceRequestTimeout(baseURL string, configured, fallback time.Duration) time.Duration {
+	if configured > 0 {
+		return configured
+	}
+	if Backend() == "scheduler" && trustedGateway(strings.TrimRight(baseURL, "/")) {
+		return 180 * time.Second
+	}
+	return fallback
 }
