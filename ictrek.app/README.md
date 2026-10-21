@@ -523,3 +523,10 @@ Open Add Model in model settings, choose a registered Router model visible to th
 The current app binding permits chat (including vision), embeddings and reranking. ASR keeps its existing separate configuration. Private personal upstreams are not automatically shared with the HybRAG app.
 
 新安装推荐 `http://v-scheduler:8080`；`v-scheduler-gateway`、`v-router` 为固定兼容地址。后台私有身份支持前两个精确来源；`v-router` 旧记录仅允许重新绑定，避免与独立旧网关共存时发送凭据。通过能力协商迁移到正式地址，保留凭据及单调递增的 revision。显式配置和旧模型记录不自动改写。
+
+### V-Scheduler cold reranking
+
+Trusted V-Scheduler rerank endpoints use a 180-second default request deadline to
+cover admission waiting and the first model load. Explicit configured timeouts and
+caller cancellation remain authoritative; external endpoints retain their 60-second
+default. No capacity or admission protection is bypassed.

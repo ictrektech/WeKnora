@@ -2,6 +2,11 @@
 
 记录 VOS HybRAG 应用的可验证变化。
 
+## [Unreleased]
+
+- 统一 V-Scheduler 重排接口默认超时改为 180 秒，覆盖排队和首次冷加载；显式超时及调用方取消优先，外部接口默认仍为 60 秒。
+- Use a 180-second default for trusted V-Scheduler reranking, covering admission and cold loading while preserving explicit deadlines and cancellation.
+
 ## [0.1.74] - 2026-10-20
 
 ### 修复

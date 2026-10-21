@@ -212,7 +212,7 @@ func newReranker(config *RerankerConfig) (Reranker, error) {
 		Credentials: api.Credentials{APIKey: config.APIKey, AppID: config.AppID, AppSecret: config.AppSecret},
 		Headers:     config.CustomHeaders,
 		Extra:       config.ExtraConfig,
-		Client:      newRerankHTTPClient(time.Duration(resolved.Rerank.RequestTimeout) * time.Second),
+		Client:      newRerankHTTPClientFor(resolved.BaseURL, time.Duration(resolved.Rerank.RequestTimeout)*time.Second),
 	})
 	if err != nil {
 		return nil, err

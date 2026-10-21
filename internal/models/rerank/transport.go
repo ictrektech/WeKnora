@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/schedulergateway"
 	secutils "github.com/Tencent/WeKnora/internal/utils"
 )
 
@@ -22,7 +23,7 @@ func validateRerankBaseURL(baseURL string) error {
 // rerank clients. Rerankers are recreated on every GetRerankModel call, but
 // their outbound connections can be safely reused, so the transport (and its
 // keep-alive pool) is built once at package load.
-var sharedRerankHTTPTransport = secutils.NewSSRFSafeTransport(
+var sharedRerankHTTPTransport http.RoundTripper = secutils.NewSSRFSafeTransport(
 	secutils.DefaultSSRFSafeHTTPClientConfig(),
 )
 
@@ -43,4 +44,9 @@ func newRerankHTTPClient(timeout time.Duration) *http.Client {
 	cfg := secutils.DefaultSSRFSafeHTTPClientConfig()
 	cfg.Timeout = timeout
 	return secutils.NewSSRFSafeHTTPClientWithTransport(cfg, sharedRerankHTTPTransport)
+}
+
+// Scheduler queueing and cold loading share one bounded HTTP deadline.
+func newRerankHTTPClientFor(baseURL string, timeout time.Duration) *http.Client {
+	return newRerankHTTPClient(schedulergateway.InferenceRequestTimeout(baseURL, timeout, defaultRerankRequestTimeout))
 }
