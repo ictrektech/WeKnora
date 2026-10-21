@@ -25,8 +25,8 @@ configs:
   type: string
   title: {zh-CN: 模型网关 API Key, en: Model Gateway API Key}
   description:
-    zh-CN: 由管理员配置的网关 API Key；网关启用鉴权时必填。不是 Scheduler submitter token。仅保存在服务端安装配置。
-    en: Administrator-configured gateway API key, required when gateway authentication is enabled. This is not a Scheduler submitter token. Stored only in server installation configuration.
+    zh-CN: V-Scheduler 自动下发应用绑定凭据，通常无需填写；此项仅用于尚未自动绑定时的兼容配置。不是 Scheduler submitter token（任务提交凭据），仅保存在服务端安装配置。
+    en: V-Scheduler automatically issues app-binding credentials; normally leave this empty. Compatibility key for deployments not yet automatically bound. Not a Scheduler submitter token. Stored only in server installation configuration.
   default: ''
 - name: HYBRAG_QA_MODEL
   type: string

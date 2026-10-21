@@ -8,8 +8,7 @@
         {{ item.task.error_msg || $t('modelHubDownload.failed') }}
         <button type="button" @click="retryHubTask(item.task.task_id)">{{ $t('modelHubDownload.retry') }}</button>
       </span>
-      <span v-else-if="item.task">{{ Math.round(item.task.progress * 100) }}%</span>
-      <span v-else>{{ $t('modelHubDownload.starting') }}</span>
+      <span v-else>{{ Math.round(item.task.progress * 100) }}%</span>
     </div>
   </div>
 </template>
@@ -17,61 +16,52 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { isVosApp } from '@/i18n/vosLocale'
-import { hubModelId, listHubModels, listHubTasks, pullHubModel, retryHubTask, type HubTask } from '@/api/modelHub'
+import { listHubModels, listHubTasks, retryHubTask, type HubTask } from '@/api/modelHub'
 
-const required = ['qwen3.5:2b', 'bge-m3', 'qllama/bge-reranker-v2-m3:q8_0']
 const models = ref<string[]>([])
 const tasks = ref<HubTask[]>([])
-const available = ref(false)
 const connectionError = ref(false)
 let timer: number | undefined
 let refreshing = false
 
-const pending = computed(() => {
-  const names = new Map(required.map((name) => [hubModelId(name), name]))
-  for (const task of tasks.value) {
-    if (task.model_id.startsWith('ollama://') && !['READY'].includes(task.phase)) {
-      if (!names.has(task.model_id)) names.set(task.model_id, task.model_id.slice('ollama://'.length))
-    }
-  }
-  return [...names].filter(([id]) => !models.value.includes(id))
-    .map(([id, name]) => ({ name, task: tasks.value.find((task) => task.model_id === id) }))
-})
-const visible = computed(() => available.value && pending.value.length > 0)
+const pending = computed(() => tasks.value
+  .filter((task) => task.model_id.startsWith('ollama://')
+    && task.phase !== 'READY' && !models.value.includes(task.model_id))
+  .map((task) => ({ name: task.model_id.slice('ollama://'.length), task })))
+const visible = computed(() => pending.value.length > 0)
 
 async function refresh() {
   if (refreshing) return
   refreshing = true
   try {
     const [hubModels, hubTasks] = await Promise.all([listHubModels(), listHubTasks()])
-    available.value = true
     connectionError.value = false
     models.value = hubModels.filter((model) => model.status === 'ready').map((model) => model.model_id)
     tasks.value = hubTasks
-    for (const name of required) {
-      const id = hubModelId(name)
-      if (!models.value.includes(id) && !hubTasks.some((task) => task.model_id === id)) {
-        await pullHubModel(name)
-      }
+    if (pending.value.length === 0 && timer) {
+      window.clearInterval(timer)
+      timer = undefined
     }
   } catch {
-    // Model Hub can still be starting when the VOS iframe loads.
-    available.value = true
+    // Only previously observed tasks justify a Model Hub connection warning.
     connectionError.value = true
   } finally {
     refreshing = false
   }
 }
 
+function monitorDownloads() {
+  void refresh()
+  if (!timer) timer = window.setInterval(() => { void refresh() }, 2000)
+}
+
 onMounted(() => {
   if (!isVosApp()) return
-  void refresh()
-  timer = window.setInterval(() => { void refresh() }, 2000)
-  window.addEventListener('weknora:model-hub-pull', refresh)
+  window.addEventListener('weknora:model-hub-pull', monitorDownloads)
 })
 onUnmounted(() => {
   if (timer) window.clearInterval(timer)
-  window.removeEventListener('weknora:model-hub-pull', refresh)
+  window.removeEventListener('weknora:model-hub-pull', monitorDownloads)
 })
 </script>
 

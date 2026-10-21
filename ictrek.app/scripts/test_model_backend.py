@@ -79,6 +79,23 @@ class ModelBackendTests(unittest.TestCase):
         self.assertEqual(models[3]['name'], 'v-scheduler/ollama-rerank/qllama/bge-reranker-v2-m3:q8_0')
         self.assertTrue(all(model['parameters']['base_url'] == 'http://v-scheduler:8080/v1' for model in models))
         self.assertTrue(all(model['parameters']['api_key'] == 'test-key' for model in models))
+        self.assertTrue(all('model-hub' not in model['display_name'] for model in models))
+
+    def test_scheduler_never_requests_legacy_router(self):
+        result, config, _, observed = self.legacy_result([], backend='scheduler')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(config['builtin_models']), 4)
+        self.assertEqual(observed, [])
+
+    def test_packaged_profiles_do_not_default_to_legacy_ollama_or_wait_for_it(self):
+        compose = yaml.safe_load((ROOT / 'ictrek.app/src/docker-compose.yml').read_text())
+        apps = [service for service in compose['services'].values()
+                if service.get('environment', {}).get('HYBRAG_DEFAULT_BUILTIN_MODELS') == 'true']
+        self.assertEqual(len(apps), 2)
+        for app in apps:
+            env = app['environment']
+            self.assertEqual(env['OLLAMA_BASE_URL'], '${HYBRAG_V_ROUTER_URL:-http://v-scheduler:8080}')
+            self.assertEqual(env['WEKNORA_REPARSE_WAIT_URLS'], '')
 
     def test_empty_key_is_not_invalid_placeholder_bearer(self):
         result, config, _ = self.render('scheduler', HYBRAG_V_ROUTER_API_KEY='')

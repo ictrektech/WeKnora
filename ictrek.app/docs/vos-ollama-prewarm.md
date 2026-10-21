@@ -1,10 +1,10 @@
 # VOS Model Hub 模型预热与常驻
 
-本文说明 HybRAG VOS app 如何复用 Model Hub 的预热 Ollama 运行时。安装或升级 HybRAG 前，先将 Model Hub 升级到 `>=0.0.92`，以提供 ReRank（对检索结果重新评分和排序）所需的 ictrek Ollama `/v1/rerank` 接口；最低依赖版本见 [manifest.yml](../src/manifest.yml)。HybRAG 现在不再启动自己的 Ollama 容器。
+本文面向仍需排查旧 Model Hub（本地模型管理服务）原生端口的运维人员。仅使用 V-Scheduler（统一模型网关与调度服务）时无需安装旧 Model Hub；当前推理接入以[模型后端迁移](model-backend-migration.md)为准。旧服务的 ReRank（对检索结果重新评分和排序）需 Model Hub `>=0.0.92` 提供 ictrek Ollama（本地模型运行时）`/v1/rerank` 接口。HybRAG 不启动自己的 Ollama 容器。
 
-## 默认行为
+## 旧服务原生端口排错
 
-Model Hub 应先安装并运行在同一个 `vos_default` 网络中。当前 HybRAG 默认引用三个 Model Hub 服务：
+排查旧链路时，确认 Model Hub 已安装并运行在同一个 `vos_default` 网络中。以下为旧服务原生接口，仅用于检查运行时，不替代推理网关：
 
 | 用途 | 服务名 | 原生 API | 可选 Gateway | 默认模型 |
 | --- | --- | --- | --- | --- |
@@ -12,7 +12,7 @@ Model Hub 应先安装并运行在同一个 `vos_default` 网络中。当前 Hyb
 | Embedding | `model-hub-ollama-embedding` | `http://model-hub-ollama-embedding:11434` | `http://model-hub-ollama-embedding:11434` | `bge-m3` |
 | ReRank | `model-hub-ollama-rerank` | `http://model-hub-ollama-rerank:11434` | `http://model-hub-ollama-rerank:11434` | `qllama/bge-reranker-v2-m3:q8_0` |
 
-HybRAG 的默认模型直接调用 Model Hub Ollama 原生端口。Model Hub 管理模型存储和下载任务；HybRAG 打开时会检查默认模型，缺失时通过 Model Hub 管理 API 发起下载，并显示任务进度。默认模型名和地址由 HybRAG 包模板固定：
+以下地址用于旧 Model Hub 原生端口排错，当前推理须经上述迁移文档规定的网关。Model Hub 管理模型存储和下载任务；打开 HybRAG 不请求旧下载管理接口，也不主动下载固定默认模型。只有本页面显式触发旧下载或重试后才监控任务，全部就绪后停止；重新打开页面需到旧服务管理页查看已有任务。浮窗不表示 V-Scheduler 状态。旧原生接口配置示例：
 
 ```env
 OLLAMA_BASE_URL=http://model-hub-ollama-qa:11434
@@ -26,22 +26,11 @@ QA、VLM 和 embedding 使用 Ollama 原生的 OpenAI 兼容 `/v1` 接口；ReRa
 
 1. 先安装或升级 Model Hub 到 `>=0.0.92`，再启动它。
 2. 在 Model Hub 运行管理页确认 `model-hub-ollama-qa`、`model-hub-ollama-embedding` 和 `model-hub-ollama-rerank` 在线。
-3. 安装或启动 HybRAG；若默认模型缺失，页面会触发 Model Hub 下载并显示进度。
+3. 在旧 Model Hub 中准备所需模型，再安装或启动 HybRAG；已有任务在旧服务管理页查看，HybRAG 仅在本页面显式触发旧下载后监控进度。
 
-HybRAG app 启动后会用 `WEKNORA_REPARSE_WAIT_URLS` 等待两个 Ollama 的 `/v1/models` 可用，再执行失败文档补交。这个等待只影响后台补交，不阻塞 HTTP 服务启动。
+当前包的 `auto` 模式将 `WEKNORA_REPARSE_WAIT_URLS` 置空，不等待可选本地服务才补交失败文档。显式 `scheduler` 或 `model-hub` 模式等待所选网关的 `/healthz`，不会等待旧 Ollama 原生地址。这个等待只影响后台补交，不阻塞 HTTP 服务启动。
 
-## 默认模型行
-
-VOS 包不会放额外 `config/` 目录；默认由 App 容器入口脚本在运行时生成 `builtin_models.yaml`，并自动创建四条默认模型行：
-
-- `Model Hub Ollama QA (model-hub-ollama-qa)`：KnowledgeQA，endpoint `http://model-hub-ollama-qa:11434/v1`。
-- `Model Hub Ollama VLM (model-hub-ollama-qa)`：VLLM，endpoint `http://model-hub-ollama-qa:11434/v1`。
-- `Model Hub Ollama Embedding (model-hub-ollama-embedding)`：Embedding，endpoint `http://model-hub-ollama-embedding:11434/v1`。
-- `Model Hub Ollama ReRank (model-hub-ollama-rerank)`：ReRank，endpoint `http://model-hub-ollama-rerank:11434/v1`。
-
-ReRank 只进入默认模型列表，不会自动写入知识库 `rerank_model_id`；是否在知识库、智能体或搜索流程里启用，由用户配置决定。
-
-为了升级时不破坏已有引用，默认模型行的内部 `id` 会保持兼容；界面显示名和 endpoint 会跟随当前 YAML 托管配置同步。
+模型行的网关地址、名称及内部 `id` 兼容规则见[模型后端迁移](model-backend-migration.md)，不使用上表的原生地址配置当前推理入口。
 
 ## 思考参数兼容（当前源码已实现）
 

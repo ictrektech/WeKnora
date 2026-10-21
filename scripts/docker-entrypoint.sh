@@ -185,6 +185,7 @@ if backend in {"auto", "scheduler", "model-hub"}:
             entry = entry.replace("http://model-hub-ollama-" + role + ":11434/v1", (base if target == "scheduler" else legacy_base) + "/v1")
             entry = entry.replace("api_key: EMPTY", "api_key: " + json.dumps(key if target == "scheduler" else legacy_key))
             entry = entry.replace("Model Hub Ollama", "V-Scheduler Ollama" if target == "scheduler" else "Model Hub via V-Router")
+            entry = entry.replace(" (model-hub-ollama-" + role + ")", "")
             if backend == "auto":
                 entry = entry.replace("is_default: true", "is_default: false")
                 if target == "model-hub" and scheduler_available:
