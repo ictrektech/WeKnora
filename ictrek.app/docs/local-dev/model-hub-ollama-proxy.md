@@ -2,9 +2,11 @@
 
 本文面向在宿主机运行 WeKnora Go/Vite 的开发者，说明如何复用已安装 VOS Model Hub 的目标主机上的 Ollama。目标是让本地开发程序访问 VOS Model Hub 的模型，复用 Model Hub 的预热、常驻和并发配置。已实现 ReRank（对检索结果重新评分和排序）的模型行及代理，并已在本机 Model Hub `0.0.92` 验证。已有两端口代理需重建以提供 `31537`；模型行变动后需重启后端。
 
+已验证（2026-10-21，本机 V-Scheduler `0.0.47`）：旧 `model-hub-ollama-*` 名称已无法解析，当前服务使用 `v-scheduler-ollama-*`。已有开发代理须按下方[上游名称变更](#上游名称变更)设置覆盖值并重建，否则文档向量生成等请求会报 `EOF`（连接提前关闭）。
+
 ## 结论与边界
 
-| 项目 | 当前约定 |
+| 项目 | 本地开发默认值（保留旧 Model Hub 名称） |
 | --- | --- |
 | Model Hub 网络 | `vos_default` |
 | QA / 聊天 / VLM 上游 | `model-hub-ollama-qa:11535` |
@@ -34,6 +36,22 @@ QA/Embedding 使用 `11535` Gateway（推理请求入口），保留该入口的
 - 已验证（本机 Model Hub `0.0.92`）：`31537` 转发到 Model Hub ReRank `11434`，真实 `/v1/rerank` 请求返回 `200` 且相关文档排序正确；模型行在 `jetson-model-hub` 为默认项，在 `tc232` 为非默认可选项。
 - 已记录：下面的镜像导出、导入和 `docker run` 流程可以在另一台已安装 Model Hub 的 VOS 主机上重建同样的网络桥接。
 - 已补齐运行管理：当前 `local-dev/docker-compose.yml` 仍不构建或声明这个代理，但 `ictrek-dev.sh start` 和 `start-model-hub-proxy` 会在镜像已构建或导入、上游已加入 `vos_default` 时创建或复用独立代理。代理源码和 Dockerfile 位于 `local-dev/model-hub-proxy/`。
+
+## 上游名称变更
+
+当前主机的 V-Scheduler（管理模型服务的应用）在 `vos_default` 网络提供以下别名。在本地开发 `.env` 中设置已有脚本支持的覆盖值：
+
+```env
+ICTREK_DEV_MODEL_HUB_QA_UPSTREAM=v-scheduler-ollama-qa:11535
+ICTREK_DEV_MODEL_HUB_EMBEDDING_UPSTREAM=v-scheduler-ollama-embedding:11535
+ICTREK_DEV_MODEL_HUB_RERANK_UPSTREAM=v-scheduler-ollama-rerank:11434
+```
+
+按[创建代理容器](#创建代理容器)中的检查和重建步骤应用配置；仅重启旧容器不会更新其环境变量。宿主机 `31535`、`31536`、`31537` 端口不变，仍分别连接聊天、向量生成和重排服务。其他主机应先核对实际网络别名，继续使用旧 Model Hub 名称的主机不需要这些覆盖值。
+
+旧名称无法解析时，代理的 `ProxyHandler.handle` 捕获上游连接错误后直接关闭客户端连接，因此后端只收到 `EOF`；代理健康检查同时失败。这种情况应先检查代理目标，不必修改文档内容。
+
+已验证：通过重建后的三个代理端口，`qwen3.5:2b` 聊天返回 `200`，`bge-m3` 返回 `1024` 维向量，`qllama/bge-reranker-v2-m3:q8_0` 重排返回 `200` 且相关文本排在首位。`tc232` 的 `ictrek-weknora-ollama-embedding` 是本地 Ollama 备用模型，沿用全局 `OLLAMA_BASE_URL`，因此实际经 QA 端口 `31535` 生成向量；该路径也已验证。下文独立 Embedding 端口 `31536` 的配置约定适用于 `jetson-model-hub` 模型配置。
 
 ## 前置条件
 

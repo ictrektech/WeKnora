@@ -2295,6 +2295,12 @@ export default {
   "failed": "讀取失敗",
   "openDoc": "在文件站開啟"
 }
+,
+  entityLink: {
+      kb: '知識庫',
+      doc: '文件',
+      chunk: '片段'
+    },
 },
   "kbSettings": {
     "parser": {
@@ -9068,18 +9074,18 @@ export default {
 ,
 "automation": {
   "title": "自動化",
-  "description": "讓智慧代理按排程以你的身分執行任務，結果與待審批事項會通知你。",
+  "description": '讓 Vivibit 助手按排程以你的身分執行任務，結果與待審批事項會通知你。',
   "add": "新增自動化",
   "addHint": "也可以直接請 Vivibit 助手幫你建立",
   "paused": "已暫停",
   "nextRunAt": "下次 {time}",
   "notScheduled": "未排程",
-  "agentUnavailable": "智慧代理不可用",
+
   "deleteTitle": "刪除自動化",
   "deleteBody": "將停止進行中的執行，並刪除「{name}」的執行紀錄、對話與長期授權。此操作無法復原。",
   "fields": {
     "name": "名稱",
-    "agent": "執行智慧代理",
+
     "instruction": "任務",
     "schedule": "執行時間",
     "timezone": "時區",
@@ -9100,9 +9106,9 @@ export default {
     "namePlaceholder": "例如：每日知識庫週報",
     "instructionPlaceholder": "寫清楚要做什麼、用哪些資料、結果如何輸出",
     "variablesHint": "可用變數：",
-    "unattendedHint": "執行時無人在場，智慧代理不能向你提問；需要審批的操作會暫停並通知你。",
+    "unattendedHint": '執行時無人在場，助手不能向你提問；需要審批的操作會暫停並通知你。',
     "nameDesc": "在列表和通知中顯示，方便你認出這項任務",
-    "agentDesc": "由哪個智慧體執行任務，它的知識庫、工具和技能都可用",
+
     "frequency": "重複頻率",
     "weekdays": "星期",
     "dayOfMonthDesc": "當月沒有這一天時，在最後一天執行",
@@ -9121,7 +9127,7 @@ export default {
     "sections": {
       "basic": {
         "title": "基本資訊",
-        "desc": "為任務命名，選擇執行的智慧體，並寫下要做的事。"
+        "desc": '任務由 Vivibit 助手執行。需要其他智慧代理時，請在任務中寫明委派對象與工作。'
       },
       "schedule": {
         "title": "執行時間",
@@ -9138,7 +9144,7 @@ export default {
     },
     "sessionModeDesc": {
       "per_run": "每次執行開一個新對話，互不影響",
-      "persistent": "所有執行都在同一個對話中，智慧體能看到先前的內容"
+      "persistent": '所有執行都在同一個對話裡，助手能看到之前的內容'
     },
     "errors": {
       "name": "請填寫名稱",
@@ -9154,8 +9160,8 @@ export default {
     }
 ,
     model: "執行模型",
-    modelHelp: "預設沿用智慧體的模型設定，也可以為此自動化單獨指定。修改後用於後續執行。",
-    modelDefault: "跟隨智慧體預設模型",
+    modelHelp: '預設沿用助手的模型設定，也可以單獨指定。受委派的智慧代理使用各自的模型。修改後用於後續執行。',
+    modelDefault: '跟隨助手預設模型',
   },
   "schedule": {
     "kinds": {

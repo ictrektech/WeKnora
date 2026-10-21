@@ -17,9 +17,9 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 	root := sqliteRepoRoot(t)
 	chdirAndRestore(t, root)
 	for _, dialect := range []string{"sqlite", "postgres"} {
-		baselines := []uint{0, 47, 55}
+		baselines := []uint{0, 47, 55, 59}
 		if dialect == "postgres" {
-			baselines = []uint{0, 141, 150}
+			baselines = []uint{0, 141, 150, 154}
 		}
 		for _, baseline := range baselines {
 			name := fmt.Sprintf("%s/from-%d", dialect, baseline)
@@ -30,7 +30,7 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				var db *sql.DB
 				var m *migrate.Migrate
-				ceiling, latest := uint(55), uint(59)
+				ceiling, latest := uint(55), uint(60)
 				if dialect == "sqlite" {
 					path := filepath.Join(t.TempDir(), "upgrade.db")
 					var err error
@@ -58,7 +58,7 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 					require.NoError(t, err)
 					m, err = migrate.New("file://"+root+"/migrations/versioned", u.String())
 					require.NoError(t, err)
-					ceiling, latest = 150, 154
+					ceiling, latest = 150, 155
 				}
 				t.Cleanup(func() { _ = db.Close(); _, _ = m.Close() })
 				if upgrade {
@@ -79,6 +79,10 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 					_, err = db.Exec(`INSERT INTO automation_runs
 						(id, automation_id, tenant_id, scheduled_at, trigger_kind, status, answer, created_at, updated_at)
 						VALUES ('saved-run', 'saved-task', 1, CURRENT_TIMESTAMP, 'schedule', 'awaiting_approval', 'Saved answer', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+					require.NoError(t, err)
+				}
+				if baseline == latest-1 {
+					_, err := db.Exec(`UPDATE automations SET model_id = 'chosen-model' WHERE id = 'saved-task'`)
 					require.NoError(t, err)
 				}
 				require.NoError(t, m.Up())
@@ -106,6 +110,17 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 						require.Equal(t, "NO", nullable)
 					}
 				}
+				var executorColumns int
+				if dialect == "sqlite" {
+					require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('automations') WHERE name = 'agent_id'`).Scan(&executorColumns))
+				} else {
+					require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'automations' AND column_name = 'agent_id'`).Scan(&executorColumns))
+				}
+				require.Zero(t, executorColumns, "tasks now run through the assistant")
+				_, err = db.Exec(`INSERT INTO automations
+					(id, tenant_id, owner_user_id, name, instruction, trigger_config, created_at, updated_at)
+					VALUES ('new-task', 1, 'saved-owner', 'New task', 'No executor required', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+				require.NoError(t, err)
 				for _, index := range []string{
 					"idx_session_sandbox_assignments_live_machine", "idx_session_sandbox_assignments_cleanup_due",
 					"idx_sandbox_user_machines_config", "idx_sandbox_user_machines_owner", "idx_sandbox_user_machines_empty",
@@ -131,7 +146,11 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 					var duration int64
 					require.NoError(t, db.QueryRow(`SELECT instruction, model_id FROM automations WHERE id = 'saved-task'`).Scan(&instruction, &model))
 					require.Equal(t, "Keep this instruction", instruction)
-					require.Empty(t, model)
+					if baseline == latest-1 {
+						require.Equal(t, "chosen-model", model)
+					} else {
+						require.Empty(t, model)
+					}
 					require.NoError(t, db.QueryRow(`SELECT automation_id, answer, status, execution_duration_ms FROM automation_runs WHERE id = 'saved-run'`).Scan(&automationID, &answer, &status, &duration))
 					require.Equal(t, "saved-task", automationID)
 					require.Equal(t, "Saved answer", answer)
