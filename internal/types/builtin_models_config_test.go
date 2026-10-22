@@ -69,6 +69,55 @@ printf '%s\n%s\n' "$ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME" "$ICTREK_DEV_MODEL_H
 	}
 }
 
+func TestLocalDevSchedulerHasOneModelPerRole(t *testing.T) {
+	t.Setenv("BUILTIN_MODELS_CONFIG", "../../ictrek.app/docs/local-dev/config/builtin_models.scheduler.yaml")
+	t.Setenv("ICTREK_DEV_SCHEDULER_BASE_URL", "http://127.0.0.1:22888/v1")
+	t.Setenv("ICTREK_DEV_SCHEDULER_API_KEY", "")
+	for _, role := range []string{"QA", "EMBEDDING", "RERANK"} {
+		t.Setenv("ICTREK_DEV_SCHEDULER_"+role+"_MODEL", "")
+	}
+	db := setupBuiltinModelsDB(t)
+	// Removed aliases are retired; primary IDs and user-owned models remain.
+	for _, id := range []string{"ictrek-weknora-vllm-bge-m3", "ictrek-weknora-ollama-embedding", "ictrek-model-hub-ollama-qa"} {
+		require.NoError(t, db.Create(&Model{ID: id, ManagedBy: BuiltinModelManagedBy, Name: "old"}).Error)
+	}
+	require.NoError(t, db.Create(&Model{ID: "user-cloud", Name: "cloud", Source: ModelSourceRemote}).Error)
+	require.NoError(t, LoadBuiltinModelsConfig(context.Background(), db, t.TempDir()))
+	var rows []Model
+	require.NoError(t, db.Find(&rows).Error)
+	require.Len(t, rows, 5)
+	for _, id := range []string{"ictrek-weknora-vllm-bge-m3", "ictrek-model-hub-ollama-qa"} {
+		live, deleted := countModels(t, db, id)
+		require.Zero(t, live)
+		require.EqualValues(t, 1, deleted)
+	}
+	defaults := map[ModelType]int{}
+	for _, row := range rows {
+		if row.ID == "user-cloud" {
+			require.Equal(t, "cloud", row.Name)
+			continue
+		}
+		require.Equal(t, ModelSourceRemote, row.Source)
+		require.Equal(t, "http://127.0.0.1:22888/v1", row.Parameters.BaseURL)
+		require.Equal(t, "openai", row.Parameters.InterfaceType)
+		require.True(t, strings.HasPrefix(row.Name, "v-scheduler/ollama-"), row.Name)
+		if row.Type == ModelTypeEmbedding {
+			require.Equal(t, "v-scheduler/ollama-embedding/bge-m3:latest", row.Name)
+			require.Equal(t, 1024, row.Parameters.EmbeddingParameters.Dimension)
+		}
+		if row.Type == ModelTypeKnowledgeQA || row.Type == ModelTypeVLLM {
+			require.Equal(t, "reasoning_effort", row.Parameters.ExtraConfig["thinking_control"])
+		} else {
+			require.NotNil(t, row.Parameters.Spec)
+			require.EqualValues(t, 180, row.Parameters.Spec.Compat["request_timeout_seconds"])
+		}
+		if row.IsDefault {
+			defaults[row.Type]++
+		}
+	}
+	require.Equal(t, map[ModelType]int{ModelTypeKnowledgeQA: 1, ModelTypeVLLM: 1, ModelTypeEmbedding: 1, ModelTypeRerank: 1}, defaults)
+}
+
 // setupBuiltinModelsDB creates an in-memory SQLite DB with `models` migrated
 // via GORM AutoMigrate. AutoMigrate honours the struct tags so the
 // `managed_by` and soft-delete columns are present, matching what the real

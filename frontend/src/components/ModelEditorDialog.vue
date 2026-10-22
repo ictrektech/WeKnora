@@ -930,13 +930,14 @@ const schedulerModels = ref<string[]>([])
 const schedulerEnabled = ref(false)
 const schedulerLoading = ref(false)
 const schedulerError = ref('')
-const schedulerBaseURL = 'http://v-scheduler:8080/v1'
-const schedulerSelection = computed(() => [schedulerBaseURL, 'http://v-scheduler-gateway:8080/v1'].includes(formData.value.baseUrl || '') ? formData.value.modelName : '')
+const schedulerBaseURL = ref('http://v-scheduler:8080/v1')
+const schedulerSelection = computed(() => [schedulerBaseURL.value, 'http://v-scheduler-gateway:8080/v1'].includes(formData.value.baseUrl || '') ? formData.value.modelName : '')
 const loadSchedulerModels = async () => {
   schedulerLoading.value = true
   schedulerError.value = ''
   try {
     const result = await listSchedulerModels()
+    schedulerBaseURL.value = result.base_url || 'http://v-scheduler:8080/v1'
     schedulerEnabled.value = result.enabled
     schedulerModels.value = result.data || []
   } catch {
@@ -954,7 +955,7 @@ const selectSchedulerModel = async (value: unknown) => {
   formData.value.source = 'remote'
   formData.value.provider = 'generic'
   await nextTick()
-  formData.value.baseUrl = schedulerBaseURL
+  formData.value.baseUrl = schedulerBaseURL.value
   formData.value.apiKey = ''
   formData.value.extraConfig = {}
   formData.value.appSecret = ''

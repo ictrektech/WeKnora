@@ -17,8 +17,16 @@ func (h *ModelHandler) ListSchedulerModels(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true, "data": []string{}, "enabled": false})
 		return
 	}
-	client := schedulergateway.Client("", schedulergateway.Gateway, "", &http.Client{Timeout: 15 * time.Second})
-	request, _ := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, schedulergateway.Gateway+"/models", nil)
+	baseURL := schedulergateway.CatalogGateway()
+	client := schedulergateway.Client("", baseURL, "", &http.Client{
+		Timeout:       15 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	})
+	request, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, baseURL+"/models", nil)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "message": "Invalid V-Scheduler gateway URL"})
+		return
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "message": "V-Scheduler model discovery unavailable; check the gateway binding"})
@@ -42,5 +50,5 @@ func (h *ModelHandler) ListSchedulerModels(c *gin.Context) {
 			seen[model.ID] = true
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": ids, "enabled": true, "base_url": schedulergateway.Gateway})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": ids, "enabled": true, "base_url": baseURL})
 }
