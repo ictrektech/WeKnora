@@ -1191,6 +1191,7 @@ export default {
       cli: 'CLI',
       claw: 'Claw Skill',
       mcpserver: 'MCP Server',
+      "patent": "专利工作台",
       legal: '法律工作台',
     }
   },
@@ -9465,5 +9466,50 @@ export default {
       },
       description: '先观察图片特征并进行图片描述，再根据图片特征决定是否调用OCR对图片进行识别，以节省模型调用次数并提升解析速度。'
     }
+  },
+
+  "patentWorkspace": {
+    "title": "专利工作台",
+    "search": "专利检索",
+    "writing": "写作指导",
+    "sessions": "历史会话",
+    "searchGreeting": "检索相关专利，核对每一条依据。",
+    "writingGreeting": "完善技术材料，检查专利写作中的缺漏。",
+    "localScope": "当前仅检索本地知识库和附件；需要公开网页资料时，请在输入栏开启联网搜索。",
+    "onlineScope": "当前使用本地资料与联网搜索；网页结果不代表完整专利数据库。",
+    "writingScope": "提供提纲、补充问题和修改建议；请上传材料或选择相关知识库。",
+    "unavailable": "专利工作台不可用，已返回知识库。",
+    "createFailed": "创建专利会话失败。",
+    "loadFailed": "无法读取专利工作台配置，请重试。",
+    "retry": "重试",
+    "prompts": {
+      "technical": "请根据我的技术问题查找相关专利，列出检索条件、来源和技术相关性。",
+      "applicant": "请按申请人或公开号查找专利，只填写可核实的字段。",
+      "compare": "请比较我提供的专利的技术特征，标出依据与差异。",
+      "outline": "请根据我的技术材料梳理交底书提纲，并列出待补充事实。",
+      "missing": "请检查我的交底材料有哪些技术细节、实施方式和效果证据缺漏。",
+      "claims": "请检查我的权利要求中的术语、引用关系和表达清晰度。",
+      "consistency": "请检查我的说明书与权利要求是否一致、是否有充分技术支撑。"
+    }
+  },
+  "patentWorkspaceSettings": {
+    "description": "控制当前工作区的专利工作台访问。关闭保留已有会话与附件。",
+    "introTitle": "专利工作台开关",
+    "introDescription": "开启后可使用专利检索和写作指导，两个子功能分别保存历史与输入选择。",
+    "enableLabel": "启用专利工作台",
+    "enableDescription": "关闭后隐藏入口并停止后续访问，不删除数据。",
+    "saveSuccess": "专利工作台设置已保存",
+    "saveFailed": "保存专利工作台设置失败：{message}",
+    "deleteTitle": "删除专利工作台数据",
+    "deleteDescription": "删除当前工作区全部专利检索、写作指导会话及其消息和临时附件。共享知识库保留。",
+    "deleteButton": "删除全部数据",
+    "deleteConfirmTitle": "确认删除专利工作台数据？",
+    "deleteConfirmBody": "将删除当前工作区全部专利检索和写作指导会话、消息、建议及临时附件。此操作不可恢复。共享知识库和其他工作台数据保留。",
+    "deleteSuccess": "专利工作台数据已删除",
+    "deleteFailed": "删除专利工作台数据失败：{message}",
+    "cancel": "取消",
+    "adminOnly": "只有管理员可以修改设置；只有所有者可以清理专利工作台数据。",
+    "disabledMessage": "专利工作台当前已关闭。"
   }
+
 }

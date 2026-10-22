@@ -208,6 +208,12 @@ func (r *sessionRepository) QueryPaged(
 		if q.HideLegalSessions {
 			db = db.Where("COALESCE(s.workspace_mode, ?) <> ?", string(types.WorkspaceModePlatform), string(types.WorkspaceModeLegalAssistant))
 		}
+		if q.HidePatentSessions {
+			db = db.Where("s.workspace_mode NOT IN ?", []types.WorkspaceMode{types.WorkspaceModePatentSearch, types.WorkspaceModePatentWriting})
+		}
+		if q.WorkspaceMode != "" {
+			db = db.Where("COALESCE(s.workspace_mode, ?) = ?", types.WorkspaceModePlatform, q.WorkspaceMode)
+		}
 		if kw := strings.TrimSpace(q.Keyword); kw != "" {
 			db = db.Where(titleLikeExpr, "%"+escapeLikeKeyword(kw)+"%", likeEscapeChar)
 		}
@@ -435,7 +441,11 @@ func (r *sessionRepository) ListByTenantWorkspaceMode(
 	ctx context.Context, tenantID uint64, mode types.WorkspaceMode,
 ) ([]*types.Session, error) {
 	var sessions []*types.Session
-	err := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx)
+	if mode.IsPatent() {
+		query = query.Unscoped()
+	}
+	err := query.
 		Where("tenant_id = ? AND workspace_mode = ?", tenantID, mode).
 		Find(&sessions).Error
 	return sessions, err

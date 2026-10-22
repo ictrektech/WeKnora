@@ -228,6 +228,10 @@ func (s *SessionForkService) Fork(
 		return nil, ErrForkSessionNotFound
 	}
 
+	if err := ensureSessionWorkspaceAccess(ctx, source); err != nil {
+		return nil, err
+	}
+
 	forkPoint, err := s.messages.GetMessage(ctx, sourceSessionID, messageID)
 	if err != nil {
 		if isForkNotFound(err) {
@@ -298,6 +302,7 @@ func (s *SessionForkService) Fork(
 		Title:            forkTitle(title, source.Title),
 		Description:      source.Description,
 		LastRequestState: source.LastRequestState,
+		WorkspaceMode:    source.WorkspaceMode,
 		SandboxConfigID:  source.SandboxConfigID,
 		// The owner travels with the config id, or the branch would inherit a
 		// pin that resolves nowhere the moment the source ran a shared agent.
@@ -426,6 +431,7 @@ func (s *SessionForkService) forkOnSharedMachine(
 		OwnerAuthSource: source.OwnerAuthSource,
 		Title:           forkTitle(title, source.Title), Description: source.Description,
 		LastRequestState: source.LastRequestState,
+		WorkspaceMode:    source.WorkspaceMode,
 		SandboxConfigID:  source.SandboxConfigID, SandboxConfigTenantID: source.SandboxConfigTenantID,
 		ParentSessionID: source.ID, ForkedFromMessageID: forkPoint.ID,
 	}

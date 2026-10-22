@@ -144,12 +144,15 @@ func loadSessionForRead(
 // resolution paths. A missing tenant in unit/background contexts is treated as
 // enabled; authenticated HTTP requests always carry TenantInfo in context.
 func ensureSessionWorkspaceAccess(ctx context.Context, session *types.Session) error {
-	if session == nil || session.WorkspaceMode != types.WorkspaceModeLegalAssistant {
+	if session == nil {
 		return nil
 	}
 	tenant, ok := types.TenantInfoFromContext(ctx)
-	if ok && !tenant.LegalWorkspaceConfig.IsEnabled() {
+	if ok && session.WorkspaceMode == types.WorkspaceModeLegalAssistant && !tenant.LegalWorkspaceConfig.IsEnabled() {
 		return apperrors.ErrLegalWorkspaceDisabled
+	}
+	if ok && session.WorkspaceMode.IsPatent() && !tenant.PatentWorkspaceConfig.IsEnabled() {
+		return apperrors.ErrPatentWorkspaceDisabled
 	}
 	return nil
 }
@@ -440,9 +443,13 @@ func (s *sessionService) ListSessions(
 	if !types.IsValidSessionKind(query.Kind) {
 		return nil, apperrors.NewBadRequestError("invalid session kind")
 	}
+	if query.WorkspaceMode != "" && !query.WorkspaceMode.Valid() {
+		return nil, apperrors.NewBadRequestError("invalid workspace_mode")
+	}
 	query.TenantID = types.MustTenantIDFromContext(ctx)
 	if tenant, ok := types.TenantInfoFromContext(ctx); ok {
 		query.HideLegalSessions = !tenant.LegalWorkspaceConfig.IsEnabled()
+		query.HidePatentSessions = !tenant.PatentWorkspaceConfig.IsEnabled()
 	}
 	// API / IM / embed source filters are tenant-wide admin views over channel
 	// traffic. Gate them behind Admin+ and drop the per-user owner scope so an
@@ -486,9 +493,13 @@ func (s *sessionService) CountSessionsBySource(
 	if query == nil {
 		query = &types.SessionListQuery{}
 	}
+	if query.WorkspaceMode != "" && !query.WorkspaceMode.Valid() {
+		return 0, apperrors.NewBadRequestError("invalid workspace_mode")
+	}
 	query.TenantID = types.MustTenantIDFromContext(ctx)
 	if tenant, ok := types.TenantInfoFromContext(ctx); ok {
 		query.HideLegalSessions = !tenant.LegalWorkspaceConfig.IsEnabled()
+		query.HidePatentSessions = !tenant.PatentWorkspaceConfig.IsEnabled()
 	}
 	if query.Kind == types.SessionKindAssistant {
 		query.UserID = types.SessionOwnerIDFromContext(ctx)
@@ -946,6 +957,84 @@ func (s *sessionService) ListLegalAssistantSessions(ctx context.Context, tenantI
 		return nil, stderrors.New("workspace id is required")
 	}
 	return s.sessionRepo.ListByTenantWorkspaceMode(ctx, tenantID, types.WorkspaceModeLegalAssistant)
+}
+
+// ListPatentSessions is used only by the Owner-authorized workspace purge.
+func (s *sessionService) ListPatentSessions(ctx context.Context, tenantID uint64) ([]*types.Session, error) {
+	if tenantID == 0 {
+		return nil, stderrors.New("workspace id is required")
+	}
+	var sessions []*types.Session
+	for _, mode := range []types.WorkspaceMode{types.WorkspaceModePatentSearch, types.WorkspaceModePatentWriting} {
+		rows, err := s.sessionRepo.ListByTenantWorkspaceMode(ctx, tenantID, mode)
+		if err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, rows...)
+	}
+	return sessions, nil
+}
+
+func (s *sessionService) DeletePatentSessions(ctx context.Context, tenantID uint64, sessions []*types.Session) error {
+	if tenantID == 0 {
+		return stderrors.New("workspace id is required")
+	}
+	for _, session := range sessions {
+		if session == nil || session.TenantID != tenantID || !session.WorkspaceMode.IsPatent() {
+			return stderrors.New("invalid patent purge scope")
+		}
+	}
+	idsByOwner := make(map[string][]string)
+	ids := make([]string, 0, len(sessions))
+	for _, session := range sessions {
+		ids = append(ids, session.ID)
+		idsByOwner[session.UserID] = append(idsByOwner[session.UserID], session.ID)
+	}
+	handled, err := s.userWorkspaceSessions(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, session := range sessions {
+		if s.messageRepo != nil {
+			if s.knowledgeService != nil {
+				ids, err := s.messageRepo.GetKnowledgeIDsBySessionID(ctx, session.ID)
+				if err != nil {
+					return err
+				}
+				if err := deleteReferencedKnowledge(ctx, s.knowledgeService, "", ids); err != nil {
+					return err
+				}
+			}
+			if err := s.messageRepo.DeleteMessagesBySessionID(ctx, session.ID); err != nil {
+				return err
+			}
+		}
+		if s.suggestionRepo != nil {
+			if err := s.suggestionRepo.DeleteBySessionID(ctx, tenantID, session.ID); err != nil {
+				return err
+			}
+		}
+		if s.webSearchStateRepo != nil {
+			if err := s.webSearchStateRepo.DeleteWebSearchTempKBState(ctx, session.ID); err != nil {
+				return err
+			}
+		}
+		if !handled[session.ID] {
+			s.destroyBoundSandbox(ctx, session.ID)
+		}
+	}
+	handled, err = s.deleteSessionBatch(ctx, tenantID, idsByOwner)
+	if err != nil {
+		return err
+	}
+	for _, session := range sessions {
+		s.releaseForkSnapshot(ctx, session)
+	}
+	for owner, sessionIDs := range idsByOwner {
+		s.notifyDeletedSessions(ctx, tenantID, owner, sessionIDs)
+	}
+	s.runUserWorkspaceCleanups(ctx, handled)
+	return nil
 }
 
 // WithWorkspaceCleaner enables user-mode session teardown.

@@ -18,6 +18,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrResourceNotFound = errors.New("resource not found")
+
 const defaultResourceGrantTTL = 2 * time.Hour
 
 type resourceCatalog struct {
@@ -154,7 +156,7 @@ func (s *resourceCatalog) Resolve(ctx context.Context, reference string) (*types
 		return nil, err
 	}
 	if resource == nil {
-		return nil, fmt.Errorf("resource not found")
+		return nil, ErrResourceNotFound
 	}
 	return resource, nil
 }
@@ -446,7 +448,7 @@ func (s *resourceCatalog) ResolveAccessGrant(ctx context.Context, token string) 
 		return nil, err
 	}
 	if resource == nil {
-		return nil, fmt.Errorf("resource not found")
+		return nil, ErrResourceNotFound
 	}
 	return resource, nil
 }

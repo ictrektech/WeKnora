@@ -785,6 +785,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewContractReviewHandler))
 	must(container.Provide(service.NewLegalWorkspaceDataService))
 	must(container.Provide(handler.NewLegalWorkspaceDataHandler))
+	must(container.Provide(service.NewPatentWorkspaceDataService))
+	must(container.Provide(handler.NewPatentWorkspaceDataHandler))
 	must(container.Provide(handler.NewSmartArchiveHandler))
 	must(container.Provide(handler.NewAutomationHandler))
 

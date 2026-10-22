@@ -962,6 +962,7 @@ export default {
       "cli": "CLI",
       "claw": "Claw Skill",
       "mcpserver": "MCP Server",
+      "patent": "專利工作台",
       "legal": "法律工作台"
     }
   },
@@ -9477,5 +9478,50 @@ export default {
     },
     "description": "先觀察圖片特徵並進行圖片描述，再根據圖片特徵決定是否呼叫 OCR 對圖片進行辨識，以節省模型呼叫次數並提升解析速度。"
   }
-}
+},
+
+  "patentWorkspace": {
+    "title": "專利工作台",
+    "search": "專利檢索",
+    "writing": "寫作指導",
+    "sessions": "歷史對話",
+    "searchGreeting": "檢索相關專利，核對每一條依據。",
+    "writingGreeting": "完善技術資料，檢查專利寫作中的缺漏。",
+    "localScope": "目前僅檢索本機知識庫和附件；需要公開網頁資料時，請在輸入欄開啟網路搜尋。",
+    "onlineScope": "目前使用本機資料與網路搜尋；網頁結果不代表完整專利資料庫。",
+    "writingScope": "提供大綱、補充問題和修改建議；請上傳資料或選擇相關知識庫。",
+    "unavailable": "專利工作台無法使用，已返回知識庫。",
+    "createFailed": "建立專利對話失敗。",
+    "loadFailed": "無法讀取專利工作台設定，請重試。",
+    "retry": "重試",
+    "prompts": {
+      "technical": "請根據我的技術問題尋找相關專利，列出檢索條件、來源和技術相關性。",
+      "applicant": "請按申請人或公開號查找專利，只填寫可核實的欄位。",
+      "compare": "請比較我提供的專利技術特徵，標出依據與差異。",
+      "outline": "請根據我的技術資料梳理交底書大綱，並列出待補充事實。",
+      "missing": "請檢查我的交底資料有哪些技術細節、實施方式和效果證據缺漏。",
+      "claims": "請檢查我的請求項中的術語、引用關係和表達清晰度。",
+      "consistency": "請檢查我的說明書與請求項是否一致、是否有充分技術支撐。"
+    }
+  },
+  "patentWorkspaceSettings": {
+    "description": "控制目前工作區的專利工作台存取。關閉後保留既有對話與附件。",
+    "introTitle": "專利工作台開關",
+    "introDescription": "開啟後可使用專利檢索和寫作指導，兩個子功能分別保存歷史與輸入選擇。",
+    "enableLabel": "啟用專利工作台",
+    "enableDescription": "關閉後隱藏入口並停止後續存取，不刪除資料。",
+    "saveSuccess": "專利工作台設定已儲存",
+    "saveFailed": "儲存專利工作台設定失敗：{message}",
+    "deleteTitle": "刪除專利工作台資料",
+    "deleteDescription": "刪除目前工作區全部專利檢索、寫作指導對話及其訊息和暫存附件。共用知識庫保留。",
+    "deleteButton": "刪除全部資料",
+    "deleteConfirmTitle": "確認刪除專利工作台資料？",
+    "deleteConfirmBody": "將刪除目前工作區全部專利檢索和寫作指導對話、訊息、建議及暫存附件。此操作無法復原。共用知識庫和其他工作台資料保留。",
+    "deleteSuccess": "專利工作台資料已刪除",
+    "deleteFailed": "刪除專利工作台資料失敗：{message}",
+    "cancel": "取消",
+    "adminOnly": "只有管理員可以修改設定；只有擁有者可以清理專利工作台資料。",
+    "disabledMessage": "專利工作台目前已關閉。"
+  }
+
 }

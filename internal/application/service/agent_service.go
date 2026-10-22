@@ -447,6 +447,9 @@ func (s *agentService) resolveKBAndDocInfos(
 			})
 		}
 	}
+	for _, info := range kbInfos {
+		scopeKnowledgeBasePrompt(config.SearchTargets, info)
+	}
 
 	selectedDocs, err := s.getSelectedDocumentInfos(ctx, config.KnowledgeIDs)
 	if err != nil {
@@ -455,6 +458,21 @@ func (s *agentService) resolveKBAndDocInfos(
 	}
 
 	return kbInfos, selectedDocs
+}
+
+// Keep the model's directory as narrow as the tools: an explicitly selected
+// file must not advertise other cases from the same knowledge base.
+func scopeKnowledgeBasePrompt(targets types.SearchTargets, info *agent.KnowledgeBaseInfo) {
+	if len(targets) == 0 {
+		return
+	}
+	info.RecentDocs = slices.DeleteFunc(info.RecentDocs, func(doc agent.RecentDocInfo) bool {
+		return !targetsCoverDocument(targets, info.ID, doc.KnowledgeID)
+	})
+	if !targetsCoverDocument(targets, info.ID, "") {
+		info.Description = ""
+		info.Profile = nil
+	}
 }
 
 // registerSandboxFileTools registers list_sandbox_files / read_file /

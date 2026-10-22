@@ -260,7 +260,7 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 	session, err := h.sessionService.GetOwnedSession(ctx, sessionID)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get session, session ID: %s, error: %v", sessionID, err)
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			return nil, nil, errors.NewForbiddenError(err.Error())
 		}
 		return nil, nil, errors.NewNotFoundError("Session not found")
@@ -786,9 +786,11 @@ func (h *Handler) setupSSEStream(reqCtx *qaRequestContext, generateTitle bool, m
 	// completeAssistantMessage on a context descended from this one. Marking
 	// the root of the async work is what keeps them from disagreeing — an
 	// agent that cannot read the memory must not keep writing to it.
+	var memoryPreference *bool
 	if reqCtx.customAgent != nil {
-		baseCtx = types.ApplyAgentMemoryPreference(baseCtx, reqCtx.customAgent.Config.MemoryEnabled)
+		memoryPreference = reqCtx.customAgent.Config.MemoryEnabled
 	}
+	baseCtx = types.ApplySessionMemoryPreference(baseCtx, reqCtx.session, memoryPreference)
 
 	eventBus := event.NewEventBus()
 	asyncCtx, cancelCause := context.WithCancelCause(logger.CloneContext(baseCtx))

@@ -26,6 +26,7 @@
                 </t-tooltip>
             </div>
         </div>
+        <p v-if="!embeddedMode && currentSession?.workspace_mode === 'patent_search'" class="patent-search-scope" role="status">{{ t(useSettingsStoreInstance.settings.webSearchEnabled ? 'patentWorkspace.onlineScope' : 'patentWorkspace.localScope') }}</p>
         <ChildAgentTabBar v-if="!inheritedChildTabs && childTabs.tabs.value.length" :tabs="childTabs.tabs.value"
             :active-id="childTabs.activeId.value" :attention="promptDock.prompts.value.length > 0" @select="childTabs.select" @close="childTabs.close" />
         <div v-show="!childTabs.activeId.value" class="chat_thread" :style="{ '--chat-composer-height': `${composerHeight}px`, '--chat-scrollbar-gutter': `${scrollbarGutter}px` }">
@@ -223,6 +224,8 @@ import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vu
 import InputField from '../../components/Input-field.vue';
 import botmsg from './components/botmsg.vue';
 import usermsg from './components/usermsg.vue';
+import { isPatentMode, routeWorkspaceMode, workspaceChatPath } from '@/utils/workspaceMode';
+import { useAuthStore } from '@/stores/auth';
 import { getMessageList, getSession, forkSession, rewindSession } from "@/api/chat/index";
 import { resolveForkAffordance } from './forkPoint';
 import { rewindSkipMessage } from './rewindNotice';
@@ -354,22 +357,32 @@ const isAutomationSession = computed(() => currentSession.value?.kind === 'autom
 // 避免污染宿主的 settings store。
 const loadSessionAndHydrate = async (sid) => {
     if (!sid || props.embeddedMode) return;
+    const auth = useAuthStore();
+    const tenantId = auth.effectiveTenantId;
+    const userId = auth.currentUserId;
     // Capture before awaiting: onMounted sends and clears firstQuery while this
     // request is in flight. A new session must retain the createChat draft.
     const preserveDraft = Boolean(firstQuery.value);
     try {
         const sessionRes = await getSession(sid);
+        if (auth.effectiveTenantId !== tenantId || auth.currentUserId !== userId) return;
         if (sessionRes?.data && sid === session_id.value) {
             currentSession.value = sessionRes.data;
+            const actualMode = sessionRes.data.workspace_mode || 'platform';
+            if (actualMode !== routeWorkspaceMode(route.name)) {
+                await router.replace(workspaceChatPath(actualMode, String(sid)));
+                return;
+            }
             const lastState = sessionRes.data.last_request_state;
             useSettingsStoreInstance.hydrateSessionInputState(lastState, preserveDraft);
         }
     } catch (error) {
+        if (sid !== session_id.value || auth.effectiveTenantId !== tenantId || auth.currentUserId !== userId) return;
         console.error('Failed to load session data:', error);
         const status = error?.status || error?.response?.status;
-        if ((route.name === 'legalAssistantChat') && (status === 403 || status === 404)) {
-            MessagePlugin.warning(t('legalAssistant.workspaceUnavailable'));
-            void router.replace('/platform/legal-assistant');
+        if ((route.name === 'legalAssistantChat' || isPatentMode(routeWorkspaceMode(route.name))) && (status === 403 || status === 404)) {
+            MessagePlugin.warning(t(isPatentMode(routeWorkspaceMode(route.name)) ? 'patentWorkspace.unavailable' : 'legalAssistant.workspaceUnavailable'));
+            void router.replace('/platform/knowledge-bases');
         }
     }
 };
@@ -487,16 +500,17 @@ async function handleFork(messageId) {
         const sourceTitle = currentSession.value?.title || t('menu.newSession')
         usemenuStore.updataMenuChildren({
             id: data.session_id,
-            path: `chat/${data.session_id}`,
+            path: workspaceChatPath(currentSession.value?.workspace_mode, data.session_id).replace('/platform/', ''),
             title: `${sourceTitle}（分支）`,
             parent_session_id: sourceSessionId,
+            workspace_mode: currentSession.value?.workspace_mode || 'platform',
             isMore: false,
             isNoTitle: false,
             created_at: now,
             updated_at: now,
         })
 
-        await router.push(`/platform/chat/${data.session_id}`)
+        await router.push(workspaceChatPath(currentSession.value?.workspace_mode, data.session_id))
     } catch (err) {
         if (err?.status === 409 || err?.$httpStatus === 409) {
             MessagePlugin.warning('请等本轮回答结束后再分叉')
@@ -2131,9 +2145,7 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
         suggestion_attribution: suggestionAttribution || undefined,
         // Legal sessions are still handled by the shared stream endpoint, but
         // the workspace mode tells newer backends to resolve legal defaults.
-        workspace_mode: route.name === 'legalAssistantChat'
-            ? (currentSession.value?.workspace_mode || 'legal_assistant')
-            : undefined,
+        workspace_mode: currentSession.value?.workspace_mode || routeWorkspaceMode(route.name),
         question_origin: options?.questionOrigin,
         page_context: agentEnabled ? (hostScope?.pageContext || undefined) : undefined,
         assistant_access: agentEnabled ? (hostScope?.assistantAccess || undefined) : undefined,
@@ -2870,4 +2882,8 @@ onBeforeRouteUpdate((to, from, next) => {
         }
     }
 }
+</style>
+
+<style scoped>
+.patent-search-scope { margin: 0; padding: 8px 20px; text-align: center; color: var(--td-text-color-secondary); font-size: 12px; border-bottom: 1px solid var(--td-component-border); }
 </style>

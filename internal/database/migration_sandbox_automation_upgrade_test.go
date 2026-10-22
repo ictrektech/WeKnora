@@ -30,7 +30,7 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				var db *sql.DB
 				var m *migrate.Migrate
-				ceiling, latest := uint(55), uint(60)
+				ceiling, latest := uint(55), uint(61)
 				if dialect == "sqlite" {
 					path := filepath.Join(t.TempDir(), "upgrade.db")
 					var err error
@@ -58,7 +58,7 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 					require.NoError(t, err)
 					m, err = migrate.New("file://"+root+"/migrations/versioned", u.String())
 					require.NoError(t, err)
-					ceiling, latest = 150, 155
+					ceiling, latest = 150, 156
 				}
 				t.Cleanup(func() { _ = db.Close(); _, _ = m.Close() })
 				if upgrade {

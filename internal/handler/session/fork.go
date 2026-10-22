@@ -84,6 +84,10 @@ func (h *Handler) ForkSession(c *gin.Context) {
 		strings.TrimSpace(req.MessageID), strings.TrimSpace(req.Title),
 	)
 	if err != nil {
+		if stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) || stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		// A busy source is a retryable, user-actionable state, not a fault:
 		// snapshotting would pause the sandbox and interrupt the running turn.
 		if stderrors.Is(err, service.ErrForkSourceBusy) {

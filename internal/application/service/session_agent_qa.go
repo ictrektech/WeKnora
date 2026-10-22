@@ -318,7 +318,7 @@ func (s *sessionService) AgentQA(
 
 	// Recall long-term memory for this turn. Like the RAG path this is a
 	// no-model read, and an agent may opt out of it entirely.
-	memoryCtx := types.ApplyAgentMemoryPreference(ctx, agentConfig.MemoryEnabled)
+	memoryCtx := types.ApplySessionMemoryPreference(ctx, req.Session, agentConfig.MemoryEnabled)
 	if s.memoryService != nil {
 		recall := s.memoryService.Recall(memoryCtx, req.Query)
 		if recall.Prompt != "" {

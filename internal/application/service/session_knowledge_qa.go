@@ -180,9 +180,11 @@ func (s *sessionService) KnowledgeQA(
 	// An agent may opt out of long-term memory. The preference is per-request
 	// rather than per-user, so it travels in the context that the recall
 	// plugin reads.
+	var memoryPreference *bool
 	if req.CustomAgent != nil {
-		ctx = types.ApplyAgentMemoryPreference(ctx, req.CustomAgent.Config.MemoryEnabled)
+		memoryPreference = req.CustomAgent.Config.MemoryEnabled
 	}
+	ctx = types.ApplySessionMemoryPreference(ctx, req.Session, memoryPreference)
 
 	// Determine pipeline based on the effective knowledge retrieval scope and
 	// web search setting. Tag-only mentions leave the raw KB/knowledge ID slices

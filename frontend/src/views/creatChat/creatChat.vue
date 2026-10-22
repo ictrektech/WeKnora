@@ -2,8 +2,9 @@
     <div class="dialogue-wrap" :class="{ 'dialogue-wrap--legal': isLegalAssistant }">
         <div class="dialogue-answers">
             <div class="dialogue-title" style="--wails-draggable: drag">
-                <span style="--wails-draggable: drag">{{ isLegalAssistant ? $t('legalAssistant.homeGreeting') : $t('createChat.title') }}</span>
+                <span style="--wails-draggable: drag">{{ isPatentSession ? $t(workspaceMode === 'patent_search' ? 'patentWorkspace.searchGreeting' : 'patentWorkspace.writingGreeting') : isLegalAssistant ? $t('legalAssistant.homeGreeting') : $t('createChat.title') }}</span>
             </div>
+            <p v-if="isPatentSession" class="patent-scope" role="status">{{ $t(workspaceMode === 'patent_search' ? (settingsStore.settings.webSearchEnabled ? 'patentWorkspace.onlineScope' : 'patentWorkspace.localScope') : 'patentWorkspace.writingScope') }}</p>
             <!-- 推荐问题 -->
             <div ref="sqContainerRef" class="suggested-questions-container">
                 <!-- 骨架屏占位 -->
@@ -73,7 +74,8 @@
 import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import ContextualGuide from '@/components/ContextualGuide.vue';
 import InputField from '@/components/Input-field.vue';
-import { createLegalAssistantSession, createSessions } from "@/api/chat/index";
+import { createPatentSession, createLegalAssistantSession, createSessions } from "@/api/chat/index";
+import { isPatentMode, workspaceChatPath, type WorkspaceMode } from '@/utils/workspaceMode';
 import { BUILTIN_LEGAL_ASSISTANT_ID } from "@/api/agent/index";
 import { pickHostProjectDir } from '@/utils/desktopProjectDir';
 import { projectDirBasename, shouldRenderHostProjectSettings, withOptionalProjectDir } from '@/utils/hostWorkspace';
@@ -81,6 +83,7 @@ import { getSuggestedQuestions } from "@/api/agent/index";
 import type { SuggestedQuestion } from "@/api/agent/index";
 import { questionOriginFromSuggestion, type SendMessageOptions } from '@/utils/questionOrigin';
 import { useMenuStore } from '@/stores/menu';
+import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 import { useUIStore } from '@/stores/ui';
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities';
@@ -94,7 +97,7 @@ import { notifySessionCreated } from '@/components/sessionMutations';
 const router = useRouter();
 const route = useRoute();
 const props = withDefaults(defineProps<{
-    workspaceMode?: 'platform' | 'legal_assistant';
+    workspaceMode?: WorkspaceMode;
 }>(), {
     workspaceMode: 'platform',
 });
@@ -103,7 +106,7 @@ const settingsStore = useSettingsStore();
 onBeforeRouteLeave((to) => {
     // The first send carries the draft into its new session; abandoning the
     // composer must not make this a default for the next conversation.
-    if (!to.path.startsWith('/platform/chat/') || !usemenuStore.isFirstSession) {
+    if (!to.params.chatid || !usemenuStore.isFirstSession) {
         settingsStore.reasoningEffortOverride = '';
     }
 });
@@ -111,6 +114,7 @@ const uiStore = useUIStore();
 const deploymentCapabilities = useDeploymentCapabilitiesStore();
 const { t } = useI18n();
 const { navigateToKnowledgeBaseList } = useKnowledgeBaseCreationNavigation();
+const isPatentSession = computed(() => isPatentMode(props.workspaceMode));
 const isLegalAssistant = computed(() => props.workspaceMode === 'legal_assistant');
 
 const hostSandboxEnabled = computed(() =>
@@ -183,6 +187,13 @@ const onQuestionsEntered = () => {
 };
 
 const fetchSuggestedQuestions = async (force = false) => {
+    if (isPatentSession.value) {
+        const keys = props.workspaceMode === 'patent_search' ? ['technical', 'applicant', 'compare'] : ['outline', 'missing', 'claims', 'consistency'];
+        suggestedQuestions.value = keys.map((key) => ({ question: t(`patentWorkspace.prompts.${key}`), source: 'agent_config' } as SuggestedQuestion));
+        sqLoading.value = false;
+        sqInitialLoad.value = false;
+        return;
+    }
     const agentId = settingsStore.selectedAgentId;
     const params = settingsStore.getSuggestedQuestionsParams();
     const requestKey = JSON.stringify([agentId, params]);
@@ -254,6 +265,10 @@ const sendMsg = (value: string, modelId: string, mentionedItems: any[], imageFil
 }
 
 async function createNewSession(value: string, modelId: string, mentionedItems: any[] = [], imageFiles: any[] = [], attachmentFiles: any[] = [], options: SendMessageOptions = {}) {
+    const auth = useAuthStore();
+    const creationTenant = auth.effectiveTenantId;
+    const creationUser = auth.currentUserId;
+    const creationRoute = route.name;
     const selectedKbs = settingsStore.settings.selectedKnowledgeBases || [];
     const selectedFiles = settingsStore.settings.selectedFiles || [];
 
@@ -271,7 +286,9 @@ async function createNewSession(value: string, modelId: string, mentionedItems: 
     };
 
     try {
-        const res: any = isLegalAssistant.value
+        const res: any = isPatentMode(props.workspaceMode)
+            ? await createPatentSession(props.workspaceMode)
+            : isLegalAssistant.value
             ? await createLegalAssistantSession({
                 workspace_mode: 'legal_assistant',
                 agent_id: settingsStore.selectedAgentId || BUILTIN_LEGAL_ASSISTANT_ID,
@@ -286,6 +303,7 @@ async function createNewSession(value: string, modelId: string, mentionedItems: 
                 web_search_enabled: settingsStore.settings.webSearchEnabled,
             })
             : await createSessions(withOptionalProjectDir(sessionData, selectedProjectDir.value));
+        if (auth.effectiveTenantId !== creationTenant || auth.currentUserId !== creationUser || route.name !== creationRoute) return;
         const createdSession = isLegalAssistant.value
             ? (res?.data?.session || res?.data)
             : res?.data;
@@ -294,17 +312,18 @@ async function createNewSession(value: string, modelId: string, mentionedItems: 
             await navigateToSession(sessionId, value, modelId, mentionedItems, imageFiles, attachmentFiles, options);
         } else {
             console.error('[createChat] Failed to create session');
-            MessagePlugin.error(isLegalAssistant.value ? t('legalAssistant.createFailed') : t('createChat.messages.createFailed'));
+            MessagePlugin.error(isPatentSession.value ? t('patentWorkspace.createFailed') : isLegalAssistant.value ? t('legalAssistant.createFailed') : t('createChat.messages.createFailed'));
         }
     } catch (error: any) {
+        if (auth.effectiveTenantId !== creationTenant || auth.currentUserId !== creationUser || route.name !== creationRoute) return;
         console.error('[createChat] Create session error:', error);
         const status = error?.status || error?.response?.status;
-        if (isLegalAssistant.value && (status === 403 || status === 404)) {
-            MessagePlugin.warning(t('legalAssistant.workspaceUnavailable'));
+        if ((isLegalAssistant.value || isPatentSession.value) && (status === 403 || status === 404)) {
+            MessagePlugin.warning(t(isPatentSession.value ? 'patentWorkspace.unavailable' : 'legalAssistant.workspaceUnavailable'));
             await router.replace('/platform/knowledge-bases');
             return;
         }
-        MessagePlugin.error(isLegalAssistant.value ? t('legalAssistant.createFailed') : t('createChat.messages.createError'));
+        MessagePlugin.error(isPatentSession.value ? t('patentWorkspace.createFailed') : isLegalAssistant.value ? t('legalAssistant.createFailed') : t('createChat.messages.createError'));
     }
 }
 
@@ -312,18 +331,22 @@ const navigateToSession = async (sessionId: string, value: string, modelId: stri
     const now = new Date().toISOString();
     const obj = {
         title: t('createChat.newSessionTitle'),
-        path: isLegalAssistant.value ? `legal-assistant/chat/${sessionId}` : `chat/${sessionId}`,
+        path: workspaceChatPath(props.workspaceMode, sessionId).replace('/platform/', ''),
         id: sessionId,
         isMore: false,
         isNoTitle: true,
         created_at: now,
         updated_at: now,
-        ...(isLegalAssistant.value ? { workspace_mode: 'legal_assistant' } : {}),
+        ...(isLegalAssistant.value ? { workspace_mode: 'legal_assistant' } : { workspace_mode: props.workspaceMode }),
     };
     usemenuStore.updataMenuChildren(obj);
     usemenuStore.changeIsFirstSession(true);
     usemenuStore.changeFirstQuery(value, mentionedItems, modelId, imageFiles, attachmentFiles, options.questionOrigin ?? null);
     notifySessionCreated(obj);
+    if (isPatentSession.value) {
+        await router.push(workspaceChatPath(props.workspaceMode, sessionId));
+        return;
+    }
     if (isLegalAssistant.value) {
         await router.push({ name: 'legalAssistantChat', params: { chatid: sessionId } });
         return;
@@ -555,4 +578,8 @@ async function openProjectDir() {
 
     }
 }
+</style>
+
+<style scoped>
+.patent-scope { margin: 0 auto 18px; max-width: 700px; color: var(--td-text-color-secondary); font-size: 13px; line-height: 1.6; text-align: center; padding: 0 16px; }
 </style>

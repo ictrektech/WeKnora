@@ -186,6 +186,14 @@ func (h *Handler) CreateLegalAssistantSession(c *gin.Context) {
 	h.createSession(c, types.WorkspaceModeLegalAssistant)
 }
 
+func (h *Handler) CreatePatentSearchSession(c *gin.Context) {
+	h.createSession(c, types.WorkspaceModePatentSearch)
+}
+
+func (h *Handler) CreatePatentWritingSession(c *gin.Context) {
+	h.createSession(c, types.WorkspaceModePatentWriting)
+}
+
 func (h *Handler) createSession(c *gin.Context, forcedMode types.WorkspaceMode) {
 	ctx := c.Request.Context()
 	// Parse and validate the request body
@@ -249,7 +257,7 @@ func (h *Handler) createSession(c *gin.Context, forcedMode types.WorkspaceMode) 
 	createdSession, err := h.sessionService.CreateSession(ctx, createdSession)
 	if err != nil {
 		logger.ErrorWithFields(ctx, err, nil)
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -294,7 +302,7 @@ func (h *Handler) GetSession(c *gin.Context) {
 	logger.Infof(ctx, "Retrieving session, ID: %s", id)
 	session, err := h.sessionService.GetSession(ctx, id)
 	if err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -317,7 +325,7 @@ func (h *Handler) GetSession(c *gin.Context) {
 }
 
 func sessionNotAccessibleError(err error) error {
-	if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+	if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 		return errors.NewForbiddenError(err.Error())
 	}
 	return errors.NewNotFoundError("Session not found")
@@ -335,6 +343,7 @@ func sessionNotAccessibleError(err error) error {
 // @Param        keyword    query     string  false  "标题模糊搜索"  extensions(x-agent)
 // @Param        source     query     string  false  "来源过滤：web / embed / api / feishu / wechat / slack / ...（api、embed、IM 渠道需 Admin+）"
 // @Param        agent_id   query     string  false  "按 Agent 过滤（仅对 IM 会话生效）"
+// @Param        workspace_mode query string false "会话归属" Enums(platform,legal_assistant,patent_search,patent_writing)
 // @Success      200        {object}  sessionListResponse  "会话列表"
 // @Failure      400        {object}  errors.AppError         "请求参数错误"
 // @Security     Bearer
@@ -344,6 +353,10 @@ func sessionNotAccessibleError(err error) error {
 // @Router       /sessions [get]
 func (h *Handler) GetSessionsByTenant(c *gin.Context) {
 	ctx := c.Request.Context()
+	if mode := types.WorkspaceMode(c.Query("workspace_mode")); mode != "" && !mode.Valid() {
+		c.Error(errors.NewBadRequestError("invalid workspace_mode"))
+		return
+	}
 	kind := c.Query("kind")
 	if !types.IsValidSessionKind(kind) {
 		_ = c.Error(errors.NewBadRequestError("invalid session kind"))
@@ -362,12 +375,13 @@ func (h *Handler) GetSessionsByTenant(c *gin.Context) {
 	// fields so the frontend can render pin icons / source badges without a
 	// second roundtrip. An omitted kind selects normal conversations.
 	result, err := h.sessionService.ListSessions(ctx, &types.SessionListQuery{
-		Kind:     kind,
-		Keyword:  c.Query("keyword"),
-		Source:   c.Query("source"),
-		AgentID:  c.Query("agent_id"),
-		Page:     pagination.Page,
-		PageSize: pagination.PageSize,
+		Kind:          kind,
+		WorkspaceMode: types.WorkspaceMode(c.Query("workspace_mode")),
+		Keyword:       c.Query("keyword"),
+		Source:        c.Query("source"),
+		AgentID:       c.Query("agent_id"),
+		Page:          pagination.Page,
+		PageSize:      pagination.PageSize,
 	})
 	if err != nil {
 		logger.ErrorWithFields(ctx, err, nil)
@@ -439,7 +453,7 @@ func (h *Handler) UpdateSession(c *gin.Context) {
 
 	// Call service to update session
 	if err := h.sessionService.UpdateSession(ctx, &session); err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -456,7 +470,7 @@ func (h *Handler) UpdateSession(c *gin.Context) {
 	// Reload session from database to return complete timestamps and stored fields
 	updatedSession, err := h.sessionService.GetSession(ctx, id)
 	if err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -502,7 +516,7 @@ func (h *Handler) DeleteSession(c *gin.Context) {
 
 	// Call service to delete session
 	if err := h.sessionService.DeleteSession(ctx, id); err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -551,7 +565,7 @@ func (h *Handler) ClearSessionMessages(c *gin.Context) {
 	logger.Infof(ctx, "Clearing all messages for session: %s", id)
 
 	if err := h.messageService.ClearSessionMessages(ctx, id); err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -602,7 +616,7 @@ func (h *Handler) BatchDeleteSessions(c *gin.Context) {
 
 	if req.DeleteAll {
 		if err := h.sessionService.DeleteAllSessions(ctx); err != nil {
-			if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 				c.Error(errors.NewForbiddenError(err.Error()))
 				return
 			}
@@ -638,7 +652,7 @@ func (h *Handler) BatchDeleteSessions(c *gin.Context) {
 	}
 
 	if err := h.sessionService.BatchDeleteSessions(ctx, sanitizedIDs); err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -707,7 +721,7 @@ func (h *Handler) setSessionPinned(c *gin.Context, pinned bool) {
 
 	rows, err := h.sessionService.SetSessionPinned(ctx, id, pinned)
 	if err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}

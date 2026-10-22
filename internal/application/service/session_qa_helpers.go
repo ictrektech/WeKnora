@@ -31,8 +31,9 @@ func applyRequestReasoningEffort(override string, thinking **bool, effort *strin
 // resolveKnowledgeBases resolves the effective knowledge base IDs and knowledge IDs
 // for a QA request. Priority:
 //  1. Explicit @mentions (request-specified kbIDs / knowledgeIDs)
-//  2. RetrieveKBOnlyWhenMentioned -> disable KB if no mention
-//  3. Agent's configured knowledge bases (via KBSelectionMode)
+//  2. Patent workspace -> no implicit KB scope
+//  3. RetrieveKBOnlyWhenMentioned -> disable KB if no mention
+//  4. Agent's configured knowledge bases (via KBSelectionMode)
 func (s *sessionService) resolveKnowledgeBases(
 	ctx context.Context,
 	req *types.QARequest,
@@ -56,6 +57,11 @@ func (s *sessionService) resolveKnowledgeBases(
 			kbIDs, knowledgeIDs = s.restrictMentionsToAgentScope(ctx, customAgent, req.Session.TenantID, kbIDs, knowledgeIDs)
 			req.TagScopes = s.restrictTagScopesToAgentScope(ctx, customAgent, req.Session.TenantID, req.TagScopes)
 		}
+	} else if req.Session != nil && req.Session.WorkspaceMode.IsPatent() {
+		// Patent cases must not silently inherit an agent's workspace-wide scope.
+		// Empty selections mean attachments/user text only, even for saved agents.
+		kbIDs = nil
+		knowledgeIDs = nil
 	} else if customAgent != nil && customAgent.Config.RetrieveKBOnlyWhenMentioned {
 		kbIDs = nil
 		knowledgeIDs = nil

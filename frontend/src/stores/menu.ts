@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import i18n from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities'
+import { usePatentWorkspaceStore } from '@/stores/patentWorkspace'
 import { useLegalWorkspaceStore } from '@/stores/legalWorkspace'
 import type { DeploymentCapabilityKey } from '@/config/deploymentCapabilities'
 import type { QuestionOrigin } from '@/utils/questionOrigin'
@@ -32,6 +33,7 @@ export const useMenuStore = defineStore('menuStore', () => {
       children: createMenuChildren()
     },
     { title: '', titleKey: 'legalWorkspace.title', icon: 'institution', path: 'legal' },
+    { title: '', titleKey: 'patentWorkspace.title', icon: 'file-search', path: 'patent' },
     { title: '', titleKey: 'menu.knowledgeBase', icon: 'zhishiku', path: 'knowledge-bases' },
     // Artifacts only exist where skills run in a sandbox.
     { title: '', titleKey: 'menu.artifacts', icon: 'artifact', path: 'artifacts', requiredCapability: 'settings.sandbox' },
@@ -85,6 +87,7 @@ export const useMenuStore = defineStore('menuStore', () => {
       if (item.path === 'organizations' && !authStore.hasRole('admin')) {
         return false
       }
+      if (item.path === 'patent' && !usePatentWorkspaceStore().enabled) return false
       if (item.path === 'legal' && !legalWorkspace.enabled) {
         return false
       }

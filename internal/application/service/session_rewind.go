@@ -251,6 +251,10 @@ func (s *SessionRewindService) Rewind(
 	if userID == "" || source.UserID != userID {
 		return nil, ErrRewindSessionNotFound
 	}
+	if err := ensureSessionWorkspaceAccess(ctx, source); err != nil {
+		return nil, err
+	}
+
 	// Rewinding moves on from a prompt still waiting for an answer; its run
 	// is completed first so it does not read as a turn in progress.
 	if s.suspendedRuns != nil {

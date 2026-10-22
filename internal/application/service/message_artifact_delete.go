@@ -41,8 +41,7 @@ func (s *messageService) DeleteSessionArtifact(
 	// Ownership: the session must belong to the caller. Deleting is not covered
 	// by the shared-agent read access the download endpoint honours — a viewer
 	// of someone else's shared session may fetch a file, not destroy it.
-	tenantID := types.MustTenantIDFromContext(ctx)
-	if _, err := s.sessionRepo.Get(ctx, tenantID, sessionUserIDForLookup(ctx), req.SessionID); err != nil {
+	if _, err := s.resolveSessionForMutation(ctx, types.MustTenantIDFromContext(ctx), req.SessionID); err != nil {
 		return nil, err
 	}
 

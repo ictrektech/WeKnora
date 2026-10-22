@@ -15,5 +15,6 @@ var (
 	ErrInvalidTenantID = errors.New("invalid tenant id")
 	// ErrLegalWorkspaceDisabled is returned when an existing legal-assistant
 	// session is accessed after the tenant switch has been turned off.
-	ErrLegalWorkspaceDisabled = errors.New("legal workspace is disabled")
+	ErrLegalWorkspaceDisabled  = errors.New("legal workspace is disabled")
+	ErrPatentWorkspaceDisabled = errors.New("patent workspace is disabled")
 )

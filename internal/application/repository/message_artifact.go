@@ -267,6 +267,10 @@ func (r *messageRepository) ListArtifactLibrary(
 	)
 	where = append(where, "s.tenant_id = ?", "s.kind = ''", "s.deleted_at IS NULL", "ma.deleted_at IS NULL")
 	args = append(args, q.TenantID)
+	if len(q.HiddenWorkspaceModes) > 0 {
+		where = append(where, "COALESCE(s.workspace_mode, 'platform') NOT IN ?")
+		args = append(args, q.HiddenWorkspaceModes)
+	}
 	if q.UserID != "" {
 		where = append(where, "(s.user_id = ? OR s.user_id IS NULL OR s.user_id = '')")
 		args = append(args, q.UserID)

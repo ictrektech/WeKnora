@@ -344,6 +344,111 @@ builtin_agents:
       vector_threshold: 0.5
       rerank_top_k: 10
       rerank_threshold: 0.3
+  - id: "builtin-patent-search"
+    avatar: "🔎"
+    is_builtin: true
+    i18n:
+      default:
+        name: "Patent Search"
+        description: "Search local materials and public patent pages with traceable evidence"
+      zh-CN:
+        name: "专利检索"
+        description: "检索本地资料与公开专利网页，核对来源与技术相关性"
+      zh-TW:
+        name: "專利檢索"
+        description: "檢索本機資料與公開專利網頁，核對來源與技術相關性"
+      ja-JP:
+        name: "特許検索"
+        description: "ローカル資料と公開特許ページを出典に基づいて検索"
+      ko-KR:
+        name: "특허 검색"
+        description: "로컬 자료와 공개 특허 페이지를 근거와 함께 검색"
+    config:
+      agent_mode: "smart-reasoning"
+      agent_type: "rag-qa"
+      system_prompt_id: "patent_search_main"
+      temperature: 0.2
+      max_completion_tokens: 4096
+      max_iterations: 30
+      kb_selection_mode: "all"
+      retrieve_kb_only_when_mentioned: true
+      memory_enabled: false
+      allowed_tools:
+        - "search_knowledge"
+        - "read_document"
+        - "query_knowledge_graph"
+        - "list_documents"
+        - "wiki_search"
+        - "wiki_read_page"
+      web_search_enabled: true
+      web_search_max_results: 5
+      reflection_enabled: false
+      multi_turn_enabled: true
+      history_turns: 10
+      citation_enabled: true
+      embedding_top_k: 10
+      keyword_threshold: 0.3
+      vector_threshold: 0.5
+      rerank_top_k: 10
+      rerank_threshold: 0.3
+      suggested_prompts:
+        - "请根据我的技术问题检索相关专利，列出检索条件、来源和技术相关性。"
+        - "请按申请人或公开号查找专利，只填写来源中可核实的字段。"
+        - "请比较这些专利的技术特征，区分原文证据与分析。"
+
+  - id: "builtin-patent-writing"
+    avatar: "✍️"
+    is_builtin: true
+    i18n:
+      default:
+        name: "Patent Writing Guidance"
+        description: "Review patent materials, outlines, claims and consistency"
+      zh-CN:
+        name: "专利写作指导"
+        description: "检查交底材料、提纲、权利要求表达与说明书一致性"
+      zh-TW:
+        name: "專利寫作指導"
+        description: "檢查交底資料、大綱、請求項表達與說明書一致性"
+      ja-JP:
+        name: "特許作成ガイド"
+        description: "特許資料、構成案、請求項と明細書の整合性を確認"
+      ko-KR:
+        name: "특허 작성 가이드"
+        description: "특허 자료·개요·청구항 및 명세서 일관성 검토"
+    config:
+      agent_mode: "smart-reasoning"
+      agent_type: "rag-qa"
+      system_prompt_id: "patent_writing_main"
+      temperature: 0.2
+      max_completion_tokens: 4096
+      max_iterations: 30
+      kb_selection_mode: "all"
+      retrieve_kb_only_when_mentioned: true
+      memory_enabled: false
+      allowed_tools:
+        - "search_knowledge"
+        - "read_document"
+        - "query_knowledge_graph"
+        - "list_documents"
+        - "wiki_search"
+        - "wiki_read_page"
+      web_search_enabled: true
+      web_search_max_results: 5
+      reflection_enabled: false
+      multi_turn_enabled: true
+      history_turns: 10
+      citation_enabled: true
+      embedding_top_k: 10
+      keyword_threshold: 0.3
+      vector_threshold: 0.5
+      rerank_top_k: 10
+      rerank_threshold: 0.3
+      suggested_prompts:
+        - "请根据我的技术材料梳理交底书提纲，并列出需要补充的事实。"
+        - "请检查交底材料的技术细节、实施方式和效果证据是否充分。"
+        - "请检查权利要求的术语、引用关系和表达清晰度。"
+        - "请检查说明书与权利要求的一致性及技术支撑。"
+
   - id: "builtin-skill-installer"
     avatar: "📦"
     is_builtin: true

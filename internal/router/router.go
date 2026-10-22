@@ -98,6 +98,7 @@ type RouterParams struct {
 	MemoryHandler                *handler.MemoryHandler
 	ContractReviewHandler        *handler.ContractReviewHandler
 	LegalWorkspaceDataHandler    *handler.LegalWorkspaceDataHandler
+	PatentWorkspaceDataHandler   *handler.PatentWorkspaceDataHandler
 	SmartArchiveHandler          *handler.SmartArchiveHandler
 	AutomationHandler            *handler.AutomationHandler
 	HostSandbox                  service.HostSandboxManager
@@ -310,6 +311,7 @@ func NewRouter(params RouterParams) *gin.Engine {
 		RegisterChunkRoutes(v1, params.ChunkHandler, rbacGuards)
 		RegisterSessionRoutes(v1, params.SessionHandler, params.MessageSuggestionHandler, rbacGuards)
 		RegisterLegalAssistantRoutes(v1, params.SessionHandler, rbacGuards)
+		RegisterPatentWorkspaceRoutes(v1, params.SessionHandler, params.PatentWorkspaceDataHandler, rbacGuards)
 		RegisterChatRoutes(v1, params.SessionHandler, rbacGuards)
 		RegisterMessageRoutes(v1, params.MessageHandler, rbacGuards)
 		RegisterModelRoutes(v1, params.ModelHandler, params.ModelCredentialsHandler, rbacGuards)

@@ -8054,6 +8054,7 @@ export default {
       cli: 'CLI',
       claw: 'Claw Skill',
       mcpserver: 'MCP Server',
+      "patent": "Patent Workspace",
       legal: 'Legal Workspace',
     },
     api: {
@@ -9539,5 +9540,50 @@ export default {
     },
     "description": "Observe the image attributes and describe the image first, then decide from the attributes whether to run OCR, saving model calls and speeding up parsing."
   }
-}
+},
+
+  "patentWorkspace": {
+    "title": "Patent Workspace",
+    "search": "Patent Search",
+    "writing": "Writing Guidance",
+    "sessions": "Conversations",
+    "searchGreeting": "Find relevant patents and check the evidence.",
+    "writingGreeting": "Improve technical materials and identify writing gaps.",
+    "localScope": "Searching local knowledge bases and attachments only. Enable web search in the composer to include public sources.",
+    "onlineScope": "Using local materials and web search. Web results do not cover the complete patent database.",
+    "writingScope": "Get outlines, follow-up questions and revision suggestions. Upload materials or select a knowledge base.",
+    "unavailable": "Patent workspace is unavailable. Returned to knowledge bases.",
+    "createFailed": "Failed to create patent conversation.",
+    "loadFailed": "Could not load patent workspace settings. Please retry.",
+    "retry": "Retry",
+    "prompts": {
+      "technical": "Find patents related to my technical problem, with search conditions, sources and relevance.",
+      "applicant": "Find patents by applicant or publication number and include only verified fields.",
+      "compare": "Compare the technical features of my patents and identify evidence and differences.",
+      "outline": "Prepare a disclosure outline from my materials and list facts I need to supply.",
+      "missing": "Check my disclosure for missing technical details, embodiments and evidence of effects.",
+      "claims": "Check my claims for terminology, references and clarity.",
+      "consistency": "Check consistency and technical support between my description and claims."
+    }
+  },
+  "patentWorkspaceSettings": {
+    "description": "Control access to the patent workspace. Disabling retains conversations and attachments.",
+    "introTitle": "Patent workspace access",
+    "introDescription": "Enable patent search and writing guidance, each with its own history and composer preferences.",
+    "enableLabel": "Enable patent workspace",
+    "enableDescription": "Disabling hides the entry and blocks subsequent access, while retaining data.",
+    "saveSuccess": "Patent workspace settings saved",
+    "saveFailed": "Failed to save patent workspace settings: {message}",
+    "deleteTitle": "Delete patent workspace data",
+    "deleteDescription": "Delete all patent search and writing conversations, messages and temporary attachments in this workspace. Shared knowledge bases remain.",
+    "deleteButton": "Delete all data",
+    "deleteConfirmTitle": "Delete patent workspace data?",
+    "deleteConfirmBody": "All patent search and writing conversations, messages, suggestions and temporary attachments will be deleted. This cannot be undone. Shared knowledge bases and other workspaces remain.",
+    "deleteSuccess": "Patent workspace data deleted",
+    "deleteFailed": "Failed to delete patent workspace data: {message}",
+    "cancel": "Cancel",
+    "adminOnly": "Admins can change settings; only Owners can purge patent workspace data.",
+    "disabledMessage": "Patent workspace is disabled."
+  }
+
 }

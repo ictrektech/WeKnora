@@ -1191,6 +1191,7 @@ export default {
       cli: 'CLI',
       claw: 'Claw Skill',
       mcpserver: 'MCP 서버',
+      "patent": "특허 워크스페이스",
       legal: '법률 워크스페이스',
     }
   },
@@ -9479,5 +9480,50 @@ export default {
       description:
         '먼저 이미지 특징을 관찰하여 설명을 생성하고, 그 특징을 바탕으로 OCR 실행 여부를 결정합니다. 모델 호출을 절약하고 분석 속도를 높입니다.'
     }
+  },
+
+  "patentWorkspace": {
+    "title": "특허 워크스페이스",
+    "search": "특허 검색",
+    "writing": "작성 가이드",
+    "sessions": "대화 기록",
+    "searchGreeting": "관련 특허를 찾고 근거를 확인하세요.",
+    "writingGreeting": "기술 자료를 보완하고 작성 누락을 확인하세요.",
+    "localScope": "로컬 지식 베이스와 첨부 파일만 검색합니다. 공개 자료가 필요하면 입력란에서 웹 검색을 켜세요.",
+    "onlineScope": "로컬 자료와 웹 검색을 사용합니다. 웹 결과는 전체 특허 데이터베이스를 포함하지 않습니다.",
+    "writingScope": "개요, 추가 질문, 수정 제안을 제공합니다. 자료를 업로드하거나 지식 베이스를 선택하세요.",
+    "unavailable": "특허 워크스페이스를 사용할 수 없어 지식 베이스로 돌아갑니다.",
+    "createFailed": "특허 대화를 만들지 못했습니다.",
+    "loadFailed": "특허 설정을 불러오지 못했습니다. 다시 시도하세요.",
+    "retry": "다시 시도",
+    "prompts": {
+      "technical": "내 기술 문제와 관련된 특허를 검색하고 검색 조건, 출처, 관련성을 제시하세요.",
+      "applicant": "출원인 또는 공개 번호로 특허를 찾고 검증된 항목만 작성하세요.",
+      "compare": "제공한 특허의 기술적 특징을 비교하고 근거와 차이를 제시하세요.",
+      "outline": "내 자료로 기술 설명서 개요를 구성하고 추가할 사실을 정리하세요.",
+      "missing": "기술 세부 사항, 실시 형태, 효과 근거의 누락을 확인하세요.",
+      "claims": "청구항의 용어, 인용 관계, 명확성을 확인하세요.",
+      "consistency": "명세서와 청구항의 일관성 및 기술적 뒷받침을 확인하세요."
+    }
+  },
+  "patentWorkspaceSettings": {
+    "description": "특허 워크스페이스 접근을 관리합니다. 비활성화해도 대화와 첨부 파일을 보관합니다.",
+    "introTitle": "특허 워크스페이스 설정",
+    "introDescription": "검색과 작성 가이드를 활성화합니다. 기록과 입력 설정은 각각 저장합니다.",
+    "enableLabel": "특허 워크스페이스 활성화",
+    "enableDescription": "비활성화하면 메뉴와 접근을 차단하고 데이터는 보관합니다.",
+    "saveSuccess": "특허 설정을 저장했습니다",
+    "saveFailed": "특허 설정 저장 실패: {message}",
+    "deleteTitle": "특허 데이터 삭제",
+    "deleteDescription": "특허 대화, 메시지, 임시 첨부 파일을 삭제합니다. 공유 지식 베이스는 보관합니다.",
+    "deleteButton": "모든 데이터 삭제",
+    "deleteConfirmTitle": "특허 데이터를 삭제할까요?",
+    "deleteConfirmBody": "현재 워크스페이스의 모든 특허 대화, 메시지, 제안, 임시 첨부 파일을 삭제하며 복구할 수 없습니다. 공유 지식 베이스와 다른 워크스페이스는 유지됩니다.",
+    "deleteSuccess": "특허 데이터를 삭제했습니다",
+    "deleteFailed": "특허 데이터 삭제 실패: {message}",
+    "cancel": "취소",
+    "adminOnly": "관리자는 설정을 변경할 수 있습니다. 소유자만 데이터를 삭제할 수 있습니다.",
+    "disabledMessage": "특허 워크스페이스가 비활성화되었습니다."
   }
+
 }

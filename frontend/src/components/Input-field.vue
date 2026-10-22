@@ -737,7 +737,7 @@ const getMentionChipClass = (item: MentionItem) => {
 // 使用 computed 从 store 读取，并通过 setter 同步回 store
 const selectedModelId = computed({
   get: () => settingsStore.conversationModels.selectedChatModelId || '',
-  set: (val: string) => settingsStore.updateConversationModels({ selectedChatModelId: val })
+  set: (val: string) => settingsStore.updateConversationModels({ selectedChatModelId: val, summaryModelId: val })
 });
 const modelsLoading = ref(false);
 const showModelSelector = ref(false);
@@ -973,10 +973,13 @@ const enabledAgents = computed(() =>
 // for everyone else. localStorage is per-user-per-browser, which is
 // what "remember my last pick" actually wants.
 const LAST_CHAT_MODEL_KEY = 'weknora_last_chat_model_id'
+const lastChatModelKey = () => settingsStore._patentMode
+  ? `${settingsStore._patentProfileKey}:last_chat_model`
+  : LAST_CHAT_MODEL_KEY
 
 const readLastChatModelID = (): string => {
   try {
-    return localStorage.getItem(LAST_CHAT_MODEL_KEY) || ''
+    return localStorage.getItem(lastChatModelKey()) || ''
   } catch {
     return ''
   }
@@ -985,9 +988,9 @@ const readLastChatModelID = (): string => {
 const writeLastChatModelID = (id: string) => {
   try {
     if (id) {
-      localStorage.setItem(LAST_CHAT_MODEL_KEY, id)
+      localStorage.setItem(lastChatModelKey(), id)
     } else {
-      localStorage.removeItem(LAST_CHAT_MODEL_KEY)
+      localStorage.removeItem(lastChatModelKey())
     }
   } catch {
     // localStorage may be disabled in incognito mode; ignore.
@@ -1000,10 +1003,13 @@ const writeLastChatModelID = (id: string) => {
 // conversation-config used to feed summary_model_id/rerank_model_id
 // into the dropdown, but those fields were removed: per-user last pick
 // belongs in localStorage, agent-level model belongs on the agent.
+// Patent sessions keep the hydrated/first-send model ahead of that last pick.
 const initChatModelSelection = () => {
   const lastPick = readLastChatModelID();
   const currentSelectedModel = settingsStore.conversationModels.selectedChatModelId;
-  const initialSelection = lastPick || currentSelectedModel || '';
+  const initialSelection = settingsStore._patentMode && (props.sessionId || route.params.chatid)
+    ? currentSelectedModel || lastPick || ''
+    : lastPick || currentSelectedModel || '';
   settingsStore.updateConversationModels({
     summaryModelId: initialSelection,
     selectedChatModelId: initialSelection,
@@ -1050,8 +1056,13 @@ const ensureModelSelection = () => {
 // 则保留用户选择，避免 creatChat → chat 跳转后把模型 B 冲回智能体默认 A。
 watch(
   [selectedAgentId, () => settingsStore.selectedAgentSourceTenantId, agentModelId],
-  ([, sourceTenantId, newModelId]) => {
-    if (props.embeddedMode || !newModelId || newModelId.trim() === '') return;
+  ([agentId, sourceTenantId, newModelId], previous) => {
+    if (props.embeddedMode || settingsStore._isApplyingSessionState || !newModelId || newModelId.trim() === '') return;
+
+    // Late agent metadata must not replace a patent session's restored model
+    // or the model carried through its first-send navigation.
+    if (settingsStore._patentMode && (props.sessionId || route.params.chatid) && selectedModelId.value &&
+      (!previous?.length || (agentId === previous[0] && sourceTenantId === previous[1]))) return;
 
     const lastPick = readLastChatModelID();
     const isSharedAgent = !!sourceTenantId;

@@ -183,6 +183,8 @@ export const BUILTIN_QUICK_ANSWER_ID = 'builtin-quick-answer';
 export const BUILTIN_SMART_REASONING_ID = 'builtin-smart-reasoning';
 /** Built-in legal workspace assistant. Kept separate from the regular chat agents. */
 export const BUILTIN_LEGAL_ASSISTANT_ID = 'builtin-legal-assistant';
+export const BUILTIN_PATENT_SEARCH_ID = 'builtin-patent-search';
+export const BUILTIN_PATENT_WRITING_ID = 'builtin-patent-writing';
 export const BUILTIN_WEKNORA_ASSISTANT_ID = 'builtin-weknora-assistant';
 
 // AgentMode 常量
