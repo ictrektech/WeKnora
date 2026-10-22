@@ -1,15 +1,17 @@
 # VOS HybRAG 正式发布流程
 
+**当前状态：**正式发布仍走 `update_version.sh` 和自动发布流程。本地打包预检还需要可读取 PGV（提供数据库和检索扩展的应用）发布记录的 GitHub 凭证；执行前先满足第 0 节条件，再使用第 4 节兼容新旧 `gh` 的命令。
+
 ## 定位
 
-本 Runbook 面向开发者和 Agent，记录从代码变更到 VOS 安装包、GitHub Release 和 VOS App Store 发布的线性流程。它是执行清单，不是 Skill，不会被自动触发，也不负责安装或升级正在运行的 VOS 应用。
+本操作清单（Runbook）面向开发者和 Agent（自动执行任务的助手），记录从代码变更到 VOS 安装包、GitHub Release 和 VOS App Store 发布的线性流程。它不是 Skill（按需调用的任务说明），不会被自动触发，也不负责安装或升级正在运行的 VOS 应用。
 
-当前仓库的正式入口是 `ictrek.app/scripts/update_version.sh`。该脚本创建并推送 `vos-hybrag-vX.Y.Z` 触发 tag；GitHub Actions 随后负责打包、生成 GitHub Release Notes、创建公开 `vX.Y.Z` tag、上传 pull 包并发布到 VOS App Store。
+当前仓库的正式入口是 `ictrek.app/scripts/update_version.sh`。该脚本创建并推送 `vos-hybrag-vX.Y.Z` 触发 tag（标记提交的版本标签）；GitHub Actions（自动执行发布任务的服务）随后负责打包、生成 GitHub Release Notes（发布说明）、创建公开 `vX.Y.Z` tag、上传 pull 包（安装时拉取镜像的包）并发布到 VOS App Store（应用商店）。
 
 | 产物 | 规则 |
 | --- | --- |
 | VOS 应用版本 | `ictrek.app/VERSION` |
-| VOS CI 触发 tag | `vos-hybrag-vX.Y.Z` |
+| VOS CI（自动检查和打包流程）触发 tag | `vos-hybrag-vX.Y.Z` |
 | GitHub 公开 tag | `vX.Y.Z` |
 | VOS pull 包 | `ictrek.app/dist/hybrag_X.Y.Z_pull.tar` |
 | 自有镜像 tag | `amd_X.Y.Z`、`arm_X.Y.Z` |
@@ -23,6 +25,8 @@ GitHub Release Notes 由 `.github/workflows/vos-release.yml` 根据提交历史�
 - [`ictrek.app/README.md`](../../ictrek.app/README.md)：发布说明和验证命令。
 - [`ictrek.app/scripts/update_version.sh`](../../ictrek.app/scripts/update_version.sh)：版本递增、提交、触发 tag 和推送。
 - [`ictrek.app/scripts/package.sh`](../../ictrek.app/scripts/package.sh)：VOS pull 包生成和包内容校验。
+- [`resolve_dependencies.py`](../../ictrek.app/scripts/resolve_dependencies.py) 和 [`dependency-releases.json`](../../ictrek.app/scripts/dependency-releases.json)：依赖版本查询和仓库对应关系。
+- [`appstore_tunnel.sh`](../../ictrek.app/scripts/appstore_tunnel.sh)：CI 查询应用商店依赖目录的 SSH（加密远程连接）隧道。
 - [`build_image.sh`](../../build_image.sh)：AMD/ARM 镜像构建、推送和飞书发布表更新。
 - [`ictrek.app/docs/build-images.md`](../../ictrek.app/docs/build-images.md)：镜像构建机、凭证和运行目录边界。
 - [`.github/workflows/vos-release.yml`](../../.github/workflows/vos-release.yml)：CI 打包、Release Notes、GitHub Release 和 App Store 发布。
@@ -41,10 +45,11 @@ GitHub Release Notes 由 `.github/workflows/vos-release.yml` 根据提交历史�
 
 ## 0. 发布前置条件
 
-- 明确本次 SemVer 递增类型：`patch`、`minor` 或 `major`。
+- 明确本次 SemVer（主版本号、次版本号、修订号组成的版本格式）递增类型：`patch`、`minor` 或 `major`。
 - 当前分支是预期发布分支，`origin` 指向发布仓库。
 - AMD 和 ARM 构建主机可用，并配置构建用 `~/.feishu.json`；不要打印、提交或复制凭据。
-- 本地打包预检使用只读组件凭证 `~/.feishu.components.json`；不要把它传给 `build_image.sh`。
+- 本地打包预检优先使用只读组件凭证 `~/.feishu.components.json`；脚本会在不可用时尝试 `~/.feishu.json`。不要把只读组件凭证传给 `build_image.sh`。
+- 执行本地打包预检时，`gh` 须已登录能读取 `ictrektech/pgv` 发布记录的账号。预检命令读取现有凭证后传给 `VOS_DEPENDENCY_RELEASE_TOKEN`，不要打印凭证；未登录时先执行 `gh auth login`。
 - GitHub Actions 已配置 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`APPSTORE_IP` 和 `APPSTORE_TOKEN`。
 - 默认模式下 `update_version.sh` 会拒绝 dirty worktree；使用 `--with-changelog` 时只允许 `ictrek.app/CHANGELOG.md` 未提交。本地 tag 引用过期时，由操作者明确执行 `git fetch --tags origin`。
 
@@ -111,15 +116,42 @@ printf "%s\n" "$RELEASE_VERSION"
 
 ## 4. 本地打包预检（可选）
 
-本地预检只验证模板、镜像版本读取、Manifest、Compose 和包结构，不代替 CI 正式打包：
+本地预检检查模板、镜像版本读取、安装清单（Manifest）、容器配置（Compose）、包结构和 PGV 发布记录，不代替 CI 正式打包或 VOS 安装验证。
+
+**当前行为：**未设置 `VOS_DEPENDENCY_CATALOG_URL` 时，脚本通过 GitHub 查询 PGV 最新正式发布及其 `_pull.tar` 资产，并将包内最低依赖写为 `>=查询到的版本`；它不会自动使用 `gh` 保存的登录凭证。CI 则通过应用商店隧道查询版本并检查包是否可下载。发布记录检查不能证明运行兼容性。
+
+从仓库根目录的 Bash（命令解释器）执行以下整段。它先尝试新版 `gh auth token`，不支持时回退到旧版 `gh config get oauth_token`；取凭证或打包失败时停止预检：
 
 ```bash
-FEISHU_CONFIG_FILE="${HOME}/.feishu.components.json" PACKAGE_VERSION="$RELEASE_VERSION" ./ictrek.app/scripts/package.sh
-test -f "ictrek.app/dist/hybrag_${RELEASE_VERSION}_pull.tar"
-tar tf "ictrek.app/dist/hybrag_${RELEASE_VERSION}_pull.tar"
+(
+  set -e
+  : "${RELEASE_VERSION:?请先执行第 2 节计算发布版本}"
+  if ! vos_dependency_token="$(gh auth token --hostname github.com 2>/dev/null)"; then
+    vos_dependency_token="$(gh config get oauth_token --host github.com)"
+  fi
+  if [[ -z "$vos_dependency_token" || "$vos_dependency_token" == *[[:space:]]* ]]; then
+    printf '读取到无效凭证，请执行 gh auth login 后重试。\n' >&2
+    exit 1
+  fi
+  VOS_DEPENDENCY_RELEASE_TOKEN="$vos_dependency_token" \
+  FEISHU_CONFIG_FILE="${HOME}/.feishu.components.json" \
+  PACKAGE_VERSION="$RELEASE_VERSION" \
+  ./ictrek.app/scripts/package.sh
+  test -f "ictrek.app/dist/hybrag_${RELEASE_VERSION}_pull.tar"
+  tar tf "ictrek.app/dist/hybrag_${RELEASE_VERSION}_pull.tar"
+)
 ```
 
-预期外层包包含 `app.tar.gz`，不应包含未解析的 `${...}`、`__APP_VERSION__` 或额外的 `config/` 目录。预检失败时不要执行下一步。
+预期外层包只有 `app.tar.gz`；内层不应残留 `__APP_VERSION__`、未替换的镜像变量或额外的 `config/` 目录。`${VOS_APP_STORAGE_PATH}` 等安装时提供的变量必须保留，不能将所有 `${...}` 都当成错误。预检失败时不要执行下一步。
+
+| 输出 | 含义与处理 |
+| --- | --- |
+| `Dependency resolution failed: HTTP Error 404` | 先检查本地凭证是否传入，以及账号是否能读取 PGV 仓库和正式发布；不要仅凭 `gh` 已登录就判断脚本已获得凭证。 |
+| `Invalid header value` | 检查取凭证命令是否失败、误将报错文字作为凭证；使用上面的兼容命令，不要输出凭证排查。 |
+| `VOS_APP_STORAGE_PATH ... is not set` | 本地 Compose 检查缺少 VOS 安装时提供的数据目录；若打包成功且包内变量仍保留，不代表成品路径已被写成空值。 |
+| `command substitution: ignored null byte in input` | 当前包校验将 `icon.png` 等二进制文件一并读入文本变量触发；影响临时校验文本，不会改写包内图标。 |
+
+**已验证（2026-10-22，本地）：**`gh 2.4.0` 可通过旧版取法读取凭证并查询 PGV `0.0.49`，用户提供的 HybRAG `0.1.75` 打包日志以 `Done` 结束；检查成品确认数据目录变量保留、图标与源文件一致。新版取凭证和失败分支仅做模拟检查，VOS 全新安装和升级仍待验证。
 
 ## 5. 可选更新 CHANGELOG 并创建 VOS 触发 tag
 
@@ -158,11 +190,11 @@ cd ictrek.app
 ```bash
 cd /home/czy/p/vai/apps/WeKnora
 gh run list --repo ictrektech/WeKnora --workflow vos-release.yml --limit 5
-RUN_ID=<对应的 run id>
+RUN_ID=123456789 # 替换为上一步对应的实际运行编号
 gh run watch "$RUN_ID" --repo ictrektech/WeKnora --exit-status
 ```
 
-workflow 按顺序执行：解析 `vos-hybrag-v*` 版本、生成组件凭证、调用 `package.sh`、生成 Release Notes、创建 `v${VERSION}` GitHub Release 并上传 pull 包，最后通过 SSH 隧道发布同一个包到 VOS App Store。
+workflow 会检查数据库迁移和模型后端，生成组件凭证并建立依赖目录隧道。打包步骤从 `vos-hybrag-v*` 解析应用版本，通过 `PACKAGE_VERSION` 传给 `package.sh`；脚本读取飞书镜像版本，通过应用商店解析 PGV 依赖后打包。随后关闭查询隧道、生成 Release Notes、创建 `v${VERSION}` GitHub Release 并上传 pull 包，最后另建上传隧道发布同一个包到 VOS App Store。
 
 Release Notes 来自提交历史。GitHub Release 创建在 App Store 发布之前，因此两者不是原子操作；Release 成功但 App Store 失败时，不要重复创建 tag 或盲目重跑整个流程。
 
