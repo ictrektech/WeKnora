@@ -1151,7 +1151,10 @@ export default {
       "feedUrls": "訂閱源地址",
       "feedUrlsHint": "每行一個 RSS / Atom 訂閱源地址，支援同時填寫多個",
       "authHeaders": "自定義請求頭（可選）",
-      "authHeadersHint": "用於訪問私有訂閱源，每行一個，格式為「名稱: 值」，例如 Authorization: Bearer xxxx"
+      "authHeadersHint": "用於訪問私有訂閱源，每行一個，格式為「名稱: 值」，例如 Authorization: Bearer xxxx",
+      confluencePat: 'Server/DC 個人存取權杖（PAT）',
+      confluencePatHint: '選填。填寫後使用 Bearer 驗證，無需使用者名稱和密碼。',
+
     },
     "confluence": {
       "cloudFolderLimitation": "Confluence Cloud 暫不支援在此列出空間頂層文件夾等容器下的頁面；選擇整個空間仍會同步它們。"
@@ -4722,7 +4725,14 @@ export default {
     "attachmentReady": "解析完成",
     "attachmentUploadFailed": "附件上傳失敗",
     "attachmentParseFailed": "附件解析失敗",
-    "attachmentStillProcessing": "附件 {name} 仍在解析，請稍候"
+    "attachmentStillProcessing": "附件 {name} 仍在解析，請稍候",
+    backgroundWork: {
+      running: '沒有背景工作 | {count} 個背景工作 | {count} 個背景工作',
+      stop: '停止',
+      loading: '正在載入輸出…',
+      unavailable: '暫時無法查看輸出'
+    },
+
   },
   "knowledgeEditor": {
     "titleCreate": "新增知識庫",
@@ -4748,8 +4758,7 @@ export default {
         "imageAttrsSchemaDescription": "模型會觀察以下屬性（由後端註冊表定義）以驅動 OCR 策略",
         "imageAttrsOcrConditions": "根據觀察到的屬性條件觸發 OCR",
         "imageAttrsOcrConditionsDesc": "當觀察到的屬性滿足以下條件時，對圖片進行 OCR",
-        "imageAttrsOcrOnUnobserved": "圖片屬性觀察失敗時仍執行 OCR",
-        "imageAttrsOcrOnUnobservedDesc": "當模型未能正確觀察到圖片屬性時，預設仍執行 OCR 兜底，以免漏掉正文文字；關閉則跳過。（採用 4B 等小參數視覺模型，或自定義的圖片解析提示詞與系統提示詞衝突時，可能造成觀察失敗；8B 及以上模型的失敗概率很低，不建議關閉）",
+
         "imagePipelineKbNote": "預設跟隨知識庫設定，可針對本次任務調整",
         "imageVectorLabel": "圖片向量檢索",
         "imageVectorDescription": "開啟後，產生圖片描述之後再用向量模型直接對圖片編碼，檢索時可依圖片內容找回描述中沒寫到的資訊。需要向量模型支援圖片輸入；每張圖片多一次向量呼叫，向量檢索的候選範圍也會擴大。僅對之後匯入或重新解析的文件生效，掃描版 PDF 頁面不會產生",
@@ -4761,7 +4770,10 @@ export default {
 "imagePipelinePlaceholder": "請選擇解析方案",
 "imagePipelineLoading": "正在讀取流水線…",
 "imagePipelineLoadError": "讀取流水線失敗",
-"imagePipelineValidateError": "無法校驗當前設定，儲存時後端會再次檢查。"
+"imagePipelineValidateError": "無法校驗當前設定，儲存時後端會再次檢查。",
+        advancedSettingsLabel: '進階設定',
+        notesLabel: '附加說明',
+
 },
       "tableMetadataInstructions": {
         "label": "表格元資料生成要求",
@@ -9070,7 +9082,40 @@ export default {
           "description": "否 —— 照片、插畫、圖標或裝飾圖"
         }
       }
-    }
+    },
+    layout_margin: {
+      label: '版面留白',
+      description: '文字內容之外的部分（桌面、背景、空白）占整張畫面的比例。留白越大，越能在 OCR 之前把頁面裁得更緊。',
+      values: {
+        none: {
+          label: '無留白',
+          description: '文字幾乎鋪滿畫面'
+        },
+        small: {
+          label: '少量留白',
+          description: '邊緣只有一條窄邊'
+        },
+        large: {
+          label: '大片留白',
+          description: '有大片非文字區域 —— 桌面、房間，或拍進來的周邊環境'
+        }
+      }
+    },
+    layout_upright: {
+      label: '文字朝向',
+      description: '圖中文字是否正立。歪斜或倒置的頁面，值得在 OCR 之前擺正。',
+      values: {
+        true: {
+          label: '正立',
+          description: '文字方向正常'
+        },
+        false: {
+          label: '非正立',
+          description: '文字被旋轉、傾斜拍攝或倒置'
+        }
+      }
+    },
+
   }
 ,
 "automation": {
@@ -9441,42 +9486,72 @@ export default {
   "default": {
     "name": "傳統",
     "description": "使用者根據任務需要手動選擇解析動作開關。",
-    "enable_caption": {
-      "label": "圖片描述",
-      "description": "讓模型為每張圖片生成一句內容描述，作為圖片的說明文字。"
-    },
-    "enable_ocr": {
-      "label": "文字辨識",
-      "description": "提取圖片中出現的文字。"
-    },
+
     "caption": {
-      "thinking": {
-        "label": "圖片描述時開啟思考",
-        "description": "讓模型在寫描述前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。"
-      }
+           thinking_enabled: {
+          label: '圖片描述時開啟思考',
+          description: '讓模型在寫描述前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。'
+        },
+
     },
     "ocr": {
-      "thinking": {
-        "label": "文字辨識時開啟思考",
-        "description": "讓模型在提取文字前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。"
-      }
-    }
+           thinking_enabled: {
+          label: '文字辨識時開啟思考',
+          description: '讓模型在提取文字前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。'
+        },
+
+    },
+      note_actions: {
+        label: '兩項動作互相獨立',
+        description: '兩項各自開關：關掉識別，圖片仍會被描述；關掉描述，文字仍會被識別。只有兩個都關掉時這張圖才不會被處理 —— 所以面板不允許這種組合。'
+      },
+      caption_enabled: {
+        label: '圖片描述',
+        description: '讓模型為每張圖片生成一句內容描述，作為圖片的說明文字。'
+      },
+      ocr_enabled: {
+        label: '文字辨識',
+        description: '提取圖片中出現的文字。'
+      },
+
   },
   "smartocr": {
     "name": "智能模式",
-    "caption": {
-      "thinking": {
-        "label": "描述時開啟思考",
-        "description": "讓模型在描述圖片並觀察屬性前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。"
-      }
-    },
+
     "ocr": {
-      "thinking": {
-        "label": "文字辨識時開啟思考",
-        "description": "讓模型在提取文字前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。"
-      }
+           thinking_enabled: {
+          label: '文字辨識時開啟思考',
+          description: '讓模型在提取文字前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。'
+        },
+
     },
-    "description": "先觀察圖片特徵並進行圖片描述，再根據圖片特徵決定是否呼叫 OCR 對圖片進行辨識，以節省模型呼叫次數並提升解析速度。"
+    "description": '先觀察圖片特徵並進行圖片描述，再根據圖片特徵決定是否呼叫 OCR 對圖片進行辨識，以節省模型呼叫次數並提升解析速度。當辨識到圖片為可校正的文件或標籤頁照片時，會在辨識前自動擺正並裁切頁面，以提升 OCR 準確率；若校正失敗則直接使用原圖。',
+      ocr_on_unobserved: {
+        label: '圖片屬性觀察失敗時仍執行 OCR',
+        description: '當模型未能正確觀察到圖片屬性時，預設仍執行 OCR 兜底，以免漏掉正文文字；關閉則跳過。（採用 4B 等小參數視覺模型，或自定義的圖片解析提示語與系統提示語衝突時，可能造成觀察失敗；8B 及以上模型的失敗概率很低，不建議關閉）'
+      },
+      note_flow: {
+        label: '由觀察結果決定',
+        description: '先描述圖片並觀察屬性，由屬性決定是否值得再為它花一次 OCR。屬性顯示頁面需要擺正時，會先擺正並裁掉周圍環境再識別；若該步驟不可用或判定不適用，則直接用原圖，絕不會比不啟用更差。'
+      },
+      preprocess: {
+        mode: {
+          label: '文件預處理',
+          description: '預設關閉。啟用後，會在 OCR 前擺正並裁剪頁面，增加處理時間。自動：依觀察結果判斷；總是：對進入 OCR 的圖片都嘗試預處理；忙碌或超限時使用原圖。',
+          options: {
+            auto: '自動',
+            off: '關閉',
+            always: '總是'
+          }
+        }
+      },
+      observation: {
+        thinking_enabled: {
+          label: '描述時開啟思考',
+          description: '讓模型在描述圖片並觀察屬性前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。'
+        }
+      },
+
   }
 },
 

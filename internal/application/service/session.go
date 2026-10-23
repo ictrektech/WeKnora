@@ -206,6 +206,7 @@ type sessionService struct {
 	// remote resolver) keeps the historical delete path and writes no
 	// allocation rows.
 	workspaceCleaner *sandboxalloc.WorkspaceCleaner
+	background       *BackgroundWork
 }
 
 // NewSessionService creates a new session service instance with all required dependencies
@@ -232,6 +233,7 @@ func NewSessionService(cfg *config.Config,
 	sandboxConfigRepo repository.TenantSandboxConfigRepository,
 	tenantSkillRepo repository.TenantSkillRepository,
 	busyGate *SessionBusyGate,
+	backgroundWork *BackgroundWork,
 ) interfaces.SessionService {
 	return &sessionService{
 		cfg:                   cfg,
@@ -259,6 +261,7 @@ func NewSessionService(cfg *config.Config,
 		sandboxConfigRepo:     sandboxConfigRepo,
 		tenantSkillRepo:       tenantSkillRepo,
 		busyGate:              busyGate,
+		background:            backgroundWork,
 	}
 }
 
@@ -607,7 +610,7 @@ func (s *sessionService) UpdateSessionLastRequestState(
 }
 
 // DeleteSession removes a session by its ID
-func (s *sessionService) DeleteSession(ctx context.Context, id string) error {
+func (s *sessionService) DeleteSession(ctx context.Context, id string) (deleteErr error) {
 	// Validate session ID
 	if id == "" {
 		logger.Error(ctx, "Failed to delete session: session ID cannot be empty")
@@ -630,6 +633,12 @@ func (s *sessionService) DeleteSession(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("read sandbox workspace: %w", err)
 	}
+
+	finishBackgroundDelete, err := s.beginBackgroundDelete(ctx, []*types.Session{session})
+	if err != nil {
+		return fmt.Errorf("stop background work before deleting session: %w", err)
+	}
+	defer func() { finishBackgroundDelete(deleteErr == nil) }()
 
 	// Cleanup chat history knowledge entries for this session (async, best-effort).
 	// Use WithoutCancel so the goroutine survives after the HTTP request context is done.
@@ -710,7 +719,7 @@ func (s *sessionService) notifyDeletedSessions(ctx context.Context, tenantID uin
 }
 
 // BatchDeleteSessions deletes multiple sessions by IDs
-func (s *sessionService) BatchDeleteSessions(ctx context.Context, ids []string) error {
+func (s *sessionService) BatchDeleteSessions(ctx context.Context, ids []string) (deleteErr error) {
 	if len(ids) == 0 {
 		logger.Error(ctx, "Failed to batch delete sessions: IDs list is empty")
 		return stderrors.New("session ids are required")
@@ -744,6 +753,12 @@ func (s *sessionService) BatchDeleteSessions(ctx context.Context, ids []string) 
 	if err != nil {
 		return fmt.Errorf("read sandbox workspace: %w", err)
 	}
+
+	finishBackgroundDelete, err := s.beginBackgroundDelete(ctx, visible)
+	if err != nil {
+		return fmt.Errorf("stop background work before deleting session: %w", err)
+	}
+	defer func() { finishBackgroundDelete(deleteErr == nil) }()
 
 	// Cleanup associated resources for each session
 	bgCtx := context.WithoutCancel(ctx)
@@ -801,7 +816,7 @@ func (s *sessionService) BatchDeleteSessions(ctx context.Context, ids []string) 
 }
 
 // DeleteAllSessions deletes all sessions for the current tenant
-func (s *sessionService) DeleteAllSessions(ctx context.Context) error {
+func (s *sessionService) DeleteAllSessions(ctx context.Context) (deleteErr error) {
 	tenantID := types.MustTenantIDFromContext(ctx)
 	userID := sessionUserIDFromContext(ctx)
 	logger.Infof(ctx, "Deleting all sessions for tenant %d", tenantID)
@@ -825,6 +840,11 @@ func (s *sessionService) DeleteAllSessions(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("read sandbox workspace: %w", err)
 	}
+	finishBackgroundDelete, err := s.beginBackgroundDelete(ctx, sessions)
+	if err != nil {
+		return fmt.Errorf("stop background work before deleting session: %w", err)
+	}
+	defer func() { finishBackgroundDelete(deleteErr == nil) }()
 	bgCtx := context.WithoutCancel(ctx)
 	for _, session := range sessions {
 		if session == nil || session.ID == "" {
@@ -853,7 +873,10 @@ func (s *sessionService) DeleteAllSessions(ctx context.Context) error {
 
 	// Tear down sandboxes while session rows (and pins) are still readable.
 	for _, session := range sessions {
-		if session == nil || session.ID == "" || handled[session.ID] {
+		if session == nil || session.ID == "" {
+			continue
+		}
+		if handled[session.ID] {
 			continue
 		}
 		s.destroyBoundSandbox(ctx, session.ID)
@@ -914,7 +937,7 @@ func (s *sessionService) DeleteAllSessions(ctx context.Context) error {
 // tenant-wide owner purge. Associated legal documents are owned by their
 // respective services; this method deliberately limits its responsibility to
 // the session domain and never touches platform sessions.
-func (s *sessionService) DeleteLegalAssistantSessions(ctx context.Context, tenantID uint64) error {
+func (s *sessionService) DeleteLegalAssistantSessions(ctx context.Context, tenantID uint64) (deleteErr error) {
 	if tenantID == 0 {
 		return stderrors.New("workspace id is required")
 	}
@@ -922,6 +945,11 @@ func (s *sessionService) DeleteLegalAssistantSessions(ctx context.Context, tenan
 	if err != nil {
 		return err
 	}
+	finishBackgroundDelete, err := s.beginBackgroundDelete(ctx, sessions)
+	if err != nil {
+		return fmt.Errorf("stop background work before deleting legal sessions: %w", err)
+	}
+	defer func() { finishBackgroundDelete(deleteErr == nil) }()
 	// Remove message rows and suggestion rows before soft-deleting the session
 	// rows. Physical attachments/document blobs are owned by the temporary
 	// document service and must be purged by the outer legal-data coordinator.
@@ -975,7 +1003,7 @@ func (s *sessionService) ListPatentSessions(ctx context.Context, tenantID uint64
 	return sessions, nil
 }
 
-func (s *sessionService) DeletePatentSessions(ctx context.Context, tenantID uint64, sessions []*types.Session) error {
+func (s *sessionService) DeletePatentSessions(ctx context.Context, tenantID uint64, sessions []*types.Session) (deleteErr error) {
 	if tenantID == 0 {
 		return stderrors.New("workspace id is required")
 	}
@@ -984,6 +1012,11 @@ func (s *sessionService) DeletePatentSessions(ctx context.Context, tenantID uint
 			return stderrors.New("invalid patent purge scope")
 		}
 	}
+	finishBackgroundDelete, err := s.beginBackgroundDelete(ctx, sessions)
+	if err != nil {
+		return fmt.Errorf("stop background work before deleting patent sessions: %w", err)
+	}
+	defer func() { finishBackgroundDelete(deleteErr == nil) }()
 	idsByOwner := make(map[string][]string)
 	ids := make([]string, 0, len(sessions))
 	for _, session := range sessions {
@@ -1081,6 +1114,45 @@ func (s *sessionService) runUserWorkspaceCleanups(ctx context.Context, handled m
 	}
 	bg := context.WithoutCancel(ctx)
 	go s.workspaceCleaner.RunCleanups(bg, ids)
+}
+
+// beginBackgroundDelete closes feature submission gates while rows and pins
+// remain readable. Any failed stop or repository deletion must reopen all
+// attempted sessions, including earlier members of a failed batch.
+func (s *sessionService) beginBackgroundDelete(ctx context.Context, sessions []*types.Session) (func(bool), error) {
+	var attempted []*types.Session
+	finish := func(deleted bool) {
+		if deleted || s.background == nil || s.background.Listeners == nil {
+			return
+		}
+		for _, session := range attempted {
+			s.background.Listeners.NotifyDeleteAborted(context.WithoutCancel(ctx),
+				interfaces.SessionRef{TenantID: session.TenantID, SessionID: session.ID})
+		}
+	}
+	for _, session := range sessions {
+		if session == nil {
+			continue
+		}
+		attempted = append(attempted, session)
+		if err := s.notifyBackgroundDelete(ctx, session); err != nil {
+			finish(false)
+			return nil, err
+		}
+	}
+	return finish, nil
+}
+
+// notifyBackgroundDelete lets background features stop their work for a
+// session about to be deleted, then clears its activity items and notices.
+// Call it before destroyBoundSandbox, while features can still reach the
+// sandbox, and while the session row is still readable.
+func (s *sessionService) notifyBackgroundDelete(ctx context.Context, session *types.Session) error {
+	if s.background == nil || s.background.Listeners == nil || session == nil {
+		return nil
+	}
+	return s.background.Listeners.NotifyDelete(context.WithoutCancel(ctx),
+		interfaces.SessionRef{TenantID: session.TenantID, SessionID: session.ID})
 }
 
 // destroyBoundSandbox tears down the sandbox MicroVM bound to sessionID, if

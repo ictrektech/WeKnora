@@ -4135,8 +4135,7 @@ export default {
         imageAttrsSchemaDescription: 'The model observes the attributes below (defined by the backend registry) to drive the OCR policy',
         imageAttrsOcrConditions: 'Trigger OCR based on the observed attribute conditions',
         imageAttrsOcrConditionsDesc: 'When the observed attributes match the conditions below, OCR runs on the image',
-        imageAttrsOcrOnUnobserved: 'Run OCR when image-attribute observation fails',
-        imageAttrsOcrOnUnobservedDesc: 'When the model fails to observe the image attributes correctly, OCR runs by default so body text is never lost; turn off to skip. (A small vision model such as 4B, or custom image-instruction prompts that conflict with the system prompt, can cause the observation to fail; 8B and above rarely fail, so leaving this on is recommended)',
+
         imagePipelineKbNote: 'Defaults follow the knowledge base settings; adjust them for this task'
       ,
 "imagePipelineSectionLabel": "Image parsing scheme",
@@ -4145,7 +4144,10 @@ export default {
 "imagePipelinePlaceholder": "Select a scheme",
 "imagePipelineLoading": "Loading pipelines…",
 "imagePipelineLoadError": "Could not load pipelines",
-"imagePipelineValidateError": "The current settings could not be checked; the backend re-checks them on save."
+"imagePipelineValidateError": "The current settings could not be checked; the backend re-checks them on save.",
+        advancedSettingsLabel: 'Advanced settings',
+        notesLabel: 'Additional notes',
+
 }
     }
   },
@@ -4376,7 +4378,14 @@ export default {
     attachmentReady: 'Ready',
     attachmentUploadFailed: 'Attachment upload failed',
     attachmentParseFailed: 'Attachment parsing failed',
-    attachmentStillProcessing: 'Attachment {name} is still being parsed'
+    attachmentStillProcessing: 'Attachment {name} is still being parsed',
+    backgroundWork: {
+      running: 'No background tasks | {count} background task | {count} background tasks',
+      stop: 'Stop',
+      loading: 'Loading output…',
+      unavailable: 'Output is unavailable'
+    },
+
   },
   tenant: {
     title: 'Workspace Information',
@@ -7799,7 +7808,10 @@ export default {
       feedUrls: 'Feed URLs',
       feedUrlsHint: 'One RSS / Atom feed URL per line; multiple feeds are supported.',
       authHeaders: 'Custom headers (optional)',
-      authHeadersHint: 'For private feeds. One per line in "Name: Value" form, e.g. Authorization: Bearer xxxx'
+      authHeadersHint: 'For private feeds. One per line in "Name: Value" form, e.g. Authorization: Bearer xxxx',
+      confluencePat: 'Server/DC personal access token (PAT)',
+      confluencePatHint: 'Optional. When provided, uses Bearer authentication; username and password are not required.',
+
     },
     confluence: {
       cloudFolderLimitation: 'Confluence Cloud cannot list pages stored directly under top-level folders in this space; selecting the whole space still syncs them.'
@@ -9132,7 +9144,40 @@ export default {
         'true': { label: 'Yes', description: 'a chart, graph or diagram with plotted values' },
         'false': { label: 'No', description: 'a photo, drawing, icon or decoration' }
       }
-    }
+    },
+    layout_margin: {
+      label: 'Non-text area',
+      description: 'How much background surrounds the content. Large margins mean the page can be cropped tighter before OCR reads it.',
+      values: {
+        none: {
+          label: 'None',
+          description: 'the text reaches the edges'
+        },
+        small: {
+          label: 'Small',
+          description: 'a thin band of background'
+        },
+        large: {
+          label: 'Large',
+          description: 'plenty of non-text area: a desk, a room, a mostly empty page'
+        }
+      }
+    },
+    layout_upright: {
+      label: 'Text orientation',
+      description: 'Whether the text reads the right way up. A rotated or upside-down page is worth straightening before OCR reads it.',
+      values: {
+        true: {
+          label: 'Upright',
+          description: 'text reads in its normal orientation'
+        },
+        false: {
+          label: 'Rotated',
+          description: 'text is turned, tilted or upside down'
+        }
+      }
+    },
+
   }
 ,
 "automation": {
@@ -9503,42 +9548,72 @@ export default {
   "default": {
     "name": "Manual",
     "description": "Turn the parsing actions on or off to fit the task.",
-    "enable_caption": {
-      "label": "Image caption",
-      "description": "Ask the model for a one-line description of every image and store it as the caption."
-    },
-    "enable_ocr": {
-      "label": "OCR",
-      "description": "Extract the text that appears in the image."
-    },
+
     "caption": {
-      "thinking": {
-        "label": "Caption with thinking",
-        "description": "Let the model think before it writes the caption. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the caption, failing the task. Only enable it when you have confirmed it is necessary."
-      }
+           thinking_enabled: {
+          label: 'Caption with thinking',
+          description: 'Let the model think before it writes the caption. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the caption, failing the task. Only enable it when you have confirmed it is necessary.'
+        },
+
     },
     "ocr": {
-      "thinking": {
-        "label": "OCR with thinking",
-        "description": "Let the model think before it transcribes the text. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the transcribed text, failing the task. Only enable it when you have confirmed it is necessary."
-      }
-    }
+           thinking_enabled: {
+          label: 'OCR with thinking',
+          description: 'Let the model think before it transcribes the text. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the transcribed text, failing the task. Only enable it when you have confirmed it is necessary.'
+        },
+
+    },
+      note_actions: {
+        label: 'The two actions are independent',
+        description: 'Each can be switched separately: with OCR off the image is still described, with caption off its text is still read. Only switching both off leaves an image untouched, which is why the panel refuses that combination.'
+      },
+      caption_enabled: {
+        label: 'Image caption',
+        description: 'Ask the model for a one-line description of every image and store it as the caption.'
+      },
+      ocr_enabled: {
+        label: 'OCR',
+        description: 'Extract the text that appears in the image.'
+      },
+
   },
   "smartocr": {
     "name": "Smart",
-    "caption": {
-      "thinking": {
-        "label": "Describe with thinking",
-        "description": "Let the model think before it describes the image and reports its attributes. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the description, failing the task. Only enable it when you have confirmed it is necessary."
-      }
-    },
+
     "ocr": {
-      "thinking": {
-        "label": "Text recognition with thinking",
-        "description": "Let the model think before it transcribes the text. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the transcribed text, failing the task. Only enable it when you have confirmed it is necessary."
-      }
+           thinking_enabled: {
+          label: 'Text recognition with thinking',
+          description: 'Let the model think before it transcribes the text. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the transcribed text, failing the task. Only enable it when you have confirmed it is necessary.'
+        },
+
     },
-    "description": "Observe the image attributes and describe the image first, then decide from the attributes whether to run OCR, saving model calls and speeding up parsing."
+    "description": 'Observe the image attributes and describe the image first, then decide from the attributes whether to run OCR, saving model calls and speeding up parsing. When the image is recognised as a photograph of a correctable page or label, it is straightened and cropped before recognition to improve OCR accuracy; if that fails, the original image is used.',
+      ocr_on_unobserved: {
+        label: 'Run OCR when image-attribute observation fails',
+        description: 'When the model fails to observe the image attributes correctly, OCR runs by default so body text is never lost; turn off to skip. (A small vision model such as 4B, or custom image-instruction prompts that conflict with the system prompt, can cause the observation to fail; 8B and above rarely fail, so leaving this on is recommended)'
+      },
+      note_flow: {
+        label: 'The observation decides',
+        description: 'The image is described and observed first, and the attributes that come back decide whether OCR is worth a second pass. When they say the page needs straightening, it is straightened and its surroundings cropped before reading; when that step is unavailable or declines, the original photograph is read instead — never something worse.'
+      },
+      preprocess: {
+        mode: {
+          label: 'Document preprocessing',
+          description: 'Off by default. Straightening and cropping before OCR adds processing time. Auto uses the observed attributes; Always tries preprocessing for every image selected for OCR. Busy or resource-limited requests use the original image.',
+          options: {
+            auto: 'Auto',
+            off: 'Off',
+            always: 'Always'
+          }
+        }
+      },
+      observation: {
+        thinking_enabled: {
+          label: 'Describe with thinking',
+          description: 'Let the model think before it describes the image and reports its attributes. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the description, failing the task. Only enable it when you have confirmed it is necessary.'
+        }
+      },
+
   }
 },
 

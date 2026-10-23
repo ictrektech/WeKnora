@@ -1025,6 +1025,15 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
 
     if (!message) {
+      // Background notices attach to a turn that already exists. Opening a
+      // shell here would start a new assistant turn after the parent run.
+      if (
+        data.response_type === 'work_event' ||
+        data.response_type === 'work_started' ||
+        data.response_type === 'work_finished'
+      ) {
+        return
+      }
       const newMsg: ChatMessage = {
         id: dataId,
         request_id: dataId,
@@ -1077,6 +1086,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         .filter(m => m.role === 'assistant' && (m === message || (turnID && persistedAssistantId(m) === turnID)))
         .flatMap(m => (m.agentEventStream as ChatMessage[] | undefined) || [])
     }
+    // work_* cases read `payload` so the source-extracted tests, which call
+    // the case with the event object, and this handler share one binding.
+    const payload = dataPayload
 
     switch (responseType) {
       case 'collaboration_status': {
@@ -1421,6 +1433,44 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
         break
       }
+      case 'work_event': {
+        const inner = dataPayload?.inner as { response_type?: string; data?: ChatMessage } | undefined
+        if (inner?.response_type === 'command_output' && inner.data?.tool_call_id) {
+          // The async tool returns at the yield window, so later previews
+          // arrive after pending is cleared. Attach them to that card anyway.
+          // done on the preview hides the live tail; it does not complete the tool.
+          const toolCallId = inner.data.tool_call_id
+          const tool = (message.agentEventStream as ChatMessage[] | undefined)?.find(
+            event => event.type === 'tool_call' && event.tool_call_id === toolCallId
+              && (event.tool_name === 'shell_exec' || event.tool_name === 'shell_exec_async'),
+          )
+          if (tool) {
+            tool.command_output = { ...inner.data }
+          }
+        }
+        break
+      }
+      case 'work_started':
+      case 'work_finished': {
+        const event = payload as ChatMessage | undefined
+        const workId = typeof event?.work_id === 'string' ? event.work_id : ''
+        if (workId) {
+          if (!message.background_work) message.background_work = {}
+          const backgroundWork = message.background_work as Record<string, {
+            state: unknown
+            title: unknown
+            kind: unknown
+            payload: unknown
+          }>
+          backgroundWork[workId] = {
+            state: (event?.state as string | undefined) ?? 'running',
+            title: event?.title,
+            kind: event?.kind,
+            payload: event?.payload,
+          }
+        }
+      }
+      break
       case 'tool_result':
       case 'error': {
         if (dataPayload) {
@@ -1836,6 +1886,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       'tool_call',
       'tool_result',
       'command_output',
+      'work_event',
+      'work_started',
+      'work_finished',
       'reflection',
       'artifacts_pending',
       'context_compacted',
