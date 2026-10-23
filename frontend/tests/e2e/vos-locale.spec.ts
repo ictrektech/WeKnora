@@ -4,7 +4,7 @@ test.use({ locale: 'en-US' })
 
 test('automatic follows a delayed VOS bridge while manual language and form state survive', async ({ page }) => {
   const mainSource = await (await page.request.get('/src/main.ts')).text()
-  const dependency = (name: string) => mainSource.match(new RegExp(`"([^"]*/${name}\\.js[^"]*)"`))![1]
+  const dependency = (name: string) => mainSource.match(new RegExp(`"([^"]*/${name}\\.(?:js|ts)[^"]*)"`))![1]
   await page.route('**/vos-locale-test', (route) => route.fulfill({
     contentType: 'text/html',
     body: '<iframe src="/app/com.ictrek.hybrag/locale-test" style="width:100%;height:900px"></iframe>',
@@ -17,7 +17,7 @@ test('automatic follows a delayed VOS bridge while manual language and form stat
       import { createPinia } from '${dependency('pinia')}'
       import TDesign from '${dependency('tdesign-vue-next')}'
       import '/node_modules/tdesign-vue-next/dist/tdesign.css'
-      import i18n from '/src/i18n/index.ts'
+      import i18n from '${dependency('i18n/index')}'
       import GeneralSettings from '/src/views/settings/GeneralSettings.vue'
       const app = createApp({
         setup() {

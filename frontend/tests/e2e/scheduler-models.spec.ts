@@ -8,7 +8,7 @@ for (const gateway of [undefined, 'http://v-scheduler:8080/v1', 'http://127.0.0.
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     const mainSource = await (await page.request.get('/src/main.ts')).text()
-    const dependency = (name: string) => mainSource.match(new RegExp(`"([^"]*/${name}\\.js[^"]*)"`))![1]
+    const dependency = (name: string) => mainSource.match(new RegExp(`"([^"]*/${name}\\.(?:js|ts)[^"]*)"`))![1]
     let available = true
     await page.route('**/api/v1/**', route => {
       const path = new URL(route.request().url()).pathname
@@ -25,7 +25,7 @@ for (const gateway of [undefined, 'http://v-scheduler:8080/v1', 'http://127.0.0.
         import { createPinia } from '${dependency('pinia')}'
         import TDesign from '${dependency('tdesign-vue-next')}'
         import '/node_modules/tdesign-vue-next/dist/tdesign.css'
-        import i18n from '/src/i18n/index.ts'
+        import i18n from '${dependency('i18n/index')}'
         import ModelEditorDialog from '/src/components/ModelEditorDialog.vue'
         const app = createApp({ setup() {
           const visible = ref(false)
