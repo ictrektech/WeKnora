@@ -130,14 +130,14 @@ function confirmDelete() {
   h2 {
     margin: 0 0 8px;
     color: var(--td-text-color-primary);
-    font-size: 20px;
+    font-size: var(--app-text-3xl);
     font-weight: 600;
   }
 
   .section-description {
     margin: 0;
     color: var(--td-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--app-text-base);
     line-height: 1.5;
   }
 }
@@ -161,7 +161,7 @@ function confirmDelete() {
 .intro-title {
   margin: 0 0 4px;
   color: var(--td-text-color-primary);
-  font-size: 14px;
+  font-size: var(--app-text-base);
   font-weight: 500;
 }
 
@@ -170,7 +170,7 @@ function confirmDelete() {
 .permission-hint {
   margin: 0;
   color: var(--td-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--app-text-md);
   line-height: 1.6;
 }
 
@@ -195,7 +195,7 @@ function confirmDelete() {
     display: block;
     margin-bottom: 6px;
     color: var(--td-text-color-primary);
-    font-size: 14px;
+    font-size: var(--app-text-base);
     font-weight: 500;
   }
 }
@@ -219,7 +219,7 @@ function confirmDelete() {
   h3 {
     margin: 0 0 6px;
     color: var(--td-error-color-7);
-    font-size: 15px;
+    font-size: var(--app-text-lg);
     font-weight: 600;
   }
 
@@ -227,14 +227,14 @@ function confirmDelete() {
     max-width: 680px;
     margin: 0;
     color: var(--td-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--app-text-md);
     line-height: 1.6;
   }
 }
 
 .permission-hint {
   margin-top: 14px;
-  font-size: 12px;
+  font-size: var(--app-text-sm);
 }
 
 @media (max-width: 680px) {

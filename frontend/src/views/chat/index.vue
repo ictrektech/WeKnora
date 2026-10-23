@@ -2977,5 +2977,5 @@ onBeforeRouteUpdate((to, from, next) => {
 </style>
 
 <style scoped>
-.patent-search-scope { margin: 0; padding: 8px 20px; text-align: center; color: var(--td-text-color-secondary); font-size: 12px; border-bottom: 1px solid var(--td-component-border); }
+.patent-search-scope { margin: 0; padding: 8px 20px; text-align: center; color: var(--td-text-color-secondary); font-size: var(--app-text-sm); border-bottom: 1px solid var(--td-component-border); }
 </style>

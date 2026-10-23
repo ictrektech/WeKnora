@@ -581,5 +581,5 @@ async function openProjectDir() {
 </style>
 
 <style scoped>
-.patent-scope { margin: 0 auto 18px; max-width: 700px; color: var(--td-text-color-secondary); font-size: 13px; line-height: 1.6; text-align: center; padding: 0 16px; }
+.patent-scope { margin: 0 auto 18px; max-width: 700px; color: var(--td-text-color-secondary); font-size: var(--app-text-md); line-height: 1.6; text-align: center; padding: 0 16px; }
 </style>

@@ -47,7 +47,7 @@ onBeforeUnmount(() => {
   .patent-workspace { overflow-y: auto; }
   .patent-workspace :deep(.dialogue-wrap) { padding: 24px 12px; box-sizing: border-box; }
   .patent-workspace :deep(.dialogue-answers) { min-width: 0; gap: 16px; }
-  .patent-workspace :deep(.dialogue-title) { font-size: 22px; line-height: 1.4; text-align: center; }
+  .patent-workspace :deep(.dialogue-title) { font-size: calc(var(--app-text-3xl) * 1.1); line-height: 1.4; text-align: center; }
   .patent-workspace :deep(.suggested-question-text) { white-space: normal; }
   .patent-workspace :deep(.suggested-questions-container) { padding: 0; }
 }
