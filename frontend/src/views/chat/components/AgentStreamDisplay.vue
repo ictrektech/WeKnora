@@ -462,7 +462,7 @@
                 <PageEditCard v-for="edit in pinnedPageEdits" :key="edit.tool_call_id" :fill="edit.tool_data"
                   :tool-call-id="edit.tool_call_id" />
               </div>
-              <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode"
+              <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode && showToolbar !== false"
                 class="answer-toolbar" :class="{ 'answer-toolbar--persistent': hasArtifacts || artifactsCollecting }">
                 <t-tooltip v-if="canFork" :content="forkTooltip">
                   <t-button size="small" variant="outline" shape="round" @click.stop="emitFork">
@@ -1164,6 +1164,7 @@ interface SessionData {
 
 const props = defineProps<{
   session: SessionData;
+  showToolbar?: boolean;
   sessionId?: string;
   userQuery?: string;
   embeddedMode?: boolean;

@@ -18,7 +18,7 @@
                 <RagPipelineProgress :session="session" :embedded-mode="embeddedMode" />
                 <AgentStreamDisplay v-if="session.isAgentMode" :session="session" :session-id="sessionId"
                     :user-query="userQuery" :rag-mode="true" :follow-up-loading="followUpLoading"
-                    :embedded-mode="embeddedMode"
+                    :embedded-mode="embeddedMode" :show-toolbar="showToolbar"
                     :can-fork="canFork"
                     :can-rewind="canRewind"
                     @fork="emit('fork', $event)"
@@ -35,7 +35,7 @@
                 <docInfo v-if="session.knowledge_references?.length" :session="session"></docInfo>
                 <AgentStreamDisplay :session="session" :session-id="sessionId" :user-query="userQuery"
                     v-if="session.isAgentMode" :follow-up-loading="followUpLoading"
-                    :embedded-mode="embeddedMode"
+                    :embedded-mode="embeddedMode" :show-toolbar="showToolbar"
                     :can-fork="canFork"
                     :can-rewind="canRewind"
                     @fork="emit('fork', $event)"
@@ -53,7 +53,7 @@
                 <div v-else class="ai-markdown-template markdown-content" v-stable-html="renderedHTML"></div>
             </div>
             <!-- 复制和添加到知识库按钮 - 非 Agent 模式下显示 -->
-            <div v-if="answerFullyRendered && (content || session.content)" class="answer-toolbar"
+            <div v-if="showToolbar && answerFullyRendered && (content || session.content)" class="answer-toolbar"
                 :class="{ 'answer-toolbar--persistent': hasArtifacts || artifactsCollecting }">
                 <t-tooltip v-if="canFork" :content="forkTooltip">
                     <t-button size="small" variant="outline" shape="round" @click.stop="emitFork">
@@ -215,6 +215,7 @@ const emit = defineEmits(['scroll-bottom', 'render-complete-change', 'fork', 're
 const { t } = useI18n()
 const uiStore = useUIStore();
 const props = defineProps({
+    showToolbar: { type: Boolean, default: true },
     // 必填项
     content: {
         type: String,

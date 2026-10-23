@@ -40,7 +40,8 @@ test('user action icon size compiles to a selector matching the button child', (
 test('non-agent actions wait for the typewriter buffer to finish', () => {
   assert.match(botMessage, /const answerFullyRendered = computed/)
   assert.match(botMessage, /typedAnswer\.value\.length >= answerText\.value\.length/)
-  assert.match(botMessage, /v-if="answerFullyRendered && \(content \|\| session\.content\)"/)
+  assert.match(botMessage, /v-if="showToolbar && answerFullyRendered && \(content \|\| session\.content\)"/)
+  assert.match(botMessage, /showToolbar: \{ type: Boolean, default: true \}/)
 })
 
 test('agent actions reuse the fully-rendered answer state', () => {
@@ -136,4 +137,10 @@ test('follow-up suggestions wait until the answer is fully rendered', () => {
   )
   assert.match(botMessage, /emit\('render-complete-change', ready\)/)
   assert.match(agentStream, /emit\('render-complete-change', ready\)/)
+})
+
+test('read-only examples also disable the nested agent answer toolbar', () => {
+  assert.equal((botMessage.match(/:show-toolbar="showToolbar"/g) || []).length, 2)
+  assert.match(agentStream, /!embeddedMode && showToolbar !== false/)
+  assert.match(agentStream, /showToolbar\?: boolean/)
 })

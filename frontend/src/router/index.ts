@@ -116,6 +116,10 @@ const router = createRouter({
             { path: "search/chat/:chatid", name: "patentSearchChat", component: () => import("../views/chat/index.vue") },
             { path: "writing", name: "patentWritingHome", component: () => import("../views/patent/PatentHome.vue"), props: { mode: "patent_writing" } },
             { path: "writing/chat/:chatid", name: "patentWritingChat", component: () => import("../views/chat/index.vue") },
+            { path: "search/examples", redirect: "/platform/patent/search" },
+            { path: "writing/examples", redirect: "/platform/patent/writing" },
+            { path: "search/examples/:exampleId", name: "patentSearchExamples", component: () => import("../views/patent/PatentExampleChat.vue"), props: { mode: "patent_search" }, meta: { requiresPatentExamples: true } },
+            { path: "writing/examples/:exampleId", name: "patentWritingExamples", component: () => import("../views/patent/PatentExampleChat.vue"), props: { mode: "patent_writing" }, meta: { requiresPatentExamples: true } },
           ],
         },
         {
@@ -487,7 +491,7 @@ router.beforeEach(async (to, from, next) => {
 
   if (to.meta.requiresPatentWorkspace === true) {
     const patentWorkspace = usePatentWorkspaceStore()
-    try { await patentWorkspace.load() } catch {
+    try { await patentWorkspace.load(to.meta.requiresPatentExamples === true) } catch {
       MessagePlugin.warning(i18n.global.t('patentWorkspace.loadFailed'))
       next('/platform/knowledge-bases')
       return
@@ -495,6 +499,11 @@ router.beforeEach(async (to, from, next) => {
     if (!patentWorkspace.enabled) {
       MessagePlugin.warning(i18n.global.t('patentWorkspaceSettings.disabledMessage'))
       next('/platform/knowledge-bases')
+      return
+    }
+    if (to.meta.requiresPatentExamples === true && !patentWorkspace.examplesEnabled) {
+      MessagePlugin.warning(i18n.global.t('patentExamples.disabled'))
+      next(to.name === 'patentSearchExamples' ? '/platform/patent/search' : '/platform/patent/writing')
       return
     }
   }

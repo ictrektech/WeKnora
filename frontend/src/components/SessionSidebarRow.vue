@@ -1,28 +1,28 @@
 <template>
   <div :class="[
     'submenu_item',
-    !batchMode && activePath === item.path ? 'submenu_item_active' : '',
-    batchMode && selectedIds.includes(item.id) ? 'submenu_item_selected' : '',
-    batchMode ? 'submenu_item_batch' : '',
+    !isBatchMode && activePath === item.path ? 'submenu_item_active' : '',
+    isBatchMode && selectedIds.includes(item.id) ? 'submenu_item_selected' : '',
+    isBatchMode ? 'submenu_item_batch' : '',
     menuOpen ? 'submenu_item--menu-open' : '',
     showUnread ? 'submenu_item--unread' : '',
   ]" role="button" :tabindex="titleEditing ? -1 : 0"
-    :aria-current="!batchMode && activePath === item.path ? 'page' : undefined"
+    :aria-current="!isBatchMode && activePath === item.path ? 'page' : undefined"
     @mouseenter="emit('hover-in')" @mouseleave="emit('hover-out')"
-    @click="batchMode ? emit('toggle-select') : emit('navigate')" @keydown="handleRowKeydown">
-    <t-checkbox v-if="batchMode" class="batch-checkbox" :checked="selectedIds.includes(item.id)" @click.stop
+    @click="isBatchMode ? emit('toggle-select') : emit('navigate')" @keydown="handleRowKeydown">
+    <t-checkbox v-if="isBatchMode" class="batch-checkbox" :checked="selectedIds.includes(item.id)" @click.stop
       @change="emit('toggle-select')" />
     <form v-if="titleEditing" class="session-title-edit" @submit.prevent="submitTitleEdit" @click.stop>
       <input ref="titleInputRef" v-model="titleDraft" class="session-title-edit__input"
         :maxlength="SESSION_TITLE_MAX_LENGTH" @keydown.esc.prevent="cancelTitleEdit" @blur="submitTitleEdit" />
     </form>
-    <span v-else class="submenu_title" :class="batchMode ? 'submenu_title--batch' : ''" :title="item.title">
+    <span v-else class="submenu_title" :class="isBatchMode ? 'submenu_title--batch' : ''" :title="item.title">
       <t-icon v-if="item.is_pinned" name="pin" class="submenu_pin_icon" />
       <span ref="titleTextRef" class="submenu_title-text">{{ item.title }}</span>
       <span v-if="apiOwnerTag" class="session-owner-tag" :class="`session-owner-tag--${apiOwnerTag.kind}`"
         :title="apiOwnerTag.full">{{ apiOwnerTag.label }}</span>
     </span>
-    <div v-if="!batchMode || hasBadge" class="session-row-menu-wrap"
+    <div v-if="!readOnly && (!isBatchMode || hasBadge)" class="session-row-menu-wrap"
       :class="{ 'session-row-menu-wrap--badge': hasBadge }" @click.stop>
       <span v-if="running" class="session-row-badge session-running-indicator" role="status"
         :aria-label="t('menu.sessionInProgress')" :title="t('menu.sessionInProgress')">
@@ -35,7 +35,7 @@
       <span v-else-if="item.parent_session_id" class="session-row-badge session-fork-indicator" role="img" aria-label="由其他会话分叉而来">
         <t-icon name="git-branch" class="submenu_fork_icon" />
       </span>
-      <t-popup v-if="!batchMode" v-model:visible="menuOpen" :overlay-class-name="menuOverlayClass" trigger="click" destroy-on-close
+      <t-popup v-if="!isBatchMode && !running" v-model:visible="menuOpen" :overlay-class-name="menuOverlayClass" trigger="click" destroy-on-close
         placement="bottom-right" @visible-change="onMenuVisibleChange">
         <button type="button" class="menu-more-wrap" :aria-label="t('chatHeader.moreActions')" aria-haspopup="menu" :aria-expanded="menuOpen" @click.stop>
           <t-icon name="ellipsis" class="menu-more" />
@@ -94,6 +94,7 @@ type MenuMode = 'menu' | 'clear' | 'delete'
 const props = defineProps<{
   item: { id: string; path: string; title: string; is_pinned?: boolean; user_id?: string; parent_session_id?: string }
   batchMode: boolean
+  readOnly?: boolean
   activePath: string
   selectedIds: string[]
   menuOptions: SessionMenuOption[]
@@ -113,6 +114,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const isBatchMode = computed(() => props.batchMode && !props.readOnly)
 
 const menuOpen = ref(false)
 const menuMode = ref<MenuMode>('menu')
@@ -169,6 +171,7 @@ const shouldShowDividerBefore = (value: string, index: number): boolean => {
 }
 
 const startTitleEdit = (): void => {
+  if (props.readOnly) return
   menuOpen.value = false
   menuMode.value = 'menu'
   titleDraft.value = props.item.title || ''
@@ -201,7 +204,7 @@ const handleRowKeydown = (event: KeyboardEvent): void => {
   if (event.target !== event.currentTarget) return
   if (event.key !== 'Enter' && event.key !== ' ') return
   event.preventDefault()
-  if (props.batchMode) {
+  if (isBatchMode.value) {
     emit('toggle-select')
   } else {
     emit('navigate')
@@ -281,8 +284,8 @@ const confirmDangerAction = (): void => {
   pointer-events: none;
 }
 
-// A status badge (running / unread / fork) and the "more" button share one
-// 24px slot, so hovering swaps them in place instead of reflowing the title.
+// Status badges and the "more" button share one 24px slot. Running stays
+// visible; hovering swaps the other badges for the menu without reflow.
 .session-row-menu-wrap--badge {
   flex-basis: 24px;
   width: 24px;
@@ -327,7 +330,7 @@ const confirmDangerAction = (): void => {
 @media (hover: hover) {
   .submenu_item:not(.submenu_item_batch) {
     &:hover, &:focus-within, &.submenu_item--menu-open {
-      .session-row-badge { opacity: 0; }
+      .session-row-badge:not(.session-running-indicator) { opacity: 0; }
     }
   }
 }

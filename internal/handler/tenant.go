@@ -1476,7 +1476,7 @@ func (h *TenantHandler) UpdateTenantKV(c *gin.Context) {
 	key := secutils.SanitizeForLog(c.Param("key"))
 
 	switch key {
-	case "web-search-config", "parser-engine-config", "storage-engine-config":
+	case "web-search-config", "parser-engine-config", "storage-engine-config", "patent-workspace-config":
 		if !dto.CanViewIntegrationSecrets(ctx) {
 			c.Error(errors.NewForbiddenError("integration configuration requires admin access"))
 			return
@@ -1584,22 +1584,24 @@ func (h *TenantHandler) GetPatentWorkspaceConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"enabled": tenant.PatentWorkspaceConfig.IsEnabled(),
+			"enabled":          tenant.PatentWorkspaceConfig.IsEnabled(),
+			"examples_enabled": tenant.PatentWorkspaceConfig.AreExamplesEnabled(),
 		},
 	})
 }
 
 type patentWorkspaceConfigUpdateRequest struct {
-	Enabled *bool `json:"enabled"`
+	Enabled         *bool `json:"enabled"`
+	ExamplesEnabled *bool `json:"examples_enabled"`
 }
 
-// updatePatentWorkspaceConfigInternal updates only the patent workspace switch.
+// updatePatentWorkspaceConfigInternal preserves preferences omitted by older clients.
 // Data is deliberately untouched when disabling the feature.
 func (h *TenantHandler) updatePatentWorkspaceConfigInternal(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req patentWorkspaceConfigUpdateRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil {
-		c.Error(errors.NewValidationError("enabled is required and must be a boolean"))
+	if err := c.ShouldBindJSON(&req); err != nil || (req.Enabled == nil && req.ExamplesEnabled == nil) {
+		c.Error(errors.NewValidationError("enabled or examples_enabled is required and must be a boolean"))
 		return
 	}
 	tenant, ok := types.TenantInfoFromContext(ctx)
@@ -1607,7 +1609,14 @@ func (h *TenantHandler) updatePatentWorkspaceConfigInternal(c *gin.Context) {
 		c.Error(errors.NewBadRequestError("Workspace is empty"))
 		return
 	}
-	tenant.PatentWorkspaceConfig = &types.PatentWorkspaceConfig{Enabled: *req.Enabled}
+	cfg := *types.EffectivePatentWorkspaceConfig(tenant.PatentWorkspaceConfig)
+	if req.Enabled != nil {
+		cfg.Enabled = *req.Enabled
+	}
+	if req.ExamplesEnabled != nil {
+		cfg.ExamplesEnabled = req.ExamplesEnabled
+	}
+	tenant.PatentWorkspaceConfig = &cfg
 	updated, err := h.service.UpdateTenant(ctx, tenant)
 	if err != nil {
 		if appErr, isAppErr := errors.IsAppError(err); isAppErr {
@@ -1620,7 +1629,8 @@ func (h *TenantHandler) updatePatentWorkspaceConfigInternal(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"enabled": updated.PatentWorkspaceConfig.IsEnabled(),
+			"enabled":          updated.PatentWorkspaceConfig.IsEnabled(),
+			"examples_enabled": updated.PatentWorkspaceConfig.AreExamplesEnabled(),
 		},
 	})
 }

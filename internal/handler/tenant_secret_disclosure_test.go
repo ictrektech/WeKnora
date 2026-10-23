@@ -205,7 +205,7 @@ func TestPatentWorkspaceKVUsesConfiguredDefaultAndIsReadableByViewer(t *testing.
 	req := httptest.NewRequest(http.MethodGet, "/tenants/kv/patent-workspace-config", nil)
 	engine.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.JSONEq(t, `{"success":true,"data":{"enabled":false}}`, rec.Body.String())
+	assert.JSONEq(t, `{"success":true,"data":{"enabled":false,"examples_enabled":true}}`, rec.Body.String())
 }
 
 func TestPatentWorkspaceKVUpdatePersistsEnabled(t *testing.T) {
@@ -217,7 +217,7 @@ func TestPatentWorkspaceKVUpdatePersistsEnabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	engine.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.JSONEq(t, `{"success":true,"data":{"enabled":false}}`, rec.Body.String())
+	assert.JSONEq(t, `{"success":true,"data":{"enabled":false,"examples_enabled":true}}`, rec.Body.String())
 	require.NotNil(t, tenant.PatentWorkspaceConfig)
 	assert.False(t, tenant.PatentWorkspaceConfig.Enabled)
 }

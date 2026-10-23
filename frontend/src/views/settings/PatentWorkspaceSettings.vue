@@ -32,12 +32,28 @@
           />
         </div>
       </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <label>{{ t('patentExamples.enableLabel') }}</label>
+          <p class="desc">{{ t('patentExamples.enableDescription') }}</p>
+        </div>
+        <div class="setting-control">
+          <t-switch
+            data-testid="patent-examples-switch"
+            :value="patentWorkspace.examplesEnabled"
+            :loading="patentWorkspace.saving"
+            :disabled="!canEdit || patentWorkspace.loading || !!patentWorkspace.loadError"
+            @change="handleExamplesToggle"
+          />
+        </div>
+      </div>
     </div>
 
     <div class="danger-zone">
       <div>
         <h3>{{ t('patentWorkspaceSettings.deleteTitle') }}</h3>
         <p>{{ t('patentWorkspaceSettings.deleteDescription') }}</p>
+        <p>{{ t('patentExamples.deleteHint') }}</p>
       </div>
       <t-button
         theme="danger"
@@ -85,6 +101,16 @@ async function handleToggle(value: boolean) {
     MessagePlugin.error(
       t('patentWorkspaceSettings.saveFailed', { message: error?.message || '' }),
     )
+  }
+}
+
+async function handleExamplesToggle(value: boolean) {
+  if (!canEdit.value || patentWorkspace.saving) return
+  try {
+    await patentWorkspace.setExamplesEnabled(value)
+    MessagePlugin.success(t('patentWorkspaceSettings.saveSuccess'))
+  } catch (error: any) {
+    MessagePlugin.error(t('patentWorkspaceSettings.saveFailed', { message: error?.message || '' }))
   }
 }
 

@@ -18,7 +18,13 @@ const PatentWorkspaceDefaultEnabledEnv = "ICTREK_PATENT_WORKSPACE_DEFAULT_ENABLE
 // A nil config follows the deployment default so operators can choose the
 // initial state for newly created or otherwise unconfigured tenants.
 type PatentWorkspaceConfig struct {
-	Enabled bool `json:"enabled"`
+	Enabled         bool  `json:"enabled"`
+	ExamplesEnabled *bool `json:"examples_enabled,omitempty"`
+}
+
+// Legacy configurations show examples when the workspace itself is enabled.
+func (c *PatentWorkspaceConfig) AreExamplesEnabled() bool {
+	return c == nil || c.ExamplesEnabled == nil || *c.ExamplesEnabled
 }
 
 // DefaultPatentWorkspaceEnabled returns the deployment default for the patent

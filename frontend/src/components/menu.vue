@@ -161,7 +161,7 @@
                     <button type="button" class="legal-panel-back" :aria-label="t('legalWorkspace.backToPlatform')" @click="returnToMainNavigation">
                         <TIcon name="chevron-left" size="16px" aria-hidden="true" /><span v-if="!uiStore.sidebarCollapsed">{{ t('legalWorkspace.backToPlatform') }}</span>
                     </button>
-                    <div v-if="!uiStore.sidebarCollapsed" class="legal-panel-heading"><TIcon name="file-search" size="18px" aria-hidden="true" /><span>{{ t('patentWorkspace.title') }}</span></div>
+                    <div v-if="!uiStore.sidebarCollapsed" class="legal-panel-heading"><span>{{ t('patentWorkspace.title') }}</span></div>
                     <t-tooltip v-for="item in patentNavigation" :key="item.mode" :content="t(item.label)" placement="right" :disabled="!uiStore.sidebarCollapsed">
                         <button type="button" class="legal-panel-item" :class="{ 'legal-panel-item--active': currentWorkspaceMode === item.mode }"
                             :aria-label="t(item.label)" @click="router.push(workspaceHome(item.mode))">
@@ -178,6 +178,21 @@
                                 @navigate="gotopage(session.path)" @toggle-select="toggleBatchSelect(session.id)"
                                 @menu-click="handleSessionMenuClick($event, session)" @rename-submit="renameSessionTitle(session, $event.title)"
                                 @hover-in="mouseenteBotDownr(session.id)" @hover-out="mouseleaveBotDown" />
+                        </div>
+                    </div>
+                    <div v-if="!uiStore.sidebarCollapsed && patentExamplesVisible" class="legal-panel-sessions patent-example-sessions" data-testid="patent-example-list" data-assistant-ignore>
+                        <div class="legal-panel-sessions__label">{{ t('patentExamples.sidebarTitle') }}</div>
+                        <p v-if="patentExamplesLoading" class="patent-example-status" role="status">{{ t('patentExamples.loading') }}</p>
+                        <div v-else-if="patentExamplesFailed" class="patent-example-status" role="alert">
+                            <span>{{ t('patentExamples.loadFailed') }}</span>
+                            <t-button size="small" variant="text" @click="loadPatentExamples">{{ t('patentWorkspace.retry') }}</t-button>
+                        </div>
+                        <p v-else-if="!patentExamples.length" class="patent-example-status" :title="t('patentExamples.unavailable')">{{ t('patentExamples.empty') }}</p>
+                        <div v-for="example in patentExamples" :key="example.id" class="legal-panel-session-row"
+                            :class="{ 'legal-panel-session-row--active': route.path === example.path }">
+                            <SessionSidebarRow :item="example" :batch-mode="batchMode" read-only
+                                :active-path="route.path" :selected-ids="[]" :menu-options="[]"
+                                @navigate="openPatentExample(example.path)" />
                         </div>
                     </div>
                 </div>
@@ -408,6 +423,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities';
 import { isPatentMode, isPatentRoute, routeWorkspaceMode, workspaceHome, workspaceChatPath } from '@/utils/workspaceMode';
 import { usePatentWorkspaceStore } from '@/stores/patentWorkspace';
+import { listPatentExamples } from '@/api/patent-examples';
 import { useLegalWorkspaceStore } from '@/stores/legalWorkspace';
 import { TOOLBOX_ITEMS, canAccessToolboxSection } from '@/config/toolbox';
 import BrowserIcon from '@/components/icons/BrowserIcon.vue';
@@ -560,6 +576,36 @@ const isSessionInCurrentWorkspace = (session: { workspace_mode?: string }): bool
             ? session.workspace_mode !== 'legal_assistant' && !isPatentMode(session.workspace_mode)
             : session.workspace_mode === currentWorkspaceMode.value;
 const patentSessions = computed(() => ((menuArr.value as unknown as MenuItem[]).find(item => item.path === 'creatChat')?.children || []).filter(isSessionInCurrentWorkspace));
+const patentExamples = ref<Array<{ id: string; title: string; path: string }>>([]);
+const patentExamplesLoading = ref(false);
+const patentExamplesFailed = ref(false);
+const patentExamplesVisible = computed(() => isPatentWorkspacePanel.value && patentWorkspace.loaded && patentWorkspace.enabled && patentWorkspace.examplesEnabled && !patentWorkspace.loadError);
+let patentExamplesGeneration = 0;
+async function loadPatentExamples() {
+    const current = ++patentExamplesGeneration;
+    const mode = currentWorkspaceMode.value;
+    patentExamples.value = [];
+    patentExamplesFailed.value = false;
+    patentExamplesLoading.value = false;
+    if (!patentExamplesVisible.value || !isPatentMode(mode)) return;
+    patentExamplesLoading.value = true;
+    try {
+        const response = await listPatentExamples(mode);
+        if (current !== patentExamplesGeneration) return;
+        patentExamples.value = response.data.examples.filter(entry => entry.workspace_mode === mode).map(entry => ({
+            id: entry.id, title: entry.title, path: `${workspaceHome(mode)}/examples/${entry.id}`,
+        }));
+    } catch {
+        if (current === patentExamplesGeneration) patentExamplesFailed.value = true;
+    } finally {
+        if (current === patentExamplesGeneration) patentExamplesLoading.value = false;
+    }
+}
+function openPatentExample(path: string) {
+    exitBatchMode();
+    void router.push(path);
+}
+watch(() => [currentWorkspaceMode.value, authStore.effectiveTenantId, patentExamplesVisible.value], loadPatentExamples, { immediate: true, flush: 'sync' });
 
 const allSessionIds = computed(() => {
     const chatMenu = (menuArr.value as unknown as MenuItem[]).find((item: MenuItem) => item.path === 'creatChat');
@@ -1332,6 +1378,7 @@ watch(
 );
 
 onUnmounted(() => {
+    patentExamplesGeneration++;
     window.removeEventListener('patent-workspace-data-deleted', handlePatentDataDeleted);
     clearInterval(sessionActivityTimer);
     clearTimeout(forkRevealTimer);
@@ -1782,6 +1829,15 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         padding: 0 12px 5px;
         color: var(--td-text-color-placeholder);
         font-size: 11px;
+    }
+
+    .patent-example-sessions { user-select: none; }
+    .patent-example-status {
+        margin: 0;
+        padding: 4px 12px;
+        color: var(--td-text-color-placeholder);
+        font-size: var(--app-text-sm);
+        line-height: 1.5;
     }
 
     .legal-panel-session-row {

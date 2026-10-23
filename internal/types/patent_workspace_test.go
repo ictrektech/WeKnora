@@ -1,6 +1,33 @@
 package types
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestPatentExamplePreferenceSurvivesJSONPersistence(t *testing.T) {
+	var missing *PatentWorkspaceConfig
+	require.True(t, missing.AreExamplesEnabled())
+	for _, raw := range []string{`{"enabled":true}`, `{"enabled":false}`} {
+		var config PatentWorkspaceConfig
+		require.NoError(t, json.Unmarshal([]byte(raw), &config))
+		require.True(t, config.AreExamplesEnabled(), "legacy config defaults to showing examples, not enabling the workspace")
+	}
+	for _, value := range []bool{false, true} {
+		config := PatentWorkspaceConfig{Enabled: true, ExamplesEnabled: &value}
+		raw, err := config.Value()
+		require.NoError(t, err)
+		for _, storage := range []any{raw, string(raw.([]byte))} {
+			var restored PatentWorkspaceConfig
+			require.NoError(t, restored.Scan(storage))
+			require.Equal(t, value, restored.AreExamplesEnabled())
+			restored.Enabled = false
+			require.Equal(t, value, restored.AreExamplesEnabled(), "workspace access and example preference are independent")
+		}
+	}
+}
 
 func TestPatentWorkspaceConfigDefaultsAndPersistence(t *testing.T) {
 	var missing *PatentWorkspaceConfig

@@ -6,6 +6,10 @@
 *.go text eol=lf
 cli/acceptance/testdata/**/*.json text eol=lf
 
+# Keep recorded material byte-identical, including Markdown hard line breaks.
+internal/patentexamples/data/* text eol=lf
+internal/patentexamples/data/*.md whitespace=-blank-at-eol
+
 # Trellis: append-only developer journals should merge cleanly across
 # parallel sessions/worktrees — each session only appends a new block, so
 # there is nothing to actually conflict on.
