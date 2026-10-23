@@ -261,10 +261,7 @@ import ChatReferencesDrawer from '@/components/ChatReferencesDrawer.vue';
 import ChatAttachmentPreviewDrawer from '@/components/ChatAttachmentPreviewDrawer.vue';
 import FollowUpSuggestions from '@/components/chat/FollowUpSuggestions.vue';
 import ChatHeader from '@/components/ChatHeader.vue';
-import {
-    notifySessionMutation,
-    SESSION_MUTATION_EVENT,
-} from '@/components/sessionMutations';
+import { SESSION_MUTATION_EVENT } from '@/components/sessionMutations';
 import {
     ensureMessageSuggestions,
     getMessageSuggestions,
@@ -2375,19 +2372,7 @@ onChunk((data) => {
         return false;
     }
     if (data.response_type === 'session_title') {
-        const title = data.content || data.data?.title;
-        if (title && data.data?.session_id) {
-            console.log('[Session Title Update]', {
-                session_id: data.data.session_id,
-                title: title,
-            });
-            usemenuStore.updatasessionTitle(data.data.session_id, title);
-            usemenuStore.changeIsFirstSession(false);
-            notifySessionMutation({
-                sessionId: data.data.session_id,
-                patch: { title },
-            });
-        }
+        usemenuStore.changeIsFirstSession(false);
         return true;
     }
     processStreamChunk(data);
