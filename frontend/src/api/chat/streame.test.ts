@@ -17,6 +17,7 @@ before(async () => {
     '@microsoft/fetch-event-source': `export const requests = []; export async function fetchEventSource(url, options) { requests.push({url, options}); }`,
     '@/utils/index': `export const generateRandomString = () => 'test-request';`,
     '@/i18n': `export default { global: { t: key => key, locale: { value: 'zh-CN' } } };`,
+    '@/components/sessionMutations': `export const notifySessionMutation = () => {};`,
   }
   server = await createServer({
     configFile: false,
