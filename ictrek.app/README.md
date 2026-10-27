@@ -70,7 +70,7 @@ commit 或写入 `.git-commit`，否则系统设置会显示 `(unknown)`。
 安装前先确认 VOS 中已经安装并运行：
 
 - `com.ictrek.model-hub >=0.0.92`：提供 `model-hub-ollama-qa`、`model-hub-ollama-embedding` 和 `model-hub-ollama-rerank` 三个服务；旧版 Model Hub 需先升级，以提供 ReRank（对检索结果重新评分和排序）所需的 `/v1/rerank` 接口。
-- `com.ictrek.pgv`：提供 `shared-pgv:5432` PostgreSQL/pgvector 服务。
+- `com.ictrek.pgv`：提供 `shared-pgv:5432` PostgreSQL/pgvector 服务。统一源码与发布仓库已迁至 `ictrektech/tabularis`，打包时从该仓库解析 PGV 最新发布版本；应用 ID 与连接参数不变。PGV 新增的共享 Redis 使用 `pgv-redis`，HybRAG 现有的 `hybrag-redis` 连接不在本次源码迁移中自动切换。
 
 HybRAG 安装包不启动 Model Hub 和 PGV，也不启动自己的 Ollama。安装包只包含 HybRAG app、frontend、docreader、sandbox、Redis 和 Neo4j。安装时选择 `amd` 或 `arm` profile，VOS 会按包内 `.env` 拉取飞书表中记录的四个 HybRAG 镜像。
 
