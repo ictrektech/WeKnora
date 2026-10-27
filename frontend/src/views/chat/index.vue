@@ -1658,11 +1658,9 @@ const finishInFlightTurnAnchor = (targetSessionId = session_id.value) => {
 };
 
 const replayBackgroundChunks = (targetSessionId) => {
-    const chunks = drainSessionChunks(targetSessionId);
-    if (!chunks?.length || session_id.value !== targetSessionId) return;
-    // Background chunks are incremental deltas. Make sure fullContent resumes
-    // from the content already shown in the restored incomplete message,
-    // otherwise the chunks would overwrite the message with only the tail.
+    if (session_id.value !== targetSessionId) return;
+    // Seed from this session even without queued chunks: its next live delta
+    // must append to the restored answer, not overwrite it with only the tail.
     const lastMessage = messagesList[messagesList.length - 1];
     if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.is_completed && !lastMessage.isAgentMode) {
         const thinkContent = String(lastMessage.thinkContent || '');
@@ -1675,7 +1673,7 @@ const replayBackgroundChunks = (targetSessionId) => {
             fullContent.value = answerContent;
         }
     }
-    chunks.forEach((chunk) => processStreamChunk(chunk));
+    drainSessionChunks(targetSessionId).forEach((chunk) => processStreamChunk(chunk));
 };
 
 const getmsgList = (data, isScrollType = false, scrollHeight) => {
@@ -2461,11 +2459,8 @@ const clearData = (abortStreams = true) => {
     if (abortStreams) stopStream();
     referencesDrawer.close();
     isReplying.value = false;
-    // Don't clear fullContent if streams are still active - it will be restored
-    // when switching back to the session via replayBackgroundChunks
-    if (!hasActiveStream(session_id.value)) {
-        fullContent.value = '';
-    }
+    // The cached turn owns its text; the reused view must not carry it into another session.
+    fullContent.value = '';
     // Stop any IM-reply recovery poll for the session we're leaving/switching.
     if (recoverPollTimer) { clearTimeout(recoverPollTimer); recoverPollTimer = null; }
     if (continueStreamRetryTimer) { clearTimeout(continueStreamRetryTimer); continueStreamRetryTimer = null; }

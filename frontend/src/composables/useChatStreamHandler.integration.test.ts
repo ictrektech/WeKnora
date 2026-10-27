@@ -194,3 +194,97 @@ test('completion retries preserve the embed authentication plane', async t => {
   assert.deepEqual(h.requests[1].headers, { Authorization: 'Embed embed-token' })
   assert.match(h.img.src, /^blob:/)
 })
+
+const chatView = readFileSync(new URL('../views/chat/index.vue', import.meta.url), 'utf8')
+
+function navigationHarness(initialMode: 'agent' | 'quick') {
+  let mode = initialMode
+  const messagesList = vue.reactive<Record<string, any>[]>([])
+  const fullContent = vue.ref(''), currentAssistantMessageId = vue.ref('')
+  const loading = vue.ref(false), isReplying = vue.ref(false), session_id = vue.ref('A')
+  const pending = new Map<string, Record<string, any>[]>()
+  const handler = useChatStreamHandler({
+    messagesList, fullContent, currentAssistantMessageId, loading, isReplying,
+    isAgentStreamSession: () => mode === 'agent', scrollToBottom() {},
+    preserveIncompleteStreamReactive: true,
+  })
+  let routeChanged!: (params: Array<{ chatid: string }>) => Promise<void>
+  const state = {
+    messagesList, fullContent, currentAssistantMessageId, loading, isReplying, session_id,
+    inFlightTurnCache: new Map(), props: { embeddedMode: false },
+    activitySessionId: vue.ref('A'), sessionActivity: { detach() {} },
+    referencesDrawer: { close() {} }, clearInFlightTurnAnchor() {}, clearCitationChunkCache() {},
+    hasActiveStream: () => true,
+    stopStream() { assert.fail('navigation must keep background streams running') },
+    drainSessionChunks(id: string) { const chunks = pending.get(id) || []; pending.delete(id); return chunks },
+    processStreamChunk: handler.processStreamChunk,
+    recoverPollTimer: null, continueStreamRetryTimer: null,
+    isAttachingContinueStream: vue.ref(false), isImRecovering: vue.ref(false),
+    isFirstEnter: vue.ref(false), firstQuery: vue.ref(''), scrollLock: vue.ref(false),
+    steerQueue: vue.ref([]), currentSession: vue.ref(null), created_at: vue.ref(''), limit: vue.ref(20),
+    historyLoading: vue.ref(false), historyLoadingMore: vue.ref(false), hasMoreHistory: vue.ref(true),
+    userHasScrolledUp: vue.ref(false), pendingInFlightTurnAnchorSessionId: vue.ref(''),
+    useSettingsStoreInstance: { restoreDefaultsIfSnapshotted() {} },
+    loadSessionAndHydrate: async () => { mode = 'quick' }, getmsgList() {},
+    watch(_source: unknown, callback: typeof routeChanged) { routeChanged = callback },
+  }
+  // Exercise the real navigation cleanup, cache and replay functions with the
+  // full stream handler, including the route watcher that reuses this view.
+  const cacheStart = chatView.indexOf('const cloneMessageForInFlightCache = ')
+  const routeEnd = chatView.indexOf('\nconst scrollFollow = ', cacheStart)
+  const replayStart = chatView.indexOf('const replayBackgroundChunks = ')
+  const replayEnd = chatView.indexOf('\nconst getmsgList = ', replayStart)
+  const cleanupStart = chatView.indexOf('const clearData = ')
+  const cleanupEnd = chatView.indexOf('\nonUnmounted(', cleanupStart)
+  const actions = vm.runInNewContext([
+    chatView.slice(cacheStart, routeEnd), chatView.slice(replayStart, replayEnd),
+    chatView.slice(cleanupStart, cleanupEnd),
+    '({ clearData, restoreCachedInFlightTurn, replayBackgroundChunks })',
+  ].join('\n'), state)
+  return {
+    messagesList, fullContent, handler, pending, actions,
+    async navigate(id: string) { actions.clearData(false); await routeChanged([{ chatid: id }]) },
+    send(id: string, content: string) {
+      handler.processStreamChunk({ response_type: 'answer', id: `request-${id}`,
+        __stream_session_id: id, content, data: { event_id: `answer-${id}` } })
+    },
+    start() {
+      handler.processStreamChunk({ response_type: 'agent_query', id: 'request-A',
+        assistant_message_id: 'assistant-A', __stream_session_id: 'A' })
+    },
+  }
+}
+
+for (const mode of ['agent', 'quick'] as const) {
+  test(`${mode} → quick: navigation never prefixes a different session's live answer`, async () => {
+    const h = navigationHarness(mode)
+    h.start()
+    h.send('A', '仲裁员的专业条件。')
+    assert.equal(h.fullContent.value, '仲裁员的专业条件。')
+    await h.navigate('B')
+    await h.handler.handleMsgList([{ id: 'assistant-B', request_id: 'request-B', session_id: 'B',
+      role: 'assistant', content: '', is_completed: false }])
+    // B's query event was consumed earlier; its existing connection sends deltas.
+    h.send('B', '通过外交途径。')
+    assert.equal(h.messagesList[0].content, '通过外交途径。')
+  })
+}
+
+for (const buffered of [false, true]) {
+  test(`returning to quick answer preserves its prefix (${buffered ? 'buffered' : 'live-only'} deltas)`, async () => {
+    const h = navigationHarness('quick')
+    h.messagesList.push({ id: 'user-A', role: 'user', content: '问题 A' })
+    h.start()
+    h.send('A', '第一段。')
+    await h.navigate('B')
+    h.send('B', '其他会话内容。')
+    await h.navigate('A')
+    h.actions.restoreCachedInFlightTurn('A')
+    if (buffered) h.pending.set('A', [{ response_type: 'answer', id: 'request-A',
+      __stream_session_id: 'A', content: '第二段。' }])
+    h.actions.replayBackgroundChunks('A')
+    h.send('A', '第三段。')
+    assert.equal(h.messagesList.find(m => m.role === 'assistant')?.content,
+      buffered ? '第一段。第二段。第三段。' : '第一段。第三段。')
+  })
+}
