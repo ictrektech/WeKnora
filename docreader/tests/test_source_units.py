@@ -50,7 +50,7 @@ def test_assemble_source_blocks_adds_table_children_relative_to_parent():
     assert units[0]["source_end"] == len(content)
     assert units[0]["text"] == content
     assert units[1]["parent_id"] == "table-1-row-1"
-    assert units[1]["text"] == "付款"
+    assert units[1]["text"] == "付款方式"
     assert units[1]["source_start"] == 0
     assert units[1]["source_end"] == 4
     assert units[2]["source_start"] == 7

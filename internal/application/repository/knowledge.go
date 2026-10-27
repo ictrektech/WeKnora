@@ -436,6 +436,10 @@ func (r *knowledgeRepository) CheckKnowledgeExists(
 			types.ParseStatusDeleting,
 		})
 
+	if params.ExcludeKnowledgeID != "" {
+		query = query.Where("id <> ?", params.ExcludeKnowledgeID)
+	}
+
 	switch params.Type {
 	case "file":
 		if params.DataSourceID != "" && params.ExternalID != "" {
