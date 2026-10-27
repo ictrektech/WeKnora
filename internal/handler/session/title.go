@@ -65,7 +65,7 @@ func (h *Handler) GenerateTitle(c *gin.Context) {
 	// not be able to (re)generate its title.
 	session, err := h.sessionService.GetOwnedSession(ctx, sessionID)
 	if err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}

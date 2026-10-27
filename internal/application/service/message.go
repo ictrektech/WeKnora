@@ -549,6 +549,16 @@ func (s *messageService) ListArtifactLibrary(
 	}
 	query.TenantID = types.MustTenantIDFromContext(ctx)
 	query.UserID = types.SessionOwnerIDFromContext(ctx)
+	query.HiddenWorkspaceModes = nil
+	if tenant, ok := types.TenantInfoFromContext(ctx); ok {
+		if !tenant.LegalWorkspaceConfig.IsEnabled() {
+			query.HiddenWorkspaceModes = append(query.HiddenWorkspaceModes, types.WorkspaceModeLegalAssistant)
+		}
+		if !tenant.PatentWorkspaceConfig.IsEnabled() {
+			query.HiddenWorkspaceModes = append(query.HiddenWorkspaceModes, types.WorkspaceModePatentSearch, types.WorkspaceModePatentWriting)
+		}
+	}
+
 	pagination := &types.Pagination{Page: query.Page, PageSize: query.PageSize}
 	query.Page = pagination.GetPage()
 	query.PageSize = min(pagination.GetPageSize(), artifactLibraryMaxPageSize)
@@ -612,7 +622,7 @@ func (s *messageService) SearchMessages(ctx context.Context, params *types.Messa
 		params.OwnerID = types.SessionOwnerIDFromContext(ctx)
 	}
 	var err error
-	hasSearchableSessions, err := s.excludeDisabledLegalSessions(ctx, tenantID, params)
+	hasSearchableSessions, err := s.excludeDisabledWorkspaceSessions(ctx, tenantID, params)
 	if err != nil {
 		return nil, err
 	}
@@ -693,17 +703,17 @@ func (s *messageService) SearchMessages(ctx context.Context, params *types.Messa
 	return result, nil
 }
 
-// excludeDisabledLegalSessions keeps ordinary conversation search from
-// becoming a side channel for a disabled legal workspace. The repository
+// excludeDisabledWorkspaceSessions keeps ordinary conversation search from
+// becoming a side channel for a disabled workspace. The repository
 // search APIs intentionally remain generic, so the service narrows the
 // session-id scope before both keyword and vector branches run.
-func (s *messageService) excludeDisabledLegalSessions(
+func (s *messageService) excludeDisabledWorkspaceSessions(
 	ctx context.Context,
 	tenantID uint64,
 	params *types.MessageSearchParams,
 ) (bool, error) {
 	tenant, ok := types.TenantInfoFromContext(ctx)
-	if !ok || tenant.LegalWorkspaceConfig.IsEnabled() {
+	if !ok || (tenant.LegalWorkspaceConfig.IsEnabled() && tenant.PatentWorkspaceConfig.IsEnabled()) {
 		return true, nil
 	}
 	sessions, err := s.sessionRepo.GetByTenantID(ctx, tenantID, params.OwnerID)
@@ -712,7 +722,7 @@ func (s *messageService) excludeDisabledLegalSessions(
 	}
 	allowed := make(map[string]struct{}, len(sessions))
 	for _, session := range sessions {
-		if session != nil && session.WorkspaceMode != types.WorkspaceModeLegalAssistant {
+		if session != nil && ensureSessionWorkspaceAccess(ctx, session) == nil {
 			allowed[session.ID] = struct{}{}
 		}
 	}

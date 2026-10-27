@@ -640,3 +640,15 @@ func (r *messageRepository) GetSessionAttachments(
 	}
 	return result, nil
 }
+
+func (r *messageRepository) GetMessagesForWorkspacePurge(ctx context.Context, sessionID string, page, pageSize int) ([]*types.Message, error) {
+	var messages []*types.Message
+	if err := r.db.WithContext(ctx).Unscoped().Where("session_id = ?", sessionID).
+		Order("created_at ASC, id ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&messages).Error; err != nil {
+		return nil, err
+	}
+	if err := attachArtifacts(ctx, r.db, messages...); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}

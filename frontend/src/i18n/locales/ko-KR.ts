@@ -1,4 +1,37 @@
 export default {
+  patentExamples: {
+      "sidebarTitle": "예시",
+      "empty": "아직 표시할 예시가 없습니다",
+      "details": "예시 설명",
+      "badge": "예시 · 읽기 전용",
+      "footer": "미리 기록한 기본 제공 예시이며 실시간 출력이 아닙니다. 설정 → 게시 및 연동 → 특허 작업 공간에서 숨길 수 있습니다.",
+      "deleteHint": "이 작업은 실제 대화를 삭제하며 기본 제공 예시는 삭제하지 않습니다. 예시를 숨기려면 위의 스위치를 사용하세요.",
+      "title": "기본 제공 예시",
+      "notice": "미리 기록한 결과이며 현재 모델의 실시간 출력이 아닙니다. 참고용으로만 제공되며 대화 계속하기나 업무 컨텍스트로 사용할 수 없습니다.",
+      "settingsHint": "관리자는 설정 → 게시 및 연동 → 특허 작업 공간에서 예시를 숨길 수 있습니다.",
+      "settings": "예시 설정 열기",
+      "enableLabel": "기본 제공 예시 표시",
+      "enableDescription": "이 작업 공간의 읽기 전용 예시를 표시합니다. 숨김 상태는 재시작과 업그레이드 후에도 유지됩니다. 실제 검색이나 대화에는 사용되지 않습니다.",
+      "disabled": "예시가 꺼져 있거나 접근할 수 없습니다.",
+      "loading": "예시 로딩 중…",
+      "loadFailed": "예시를 불러올 수 없습니다. 다시 시도하세요.",
+      "model": "기록 당시 모델",
+      "recordedAt": "기록 날짜",
+      "materials": "예시 자료실(읽기 전용)",
+      "attribution": "출처 및 라이선스",
+      "knowledgeBase": "예시 지식 베이스: 공개 특허 문헌",
+      "externalNotice": "문헌 정보, 출처 위치와 편집 요약만 제공합니다. 전체 PDF나 검색 청크는 포함하지 않습니다.",
+      "documents": "관련 문헌(읽기 전용)",
+      "externalOnly": "외부 원문 링크",
+      "backToDocuments": "문헌 목록으로 돌아가기",
+      "publicationNumber": "공개 번호",
+      "applicant": "출원인",
+      "applicationDate": "출원일",
+      "publicationDate": "공개일",
+      "openOriginal": "출처에서 원문 보기(온라인)",
+      "evidenceSummary": "출처 위치와 편집 요약(전체 원문 아님)",
+      "unavailable": "아직 배포 가능한 예시가 없습니다. 공개 특허 자료의 재배포 조건을 확인 중입니다.",
+  },
   modelCatalog: {
     "title": "모델 카탈로그",
     "description": "모델 카탈로그는 모델 추가 시 선택할 수 있는 모델 목록과 컨텍스트 창, 추론 지원 여부 같은 기본값을 정의합니다. 여기서 변경하면 모든 워크스페이스에 즉시 적용됩니다.",
@@ -1191,6 +1224,7 @@ export default {
       cli: 'CLI',
       claw: 'Claw Skill',
       mcpserver: 'MCP 서버',
+      "patent": "특허 워크스페이스",
       legal: '법률 워크스페이스',
     }
   },
@@ -1379,6 +1413,8 @@ export default {
       confluenceEditionCloud: 'Cloud',
       confluenceBaseUrl: 'Confluence URL',
       confluenceUsername: '사용자 이름 또는 이메일',
+      confluencePat: 'Server/DC 개인 액세스 토큰(PAT)',
+      confluencePatHint: '선택 사항입니다. 입력하면 Bearer 인증을 사용하며 사용자 이름과 비밀번호가 필요하지 않습니다.',
       confluencePassword: 'Server/DC 비밀번호',
       confluenceApiToken: 'Cloud API 토큰',
       clientId: 'Client ID',
@@ -5032,6 +5068,12 @@ export default {
     noKnowledgeBases: '사용 가능한 지식베이스 없음',
     enterDescription: '설명 입력',
     rawOutputLabel: '원시 출력',
+    backgroundWork: {
+      running: '백그라운드 작업 없음 | 백그라운드 작업 {count}개 | 백그라운드 작업 {count}개',
+      stop: '중지',
+      loading: '출력을 불러오는 중…',
+      unavailable: '출력을 볼 수 없습니다',
+    },
     wikiWritePageTitle: 'Wiki 페이지 작성',
     wikiReplaceTextTitle: 'Wiki 텍스트 교체',
     wikiRenamePageTitle: 'Wiki 페이지 이름 변경',
@@ -5101,14 +5143,14 @@ export default {
         imagePipelineSectionDescription:
           '멀티모달 분석이 켜져 있으면 이미지의 분석 방식을 필요에 따라 선택할 수 있습니다.',
         imagePipelineLabel: '분석 방식',
+        advancedSettingsLabel: '고급 설정',
+        notesLabel: '추가 설명',
         imagePipelinePlaceholder: '분석 방식 선택',
         imagePipelineLoading: '파이프라인을 불러오는 중…',
         imagePipelineLoadError: '파이프라인을 불러오지 못했습니다',
-          imagePipelineValidateError: '현재 설정을 검증할 수 없습니다. 저장 시 백엔드가 다시 검사합니다.',
+        imagePipelineValidateError: '현재 설정을 검증할 수 없습니다. 저장 시 백엔드가 다시 검사합니다.',
         imageAttrsOcrConditions: '관찰된 속성 조건에 따라 OCR 실행',
         imageAttrsOcrConditionsDesc: '관찰된 속성이 아래 조건을 충족하면 해당 이미지에 OCR을 실행합니다',
-        imageAttrsOcrOnUnobserved: '이미지 속성 관찰에 실패해도 OCR 실행',
-        imageAttrsOcrOnUnobservedDesc: '모델이 이미지 속성을 올바르게 관찰하지 못하면 본문 텍스트 손실을 막기 위해 기본적으로 OCR을 실행합니다. 끄면 건너뜁니다. (4B 등 소형 비전 모델을 쓰거나, 사용자 지정 이미지 지시문이 시스템 프롬프트와 충돌할 때 관찰에 실패할 수 있습니다. 8B 이상은 실패 가능성이 낮아 끄지 않는 것을 권장합니다)',
         imagePipelineKbNote: '기본값은 지식베이스 설정을 따르며 이번 작업에 맞게 조정할 수 있습니다'
       },
       tableMetadataInstructions: {
@@ -7213,6 +7255,7 @@ export default {
       skillUploadDrag: '또는 여기로 드래그',
       skillUploadHint: '설치하면 현재 이미지에 스킬을 쓰고 새 스냅샷을 만듭니다. 몇 분이 걸릴 수 있습니다. 현재 대화 턴은 중단되지 않으며, 이미 열린 세션은 다음 턴에서 새 이미지로 샌드박스를 다시 만들고 그때 세션 작업 공간 초안이 지워집니다.',
       skillUploadHintNewSession: '설치하면 현재 이미지에 스킬을 쓰고 새 스냅샷을 만듭니다. 몇 분이 걸릴 수 있습니다. 이미 열린 세션은 세션이 끝날 때까지 기존 샌드박스를 유지하며, 이번에 설치한 스킬은 새로 시작한 세션에만 적용됩니다.',
+      skillUploadHintShared: '설치하면 새 이미지를 만들며 몇 분이 걸릴 수 있습니다. 기존 공유 샌드박스는 변경되지 않고, 이후 새로 만드는 샌드박스에만 새 이미지가 적용됩니다.',
       skillSourceSection: '소스에서 설치',
       skillSourceSectionHint: 'ClawHub, GitHub 또는 SkillHub 링크, 혹은 {\'@\'}owner/slug를 붙여넣으세요. 압축 파일은 {size} MB를 넘을 수 없습니다.',
       skillUploadSection: '로컬 번들 업로드',
@@ -7235,6 +7278,7 @@ export default {
       skillDisableHint: 'Disable = the skill is invisible to the agent, files stay in the image. Changes take effect on the session\'s next execution.',
       skillDeleteHint: '삭제하면 이미지에서 스킬 디렉터리를 제거하고 새 스냅샷을 만듭니다. 현재 대화 턴은 중단되지 않으며, 이미 열린 세션은 다음 턴에서 새 이미지로 샌드박스를 다시 만들고 그때 세션 작업 공간 초안이 지워집니다.',
       skillDeleteHintNewSession: '삭제하면 이미지에서 스킬 디렉터리를 제거하고 새 스냅샷을 만듭니다. 이미 열린 세션은 세션이 끝날 때까지 기존 샌드박스를 유지하며, 이 스킬은 새로 시작한 세션에서만 빠집니다.',
+      skillDeleteHintShared: '삭제하면 이미지에서 스킬을 제거하고 새 이미지를 만듭니다. 기존 공유 샌드박스의 파일은 변경되지 않고, 이후 새로 만드는 샌드박스에만 새 이미지가 적용됩니다.',
       skillRemoveInProgress: '제거 중',
       skillRemoveWaiting: '이미지에서 제거를 시작했습니다. 진행 상황을 기다리는 중…',
       skillRemoveDone: '샌드박스에서 「{name}」을(를) 제거했습니다. 스킬은 카탈로그에 남아 있으니 나중에 다시 설치할 수 있습니다.',
@@ -9428,6 +9472,25 @@ export default {
         'true': { label: '예', description: '예 —— 차트, 그래프, 도표' },
         'false': { label: '아니오', description: '아니오 —— 사진, 삽화, 아이콘, 장식' }
       }
+    },
+    layout_margin: {
+      label: '여백',
+      description:
+        '내용 바깥(책상, 배경, 여백)이 화면 전체에서 차지하는 비율. 여백이 크면 OCR 전에 페이지를 더 타이트하게 잘라낼 수 있습니다.',
+      values: {
+        'none': { label: '없음', description: '글자가 화면을 거의 채움' },
+        'small': { label: '적음', description: '가장자리에 얇은 띠' },
+        'large': { label: '많음', description: '비텍스트 영역이 넓음 — 책상, 방, 거의 빈 페이지' }
+      }
+    },
+    layout_upright: {
+      label: '글자 방향',
+      description:
+        '이미지 속 글자가 똑바로 서 있는지. 기울거나 뒤집힌 페이지는 OCR 전에 바르게 펴는 것이 좋습니다.',
+      values: {
+        'true': { label: '정립', description: '글자가 정상 방향' },
+        'false': { label: '비정립', description: '회전·기울임 촬영·뒤집힘' }
+      }
     }
   },
   // 파이프라인 패널의 오버레이 문구: 파이프라인 id와 필드 key로 색인합니다
@@ -9440,44 +9503,116 @@ export default {
     },
     default: {
       name: '수동',
+      note_actions: {
+        label: '두 동작은 서로 독립적입니다',
+        description:
+          '각각 따로 켜고 끌 수 있습니다. 인식을 끄면 이미지는 여전히 설명되고, 설명을 끄면 글자는 여전히 추출됩니다. 둘 다 끄면 이미지가 아무것도 처리되지 않으므로 패널은 그 조합을 허용하지 않습니다.',
+      },
       description: '작업에 맞게 분석 동작 스위치를 직접 켜거나 끕니다.',
-      enable_caption: {
+      caption_enabled: {
         label: '이미지 설명',
         description: '각 이미지에 대한 한 줄 설명을 생성해 캡션으로 저장합니다.'
       },
-      enable_ocr: {
+      ocr_enabled: {
         label: '문자 인식',
         description: '이미지 속에 나타나는 텍스트를 추출합니다.'
       },
       caption: {
-        thinking: {
+        thinking_enabled: {
           label: '설명 시 사고 사용',
           description: '설명을 쓰기 전에 모델이 먼저 추론하도록 합니다. 일반적으로 사고는 필요하지 않습니다. 켜면 분석이 느려질 뿐 아니라 사고가 너무 길어져 본문이 잘려서 작업이 실패할 수 있습니다. 꼭 필요하다고 판단될 때만 켜세요.',
         },
       },
       ocr: {
-        thinking: {
+        thinking_enabled: {
           label: 'OCR 시 사고 사용',
           description: '텍스트를 추출하기 전에 모델이 먼저 추론하도록 합니다. 일반적으로 사고는 필요하지 않습니다. 켜면 분석이 느려질 뿐 아니라 사고가 너무 길어져 본문이 잘려서 작업이 실패할 수 있습니다. 꼭 필요하다고 판단될 때만 켜세요.',
         },
       }
     },
     smartocr: {
+      ocr_on_unobserved: {
+        label: '이미지 속성 관찰에 실패해도 OCR 실행',
+        description:
+          '모델이 이미지 속성을 올바르게 관찰하지 못하면 본문 텍스트 손실을 막기 위해 기본적으로 OCR을 실행합니다. 끄면 건너뜁니다. (4B 등 소형 비전 모델을 쓰거나, 사용자 지정 이미지 지시문이 시스템 프롬프트와 충돌할 때 관찰에 실패할 수 있습니다. 8B 이상은 실패 가능성이 낮아 끄지 않는 것을 권장합니다)',
+      },
       name: '스마트',
-      caption: {
-        thinking: {
+      note_flow: {
+        label: '관찰 결과가 결정합니다',
+        description:
+          '먼저 이미지를 설명하고 속성을 관찰한 뒤, 돌아온 속성이 OCR을 한 번 더 할 가치가 있는지 결정합니다. 페이지를 반듯하게 펴야 한다고 속성이 알리면 먼저 펴고 주변을 잘라낸 뒤 읽습니다. 그 단계를 쓸 수 없으면 원본 사진을 그대로 읽으며, 더 나빠지지 않습니다.',
+      },
+      preprocess: {
+        mode: {
+          label: '문서 전처리',
+          description:
+            '기본값은 끄기입니다. 켜면 OCR 전에 페이지를 보정하고 잘라내므로 처리 시간이 늘어납니다. 자동: 관찰 결과로 판단 / 항상: OCR 대상으로 선택된 이미지를 매번 전처리합니다. 처리 중이거나 제한을 초과하면 원본 이미지를 사용합니다.',
+          options: {
+            auto: '자동',
+            off: '끄기',
+            always: '항상',
+          },
+        },
+      },
+      observation: {
+        thinking_enabled: {
           label: '설명 시 사고 사용',
           description: '이미지를 설명하고 속성을 보고하기 전에 모델이 먼저 추론하도록 합니다. 일반적으로 사고는 필요하지 않습니다. 켜면 분석이 느려질 뿐 아니라 사고가 너무 길어져 본문이 잘려서 작업이 실패할 수 있습니다. 꼭 필요하다고 판단될 때만 켜세요.',
         },
       },
       ocr: {
-        thinking: {
+        thinking_enabled: {
           label: '문자 인식 시 사고 사용',
           description: '텍스트를 추출하기 전에 모델이 먼저 추론하도록 합니다. 일반적으로 사고는 필요하지 않습니다. 켜면 분석이 느려질 뿐 아니라 사고가 너무 길어져 본문이 잘려서 작업이 실패할 수 있습니다. 꼭 필요하다고 판단될 때만 켜세요.',
         },
       },
       description:
-        '먼저 이미지 특징을 관찰하여 설명을 생성하고, 그 특징을 바탕으로 OCR 실행 여부를 결정합니다. 모델 호출을 절약하고 분석 속도를 높입니다.'
+        '먼저 이미지 특징을 관찰하여 설명을 생성하고, 그 특징을 바탕으로 OCR 실행 여부를 결정합니다. 모델 호출을 절약하고 분석 속도를 높입니다 이미지가 보정 가능한 문서나 라벨 사진으로 인식되면 인식 전에 페이지를 자동으로 정렬하고 잘라내어 OCR 정확도를 높입니다. 보정에 실패하면 원본 이미지를 사용합니다.'
     }
+  },
+
+  "patentWorkspace": {
+    "title": "특허 워크스페이스",
+    "search": "특허 검색",
+    "writing": "작성 가이드",
+    "sessions": "대화 기록",
+    "searchGreeting": "관련 특허를 찾고 근거를 확인하세요.",
+    "writingGreeting": "기술 자료를 보완하고 작성 누락을 확인하세요.",
+    "localScope": "로컬 지식 베이스와 첨부 파일만 검색합니다. 공개 자료가 필요하면 입력란에서 웹 검색을 켜세요.",
+    "onlineScope": "로컬 자료와 웹 검색을 사용합니다. 웹 결과는 전체 특허 데이터베이스를 포함하지 않습니다.",
+    "writingScope": "개요, 추가 질문, 수정 제안을 제공합니다. 자료를 업로드하거나 지식 베이스를 선택하세요.",
+    "unavailable": "특허 워크스페이스를 사용할 수 없어 지식 베이스로 돌아갑니다.",
+    "createFailed": "특허 대화를 만들지 못했습니다.",
+    "loadFailed": "특허 설정을 불러오지 못했습니다. 다시 시도하세요.",
+    "retry": "다시 시도",
+    "prompts": {
+      "technical": "내 기술 문제와 관련된 특허를 검색하고 검색 조건, 출처, 관련성을 제시하세요.",
+      "applicant": "출원인 또는 공개 번호로 특허를 찾고 검증된 항목만 작성하세요.",
+      "compare": "제공한 특허의 기술적 특징을 비교하고 근거와 차이를 제시하세요.",
+      "outline": "내 자료로 기술 설명서 개요를 구성하고 추가할 사실을 정리하세요.",
+      "missing": "기술 세부 사항, 실시 형태, 효과 근거의 누락을 확인하세요.",
+      "claims": "청구항의 용어, 인용 관계, 명확성을 확인하세요.",
+      "consistency": "명세서와 청구항의 일관성 및 기술적 뒷받침을 확인하세요."
+    }
+  },
+  "patentWorkspaceSettings": {
+    "description": "특허 워크스페이스 접근을 관리합니다. 비활성화해도 대화와 첨부 파일을 보관합니다.",
+    "introTitle": "특허 워크스페이스 설정",
+    "introDescription": "검색과 작성 가이드를 활성화합니다. 기록과 입력 설정은 각각 저장합니다.",
+    "enableLabel": "특허 워크스페이스 활성화",
+    "enableDescription": "비활성화하면 메뉴와 접근을 차단하고 데이터는 보관합니다.",
+    "saveSuccess": "특허 설정을 저장했습니다",
+    "saveFailed": "특허 설정 저장 실패: {message}",
+    "deleteTitle": "특허 데이터 삭제",
+    "deleteDescription": "특허 대화, 메시지, 임시 첨부 파일을 삭제합니다. 공유 지식 베이스는 보관합니다.",
+    "deleteButton": "모든 데이터 삭제",
+    "deleteConfirmTitle": "특허 데이터를 삭제할까요?",
+    "deleteConfirmBody": "현재 워크스페이스의 모든 특허 대화, 메시지, 제안, 임시 첨부 파일을 삭제하며 복구할 수 없습니다. 공유 지식 베이스와 다른 워크스페이스는 유지됩니다.",
+    "deleteSuccess": "특허 데이터를 삭제했습니다",
+    "deleteFailed": "특허 데이터 삭제 실패: {message}",
+    "cancel": "취소",
+    "adminOnly": "관리자는 설정을 변경할 수 있습니다. 소유자만 데이터를 삭제할 수 있습니다.",
+    "disabledMessage": "특허 워크스페이스가 비활성화되었습니다."
   }
+
 }

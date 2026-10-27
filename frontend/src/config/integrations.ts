@@ -5,9 +5,9 @@ export const CHROME_EXTENSION_URL =
 
 export const CLAWHUB_SKILL_URL = 'https://clawhub.ai/lyingbug/weknora'
 
-export type IntegrationTab = 'im' | 'embed' | 'api' | 'mcpserver' | 'cli' | 'chrome' | 'claw' | 'legal'
+export type IntegrationTab = 'im' | 'embed' | 'api' | 'mcpserver' | 'cli' | 'chrome' | 'claw' | 'legal' | 'patent'
 
-export const INTEGRATION_TABS: IntegrationTab[] = ['im', 'embed', 'api', 'mcpserver', 'cli', 'chrome', 'claw', 'legal']
+export const INTEGRATION_TABS: IntegrationTab[] = ['im', 'embed', 'api', 'mcpserver', 'cli', 'chrome', 'claw', 'legal', 'patent']
 
 /** Aligns with Settings.vue SECTION_MIN_ROLE.api and router.go g.Owner() on /api-principal-config. */
 export type IntegrationTabRole = 'viewer' | 'contributor' | 'admin' | 'owner'
@@ -15,6 +15,7 @@ export type IntegrationTabRole = 'viewer' | 'contributor' | 'admin' | 'owner'
 export const INTEGRATION_TAB_MIN_ROLE: Partial<Record<IntegrationTab, IntegrationTabRole>> = {
   api: 'owner',
   legal: 'admin',
+  patent: 'admin',
 }
 
 export const INTEGRATION_TAB_CAPABILITY: Partial<Record<IntegrationTab, DeploymentCapabilityKey>> = {
@@ -41,4 +42,5 @@ export const INTEGRATION_PREVIEW_ITEMS: Array<{
   { key: 'chrome', icon: { type: 'icon', name: 'extension' } },
   { key: 'claw', icon: { type: 'emoji', value: '🦞' } },
   { key: 'legal', icon: { type: 'icon', name: 'file-paste' } },
+  { key: 'patent', icon: { type: 'icon', name: 'file-search' } },
 ]

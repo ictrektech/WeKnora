@@ -1,4 +1,37 @@
 export default {
+  patentExamples: {
+      "sidebarTitle": "Examples",
+      "empty": "No examples available yet",
+      "details": "Example Details",
+      "badge": "Example · Read-only",
+      "footer": "Built-in recording, not live output. View only. Administrators can hide examples in Settings → Publishing & Integrations → Patent Workspace.",
+      "deleteHint": "This deletes real conversations, not built-in examples. Use the switch above to hide examples.",
+      "title": "Built-in Examples",
+      "notice": "Recorded results, not live output from your current model. Reference only; examples cannot be continued or used as business context.",
+      "settingsHint": "Administrators can hide examples in Settings → Publishing & Integrations → Patent Workspace.",
+      "settings": "Open Example Settings",
+      "enableLabel": "Show built-in examples",
+      "enableDescription": "Show read-only examples for this workspace. Turning this off keeps package resources and persists across restarts and upgrades. Examples never enter live retrieval or conversations.",
+      "disabled": "Examples are disabled or unavailable.",
+      "loading": "Loading examples…",
+      "loadFailed": "Examples are unavailable. Please retry.",
+      "model": "Recorded model",
+      "recordedAt": "Recorded on",
+      "materials": "Example Materials (Read-Only)",
+      "attribution": "Sources and License",
+      "knowledgeBase": "Example Knowledge Base: Published Patents",
+      "externalNotice": "Document metadata, source locations and editorial summaries only; no full PDFs or original retrieval chunks.",
+      "documents": "Related Documents (Read-Only)",
+      "externalOnly": "External original",
+      "backToDocuments": "Back to Documents",
+      "publicationNumber": "Publication Number",
+      "applicant": "Applicant",
+      "applicationDate": "Application Date",
+      "publicationDate": "Publication Date",
+      "openOriginal": "View Original at Source (Online)",
+      "evidenceSummary": "Source Locations and Editorial Summaries (Not Full Text)",
+      "unavailable": "No distributable examples are available for this feature yet; redistribution conditions for the public patent materials are still under review.",
+  },
   modelCatalog: {
     "title": "Model catalog",
     "description": "The model catalog defines which models are offered when adding a model, along with defaults such as context window and reasoning support. Changes here apply to all workspaces immediately.",
@@ -1846,6 +1879,7 @@ export default {
       skillUploadDrag: 'or drop a file here',
       skillUploadHint: 'Install writes the skill onto the current image and takes a new snapshot. This can take several minutes. The current chat turn is not interrupted; open sessions rebuild their sandbox on the next turn, which clears the session workspace scratch.',
       skillUploadHintNewSession: 'Install writes the skill onto the current image and takes a new snapshot. This can take several minutes. Already-open sessions keep their current sandbox until they end; only newly started sessions pick up this install.',
+      skillUploadHintShared: 'Installing builds a new image and may take several minutes. Existing shared sandboxes stay unchanged; only newly created sandboxes use the new image.',
       skillSourceSection: 'Install from a source',
       skillSourceSectionHint: 'Paste a ClawHub, GitHub or SkillHub link, or {\'@\'}owner/slug. The bundle cannot exceed {size} MB.',
       skillUploadSection: 'Upload a local bundle',
@@ -1868,6 +1902,7 @@ export default {
       skillDisableHint: 'Disable = the skill is invisible to the agent, files stay in the image. Changes take effect on the session\'s next execution.',
       skillDeleteHint: 'Delete removes the skill directory from the image and takes a new snapshot. The current chat turn is not interrupted; open sessions rebuild their sandbox on the next turn, which clears the session workspace scratch.',
       skillDeleteHintNewSession: 'Delete removes the skill directory from the image and takes a new snapshot. Already-open sessions keep their current sandbox until they end; only newly started sessions lose this skill.',
+      skillDeleteHintShared: 'Deleting removes the skill from the image and builds a new image. Files in existing shared sandboxes stay unchanged; only newly created sandboxes use the new image.',
       skillRemoveInProgress: 'Uninstalling',
       skillRemoveWaiting: 'Uninstall from the image has started. Waiting for progress…',
       skillRemoveDone: 'Uninstalled “{name}” from this sandbox. It remains in the catalog, so you can install it again later.',
@@ -4135,8 +4170,7 @@ export default {
         imageAttrsSchemaDescription: 'The model observes the attributes below (defined by the backend registry) to drive the OCR policy',
         imageAttrsOcrConditions: 'Trigger OCR based on the observed attribute conditions',
         imageAttrsOcrConditionsDesc: 'When the observed attributes match the conditions below, OCR runs on the image',
-        imageAttrsOcrOnUnobserved: 'Run OCR when image-attribute observation fails',
-        imageAttrsOcrOnUnobservedDesc: 'When the model fails to observe the image attributes correctly, OCR runs by default so body text is never lost; turn off to skip. (A small vision model such as 4B, or custom image-instruction prompts that conflict with the system prompt, can cause the observation to fail; 8B and above rarely fail, so leaving this on is recommended)',
+
         imagePipelineKbNote: 'Defaults follow the knowledge base settings; adjust them for this task'
       ,
 "imagePipelineSectionLabel": "Image parsing scheme",
@@ -4145,7 +4179,10 @@ export default {
 "imagePipelinePlaceholder": "Select a scheme",
 "imagePipelineLoading": "Loading pipelines…",
 "imagePipelineLoadError": "Could not load pipelines",
-"imagePipelineValidateError": "The current settings could not be checked; the backend re-checks them on save."
+"imagePipelineValidateError": "The current settings could not be checked; the backend re-checks them on save.",
+        advancedSettingsLabel: 'Advanced settings',
+        notesLabel: 'Additional notes',
+
 }
     }
   },
@@ -4376,7 +4413,14 @@ export default {
     attachmentReady: 'Ready',
     attachmentUploadFailed: 'Attachment upload failed',
     attachmentParseFailed: 'Attachment parsing failed',
-    attachmentStillProcessing: 'Attachment {name} is still being parsed'
+    attachmentStillProcessing: 'Attachment {name} is still being parsed',
+    backgroundWork: {
+      running: 'No background tasks | {count} background task | {count} background tasks',
+      stop: 'Stop',
+      loading: 'Loading output…',
+      unavailable: 'Output is unavailable'
+    },
+
   },
   tenant: {
     title: 'Workspace Information',
@@ -7799,7 +7843,10 @@ export default {
       feedUrls: 'Feed URLs',
       feedUrlsHint: 'One RSS / Atom feed URL per line; multiple feeds are supported.',
       authHeaders: 'Custom headers (optional)',
-      authHeadersHint: 'For private feeds. One per line in "Name: Value" form, e.g. Authorization: Bearer xxxx'
+      authHeadersHint: 'For private feeds. One per line in "Name: Value" form, e.g. Authorization: Bearer xxxx',
+      confluencePat: 'Server/DC personal access token (PAT)',
+      confluencePatHint: 'Optional. When provided, uses Bearer authentication; username and password are not required.',
+
     },
     confluence: {
       cloudFolderLimitation: 'Confluence Cloud cannot list pages stored directly under top-level folders in this space; selecting the whole space still syncs them.'
@@ -8054,6 +8101,7 @@ export default {
       cli: 'CLI',
       claw: 'Claw Skill',
       mcpserver: 'MCP Server',
+      "patent": "Patent Workspace",
       legal: 'Legal Workspace',
     },
     api: {
@@ -9131,7 +9179,40 @@ export default {
         'true': { label: 'Yes', description: 'a chart, graph or diagram with plotted values' },
         'false': { label: 'No', description: 'a photo, drawing, icon or decoration' }
       }
-    }
+    },
+    layout_margin: {
+      label: 'Non-text area',
+      description: 'How much background surrounds the content. Large margins mean the page can be cropped tighter before OCR reads it.',
+      values: {
+        none: {
+          label: 'None',
+          description: 'the text reaches the edges'
+        },
+        small: {
+          label: 'Small',
+          description: 'a thin band of background'
+        },
+        large: {
+          label: 'Large',
+          description: 'plenty of non-text area: a desk, a room, a mostly empty page'
+        }
+      }
+    },
+    layout_upright: {
+      label: 'Text orientation',
+      description: 'Whether the text reads the right way up. A rotated or upside-down page is worth straightening before OCR reads it.',
+      values: {
+        true: {
+          label: 'Upright',
+          description: 'text reads in its normal orientation'
+        },
+        false: {
+          label: 'Rotated',
+          description: 'text is turned, tilted or upside down'
+        }
+      }
+    },
+
   }
 ,
 "automation": {
@@ -9502,42 +9583,117 @@ export default {
   "default": {
     "name": "Manual",
     "description": "Turn the parsing actions on or off to fit the task.",
-    "enable_caption": {
-      "label": "Image caption",
-      "description": "Ask the model for a one-line description of every image and store it as the caption."
-    },
-    "enable_ocr": {
-      "label": "OCR",
-      "description": "Extract the text that appears in the image."
-    },
+
     "caption": {
-      "thinking": {
-        "label": "Caption with thinking",
-        "description": "Let the model think before it writes the caption. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the caption, failing the task. Only enable it when you have confirmed it is necessary."
-      }
+           thinking_enabled: {
+          label: 'Caption with thinking',
+          description: 'Let the model think before it writes the caption. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the caption, failing the task. Only enable it when you have confirmed it is necessary.'
+        },
+
     },
     "ocr": {
-      "thinking": {
-        "label": "OCR with thinking",
-        "description": "Let the model think before it transcribes the text. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the transcribed text, failing the task. Only enable it when you have confirmed it is necessary."
-      }
-    }
+           thinking_enabled: {
+          label: 'OCR with thinking',
+          description: 'Let the model think before it transcribes the text. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the transcribed text, failing the task. Only enable it when you have confirmed it is necessary.'
+        },
+
+    },
+      note_actions: {
+        label: 'The two actions are independent',
+        description: 'Each can be switched separately: with OCR off the image is still described, with caption off its text is still read. Only switching both off leaves an image untouched, which is why the panel refuses that combination.'
+      },
+      caption_enabled: {
+        label: 'Image caption',
+        description: 'Ask the model for a one-line description of every image and store it as the caption.'
+      },
+      ocr_enabled: {
+        label: 'OCR',
+        description: 'Extract the text that appears in the image.'
+      },
+
   },
   "smartocr": {
     "name": "Smart",
-    "caption": {
-      "thinking": {
-        "label": "Describe with thinking",
-        "description": "Let the model think before it describes the image and reports its attributes. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the description, failing the task. Only enable it when you have confirmed it is necessary."
-      }
-    },
+
     "ocr": {
-      "thinking": {
-        "label": "Text recognition with thinking",
-        "description": "Let the model think before it transcribes the text. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the transcribed text, failing the task. Only enable it when you have confirmed it is necessary."
-      }
+           thinking_enabled: {
+          label: 'Text recognition with thinking',
+          description: 'Let the model think before it transcribes the text. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the transcribed text, failing the task. Only enable it when you have confirmed it is necessary.'
+        },
+
     },
-    "description": "Observe the image attributes and describe the image first, then decide from the attributes whether to run OCR, saving model calls and speeding up parsing."
+    "description": 'Observe the image attributes and describe the image first, then decide from the attributes whether to run OCR, saving model calls and speeding up parsing. When the image is recognised as a photograph of a correctable page or label, it is straightened and cropped before recognition to improve OCR accuracy; if that fails, the original image is used.',
+      ocr_on_unobserved: {
+        label: 'Run OCR when image-attribute observation fails',
+        description: 'When the model fails to observe the image attributes correctly, OCR runs by default so body text is never lost; turn off to skip. (A small vision model such as 4B, or custom image-instruction prompts that conflict with the system prompt, can cause the observation to fail; 8B and above rarely fail, so leaving this on is recommended)'
+      },
+      note_flow: {
+        label: 'The observation decides',
+        description: 'The image is described and observed first, and the attributes that come back decide whether OCR is worth a second pass. When they say the page needs straightening, it is straightened and its surroundings cropped before reading; when that step is unavailable or declines, the original photograph is read instead — never something worse.'
+      },
+      preprocess: {
+        mode: {
+          label: 'Document preprocessing',
+          description: 'Off by default. Straightening and cropping before OCR adds processing time. Auto uses the observed attributes; Always tries preprocessing for every image selected for OCR. Busy or resource-limited requests use the original image.',
+          options: {
+            auto: 'Auto',
+            off: 'Off',
+            always: 'Always'
+          }
+        }
+      },
+      observation: {
+        thinking_enabled: {
+          label: 'Describe with thinking',
+          description: 'Let the model think before it describes the image and reports its attributes. In general you do not need thinking; enabling it makes parsing slower and may make the model overthink, so overly long reasoning can run past the limit and truncate the description, failing the task. Only enable it when you have confirmed it is necessary.'
+        }
+      },
+
   }
-}
+},
+
+  "patentWorkspace": {
+    "title": "Patent Workspace",
+    "search": "Patent Search",
+    "writing": "Writing Guidance",
+    "sessions": "Conversations",
+    "searchGreeting": "Find relevant patents and check the evidence.",
+    "writingGreeting": "Improve technical materials and identify writing gaps.",
+    "localScope": "Searching local knowledge bases and attachments only. Enable web search in the composer to include public sources.",
+    "onlineScope": "Using local materials and web search. Web results do not cover the complete patent database.",
+    "writingScope": "Get outlines, follow-up questions and revision suggestions. Upload materials or select a knowledge base.",
+    "unavailable": "Patent workspace is unavailable. Returned to knowledge bases.",
+    "createFailed": "Failed to create patent conversation.",
+    "loadFailed": "Could not load patent workspace settings. Please retry.",
+    "retry": "Retry",
+    "prompts": {
+      "technical": "Find patents related to my technical problem, with search conditions, sources and relevance.",
+      "applicant": "Find patents by applicant or publication number and include only verified fields.",
+      "compare": "Compare the technical features of my patents and identify evidence and differences.",
+      "outline": "Prepare a disclosure outline from my materials and list facts I need to supply.",
+      "missing": "Check my disclosure for missing technical details, embodiments and evidence of effects.",
+      "claims": "Check my claims for terminology, references and clarity.",
+      "consistency": "Check consistency and technical support between my description and claims."
+    }
+  },
+  "patentWorkspaceSettings": {
+    "description": "Control access to the patent workspace. Disabling retains conversations and attachments.",
+    "introTitle": "Patent workspace access",
+    "introDescription": "Enable patent search and writing guidance, each with its own history and composer preferences.",
+    "enableLabel": "Enable patent workspace",
+    "enableDescription": "Disabling hides the entry and blocks subsequent access, while retaining data.",
+    "saveSuccess": "Patent workspace settings saved",
+    "saveFailed": "Failed to save patent workspace settings: {message}",
+    "deleteTitle": "Delete patent workspace data",
+    "deleteDescription": "Delete all patent search and writing conversations, messages and temporary attachments in this workspace. Shared knowledge bases remain.",
+    "deleteButton": "Delete all data",
+    "deleteConfirmTitle": "Delete patent workspace data?",
+    "deleteConfirmBody": "All patent search and writing conversations, messages, suggestions and temporary attachments will be deleted. This cannot be undone. Shared knowledge bases and other workspaces remain.",
+    "deleteSuccess": "Patent workspace data deleted",
+    "deleteFailed": "Failed to delete patent workspace data: {message}",
+    "cancel": "Cancel",
+    "adminOnly": "Admins can change settings; only Owners can purge patent workspace data.",
+    "disabledMessage": "Patent workspace is disabled."
+  }
+
 }

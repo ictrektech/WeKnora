@@ -17,8 +17,14 @@ before(async () => {
   server = await createServer({
     configFile: false,
     plugins: [{ name: 'offline-store-test', enforce: 'pre',
-      resolveId(id) { if (id.endsWith('/utils/request')) return '\0offline-request' },
-      load(id) { if (id === '\0offline-request') return 'const request = () => { throw new Error("Unexpected network request") }; export { request as get, request as post, request as put, request as del };' },
+      resolveId(id) {
+        if (id.endsWith('/utils/request')) return '\0offline-request'
+        if (id.endsWith('/stores/auth')) return '\0offline-auth'
+      },
+      load(id) {
+        if (id === '\0offline-request') return 'const request = () => { throw new Error("Unexpected network request") }; export { request as get, request as post, request as put, request as del };'
+        if (id === '\0offline-auth') return 'export const useAuthStore = () => ({ effectiveTenantId: 1, currentUserId: "test-user" });'
+      },
     }],
     optimizeDeps: { noDiscovery: true, entries: [] },
     resolve: { alias: { '@': fileURLToPath(new URL('../', import.meta.url)) } },

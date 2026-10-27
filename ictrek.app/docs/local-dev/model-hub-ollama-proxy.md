@@ -1,8 +1,10 @@
 # 本地开发复用 VOS Model Hub Ollama
 
+**当前建议：已安装 V-Scheduler（统一模型网关与调度服务）时，改用 [`scheduler` 开发配置](README.md#v-scheduler)，统一访问宿主机 `22888/v1`。** 下文保留旧代理的兼容操作与历史验证；直接代理到 V-Scheduler 自带 Ollama 端口不能替代统一网关的资源准入。切换后完全重启开发后端，无需重建旧代理。
+
 本文面向在宿主机运行 WeKnora Go/Vite 的开发者，说明如何复用已安装 VOS Model Hub 的目标主机上的 Ollama。目标是让本地开发程序访问 VOS Model Hub 的模型，复用 Model Hub 的预热、常驻和并发配置。已实现 ReRank（对检索结果重新评分和排序）的模型行及代理，并已在本机 Model Hub `0.0.92` 验证。已有两端口代理需重建以提供 `31537`；模型行变动后需重启后端。
 
-已验证（2026-10-21，本机 V-Scheduler `0.0.47`）：旧 `model-hub-ollama-*` 名称已无法解析，当前服务使用 `v-scheduler-ollama-*`。已有开发代理须按下方[上游名称变更](#上游名称变更)设置覆盖值并重建，否则文档向量生成等请求会报 `EOF`（连接提前关闭）。
+历史验证（2026-10-21，本机 V-Scheduler `0.0.47`）：旧 `model-hub-ollama-*` 名称已无法解析，服务使用 `v-scheduler-ollama-*`。代理上游名称过期会导致文档向量生成等请求报 `EOF`（连接提前关闭）。本次切换统一网关后不再依赖这些代理名称。
 
 ## 结论与边界
 
@@ -38,6 +40,8 @@ QA/Embedding 使用 `11535` Gateway（推理请求入口），保留该入口的
 - 已补齐运行管理：当前 `local-dev/docker-compose.yml` 仍不构建或声明这个代理，但 `ictrek-dev.sh start` 和 `start-model-hub-proxy` 会在镜像已构建或导入、上游已加入 `vos_default` 时创建或复用独立代理。代理源码和 Dockerfile 位于 `local-dev/model-hub-proxy/`。
 
 ## 上游名称变更
+
+以下为旧代理的历史兼容配置；V-Scheduler 开发接入使用上面的 `scheduler` 配置。
 
 当前主机的 V-Scheduler（管理模型服务的应用）在 `vos_default` 网络提供以下别名。在本地开发 `.env` 中设置已有脚本支持的覆盖值：
 

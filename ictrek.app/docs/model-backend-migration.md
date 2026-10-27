@@ -14,6 +14,8 @@
 
 ## 网关与模型接入
 
+本节固定 Docker 地址与自动身份绑定用于 VOS 安装实例。宿主机源码开发使用 [`scheduler` 开发配置](local-dev/README.md#v-scheduler)和宿主机公开的网关端口，显式配置所需推理密钥。
+
 统一后端使用 `HYBRAG_V_ROUTER_URL`（默认 `http://v-scheduler:8080`）的 `/v1` API，独立别名由 V-Scheduler 0.0.28 提供，避免旧 Router 同名 DNS 冲突。QA、图片理解、Embedding、Rerank 分别使用 `v-scheduler/ollama-qa/<HYBRAG_QA_MODEL>`、相同 QA 模型、`v-scheduler/ollama-embedding/<HYBRAG_EMBEDDING_MODEL>`、`v-scheduler/ollama-rerank/<HYBRAG_RERANK_MODEL>`。原生模型必须已安装并出现在统一模型目录。Embedding 默认保留 1024 维 bge-m3；已有知识库变更模型需要重新索引。
 
 统一后端通过 `/api/v1/scheduler/gateway-binding` 声明能力并接收 V-Scheduler 自动下发的受限网关身份。

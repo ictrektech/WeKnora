@@ -242,7 +242,7 @@
                   </div>
 
                   <SandboxCommandProgress
-                    v-if="event.tool_name === 'shell_exec' && event.pending && event.command_output && !event.command_output.done"
+                    v-if="showLiveShellOutput(event)"
                     :progress="event.command_output"
                   />
 
@@ -462,7 +462,7 @@
                 <PageEditCard v-for="edit in pinnedPageEdits" :key="edit.tool_call_id" :fill="edit.tool_data"
                   :tool-call-id="edit.tool_call_id" />
               </div>
-              <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode"
+              <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode && showToolbar !== false"
                 class="answer-toolbar" :class="{ 'answer-toolbar--persistent': hasArtifacts || artifactsCollecting }">
                 <t-tooltip v-if="canFork" :content="forkTooltip">
                   <t-button size="small" variant="outline" shape="round" @click.stop="emitFork">
@@ -627,7 +627,7 @@
                 </div>
 
                 <SandboxCommandProgress
-                  v-if="event.tool_name === 'shell_exec' && event.pending && event.command_output && !event.command_output.done"
+                  v-if="showLiveShellOutput(event)"
                   :progress="event.command_output"
                 />
 
@@ -807,6 +807,7 @@ import {
   skillScriptTitleCommand,
 } from '@/utils/skillToolDisplay';
 import { previewShellCommand } from '@/utils/shellExecResult';
+import { showLiveShellOutput } from '@/utils/shellProgress';
 import type { DisplayType } from '@/types/tool-results';
 import { parseWikiToolReferences } from '@/utils/wikiToolReferences';
 import {
@@ -890,6 +891,7 @@ const TOOL_NAME_KEYS: Record<string, string> = {
   write_sandbox_file: 'agentStream.tools.writeSandboxFile',
   edit_sandbox_file: 'agentStream.tools.editSandboxFile',
   shell_exec: 'agentStream.tools.shellExec',
+  shell_exec_async: 'agentStream.tools.shellExec',
   local_browser: 'localBrowser.local',
   data_analysis: 'agentStream.tools.dataAnalysis',
   data_schema: 'agentStream.tools.dataSchema',
@@ -1162,6 +1164,7 @@ interface SessionData {
 
 const props = defineProps<{
   session: SessionData;
+  showToolbar?: boolean;
   sessionId?: string;
   userQuery?: string;
   embeddedMode?: boolean;
@@ -1387,9 +1390,11 @@ const resolveToolDisplayType = (event: any): DisplayType | undefined => {
   const catalogType = getCatalogToolDisplayType(event?.tool_name)
   if (catalogType) return catalogType
   if (event?.display_type) return event.display_type as DisplayType
-  if (event?.tool_name === 'shell_exec' || event?.tool_name === 'execute_skill_script') {
+  if (event?.tool_name === 'shell_exec' || event?.tool_name === 'shell_exec_async' ||
+      event?.tool_name === 'execute_skill_script') {
     return 'shell_exec'
   }
+  if (event?.tool_name === 'work_wait') return 'work_wait'
   if (event?.tool_name === 'list_sandbox_files' && event?.success !== false) {
     return 'list_sandbox_files'
   }
@@ -3258,7 +3263,7 @@ const getToolTitle = (event: any): string => {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getSandboxToolDetail(event))}...`;
     }
-    if (event.tool_name === 'shell_exec') {
+    if (event.tool_name === 'shell_exec' || event.tool_name === 'shell_exec_async') {
       return t('agentStream.toolStatus.shellExecRunning');
     }
     const localizedName = getLocalizedToolName(event.tool_name);
@@ -3420,7 +3425,7 @@ const getToolDescription = (event: any): string => {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getSandboxToolDetail(event))}...`;
     }
-    if (event.tool_name === 'shell_exec') {
+    if (event.tool_name === 'shell_exec' || event.tool_name === 'shell_exec_async') {
       return t('agentStream.toolStatus.shellExecRunning');
     }
     const localizedName = getLocalizedToolName(event.tool_name);

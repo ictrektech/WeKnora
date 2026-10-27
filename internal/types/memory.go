@@ -185,6 +185,15 @@ func ApplyAgentMemoryPreference(ctx context.Context, enabled *bool) context.Cont
 	return ctx
 }
 
+// ApplySessionMemoryPreference keeps patent case facts out of cross-session
+// memory on both the recall and extraction paths, including saved agent overrides.
+func ApplySessionMemoryPreference(ctx context.Context, session *Session, enabled *bool) context.Context {
+	if session != nil && session.WorkspaceMode.IsPatent() {
+		return WithMemoryDisabled(ctx)
+	}
+	return ApplyAgentMemoryPreference(ctx, enabled)
+}
+
 // MemorySubject is one memory space: a single principal inside a single
 // workspace. Scope is always derived from the request context, never from a
 // client-supplied id.

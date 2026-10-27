@@ -26,12 +26,17 @@ export async function createLegalAssistantSession(data: Record<string, unknown> 
   return post("/api/v1/legal-assistant/sessions", data);
 }
 
-export async function getSessionsList(page: number, page_size: number, source?: string, kind?: SessionKind) {
+export async function createPatentSession(mode: "patent_search" | "patent_writing", data: Record<string, unknown> = {}) {
+  return post(`/api/v1/${mode === "patent_search" ? "patent-search" : "patent-writing"}/sessions`, { ...data, workspace_mode: mode });
+}
+
+export async function getSessionsList(page: number, page_size: number, source?: string, kind?: SessionKind, workspaceMode?: string) {
   const params = new URLSearchParams({ page: String(page), page_size: String(page_size) });
   if (source) {
     params.set("source", source);
   }
   if (kind) params.set("kind", kind);
+  if (workspaceMode) params.set("workspace_mode", workspaceMode);
   return get(`/api/v1/sessions?${params.toString()}`);
 }
 

@@ -1,0 +1,73 @@
+# Host-side development uses the unified Scheduler gateway, including admission.
+# One default per role. Migrate old alias references before switching existing databases.
+
+builtin_models:
+  - id: ictrek-weknora-ollama-qa
+    name: "${ICTREK_DEV_SCHEDULER_QA_MODEL:-v-scheduler/ollama-qa/qwen3.5:2b}"
+    display_name: "V-Scheduler QA"
+    type: KnowledgeQA
+    source: remote
+    description: Unified V-Scheduler QA for local development.
+    is_default: true
+    parameters:
+      base_url: "${ICTREK_DEV_SCHEDULER_BASE_URL:-http://127.0.0.1:22888/v1}"
+      api_key: "${ICTREK_DEV_SCHEDULER_API_KEY:-}"
+      interface_type: openai
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: reasoning_effort
+
+  - id: ictrek-weknora-ollama-vlm
+    name: "${ICTREK_DEV_SCHEDULER_QA_MODEL:-v-scheduler/ollama-qa/qwen3.5:2b}"
+    display_name: "V-Scheduler Vision"
+    type: VLLM
+    source: remote
+    description: Unified V-Scheduler Vision for local development.
+    is_default: true
+    parameters:
+      base_url: "${ICTREK_DEV_SCHEDULER_BASE_URL:-http://127.0.0.1:22888/v1}"
+      api_key: "${ICTREK_DEV_SCHEDULER_API_KEY:-}"
+      interface_type: openai
+      provider: generic
+      supports_vision: true
+      extra_config:
+        thinking_control: reasoning_effort
+
+  - id: ictrek-weknora-ollama-embedding
+    name: "${ICTREK_DEV_SCHEDULER_EMBEDDING_MODEL:-v-scheduler/ollama-embedding/bge-m3:latest}"
+    display_name: "V-Scheduler Embedding"
+    type: Embedding
+    source: remote
+    description: Unified V-Scheduler Embedding for local development.
+    is_default: true
+    parameters:
+      base_url: "${ICTREK_DEV_SCHEDULER_BASE_URL:-http://127.0.0.1:22888/v1}"
+      api_key: "${ICTREK_DEV_SCHEDULER_API_KEY:-}"
+      interface_type: openai
+      provider: generic
+      spec:
+        compat:
+          request_timeout_seconds: 180
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 8192
+        supports_dimension_override: false
+
+  - id: ictrek-model-hub-ollama-rerank
+    name: "${ICTREK_DEV_SCHEDULER_RERANK_MODEL:-v-scheduler/ollama-rerank/qllama/bge-reranker-v2-m3:q8_0}"
+    display_name: "V-Scheduler ReRank"
+    type: Rerank
+    source: remote
+    description: Unified V-Scheduler ReRank for local development.
+    is_default: true
+    parameters:
+      base_url: "${ICTREK_DEV_SCHEDULER_BASE_URL:-http://127.0.0.1:22888/v1}"
+      api_key: "${ICTREK_DEV_SCHEDULER_API_KEY:-}"
+      interface_type: openai
+      provider: generic
+      extra_config:
+        score_scale: probability
+      spec:
+        compat:
+          request_timeout_seconds: 180

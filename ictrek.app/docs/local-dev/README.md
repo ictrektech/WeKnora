@@ -1,6 +1,8 @@
 # WeKnora ictrek 本地快速调试
 
-这套方式用于在源码目录直接调试 WeKnora 的 Go 后端和 Vue/Vite 前端。后端、前端在宿主机运行，Docker 启动 PostgreSQL、Redis、DocReader、Neo4j 等基础设施；选择 `jetson-model-hub` 时还会独立管理一个连接 VOS `vos_default` 网络的 Model Hub 代理容器。它不参与 VOS app 打包，也不复用 VOS app 的 compose 和数据目录。
+**已实现：本地源码开发可通过 V-Scheduler（统一模型网关与调度服务）替代旧 Model Hub（本地模型管理服务）代理。** 已安装 V-Scheduler 时，执行 `setup --profile scheduler` 并完全重启后端；QA（问答）、VLM（图片理解）、Embedding（文本转向量）和 ReRank（检索结果重排）统一访问宿主机的 `22888/v1`。
+
+这套方式面向源码调试：Go 后端和 Vue/Vite 前端在宿主机运行，Docker 启动 PostgreSQL、Redis、DocReader、Neo4j 等基础设施。开发数据库和数据目录独立于 VOS（应用部署平台）安装的 HybRAG；模型服务由已安装的 V-Scheduler 提供，本脚本不启动或升级它。
 
 ## 当前状态
 
@@ -10,8 +12,9 @@
 | 前端源码调试 | 已实现 | Vite 热更新，默认代理到 `127.0.0.1:8080`。 |
 | 基础设施 | 已实现 | 使用本目录的隔离 Compose 和 `/data/hybrag-dev-data`。 |
 | PostgreSQL 镜像对齐 | 已实现（配置） | 默认使用 VOS PGV（提供 PostgreSQL 与检索扩展的应用）`0.0.49` 的 PostgreSQL 17 镜像；旧 PG16 数据须迁移或保留并改用新目录，见[操作说明](#postgresql-镜像替换)。 |
-| Model Hub ReRank（检索结果重排） | 已实现 | 本机 Model Hub `0.0.92` 与三端口代理已验证；旧代理需重建，见 [接入前提](model-hub-ollama-proxy.md#前置条件)。 |
-| 模型初始化 | 部分落地 | `auto` 会按主机环境选择 profile：Jetson 复用已运行的 VOS Model Hub，非 Jetson ARM64 使用宿主机 Ollama，x86_64 使用 tc232 vLLM。 |
+| V-Scheduler 模型接入 | 已实现 | 四类模型各保留一项，统一走宿主机网关；迁移旧模型 ID（数据库中的模型标识）引用后去重，见[接入说明](#v-scheduler)。 |
+| 旧 Model Hub 代理 | 已实现（兼容） | 仅显式选择 `jetson-model-hub` 时使用，见[代理说明](model-hub-ollama-proxy.md)。 |
+| 模型初始化 | 已实现（配置） | `auto` 优先探测 V-Scheduler；不可达时按架构选择旧配置。已有 `.env` 保留保存的 profile（开发配置组合），切换须显式指定。 |
 | VOS iframe 免登录 | 未启用 | 本地源码模式使用普通注册/登录，`HYBRAG_VOS_SSO_ENABLED=false`。 |
 | VOS 发布部署 | 不在本流程 | 发布和安装仍以 `ictrek.app/README.md`、`src/` 和 `package.sh` 为准。 |
 
@@ -20,32 +23,14 @@
 在仓库根目录执行：
 
 ```bash
-# 默认 auto：Jetson + 已运行 Model Hub 选择 jetson-model-hub；非 Jetson ARM64 选择 ollama，x86_64 选择 tc232
-./ictrek.app/docs/local-dev/ictrek-dev.sh setup
+# 已安装 V-Scheduler：切换已有开发环境
+./ictrek.app/docs/local-dev/ictrek-dev.sh setup --profile scheduler
 ./ictrek.app/docs/local-dev/ictrek-dev.sh start
 ```
 
-Jetson 默认只复用 VOS Model Hub，不再提供单独的 Jetson 原生 Ollama profile；这会更新已有 `.env` 中的模型和模型服务变量，不需要删除 `.env`，也不会重生成已有密钥。
+`setup` 更新已有 `.env`，保留数据库密码和应用密钥。`scheduler` 不创建旧 Model Hub 代理，不依赖旧 `31535`、`31536`、`31537` 端口。
 
-如果使用 VOS Model Hub，先在目标 Jetson 构建或导入代理镜像。仓库已提供仅依赖 Python 标准库的代理源码；已有镜像时也可以按 [model-hub-ollama-proxy.md](model-hub-ollama-proxy.md) 导出/导入。构建后，`start` 会在独立的 `vos_default` 网络中创建或复用代理，不会把代理加入本地开发 Compose：
-
-```bash
-docker build --platform linux/arm64 \
-  -t weknora-ictrek-model-hub-proxy:dev \
-  -f ictrek.app/docs/local-dev/model-hub-proxy/Dockerfile \
-  ictrek.app/docs/local-dev/model-hub-proxy
-
-# 或者加载已有的镜像导出包
-gunzip -c /tmp/weknora-ictrek-model-hub-proxy-dev.tar.gz | docker load
-./ictrek.app/docs/local-dev/ictrek-dev.sh setup --profile jetson-model-hub
-./ictrek.app/docs/local-dev/ictrek-dev.sh start
-```
-
-如需完全保持旧的 tc232 vLLM 行为，可以显式指定：
-
-```bash
-./ictrek.app/docs/local-dev/ictrek-dev.sh setup --profile tc232
-```
+首次新环境也可执行不带 `--profile` 的 `setup` 自动选择。保留 tc232 的 vLLM（兼容 OpenAI 接口的模型运行时）环境时，显式执行 `setup --profile tc232`；旧 Model Hub 环境按[代理说明](model-hub-ollama-proxy.md)准备镜像，再执行 `setup --profile jetson-model-hub`。
 
 如果当前目录已经是 `ictrek.app`，上面的脚本路径应改为 `./docs/local-dev/ictrek-dev.sh`。
 
@@ -71,15 +56,68 @@ make dev-frontend
 
 ## 模型后端
 
-本地调试有三个 profile：
+本地调试支持以下 profile：
 
 | Profile | 模型配置 | 适用场景 |
 | --- | --- | --- |
+| `scheduler` | `builtin_models.scheduler.yaml` | 使用已安装 V-Scheduler 的统一网关；四类模型均访问 `http://127.0.0.1:22888/v1`。 |
 | `tc232` | `builtin_models.tc232.yaml` | 原有 x86_64/tc232 vLLM 环境，参数和模型地址保持原样。 |
 | `jetson-model-hub` | `builtin_models.model-hub.yaml` | 通过独立代理复用 VOS Model Hub；QA/VLM 使用 `31535`，Embedding 使用 `31536`，ReRank 使用 `31537`。 |
 | `ollama` | `builtin_models.ollama.yaml` | 非 Jetson 主机上的宿主机 Ollama。 |
 
-首次没有已保存 profile 时使用 `auto`：脚本通过 `uname -m` 和 Jetson 的 `/etc/nv_tegra_release` 或设备树标识判断；Jetson 必须同时发现 Model Hub 的 QA/Embedding 容器，否则会提示先启动 Model Hub；非 Jetson ARM64 选择 `ollama`，普通 `x86_64` 选择 `tc232`。`setup` 会保留 `.env` 中已经选择的 profile；需要重新探测当前环境时可显式执行 `ICTREK_DEV_PROFILE=auto $DEV setup`，也可以用 `--profile` 覆盖，例如 `ICTREK_DEV_PROFILE=tc232 $DEV setup`。
+首次没有已保存 profile 时使用 `auto`：先以两秒超时检查 `ICTREK_DEV_SCHEDULER_URL` 的 `/healthz`，可达则选择 `scheduler`。否则按 `uname -m` 和 Jetson 的 `/etc/nv_tegra_release` 或设备树标识选择旧配置：Jetson 要求 Model Hub 的 QA/Embedding 容器已运行，其他 ARM64（64 位 ARM 架构）主机选择 `ollama`，`x86_64` 选择 `tc232`。服务健康不代表模型已经安装或推理获准。`setup` 保留已保存的 profile，重新探测使用 `setup --profile auto`。
+
+### V-Scheduler
+
+**已实现：**宿主机后端直接访问统一网关的 `/v1/chat/completions`、`/v1/embeddings` 和 `/v1/rerank`，由 V-Scheduler 选择模型后端并检查可用资源。模型列表接口也使用配置的宿主机地址，避免宿主机无法解析 Docker 内部的 `v-scheduler` 名称。原生 Ollama（本地模型运行时）端口和各实例的 `11535` 推理端口不能替代统一调度入口。
+
+问答和图片理解使用 `thinking_control=reasoning_effort`，将关闭思考转换为 `reasoning_effort=none`；Ollama 的兼容接口通过该字段控制思考，见 [Ollama 接口文档](https://docs.ollama.com/api/openai-compatibility)。沿用 vLLM 的 `chat_template_kwargs.enable_thinking=false` 时，本机试请求仍只生成思考内容。向量和重排请求超时显式设为 180 秒，容纳网关准入及冷加载（模型首次载入内存）；调用方更早的取消仍生效，资源拒绝不会因延长超时而绕过。
+
+默认模型如下，均须已在 V-Scheduler 的 `/v1/models` 中发布：
+
+| 用途 | 统一网关模型名 | 覆盖变量 |
+| --- | --- | --- |
+| 问答、图片理解 | `v-scheduler/ollama-qa/qwen3.5:2b` | `ICTREK_DEV_SCHEDULER_QA_MODEL` |
+| 向量 | `v-scheduler/ollama-embedding/bge-m3:latest` | `ICTREK_DEV_SCHEDULER_EMBEDDING_MODEL` |
+| 重排 | `v-scheduler/ollama-rerank/qllama/bge-reranker-v2-m3:q8_0` | `ICTREK_DEV_SCHEDULER_RERANK_MODEL` |
+
+覆盖变量写入 `.env`，值使用模型目录中的完整名称。更换地址时执行：
+
+```bash
+ICTREK_DEV_SCHEDULER_URL=http://127.0.0.1:22888 \
+  ./ictrek.app/docs/local-dev/ictrek-dev.sh setup --profile scheduler
+./ictrek.app/docs/local-dev/ictrek-dev.sh check
+```
+
+`ICTREK_DEV_SCHEDULER_URL` 可带 `/v1`，脚本会统一处理。远程网关须使用宿主机可达地址，并在 `SSRF_WHITELIST`（允许模型访问的私有主机清单）中加入实际主机。网关要求认证时，将受限推理密钥写入被 Git 忽略的 `.env` 的 `ICTREK_DEV_SCHEDULER_API_KEY`，再执行 `setup --profile scheduler`。该显式密钥在后端用于目录查询和配置网关上的推理；从页面新增的模型可以不填密钥，已有模型自身的显式密钥优先。只有 `ICTREK_DEV_PROFILE=scheduler` 才启用宿主机地址覆盖和本地密钥路径；本地请求不读取生产绑定文件，生产绑定的私有凭据仍限固定 Docker 网关，详见[网关身份边界](../model-backend-migration.md#网关与模型接入)。本地源码实例不会自动接收 VOS 已安装应用的身份绑定。
+
+模型去重：开发配置只保留 QA、图片理解、向量、重排各一项；QA 与图片理解使用同一个 Qwen 模型，但在 WeKnora 中承担不同用途。原先临时保留的 7 个 `compat`（旧模型 ID 的兼容项）已移除。新增模型时，在模型来源的 V-Scheduler 下拉框选择已注册模型；前端使用后端返回的 `base_url` 保存和回显，旧响应未提供该字段时继续使用 `http://v-scheduler:8080/v1`。
+
+已有开发数据库须先备份，再将会话、智能体、知识库等配置中的旧兼容 ID 改为 YAML 中对应类型的主 ID，确认无剩余引用后重启后端。移除的 YAML 行会被软删除（保留记录但不再显示），脚本不会自动迁移引用。本机已在事务内核对新旧模型的名称、类型、来源及参数相同，再迁移 1 条会话设置、1 条消息模型标识和 1 个知识库引用，移除 7 个兼容项；未改消息正文或已有向量。
+
+默认 QA 统一使用 `qwen3.5:2b`，原 tc232 的 `qwen3.5-9b-awq` 引用也会改用该模型；需要其他模型时设置完整 QA 覆盖值。
+
+YAML（模型配置文件）只更新 `managed_by=yaml` 的行，用户手工添加或编辑的模型继续保留，须另行在页面修改旧地址。向量维度保持 1024，但旧 vLLM 向量和当前 Ollama 向量的一致性不能仅凭维度确认；旧 vLLM 知识库须验证检索质量，必要时重新索引。不会自动删除文件或重建向量。
+
+失败边界：认证失败返回 `401`，模型未就绪或资源不足可能返回 `503` / `429`，不会改走旧代理或原生 Ollama。`check` 验证网关健康和模型目录，不执行模型下载或真实推理；失败须先在 V-Scheduler 中检查模型、资源和授权。
+
+验证标准：配置和密钥保留、旧模型引用保留、每类仅一个默认模型、宿主机模型目录查询、真实聊天、1024 维向量及重排均应通过；仅目录可达不能判定推理成功。
+
+本机验证（2026-10-22，源码后端 `8081`、Vite `5173`、统一网关 `22888`）：
+
+| 检查 | 结果与限制 |
+| --- | --- |
+| 自动选择、显式切换、配置及模型兼容 | 已验证：`test-scheduler.sh`、`TestLocalDevSchedulerHasOneModelPerRole` 通过；本机原凭证、端口及数据路径不变，引用迁移后每类仅一项，用户云模型保留；现有知识库缺失模型引用数为 0。 |
+| 添加模型界面 | 已验证：`scheduler-models.spec.ts` 模拟宿主机地址、VOS 正式地址、旧响应缺省地址三种目录响应，选择、刷新、保存及重新编辑回显均通过；保存数据不含网关密钥。真实 API（应用接口）另通过目录查询、新增无密钥模型、约 18.4 秒返回正文“好”、删除临时模型的验证。 |
+| 宿主机目录及凭据边界 | 已验证：`TestSchedulerCatalog*`、`internal/schedulergateway`、`internal/models/runtime` 测试通过；本地密钥仅用于配置网关的推理路由，生产绑定允许的地址保持不变。真实后端和 Vite 代理可发现 16 个模型。 |
+| 聊天 | 已验证：通过 WeKnora 模型调试接口关闭思考，`qwen3.5:2b` 在约 11.7 秒返回正文“好”；只统计单次试请求，不代表吞吐基准。 |
+| 重排 | 已验证：通过相同调试接口处理 2 条文档，约 77.5 秒返回，相关文档排首位。旧 60 秒上限下曾超时；延长为 180 秒后通过。 |
+| 向量 | 已验证：重排结束后重试，通过 WeKnora 调试接口约 33.9 秒返回 1024 维向量。此前曾返回 `429 WAIT_RESOURCE`（调度器判定资源不足）和 `WAIT_STOP_CONFIRMATION`（前次推理停止仍在核验）；保留这些资源保护行为。 |
+| VOS 路径回归 | 已验证：`ictrek.app/scripts/test_model_backend.py` 的 11 项测试及 `internal/schedulergateway` 全包测试通过，覆盖安装配置、自动发现、绑定、轮换和推理凭据限制。安装 Compose、启动脚本和绑定允许的固定地址未修改；本地 `.env` 不进入应用镜像，打包 `.env` 由脚本在暂存目录单独生成。尚未重新打包安装验证。 |
+| 前端生产构建 | 已验证：`npm run build` 通过，仍有脚本打包和资源体积提示；不代表已构建或安装完整 VOS 包。 |
+| 完整流程 | 待验证：图片理解、文件上传入库、完整检索问答及旧 vLLM 向量一致性。 |
+
+### 旧 vLLM 与 Ollama 配置
 
 `tc232` profile 把 QA/VLM 指向 `http://127.0.0.1:38118/v1`，把 bge-m3 embedding 指向 `http://127.0.0.1:32223/v1`，把 `bge-reranker-v2-m3` ReRank 指向 `http://127.0.0.1:32224`。这些地址都必须由 vLLM 或其他 OpenAI-compatible 服务提供；本目录的基础设施 Compose 不会自动启动模型服务。
 
@@ -146,7 +184,7 @@ ollama pull qwen3.5:2b
 ollama pull bge-m3
 ```
 
-如果设备上已经有 VOS Model Hub（当前你的情况），通过独立代理复用它：
+如果仍使用旧 VOS Model Hub，通过独立代理复用它：
 
 ```bash
 ./ictrek.app/docs/local-dev/ictrek-dev.sh setup \
@@ -182,12 +220,31 @@ curl -fsS http://127.0.0.1:31537/v1/models
 
 `check` 只检查当前 profile 选择的模型后端。Ollama profile 不会因为未启动 vLLM 或可选 ReRank 而产生无关告警。
 
+## 浏览器回归
+
+已实现：Playwright（浏览器自动化测试工具）默认启动独立的 Vite 开发服务，地址为 `http://127.0.0.1:5174`；测试结束后关闭，不复用日常开发的 `5173` 服务。运行前须安装前端依赖和 Chromium 浏览器。在仓库根目录执行：
+
+```bash
+npm --prefix frontend run test:e2e
+```
+
+默认使用 2 个测试进程，界面断言最多等待 15 秒，以容纳首次按需编译页面组件；不是固定等待 15 秒。`5174` 被占用时直接失败，不自动改端口。用例模拟后端接口，不证明实际数据库写入、模型调用或部署通过。
+
+需要检查已有开发服务时，显式设置 `PLAYWRIGHT_BASE_URL`；此时测试不启动或关闭服务。该服务须提供源码模块，不能使用只提供构建产物的预览服务。
+
+```bash
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 npm --prefix frontend run test:e2e
+```
+
+组件测试页面须复用 `/src/main.ts` 返回的模块地址，包括热更新查询参数。直接导入不带参数的语言模块，可能与应用依赖中的带参数地址形成两个模块实例，重复订阅 VOS 语言事件。
+
 ## 地址与数据
 
 | 服务 | 地址 | 数据 |
 | --- | --- | --- |
 | 前端 Vite | `http://localhost:5173` | — |
 | Go API | `http://localhost:8080` | — |
+| V-Scheduler 统一网关 | `http://127.0.0.1:22888/v1` | 已安装服务；本地脚本不管理其数据 |
 | PostgreSQL | `127.0.0.1:15432` | `/data/hybrag-dev-data/postgres` |
 | Redis | `127.0.0.1:6380` | `/data/hybrag-dev-data/redis` |
 | DocReader | `127.0.0.1:15051` | `/data/hybrag-dev-data/docreader` |
@@ -270,10 +327,13 @@ go install github.com/air-verse/air@latest
 
 | 配置 | 默认值 | 用途 |
 | --- | --- | --- |
-| `ICTREK_DEV_PROFILE` | `auto` | `auto`、`tc232`、`jetson-model-hub` 或 `ollama`；`setup` 会写入实际解析后的 profile。 |
+| `ICTREK_DEV_PROFILE` | `auto` | `auto`、`scheduler`、`tc232`、`jetson-model-hub` 或 `ollama`；`setup` 会写入实际解析后的 profile。 |
+| `ICTREK_DEV_SCHEDULER_URL` | `http://127.0.0.1:22888` | 宿主机可达的统一网关；支持传入 `/v1`。 |
+| `ICTREK_DEV_SCHEDULER_API_KEY` | 空 | 显式开发推理密钥；按网关实际认证要求配置。 |
+| `ICTREK_DEV_SCHEDULER_BASE_URL` | 根据网关地址生成 | 模型行使用的 `/v1` 地址，由脚本维护。 |
 | `ICTREK_DEV_HOST_ARCH` | `uname -m` | 测试或特殊环境下覆盖架构检测；一般不要设置。 |
 | `ICTREK_DEV_HOST_PLATFORM` | `auto` | 设为 `jetson` 或 `generic` 可覆盖 Jetson 环境识别；一般不要设置。 |
-| `ICTREK_DEV_MODEL_BACKEND` | 按 profile | `vllm`、`ollama` 或 `model-hub`，由脚本维护。 |
+| `ICTREK_DEV_MODEL_BACKEND` | 按 profile | `scheduler`、`vllm`、`ollama` 或 `model-hub`，由脚本维护。 |
 | `ICTREK_DEV_MODEL_HUB_NETWORK` | `vos_default` | Model Hub 上游和独立代理所在的 Docker 网络。 |
 | `ICTREK_DEV_MODEL_HUB_PROXY_NAME` | `weknora-ictrek-local-dev-model-hub-gateway` | 独立代理容器名；同名容器配置不一致时脚本不会自动删除。 |
 | `ICTREK_DEV_MODEL_HUB_PROXY_IMAGE` | `weknora-ictrek-model-hub-proxy:dev` | 代理镜像；源码和 Dockerfile 位于 `local-dev/model-hub-proxy/`。 |
@@ -332,6 +392,9 @@ go install github.com/air-verse/air@latest
 如果要验证 VOS 安装包，请回到 `ictrek.app/README.md` 的打包/安装流程。不要在 VOS app 的真实部署目录执行本地 `stop`，也不要把本地开发数据目录复制到 VOS 应用存储目录。
 
 ## 排错
+
+- 切换后仍访问旧模型端口：完全停止并重启 `$DEV app`/Air。只刷新浏览器或触发 Air 编译不会更新父进程已加载的 `.env`。用户编辑过的模型需在页面更新。
+- V-Scheduler 目录可达但推理失败：确认完整模型名已发布，并查看网关的认证、资源准入和加载错误。
 
 - 后端连接不上数据库：先执行 `$DEV status`，确认 PostgreSQL 为 `healthy`，再检查 `.env` 中 `DB_PASSWORD` 是否在数据库首次初始化后被改过。
 - Jetson 仍显示 tc232：重新执行 `$DEV setup --profile jetson-model-hub`，然后完全重启当前 `$DEV app`/Air 进程；只刷新浏览器不会重新加载 `.env`。

@@ -196,6 +196,32 @@ func TestLegalWorkspaceKVUpdatePersistsEnabled(t *testing.T) {
 	assert.False(t, tenant.LegalWorkspaceConfig.Enabled)
 }
 
+func TestPatentWorkspaceKVUsesConfiguredDefaultAndIsReadableByViewer(t *testing.T) {
+	t.Setenv(types.PatentWorkspaceDefaultEnabledEnv, "false")
+	tenant := &types.Tenant{ID: 42}
+	engine := newTenantHandlerTestEngine(t, types.TenantRoleViewer, tenant)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/tenants/kv/patent-workspace-config", nil)
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"success":true,"data":{"enabled":false,"examples_enabled":true}}`, rec.Body.String())
+}
+
+func TestPatentWorkspaceKVUpdatePersistsEnabled(t *testing.T) {
+	tenant := &types.Tenant{ID: 42}
+	engine := newTenantHandlerTestEngine(t, types.TenantRoleAdmin, tenant)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/tenants/kv/patent-workspace-config", strings.NewReader(`{"enabled":false}`))
+	req.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"success":true,"data":{"enabled":false,"examples_enabled":true}}`, rec.Body.String())
+	require.NotNil(t, tenant.PatentWorkspaceConfig)
+	assert.False(t, tenant.PatentWorkspaceConfig.Enabled)
+}
+
 func TestPutTenantParserConfigAdminPreservesRedactedSecrets(t *testing.T) {
 	t.Setenv("SSRF_WHITELIST_EXTRA", "example.com")
 	secutils.ResetSSRFWhitelistForTest()

@@ -136,7 +136,18 @@ is_jetson_host() {
     return 1
 }
 
+scheduler_available() {
+    command -v curl >/dev/null 2>&1 || return 1
+    local url="${ICTREK_DEV_SCHEDULER_URL:-http://127.0.0.1:22888}"
+    url="${url%/}"
+    curl --noproxy '*' -fsS --connect-timeout 1 --max-time 2 "${url%/v1}/healthz" >/dev/null 2>&1
+}
+
 default_profile_for_host() {
+    if scheduler_available; then
+        printf '%s\n' "scheduler"
+        return 0
+    fi
     case "$(host_arch)" in
         aarch64|arm64)
             if is_jetson_host; then
@@ -169,7 +180,7 @@ resolve_profile() {
         auto|'')
             default_profile_for_host
             ;;
-        tc232|jetson-model-hub|ollama)
+        scheduler|tc232|jetson-model-hub|ollama)
             printf '%s\n' "$requested"
             ;;
         model-hub|vos-model-hub)
@@ -177,7 +188,7 @@ resolve_profile() {
             ;;
         *)
             log_error "Unknown local-dev profile: $requested"
-            log_error "Use one of: auto, tc232, jetson-model-hub, ollama"
+            log_error "Use one of: auto, scheduler, tc232, jetson-model-hub, ollama"
             return 1
             ;;
     esac
@@ -185,6 +196,9 @@ resolve_profile() {
 
 default_model_config_for_profile() {
     case "$1" in
+        scheduler)
+            printf '%s\n' "ictrek.app/docs/local-dev/config/builtin_models.scheduler.yaml"
+            ;;
         ollama)
             printf '%s\n' "ictrek.app/docs/local-dev/config/builtin_models.ollama.yaml"
             ;;
@@ -248,6 +262,7 @@ Default endpoints:
   Model Hub  http://127.0.0.1:31535 (QA Ollama)
   Model Hub  http://127.0.0.1:31536/v1 (embedding gateway)
   Model Hub  http://127.0.0.1:31537/v1 (rerank)
+  Scheduler http://127.0.0.1:22888/v1 (QA/VLM/embedding/rerank)
 
 Typical flow:
   $0 setup
@@ -256,12 +271,14 @@ Typical flow:
   make dev-frontend              # terminal 3, or: $0 frontend
 
 Profiles:
-  auto                             Jetson + Model Hub -> jetson-model-hub; non-Jetson ARM64 -> Ollama, x86_64 -> tc232
+  auto                             prefer reachable V-Scheduler; otherwise Jetson + Model Hub / ARM64 Ollama / x86_64 tc232
+  scheduler                        host-accessible unified V-Scheduler gateway; no Model Hub proxy
   tc232                            host-side QA/VLM/Embedding/ReRank vLLM
   jetson-model-hub                 reuse VOS Model Hub through the independent 31535/31536/31537 proxy
   ollama                           host-side Ollama on any architecture
 
 Examples:
+  $0 setup --profile scheduler
   $0 setup --profile jetson-model-hub
   ICTREK_DEV_PROFILE=tc232 $0 setup
 EOF
@@ -455,8 +472,9 @@ refresh_config() {
             DEV_BATCH_EMBED_SIZE="${ICTREK_DEV_BATCH_EMBED_SIZE:-4}"
             DEV_CONCURRENCY_POOL_SIZE="${ICTREK_DEV_CONCURRENCY_POOL_SIZE:-4}"
             ;;
-        jetson-model-hub)
+        scheduler|jetson-model-hub)
             DEV_MODEL_BACKEND="model-hub"
+            [ "$DEV_PROFILE" != "scheduler" ] || DEV_MODEL_BACKEND="scheduler"
             # The VOS Model Hub containers already use separate QA and
             # embedding runtimes. Keep application-side settings aligned with
             # the conservative Orin NX 16GB deployment profile.
@@ -497,6 +515,19 @@ refresh_config() {
     DEV_OLLAMA_CHAT_MODEL_NAME="${ICTREK_DEV_OLLAMA_CHAT_MODEL_NAME:-qwen3.5:2b}"
     DEV_OLLAMA_VLM_MODEL_NAME="${ICTREK_DEV_OLLAMA_VLM_MODEL_NAME:-qwen3.5:2b}"
     DEV_OLLAMA_EMBEDDING_MODEL_NAME="${ICTREK_DEV_OLLAMA_EMBEDDING_MODEL_NAME:-bge-m3}"
+    local scheduler_url="${ICTREK_DEV_SCHEDULER_URL:-http://127.0.0.1:22888}"
+    scheduler_url="${scheduler_url%/}"
+    DEV_SCHEDULER_URL="${scheduler_url%/v1}"
+    DEV_SCHEDULER_BASE_URL="$DEV_SCHEDULER_URL/v1"
+    DEV_SCHEDULER_API_KEY="${ICTREK_DEV_SCHEDULER_API_KEY:-}"
+    if [ "$DEV_MODEL_BACKEND" = "scheduler" ]; then
+        export HYBRAG_MODEL_BACKEND=scheduler
+        export HYBRAG_V_ROUTER_URL="$DEV_SCHEDULER_URL"
+        export HYBRAG_V_ROUTER_API_KEY="$DEV_SCHEDULER_API_KEY"
+        export ICTREK_DEV_SCHEDULER_BASE_URL="$DEV_SCHEDULER_BASE_URL"
+    else
+        export HYBRAG_MODEL_BACKEND=model-hub
+    fi
     DEV_MODEL_HUB_QA_MODEL_NAME="${ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME:-qwen3.5:2b}"
     DEV_MODEL_HUB_EMBEDDING_MODEL_NAME="${ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME:-bge-m3:latest}"
     DEV_MODEL_HUB_RERANK_MODEL_NAME="${ICTREK_DEV_MODEL_HUB_RERANK_MODEL_NAME:-qllama/bge-reranker-v2-m3:q8_0}"
@@ -534,6 +565,8 @@ refresh_config() {
         export ICTREK_DEV_MODEL_HUB_EMBEDDING_BASE_URL="$DEV_MODEL_HUB_EMBEDDING_BASE_URL"
         export ICTREK_DEV_MODEL_HUB_QA_MODEL_NAME="$DEV_MODEL_HUB_QA_MODEL_NAME"
         export ICTREK_DEV_MODEL_HUB_EMBEDDING_MODEL_NAME="$DEV_MODEL_HUB_EMBEDDING_MODEL_NAME"
+    elif [ "$DEV_MODEL_BACKEND" = "scheduler" ]; then
+        DEV_OLLAMA_BASE_URL="$DEV_SCHEDULER_URL"
     fi
 
     export OLLAMA_BASE_URL="$DEV_OLLAMA_BASE_URL"
@@ -957,6 +990,19 @@ setup_env() {
     set_env_value ICTREK_DEV_PROFILE "$DEV_PROFILE"
     set_env_value ICTREK_DEV_HOST_ARCH "$(host_arch)"
     set_env_value ICTREK_DEV_MODEL_BACKEND "$DEV_MODEL_BACKEND"
+    set_env_value HYBRAG_MODEL_BACKEND "$HYBRAG_MODEL_BACKEND"
+    if [ "$DEV_MODEL_BACKEND" = "scheduler" ]; then
+        set_env_value ICTREK_DEV_SCHEDULER_URL "$DEV_SCHEDULER_URL"
+        set_env_value ICTREK_DEV_SCHEDULER_BASE_URL "$DEV_SCHEDULER_BASE_URL"
+        set_env_value ICTREK_DEV_SCHEDULER_API_KEY "$DEV_SCHEDULER_API_KEY"
+        set_env_value HYBRAG_V_ROUTER_URL "$DEV_SCHEDULER_URL"
+        set_env_value HYBRAG_V_ROUTER_API_KEY "$DEV_SCHEDULER_API_KEY"
+        local role model_key
+        for role in QA EMBEDDING RERANK; do
+            model_key="ICTREK_DEV_SCHEDULER_${role}_MODEL"
+            set_env_value "$model_key" "${!model_key-}"
+        done
+    fi
     if [ -z "${LOCAL_STORAGE_BASE_DIR:-}" ] || [ "$LOCAL_STORAGE_BASE_DIR" = "/data/files" ]; then
         set_env_value LOCAL_STORAGE_BASE_DIR "$DEV_DATA_DIR/files"
     else
@@ -1740,6 +1786,8 @@ check_setup() {
         printf '  vLLM:         %s\n' "$DEV_VLLM_BASE_URL"
         printf '  bge-m3:       %s\n' "$DEV_BGE_VLLM_BASE_URL"
         printf '  ReRank vLLM:  %s\n' "$DEV_RERANK_VLLM_BASE_URL"
+    elif [ "$DEV_MODEL_BACKEND" = "scheduler" ]; then
+        printf '  V-Scheduler:  %s\n' "$DEV_SCHEDULER_BASE_URL"
     elif [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
         printf '  Model Hub QA: %s\n' "$DEV_MODEL_HUB_QA_BASE_URL"
         printf '  Model Hub Emb: %s\n' "$DEV_MODEL_HUB_EMBEDDING_BASE_URL"
@@ -1769,6 +1817,19 @@ check_setup() {
         check_url "vLLM models" "${DEV_VLLM_BASE_URL%/}/models"
         check_url "bge-m3 vLLM models" "${DEV_BGE_VLLM_BASE_URL%/}/models"
         check_url "ReRank vLLM health" "${DEV_RERANK_VLLM_BASE_URL%/}/health"
+    elif [ "$DEV_MODEL_BACKEND" = "scheduler" ]; then
+        check_url "V-Scheduler health" "$DEV_SCHEDULER_URL/healthz"
+        local auth_headers=()
+        if [ -n "$DEV_SCHEDULER_API_KEY" ]; then
+            auth_headers=(-H "Authorization: Bearer $DEV_SCHEDULER_API_KEY")
+        fi
+        if curl --noproxy '*' -fsS --max-time 15 "${auth_headers[@]}" \
+            "$DEV_SCHEDULER_BASE_URL/models" >/dev/null; then
+            log_success "V-Scheduler models: ok"
+        else
+            log_error "V-Scheduler models unavailable; check ICTREK_DEV_SCHEDULER_URL and ICTREK_DEV_SCHEDULER_API_KEY"
+            failed=1
+        fi
     elif [ "$DEV_MODEL_BACKEND" = "model-hub" ]; then
         if [ -n "$(model_hub_proxy_container_id)" ]; then
             if model_hub_proxy_config_matches "$(model_hub_proxy_container_id)"; then

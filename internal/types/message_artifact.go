@@ -111,8 +111,9 @@ func (r MessageArtifactRecord) Artifact() MessageArtifact {
 // ArtifactLibraryQuery lists the artifacts across every session the caller can
 // see. TenantID and UserID are filled by the service from the request context.
 type ArtifactLibraryQuery struct {
-	TenantID uint64
-	UserID   string
+	HiddenWorkspaceModes []WorkspaceMode
+	TenantID             uint64
+	UserID               string
 	// Keyword matches the file name, case-insensitively.
 	Keyword string
 	// FileTypes restricts results to these extensions (".pdf", ".pptx", ...).

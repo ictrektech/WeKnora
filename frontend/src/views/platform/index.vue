@@ -1,5 +1,5 @@
 <template>
-    <div class="main" ref="dropzone" :style="{ '--sidebar-width': `${uiStore.sidebarDisplayWidth}px` }">
+    <div class="main" :class="{ 'main--patent': isPatentRoute(route.name) }" ref="dropzone" :style="{ '--sidebar-width': `${uiStore.sidebarDisplayWidth}px` }">
         <Menu></Menu>
         <div v-if="isRouterAlive" class="platform-route-outlet">
             <RouterView />
@@ -24,6 +24,7 @@
 </template>
 <script setup lang="ts">
 import Menu from '@/components/menu.vue'
+import { isPatentRoute } from '@/utils/workspaceMode'
 import { ref, onMounted, onUnmounted, nextTick, provide, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router'
 import UploadMask from '@/components/upload-mask.vue'
@@ -81,7 +82,7 @@ const getCurrentKbId = (): string | null => {
     return (route.params as any)?.kbId as string || null
 }
 
-const CHAT_DROP_ROUTE_NAMES = new Set(['chat', 'globalCreatChat', 'kbCreatChat', 'legalAssistantHome', 'legalAssistantChat']);
+const CHAT_DROP_ROUTE_NAMES = new Set(['chat', 'globalCreatChat', 'kbCreatChat', 'legalAssistantHome', 'legalAssistantChat', 'patentSearchHome', 'patentSearchChat', 'patentWritingHome', 'patentWritingChat']);
 
 const isChatDropRoute = () => {
     return CHAT_DROP_ROUTE_NAMES.has(String(route.name || ''));
@@ -300,5 +301,16 @@ img {
     -moz-user-drag: none;
     -o-user-drag: none;
     user-drag: none;
+}
+</style>
+
+<style lang="less">
+@media (max-width: 680px) {
+  .main.main--patent {
+    min-width: 0;
+    position: relative;
+    .aside_box { position: absolute; inset: 0 auto 0 0; z-index: 30; max-width: calc(100% - 48px); }
+    .platform-route-outlet { margin-left: 48px; }
+  }
 }
 </style>

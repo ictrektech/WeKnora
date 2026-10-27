@@ -120,7 +120,8 @@ type Tenant struct {
 	MemoryConfig *MemoryConfig `yaml:"memory_config" json:"memory_config" gorm:"type:jsonb"`
 	// Legal workspace config: tenant-level entry/access switch for contract review.
 	// Nil follows the deployment default; persisted tenant settings remain authoritative.
-	LegalWorkspaceConfig *LegalWorkspaceConfig `yaml:"legal_workspace_config" json:"legal_workspace_config" gorm:"column:legal_workspace_config;type:jsonb"`
+	LegalWorkspaceConfig  *LegalWorkspaceConfig  `yaml:"legal_workspace_config" json:"legal_workspace_config" gorm:"column:legal_workspace_config;type:jsonb"`
+	PatentWorkspaceConfig *PatentWorkspaceConfig `yaml:"patent_workspace_config" json:"patent_workspace_config" gorm:"column:patent_workspace_config;type:jsonb"`
 	// Assistant config: display name and access ceiling of the WeKnora assistant
 	AssistantConfig *AssistantConfig `yaml:"assistant_config" json:"assistant_config" gorm:"type:jsonb"`
 	// API principal config: controls how X-API-Key requests map to terminal principals.
@@ -153,6 +154,9 @@ func (t *Tenant) BeforeCreate(tx *gorm.DB) error {
 	}
 	if t.LegalWorkspaceConfig == nil {
 		t.LegalWorkspaceConfig = DefaultLegalWorkspaceConfig()
+	}
+	if t.PatentWorkspaceConfig == nil {
+		t.PatentWorkspaceConfig = DefaultPatentWorkspaceConfig()
 	}
 	return nil
 }
@@ -693,6 +697,7 @@ type TenantSandboxConfig struct {
 	// SkillRolloutNextTurn rebuild on the next chat turn. SkillRolloutNewSession
 	// leaves those sandboxes on the previous image; only sessions that start
 	// afterwards boot the new snapshot.
+	// User allocation always keeps existing shared machines, regardless of this setting.
 	SkillRollout string `json:"skill_rollout,omitempty"`
 
 	// AllocationMode decides how a session that has not yet used a sandbox
@@ -867,13 +872,14 @@ const (
 )
 
 // RebuildsExistingOnSkillChange reports whether an install or removal should
-// mark already-bound sandboxes stale. Unknown values fail toward rebuilding
-// so a corrupted row cannot pin every session on a retired image.
+// mark already-bound sandboxes stale. Shared user machines always keep their
+// current image. Unknown rollout values retain the per-session rebuild default.
 func (c *TenantSandboxConfig) RebuildsExistingOnSkillChange() bool {
 	if c == nil {
 		return true
 	}
-	return strings.TrimSpace(c.SkillRollout) != SkillRolloutNewSession
+	return strings.TrimSpace(c.AllocationMode) != SandboxAllocationUser &&
+		strings.TrimSpace(c.SkillRollout) != SkillRolloutNewSession
 }
 
 // SkillImageConfig is the pointer to the snapshot that carries the skills

@@ -18,10 +18,14 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrResourceNotFound = errors.New("resource not found")
+
 const defaultResourceGrantTTL = 2 * time.Hour
 
 type resourceCatalog struct {
-	repo interfaces.ResourceRepository
+	repo          interfaces.ResourceRepository
+	storage       interfaces.StorageBackendRepository
+	globalStorage *types.StorageBackend
 }
 
 // NewResourceCatalog creates the stable resource-reference domain service.
@@ -61,6 +65,11 @@ func (s *resourceCatalog) Register(
 		return "", err
 	}
 	if existing != nil {
+		if existing.StorageBackendID == "" && meta.StorageBackendID != "" {
+			if _, err := s.repo.BindStorageBackend(ctx, existing.ID, meta.StorageBackendID); err != nil {
+				return "", err
+			}
+		}
 		return types.BuildResourcePath(existing.Handle), nil
 	}
 
@@ -68,6 +77,9 @@ func (s *resourceCatalog) Register(
 	providerPath := physicalPath
 	if scoped {
 		providerPath = inner
+	}
+	if backendID == "" {
+		backendID = meta.StorageBackendID
 	}
 	provider := types.ParseProviderScheme(providerPath)
 	if provider == "" {
@@ -103,6 +115,11 @@ func (s *resourceCatalog) Register(
 		}
 		existing, lookupErr := s.repo.GetByTenantLocation(ctx, tenantID, locationHash)
 		if lookupErr == nil && existing != nil {
+			if existing.StorageBackendID == "" && backendID != "" {
+				if _, err := s.repo.BindStorageBackend(ctx, existing.ID, backendID); err != nil {
+					return "", err
+				}
+			}
 			return types.BuildResourcePath(existing.Handle), nil
 		}
 	}
@@ -154,7 +171,7 @@ func (s *resourceCatalog) Resolve(ctx context.Context, reference string) (*types
 		return nil, err
 	}
 	if resource == nil {
-		return nil, fmt.Errorf("resource not found")
+		return nil, ErrResourceNotFound
 	}
 	return resource, nil
 }
@@ -446,7 +463,7 @@ func (s *resourceCatalog) ResolveAccessGrant(ctx context.Context, token string) 
 		return nil, err
 	}
 	if resource == nil {
-		return nil, fmt.Errorf("resource not found")
+		return nil, ErrResourceNotFound
 	}
 	return resource, nil
 }

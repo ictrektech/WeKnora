@@ -31,6 +31,8 @@ const (
 	BuiltinContractReviewID = "builtin-contract-review"
 	// BuiltinLegalAssistantID is the evidence-first general legal assistant.
 	BuiltinLegalAssistantID = "builtin-legal-assistant"
+	BuiltinPatentSearchID   = "builtin-patent-search"
+	BuiltinPatentWritingID  = "builtin-patent-writing"
 	// BuiltinSkillInstallerID is the ID for the built-in skill installer agent
 	BuiltinSkillInstallerID = "builtin-skill-installer"
 	// BuiltinWeKnoraAssistantID is the built-in assistant that manages
@@ -723,6 +725,8 @@ var builtinAgentIDsOrdered = []string{
 	BuiltinDocumentAssistantID,
 	BuiltinContractReviewID,
 	BuiltinLegalAssistantID,
+	BuiltinPatentSearchID,
+	BuiltinPatentWritingID,
 }
 
 // GetBuiltinAgentIDs returns all built-in agent IDs in fixed order

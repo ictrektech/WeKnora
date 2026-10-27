@@ -1,6 +1,7 @@
 <template>
   <Teleport to="body">
     <div v-if="float.visible" class="chat-citation-float" :class="`chat-citation-float--${float.type}`"
+      :data-assistant-ignore="excludeFromAssistant ? '' : undefined"
       :style="{ top: `${float.top}px`, left: `${float.left}px` }"
       @mouseenter="onEnter?.()" @mouseleave="onLeave?.()">
       <template v-if="float.type === 'web'">
@@ -31,6 +32,7 @@ import type { CitationFloatState } from '@/composables/useChatCitationPopover'
 
 const props = defineProps<{
   float: CitationFloatState
+  excludeFromAssistant?: boolean
   onEnter?: () => void
   onLeave?: () => void
 }>()

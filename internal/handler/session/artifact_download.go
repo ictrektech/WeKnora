@@ -59,7 +59,7 @@ func (h *Handler) ListSessionArtifacts(c *gin.Context) {
 	// Ownership + tenant check: GetSession enforces both. Returning 404 for
 	// unknown / non-owned sessions matches the rest of the session routes.
 	if _, err := h.sessionService.GetSession(ctx, sessionID); err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -119,7 +119,7 @@ func (h *Handler) ListMessageArtifacts(c *gin.Context) {
 	}
 
 	if _, err := h.sessionService.GetSession(ctx, sessionID); err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -185,7 +185,7 @@ func (h *Handler) DownloadMessageArtifact(c *gin.Context) {
 	// session doesn't belong to the calling tenant/user, so a 404 covers
 	// both "not found" and "forbidden" without leaking existence.
 	if _, err := h.sessionService.GetSession(ctx, sessionID); err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}

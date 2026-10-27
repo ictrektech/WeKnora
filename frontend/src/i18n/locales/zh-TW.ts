@@ -1,4 +1,37 @@
 export default {
+  patentExamples: {
+      "sidebarTitle": "範例",
+      "empty": "目前沒有可顯示的範例",
+      "details": "範例說明",
+      "badge": "範例 · 唯讀",
+      "footer": "內建範例，非即時產生，僅供查看；可在設定 → 發布整合 → 專利工作台中關閉。",
+      "deleteHint": "此處刪除的是真實對話，不會刪除內建範例。隱藏範例請使用上方開關。",
+      "title": "內建效果範例",
+      "notice": "預錄執行效果，非目前模型即時產生。僅供參考，不支援續聊或用於業務上下文。",
+      "settingsHint": "管理員可在設定 → 發布整合 → 專利工作台中關閉內建範例。",
+      "settings": "開啟範例設定",
+      "enableLabel": "顯示內建範例",
+      "enableDescription": "控制整個工作區的唯讀範例顯示。關閉不刪除安裝套件資源；重新啟動和升級保留選擇。範例不會進入實際檢索或對話。",
+      "disabled": "範例已關閉或目前無法存取。",
+      "loading": "正在載入範例…",
+      "loadFailed": "範例暫時無法使用，請重試。",
+      "model": "產生模型",
+      "recordedAt": "錄製日期",
+      "materials": "範例資料庫（唯讀）",
+      "attribution": "資料來源與授權條款",
+      "knowledgeBase": "範例知識庫：專利公開文獻",
+      "externalNotice": "僅提供文獻目錄、來源位置及編輯歸納，不含完整 PDF 或原始檢索分塊。",
+      "documents": "關聯文獻（唯讀）",
+      "externalOnly": "原文外部連結",
+      "backToDocuments": "返回文獻目錄",
+      "publicationNumber": "公開號",
+      "applicant": "申請人",
+      "applicationDate": "申請日",
+      "publicationDate": "公開日",
+      "openOriginal": "前往來源查看原文（須連線）",
+      "evidenceSummary": "來源位置與內容歸納（非原文全文）",
+      "unavailable": "此功能暫無可隨套件分發的範例；公開專利資料的分發條件仍待確認。",
+  },
   "modelCatalog": {
     "title": "模型目錄",
     "description": "模型目錄決定新增模型時可選的模型清單，以及上下文窗口、是否支援思考等預設參數。在這裡修改後，所有空間立即生效。",
@@ -962,6 +995,7 @@ export default {
       "cli": "CLI",
       "claw": "Claw Skill",
       "mcpserver": "MCP Server",
+      "patent": "專利工作台",
       "legal": "法律工作台"
     }
   },
@@ -1150,7 +1184,10 @@ export default {
       "feedUrls": "訂閱源地址",
       "feedUrlsHint": "每行一個 RSS / Atom 訂閱源地址，支援同時填寫多個",
       "authHeaders": "自定義請求頭（可選）",
-      "authHeadersHint": "用於訪問私有訂閱源，每行一個，格式為「名稱: 值」，例如 Authorization: Bearer xxxx"
+      "authHeadersHint": "用於訪問私有訂閱源，每行一個，格式為「名稱: 值」，例如 Authorization: Bearer xxxx",
+      confluencePat: 'Server/DC 個人存取權杖（PAT）',
+      confluencePatHint: '選填。填寫後使用 Bearer 驗證，無需使用者名稱和密碼。',
+
     },
     "confluence": {
       "cloudFolderLimitation": "Confluence Cloud 暫不支援在此列出空間頂層文件夾等容器下的頁面；選擇整個空間仍會同步它們。"
@@ -4721,7 +4758,14 @@ export default {
     "attachmentReady": "解析完成",
     "attachmentUploadFailed": "附件上傳失敗",
     "attachmentParseFailed": "附件解析失敗",
-    "attachmentStillProcessing": "附件 {name} 仍在解析，請稍候"
+    "attachmentStillProcessing": "附件 {name} 仍在解析，請稍候",
+    backgroundWork: {
+      running: '沒有背景工作 | {count} 個背景工作 | {count} 個背景工作',
+      stop: '停止',
+      loading: '正在載入輸出…',
+      unavailable: '暫時無法查看輸出'
+    },
+
   },
   "knowledgeEditor": {
     "titleCreate": "新增知識庫",
@@ -4747,8 +4791,7 @@ export default {
         "imageAttrsSchemaDescription": "模型會觀察以下屬性（由後端註冊表定義）以驅動 OCR 策略",
         "imageAttrsOcrConditions": "根據觀察到的屬性條件觸發 OCR",
         "imageAttrsOcrConditionsDesc": "當觀察到的屬性滿足以下條件時，對圖片進行 OCR",
-        "imageAttrsOcrOnUnobserved": "圖片屬性觀察失敗時仍執行 OCR",
-        "imageAttrsOcrOnUnobservedDesc": "當模型未能正確觀察到圖片屬性時，預設仍執行 OCR 兜底，以免漏掉正文文字；關閉則跳過。（採用 4B 等小參數視覺模型，或自定義的圖片解析提示詞與系統提示詞衝突時，可能造成觀察失敗；8B 及以上模型的失敗概率很低，不建議關閉）",
+
         "imagePipelineKbNote": "預設跟隨知識庫設定，可針對本次任務調整",
         "imageVectorLabel": "圖片向量檢索",
         "imageVectorDescription": "開啟後，產生圖片描述之後再用向量模型直接對圖片編碼，檢索時可依圖片內容找回描述中沒寫到的資訊。需要向量模型支援圖片輸入；每張圖片多一次向量呼叫，向量檢索的候選範圍也會擴大。僅對之後匯入或重新解析的文件生效，掃描版 PDF 頁面不會產生",
@@ -4760,7 +4803,10 @@ export default {
 "imagePipelinePlaceholder": "請選擇解析方案",
 "imagePipelineLoading": "正在讀取流水線…",
 "imagePipelineLoadError": "讀取流水線失敗",
-"imagePipelineValidateError": "無法校驗當前設定，儲存時後端會再次檢查。"
+"imagePipelineValidateError": "無法校驗當前設定，儲存時後端會再次檢查。",
+        advancedSettingsLabel: '進階設定',
+        notesLabel: '附加說明',
+
 },
       "tableMetadataInstructions": {
         "label": "表格元資料生成要求",
@@ -6862,6 +6908,7 @@ export default {
       "skillUploadDrag": "或將文件拖到此處",
       "skillUploadHint": "安裝會在目前鏡像上生成新快照，可能需要數分鐘。目前這一輪對話不會中斷；下一輪提問時才會按新鏡像重建沙箱，會話工作區草稿會在那時清空。",
       "skillUploadHintNewSession": "安裝會在目前鏡像上生成新快照，可能需要數分鐘。已打開的會話繼續使用原沙箱，直到該會話結束；只有新打開的會話才會帶上這次安裝的技能。",
+      "skillUploadHintShared": "安裝會產生新映像，可能需要數分鐘。已有共用沙箱保持不變，新映像只用於之後新建的沙箱。",
       "skillSourceSection": "從來源安裝",
       "skillSourceSectionHint": "貼上 ClawHub、GitHub 或 SkillHub 連結，或 {'@'}owner/slug。壓縮包不超過 {size} MB。",
       "skillUploadSection": "上傳本地壓縮包",
@@ -6884,6 +6931,7 @@ export default {
       "skillDisableHint": "禁用後該技能對智能體不可見，文件仍保留在鏡像中。變更將在會話下一次執行時生效。",
       "skillDeleteHint": "刪除會從鏡像中移除該技能目錄並生成新快照。目前這一輪對話不會中斷；下一輪提問時才會按新鏡像重建沙箱，會話工作區草稿會在那時清空。",
       "skillDeleteHintNewSession": "刪除會從鏡像中移除該技能目錄並生成新快照。已打開的會話繼續使用原沙箱，直到該會話結束；只有新打開的會話才會去掉該技能。",
+      "skillDeleteHintShared": "刪除會從映像中移除技能並產生新映像。已有共用沙箱中的檔案保持不變，新映像只用於之後新建的沙箱。",
       "skillRemoveInProgress": "正在卸載",
       "skillRemoveWaiting": "已開始從鏡像卸載，正在等待進度…",
       "skillRemoveDone": "已從沙箱卸載「{name}」。技能仍在目錄里，可以稍後再裝回去。",
@@ -9069,7 +9117,40 @@ export default {
           "description": "否 —— 照片、插畫、圖標或裝飾圖"
         }
       }
-    }
+    },
+    layout_margin: {
+      label: '版面留白',
+      description: '文字內容之外的部分（桌面、背景、空白）占整張畫面的比例。留白越大，越能在 OCR 之前把頁面裁得更緊。',
+      values: {
+        none: {
+          label: '無留白',
+          description: '文字幾乎鋪滿畫面'
+        },
+        small: {
+          label: '少量留白',
+          description: '邊緣只有一條窄邊'
+        },
+        large: {
+          label: '大片留白',
+          description: '有大片非文字區域 —— 桌面、房間，或拍進來的周邊環境'
+        }
+      }
+    },
+    layout_upright: {
+      label: '文字朝向',
+      description: '圖中文字是否正立。歪斜或倒置的頁面，值得在 OCR 之前擺正。',
+      values: {
+        true: {
+          label: '正立',
+          description: '文字方向正常'
+        },
+        false: {
+          label: '非正立',
+          description: '文字被旋轉、傾斜拍攝或倒置'
+        }
+      }
+    },
+
   }
 ,
 "automation": {
@@ -9440,42 +9521,117 @@ export default {
   "default": {
     "name": "傳統",
     "description": "使用者根據任務需要手動選擇解析動作開關。",
-    "enable_caption": {
-      "label": "圖片描述",
-      "description": "讓模型為每張圖片生成一句內容描述，作為圖片的說明文字。"
-    },
-    "enable_ocr": {
-      "label": "文字辨識",
-      "description": "提取圖片中出現的文字。"
-    },
+
     "caption": {
-      "thinking": {
-        "label": "圖片描述時開啟思考",
-        "description": "讓模型在寫描述前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。"
-      }
+           thinking_enabled: {
+          label: '圖片描述時開啟思考',
+          description: '讓模型在寫描述前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。'
+        },
+
     },
     "ocr": {
-      "thinking": {
-        "label": "文字辨識時開啟思考",
-        "description": "讓模型在提取文字前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。"
-      }
-    }
+           thinking_enabled: {
+          label: '文字辨識時開啟思考',
+          description: '讓模型在提取文字前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。'
+        },
+
+    },
+      note_actions: {
+        label: '兩項動作互相獨立',
+        description: '兩項各自開關：關掉識別，圖片仍會被描述；關掉描述，文字仍會被識別。只有兩個都關掉時這張圖才不會被處理 —— 所以面板不允許這種組合。'
+      },
+      caption_enabled: {
+        label: '圖片描述',
+        description: '讓模型為每張圖片生成一句內容描述，作為圖片的說明文字。'
+      },
+      ocr_enabled: {
+        label: '文字辨識',
+        description: '提取圖片中出現的文字。'
+      },
+
   },
   "smartocr": {
     "name": "智能模式",
-    "caption": {
-      "thinking": {
-        "label": "描述時開啟思考",
-        "description": "讓模型在描述圖片並觀察屬性前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。"
-      }
-    },
+
     "ocr": {
-      "thinking": {
-        "label": "文字辨識時開啟思考",
-        "description": "讓模型在提取文字前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。"
-      }
+           thinking_enabled: {
+          label: '文字辨識時開啟思考',
+          description: '讓模型在提取文字前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。'
+        },
+
     },
-    "description": "先觀察圖片特徵並進行圖片描述，再根據圖片特徵決定是否呼叫 OCR 對圖片進行辨識，以節省模型呼叫次數並提升解析速度。"
+    "description": '先觀察圖片特徵並進行圖片描述，再根據圖片特徵決定是否呼叫 OCR 對圖片進行辨識，以節省模型呼叫次數並提升解析速度。當辨識到圖片為可校正的文件或標籤頁照片時，會在辨識前自動擺正並裁切頁面，以提升 OCR 準確率；若校正失敗則直接使用原圖。',
+      ocr_on_unobserved: {
+        label: '圖片屬性觀察失敗時仍執行 OCR',
+        description: '當模型未能正確觀察到圖片屬性時，預設仍執行 OCR 兜底，以免漏掉正文文字；關閉則跳過。（採用 4B 等小參數視覺模型，或自定義的圖片解析提示語與系統提示語衝突時，可能造成觀察失敗；8B 及以上模型的失敗概率很低，不建議關閉）'
+      },
+      note_flow: {
+        label: '由觀察結果決定',
+        description: '先描述圖片並觀察屬性，由屬性決定是否值得再為它花一次 OCR。屬性顯示頁面需要擺正時，會先擺正並裁掉周圍環境再識別；若該步驟不可用或判定不適用，則直接用原圖，絕不會比不啟用更差。'
+      },
+      preprocess: {
+        mode: {
+          label: '文件預處理',
+          description: '預設關閉。啟用後，會在 OCR 前擺正並裁剪頁面，增加處理時間。自動：依觀察結果判斷；總是：對進入 OCR 的圖片都嘗試預處理；忙碌或超限時使用原圖。',
+          options: {
+            auto: '自動',
+            off: '關閉',
+            always: '總是'
+          }
+        }
+      },
+      observation: {
+        thinking_enabled: {
+          label: '描述時開啟思考',
+          description: '讓模型在描述圖片並觀察屬性前先思考。一般情況下不需要開啟思考，開啟之後不僅更慢，還可能造成大模型思考內容過長截斷正文輸出造成任務失敗。請僅在確認有必要的情況下開啟。'
+        }
+      },
+
   }
-}
+},
+
+  "patentWorkspace": {
+    "title": "專利工作台",
+    "search": "專利檢索",
+    "writing": "寫作指導",
+    "sessions": "歷史對話",
+    "searchGreeting": "檢索相關專利，核對每一條依據。",
+    "writingGreeting": "完善技術資料，檢查專利寫作中的缺漏。",
+    "localScope": "目前僅檢索本機知識庫和附件；需要公開網頁資料時，請在輸入欄開啟網路搜尋。",
+    "onlineScope": "目前使用本機資料與網路搜尋；網頁結果不代表完整專利資料庫。",
+    "writingScope": "提供大綱、補充問題和修改建議；請上傳資料或選擇相關知識庫。",
+    "unavailable": "專利工作台無法使用，已返回知識庫。",
+    "createFailed": "建立專利對話失敗。",
+    "loadFailed": "無法讀取專利工作台設定，請重試。",
+    "retry": "重試",
+    "prompts": {
+      "technical": "請根據我的技術問題尋找相關專利，列出檢索條件、來源和技術相關性。",
+      "applicant": "請按申請人或公開號查找專利，只填寫可核實的欄位。",
+      "compare": "請比較我提供的專利技術特徵，標出依據與差異。",
+      "outline": "請根據我的技術資料梳理交底書大綱，並列出待補充事實。",
+      "missing": "請檢查我的交底資料有哪些技術細節、實施方式和效果證據缺漏。",
+      "claims": "請檢查我的請求項中的術語、引用關係和表達清晰度。",
+      "consistency": "請檢查我的說明書與請求項是否一致、是否有充分技術支撐。"
+    }
+  },
+  "patentWorkspaceSettings": {
+    "description": "控制目前工作區的專利工作台存取。關閉後保留既有對話與附件。",
+    "introTitle": "專利工作台開關",
+    "introDescription": "開啟後可使用專利檢索和寫作指導，兩個子功能分別保存歷史與輸入選擇。",
+    "enableLabel": "啟用專利工作台",
+    "enableDescription": "關閉後隱藏入口並停止後續存取，不刪除資料。",
+    "saveSuccess": "專利工作台設定已儲存",
+    "saveFailed": "儲存專利工作台設定失敗：{message}",
+    "deleteTitle": "刪除專利工作台資料",
+    "deleteDescription": "刪除目前工作區全部專利檢索、寫作指導對話及其訊息和暫存附件。共用知識庫保留。",
+    "deleteButton": "刪除全部資料",
+    "deleteConfirmTitle": "確認刪除專利工作台資料？",
+    "deleteConfirmBody": "將刪除目前工作區全部專利檢索和寫作指導對話、訊息、建議及暫存附件。此操作無法復原。共用知識庫和其他工作台資料保留。",
+    "deleteSuccess": "專利工作台資料已刪除",
+    "deleteFailed": "刪除專利工作台資料失敗：{message}",
+    "cancel": "取消",
+    "adminOnly": "只有管理員可以修改設定；只有擁有者可以清理專利工作台資料。",
+    "disabledMessage": "專利工作台目前已關閉。"
+  }
+
 }

@@ -169,6 +169,7 @@ type SessionForkService struct {
 	messages    forkMessageStore
 	sandbox     SessionForkSandboxPort
 	allocations forkAllocations
+	activity    interfaces.ActivityRegistry
 }
 
 // NewSessionForkService wires the service. A nil sandbox port makes every fork
@@ -187,8 +188,11 @@ func NewSessionForkServiceFromRepos(
 	sessions interfaces.SessionRepository,
 	messages interfaces.MessageRepository,
 	sandboxPort SessionForkSandboxPort,
+	activity interfaces.ActivityRegistry,
 ) *SessionForkService {
-	return NewSessionForkService(sessions, messages, sandboxPort)
+	s := NewSessionForkService(sessions, messages, sandboxPort)
+	s.activity = activity
+	return s
 }
 
 // WithAllocations enables user-mode forks.
@@ -228,6 +232,10 @@ func (s *SessionForkService) Fork(
 		return nil, ErrForkSessionNotFound
 	}
 
+	if err := ensureSessionWorkspaceAccess(ctx, source); err != nil {
+		return nil, err
+	}
+
 	forkPoint, err := s.messages.GetMessage(ctx, sourceSessionID, messageID)
 	if err != nil {
 		if isForkNotFound(err) {
@@ -258,6 +266,9 @@ func (s *SessionForkService) Fork(
 		if busy {
 			return nil, ErrForkSourceBusy
 		}
+	}
+	if err := s.rejectIfBackgroundActive(ctx, source); err != nil {
+		return nil, err
 	}
 
 	workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), forkSnapshotTimeout)
@@ -298,6 +309,7 @@ func (s *SessionForkService) Fork(
 		Title:            forkTitle(title, source.Title),
 		Description:      source.Description,
 		LastRequestState: source.LastRequestState,
+		WorkspaceMode:    source.WorkspaceMode,
 		SandboxConfigID:  source.SandboxConfigID,
 		// The owner travels with the config id, or the branch would inherit a
 		// pin that resolves nowhere the moment the source ran a shared agent.
@@ -426,6 +438,7 @@ func (s *SessionForkService) forkOnSharedMachine(
 		OwnerAuthSource: source.OwnerAuthSource,
 		Title:           forkTitle(title, source.Title), Description: source.Description,
 		LastRequestState: source.LastRequestState,
+		WorkspaceMode:    source.WorkspaceMode,
 		SandboxConfigID:  source.SandboxConfigID, SandboxConfigTenantID: source.SandboxConfigTenantID,
 		ParentSessionID: source.ID, ForkedFromMessageID: forkPoint.ID,
 	}
@@ -465,6 +478,22 @@ func forkLeaseLost(ctx context.Context, err error) error {
 	}
 	if errors.Is(err, admission.ErrLeaseLost) {
 		return err
+	}
+	return nil
+}
+
+// rejectIfBackgroundActive refuses while background work is live in the
+// session. Snapshotting pauses the source sandbox and would freeze the work.
+func (s *SessionForkService) rejectIfBackgroundActive(ctx context.Context, source *types.Session) error {
+	if s.activity == nil {
+		return nil
+	}
+	live, err := s.activity.List(ctx, interfaces.SessionRef{TenantID: source.TenantID, SessionID: source.ID})
+	if err != nil {
+		return fmt.Errorf("session fork: check background work: %w", err)
+	}
+	if len(live) > 0 {
+		return ErrForkSourceBusy
 	}
 	return nil
 }
@@ -632,27 +661,33 @@ func inheritUnconsumedForkSnapshot(source *types.Session, checkpoint *types.Sand
 }
 
 // latestCheckpoint returns the checkpoint of the last assistant message in
-// history, or nil when that message has none.
+// history, or nil when that message has none or took it while background work
+// was live.
 func latestCheckpoint(history []*types.Message) *types.SandboxCheckpoint {
 	for i := len(history) - 1; i >= 0; i-- {
 		if history[i].Role != "assistant" {
 			continue
 		}
-		return history[i].SandboxCheckpoint
+		cp := history[i].SandboxCheckpoint
+		if cp != nil && cp.BackgroundActive {
+			return nil
+		}
+		return cp
 	}
 	return nil
 }
 
 // latestReachableCheckpoint walks kept assistant messages until it finds one
-// with a non-empty commit SHA. Rewind uses this so a failed last-turn
-// checkpoint does not skip an earlier SHA that can still reset the workspace.
+// with a non-empty commit SHA that was not taken during live background work.
+// Rewind uses this so a failed or flagged last-turn checkpoint does not skip an
+// earlier SHA that can still reset the workspace.
 func latestReachableCheckpoint(history []*types.Message) *types.SandboxCheckpoint {
 	for i := len(history) - 1; i >= 0; i-- {
 		if history[i] == nil || history[i].Role != "assistant" {
 			continue
 		}
 		cp := history[i].SandboxCheckpoint
-		if cp == nil || strings.TrimSpace(cp.CommitSHA) == "" {
+		if cp == nil || strings.TrimSpace(cp.CommitSHA) == "" || cp.BackgroundActive {
 			continue
 		}
 		return cp

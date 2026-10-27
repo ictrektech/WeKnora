@@ -9,6 +9,33 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func TestPatentBuiltinDefaultsRequireSelectedEvidence(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "config", "builtin_agents.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file builtinAgentsFile
+	if err := yaml.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, entry := range file.BuiltinAgents {
+		if entry.ID != BuiltinPatentSearchID && entry.ID != BuiltinPatentWritingID {
+			continue
+		}
+		count++
+		if !entry.Config.RetrieveKBOnlyWhenMentioned || entry.Config.MemoryEnabled == nil || *entry.Config.MemoryEnabled {
+			t.Errorf("%s must require explicit evidence scope and disable cross-case memory", entry.ID)
+		}
+		if entry.Config.CitationEnabled == nil || !*entry.Config.CitationEnabled {
+			t.Errorf("%s must retain source citations", entry.ID)
+		}
+	}
+	if count != 2 {
+		t.Fatalf("got %d patent defaults, want 2", count)
+	}
+}
+
 func TestLegalAssistantBuiltinConfigIsEvidenceFirst(t *testing.T) {
 	root := filepath.Join("..", "..")
 	data, err := os.ReadFile(filepath.Join(root, "config", "builtin_agents.yaml"))

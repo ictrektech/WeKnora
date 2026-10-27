@@ -22,6 +22,10 @@
             <div v-for="(att, idx) in props.attachments" :key="idx"
                 class="user_attachment_card"
                 :class="{ 'is-previewable': canPreviewAttachment(att) }"
+                :role="canPreviewAttachment(att) ? 'button' : undefined"
+                :tabindex="canPreviewAttachment(att) ? 0 : undefined"
+                @keydown.enter.prevent="openAttachmentPreview(att)"
+                @keydown.space.prevent="openAttachmentPreview(att)"
                 @click="openAttachmentPreview(att)">
                 <ArtifactFileIcon :file-name="att.file_name" />
                 <div class="attachment_card_info">

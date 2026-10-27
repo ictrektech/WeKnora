@@ -162,3 +162,22 @@ func TestTemporaryDocumentKeepsResourceWhenReleaseFails(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
 }
+
+func TestTemporaryDocumentDeleteRetainsRecordUntilStorageCleanupSucceeds(t *testing.T) {
+	ctx := context.Background()
+	catalog, _ := newResourceCatalogForTest(t)
+	fs := files.NewResourceCatalogFileService(files.NewLocalFileService(t.TempDir(), ""), catalog)
+	ref, err := fs.SaveBytes(ctx, []byte("attachment"), 7, "test.txt", false)
+	require.NoError(t, err)
+	require.NoError(t, catalog.Bind(ctx, ref, types.ResourceOwnerTemporaryDocument, "doc", types.ResourceRelationSourceFile))
+	repo := &attachmentLifecycleRepo{docs: map[string]*types.TemporaryDocument{"doc": {ID: "doc", ResourceRef: ref}}}
+	failing := &failingAttachmentBinding{ResourceCatalog: catalog, releaseErr: errors.New("storage offline")}
+	svc := &temporaryDocumentService{fileService: fs, resourceCatalog: failing, repo: repo}
+	require.Error(t, svc.Delete(ctx, 7, "patent", "doc"))
+	require.Contains(t, repo.docs, "doc")
+	repo.expiredID = "doc"
+	require.Error(t, svc.CleanupExpired(ctx), "failed records must wait for a later cleanup run")
+	failing.releaseErr = nil
+	require.NoError(t, svc.Delete(ctx, 7, "patent", "doc"))
+	require.NotContains(t, repo.docs, "doc")
+}

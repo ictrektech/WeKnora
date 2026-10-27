@@ -82,10 +82,16 @@ type WorkspaceMode string
 const (
 	WorkspaceModePlatform       WorkspaceMode = "platform"
 	WorkspaceModeLegalAssistant WorkspaceMode = "legal_assistant"
+	WorkspaceModePatentSearch   WorkspaceMode = "patent_search"
+	WorkspaceModePatentWriting  WorkspaceMode = "patent_writing"
 )
 
 func (m WorkspaceMode) Valid() bool {
-	return m == WorkspaceModePlatform || m == WorkspaceModeLegalAssistant
+	return m == WorkspaceModePlatform || m == WorkspaceModeLegalAssistant || m.IsPatent()
+}
+
+func (m WorkspaceMode) IsPatent() bool {
+	return m == WorkspaceModePatentSearch || m == WorkspaceModePatentWriting
 }
 
 // SessionKindAssistant keeps assistant conversations out of ordinary chat listings.
@@ -315,9 +321,11 @@ type SessionListQuery struct {
 	// HideLegalSessions is set by the service when the tenant legal workspace
 	// is disabled. Keeping this as a query concern prevents disabled legal rows
 	// from leaking through any ordinary list/source filter.
-	HideLegalSessions bool
-	Page              int
-	PageSize          int
+	HideLegalSessions  bool
+	HidePatentSessions bool
+	WorkspaceMode      WorkspaceMode
+	Page               int
+	PageSize           int
 }
 
 // SessionListItem is a session row enriched with its IM origin (when any).

@@ -19,8 +19,14 @@ before(async () => {
   server = await createServer({
     configFile: false,
     plugins: [{ name: 'offline-store-test', enforce: 'pre',
-      resolveId(id) { if (id.endsWith('/utils/request')) return '\0offline-request' },
-      load(id) { if (id === '\0offline-request') return 'const request = () => { throw new Error("Unexpected network request") }; export { request as get, request as post, request as put, request as del };' },
+      resolveId(id) {
+        if (id.endsWith('/utils/request')) return '\0offline-request'
+        if (id.endsWith('/stores/auth')) return '\0offline-auth'
+      },
+      load(id) {
+        if (id === '\0offline-request') return 'const request = () => { throw new Error("Unexpected network request") }; export { request as get, request as post, request as put, request as del };'
+        if (id === '\0offline-auth') return 'export const useAuthStore = () => ({ effectiveTenantId: 1, currentUserId: "test-user" });'
+      },
     }],
     optimizeDeps: { noDiscovery: true, entries: [] },
     resolve: { alias: { '@': fileURLToPath(new URL('../', import.meta.url)) } },
@@ -49,6 +55,19 @@ function selectDefaults(store: ReturnType<typeof useSettingsStore>) {
 const emptySelections: SessionLastRequestStatePayload = {
   knowledge_base_ids: [], knowledge_ids: [], tag_ids: [], mcp_service_ids: [], skill_names: [],
 }
+
+test('session model hydration restores both model fields without changing browser defaults', () => {
+  const store = useSettingsStore(createPinia())
+  store.updateConversationModels({ selectedChatModelId: 'default-model', summaryModelId: 'default-model' })
+  const stored = items.get('WeKnora_settings')
+  store.hydrateSessionInputState({ model_id: 'session-model' })
+  assert.equal(store.settings.conversationModels.selectedChatModelId, 'session-model')
+  assert.equal(store.settings.conversationModels.summaryModelId, 'session-model')
+  assert.equal(items.get('WeKnora_settings'), stored)
+  store.restoreDefaultsIfSnapshotted()
+  assert.equal(store.settings.conversationModels.selectedChatModelId, 'default-model')
+  assert.equal(store.settings.conversationModels.summaryModelId, 'default-model')
+})
 
 for (const state of [{ agent_enabled: true, knowledge_base_ids: [] }, emptySelections]) {
   test(`session hydration clears stale file, tag, and tool selections when saved lists are ${'knowledge_ids' in state ? 'empty' : 'omitted'}`, () => {

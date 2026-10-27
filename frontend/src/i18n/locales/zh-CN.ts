@@ -1,4 +1,37 @@
 export default {
+  patentExamples: {
+      "sidebarTitle": "示例",
+      "empty": "暂无可展示示例",
+      "details": "示例说明",
+      "badge": "示例 · 只读",
+      "footer": "内置示例，非实时生成，仅供查看；可在设置 → 发布集成 → 专利工作台中关闭。",
+      "deleteHint": "此处删除的是真实会话，不会删除内置示例。隐藏示例请使用上方开关。",
+      "title": "内置效果示例",
+      "notice": "预录运行效果，非当前模型实时生成。仅供参考，不支持续聊或用于业务上下文。",
+      "settingsHint": "内置示例可由管理员在设置 → 发布集成 → 专利工作台中关闭。",
+      "settings": "打开示例设置",
+      "enableLabel": "显示内置示例",
+      "enableDescription": "控制整个工作区的只读示例展示。关闭不删除安装包资源；重启和升级保留选择。示例不会进入实际检索或会话。",
+      "disabled": "示例已关闭或当前不可访问。",
+      "loading": "正在加载示例…",
+      "loadFailed": "示例暂不可用，请重试。",
+      "model": "生成模型",
+      "recordedAt": "录制日期",
+      "materials": "示例资料库（只读）",
+      "attribution": "资料来源与许可证",
+      "knowledgeBase": "示例知识库：专利公开文献",
+      "externalNotice": "仅提供文献目录、来源定位和编辑归纳，不含完整 PDF 或原始检索分块。",
+      "documents": "关联文献（只读）",
+      "externalOnly": "原文外链",
+      "backToDocuments": "返回文献目录",
+      "publicationNumber": "公开号",
+      "applicant": "申请人",
+      "applicationDate": "申请日",
+      "publicationDate": "公开日",
+      "openOriginal": "前往来源查看原文（需联网）",
+      "evidenceSummary": "来源位置与内容归纳（非原文全文）",
+      "unavailable": "此功能暂无可随包分发的示例；公开专利材料的分发条件仍待核查。",
+  },
   modelCatalog: {
     "title": "模型目录",
     "description": "模型目录决定添加模型时可选的模型列表，以及上下文窗口、是否支持思考等默认参数。在这里修改后，所有空间立即生效。",
@@ -1191,6 +1224,7 @@ export default {
       cli: 'CLI',
       claw: 'Claw Skill',
       mcpserver: 'MCP Server',
+      "patent": "专利工作台",
       legal: '法律工作台',
     }
   },
@@ -1381,6 +1415,8 @@ export default {
       confluenceEditionCloud: 'Cloud',
       confluenceBaseUrl: 'Confluence 地址',
       confluenceUsername: '用户名或邮箱',
+      confluencePat: 'Server/DC 个人访问令牌（PAT）',
+      confluencePatHint: '选填。填写后使用 Bearer 认证，无需用户名和密码。',
       confluencePassword: 'Server/DC 密码',
       confluenceApiToken: 'Cloud API 令牌',
       clientId: 'Client ID',
@@ -5034,6 +5070,12 @@ export default {
     noKnowledgeBases: '没有可用的知识库',
     enterDescription: '输入描述',
     rawOutputLabel: '原始输出',
+    backgroundWork: {
+      running: '没有后台任务 | {count} 个后台任务 | {count} 个后台任务',
+      stop: '停止',
+      loading: '正在加载输出…',
+      unavailable: '暂时无法查看输出',
+    },
     wikiWritePageTitle: 'Wiki 页面写入',
     wikiReplaceTextTitle: 'Wiki 文本替换',
     wikiRenamePageTitle: 'Wiki 页面重命名',
@@ -5102,14 +5144,14 @@ export default {
         imagePipelineSectionLabel: '图片解析方案',
         imagePipelineSectionDescription: '多模态解析开启后，可以根据需要选择图片的解析方案',
         imagePipelineLabel: '选择解析方案',
+        advancedSettingsLabel: '高级设置',
+        notesLabel: '附加说明',
         imagePipelinePlaceholder: '请选择解析方案',
         imagePipelineLoading: '正在读取流水线…',
         imagePipelineLoadError: '读取流水线失败',
-          imagePipelineValidateError: '无法校验当前设置，保存时后端会再次检查。',
+        imagePipelineValidateError: '无法校验当前设置，保存时后端会再次检查。',
         imageAttrsOcrConditions: '根据观察到的属性条件触发 OCR',
         imageAttrsOcrConditionsDesc: '当观察到的属性满足以下条件时，对图片进行 OCR',
-        imageAttrsOcrOnUnobserved: '图片属性观察失败时仍执行 OCR',
-        imageAttrsOcrOnUnobservedDesc: '当模型未能正确观察到图片属性时，默认仍执行 OCR 兜底，以免漏掉正文文字；关闭则跳过。（采用 4B 等小参数视觉模型，或自定义的图片解析提示词与系统提示词冲突时，可能造成观察失败；8B 及以上模型的失败概率很低，不建议关闭）',
         imagePipelineKbNote: '默认跟随知识库设置，可针对本次任务调整'
       },
       tableMetadataInstructions: {
@@ -7214,6 +7256,7 @@ export default {
       skillUploadDrag: '或将文件拖到此处',
       skillUploadHint: '安装会在当前镜像上生成新快照，可能需要数分钟。当前这一轮对话不会中断；下一轮提问时才会按新镜像重建沙箱，会话工作区草稿会在那时清空。',
       skillUploadHintNewSession: '安装会在当前镜像上生成新快照，可能需要数分钟。已打开的会话继续使用原沙箱，直到该会话结束；只有新打开的会话才会带上这次安装的技能。',
+      skillUploadHintShared: '安装会生成新镜像，可能需要数分钟。已有共用沙箱保持不变，新镜像只用于之后新建的沙箱。',
       skillSourceSection: '从来源安装',
       skillSourceSectionHint: '粘贴 ClawHub、GitHub 或 SkillHub 链接，或 {\'@\'}owner/slug。压缩包不超过 {size} MB。',
       skillUploadSection: '上传本地压缩包',
@@ -7236,6 +7279,7 @@ export default {
       skillDisableHint: '禁用后该技能对智能体不可见，文件仍保留在镜像中。变更将在会话下一次执行时生效。',
       skillDeleteHint: '删除会从镜像中移除该技能目录并生成新快照。当前这一轮对话不会中断；下一轮提问时才会按新镜像重建沙箱，会话工作区草稿会在那时清空。',
       skillDeleteHintNewSession: '删除会从镜像中移除该技能目录并生成新快照。已打开的会话继续使用原沙箱，直到该会话结束；只有新打开的会话才会去掉该技能。',
+      skillDeleteHintShared: '删除会从镜像中移除技能并生成新镜像。已有共用沙箱中的文件保持不变，新镜像只用于之后新建的沙箱。',
       skillRemoveInProgress: '正在卸载',
       skillRemoveWaiting: '已开始从镜像卸载，正在等待进度…',
       skillRemoveDone: '已从沙箱卸载「{name}」。技能仍在目录里，可以稍后再装回去。',
@@ -9416,6 +9460,25 @@ export default {
         'true': { label: '是', description: '是 —— 图表、曲线或示意图' },
         'false': { label: '否', description: '否 —— 照片、插画、图标或装饰图' }
       }
+    },
+    layout_margin: {
+      label: '版面留白',
+      description:
+        '文字内容之外的部分（桌面、背景、空白）占整张画面的比例。留白大意味着可以在 OCR 之前把页面裁得更紧。',
+      values: {
+        'none': { label: '无留白', description: '文字几乎铺满画面' },
+        'small': { label: '少量留白', description: '边缘只有一条窄边' },
+        'large': { label: '大片留白', description: '有大片非文字区域 —— 桌面、房间，或拍进来的周边环境' }
+      }
+    },
+    layout_upright: {
+      label: '文字朝向',
+      description:
+        '图中文字是否正立。歪斜或倒置的页面，值得在 OCR 之前摆正。',
+      values: {
+        'true': { label: '正立', description: '文字方向正常' },
+        'false': { label: '非正立', description: '文字被旋转、倾斜拍摄或倒置' }
+      }
     }
   },
   // 流水线选择面板的覆盖文案：按流水线 id 与字段 key 索引（后端注册表给出
@@ -9427,43 +9490,115 @@ export default {
     },
     default: {
       name: '传统',
+      note_actions: {
+        label: '两项动作互相独立',
+        description:
+          '两项各自开关：关掉识别，图片仍会被描述；关掉描述，文字仍会被识别。只有两个都关掉时这张图才不会被处理 —— 所以面板不允许这种组合。',
+      },
       description: '用户根据任务需要手动选择解析动作开关。',
-      enable_caption: {
+      caption_enabled: {
         label: '图片描述',
         description: '让模型为每张图片生成一句内容描述，作为图片的说明文字。'
       },
-      enable_ocr: {
+      ocr_enabled: {
         label: '文字识别',
         description: '提取图片中出现的文字。'
       },
       caption: {
-        thinking: {
+        thinking_enabled: {
           label: '图片描述时开启思考',
           description: '让模型在写描述前先思考。一般情况下不需要开启思考，开启之后不仅更慢，还可能造成大模型思考内容过长截断正文输出造成任务失败。请仅在确认有必要的情况下开启。',
         },
       },
       ocr: {
-        thinking: {
+        thinking_enabled: {
           label: '文字识别时开启思考',
           description: '让模型在提取文字前先思考。一般情况下不需要开启思考，开启之后不仅更慢，还可能造成大模型思考内容过长截断正文输出造成任务失败。请仅在确认有必要的情况下开启。',
         },
       }
     },
     smartocr: {
+      ocr_on_unobserved: {
+        label: '图片属性观察失败时仍执行 OCR',
+        description:
+          '当模型未能正确观察到图片属性时，默认仍执行 OCR 兜底，以免漏掉正文文字；关闭则跳过。（采用 4B 等小参数视觉模型，或自定义的图片解析提示词与系统提示词冲突时，可能造成观察失败；8B 及以上模型的失败概率很低，不建议关闭）',
+      },
       name: '智能模式',
-      caption: {
-        thinking: {
+      note_flow: {
+        label: '由观察结果决定',
+        description:
+          '先描述图片并观察属性，由属性决定是否值得再为它花一次 OCR。属性显示页面需要摆正时，会先摆正并裁掉周围环境再识别；若该步骤不可用或判定不适用，则直接用原图，绝不会比不启用更差。',
+      },
+      preprocess: {
+        mode: {
+          label: '文档预处理',
+          description:
+            '默认关闭。开启后，会在 OCR 前摆正并裁剪页面，增加处理耗时。自动：按观察结果判断；总是：对进入 OCR 的图片都尝试预处理；繁忙或超限时使用原图。',
+          options: {
+            auto: '自动',
+            off: '关闭',
+            always: '总是',
+          },
+        },
+      },
+      observation: {
+        thinking_enabled: {
           label: '描述时开启思考',
           description: '让模型在描述图片并观察属性前先思考。一般情况下不需要开启思考，开启之后不仅更慢，还可能造成大模型思考内容过长截断正文输出造成任务失败。请仅在确认有必要的情况下开启。',
         },
       },
       ocr: {
-        thinking: {
+        thinking_enabled: {
           label: '文字识别时开启思考',
           description: '让模型在提取文字前先思考。一般情况下不需要开启思考，开启之后不仅更慢，还可能造成大模型思考内容过长截断正文输出造成任务失败。请仅在确认有必要的情况下开启。',
         },
       },
-      description: '先观察图片特征并进行图片描述，再根据图片特征决定是否调用OCR对图片进行识别，以节省模型调用次数并提升解析速度。'
+      description: '先观察图片特征并进行图片描述，再根据图片特征决定是否调用OCR对图片进行识别，以节省模型调用次数并提升解析速度。当识别到图片为可校正的文档或标签页照片时，会在识别前自动摆正并裁剪页面，以提升 OCR 准确率；若校正失败则直接使用原图。'
     }
+  },
+
+  "patentWorkspace": {
+    "title": "专利工作台",
+    "search": "专利检索",
+    "writing": "写作指导",
+    "sessions": "历史会话",
+    "searchGreeting": "检索相关专利，核对每一条依据。",
+    "writingGreeting": "完善技术材料，检查专利写作中的缺漏。",
+    "localScope": "当前仅检索本地知识库和附件；需要公开网页资料时，请在输入栏开启联网搜索。",
+    "onlineScope": "当前使用本地资料与联网搜索；网页结果不代表完整专利数据库。",
+    "writingScope": "提供提纲、补充问题和修改建议；请上传材料或选择相关知识库。",
+    "unavailable": "专利工作台不可用，已返回知识库。",
+    "createFailed": "创建专利会话失败。",
+    "loadFailed": "无法读取专利工作台配置，请重试。",
+    "retry": "重试",
+    "prompts": {
+      "technical": "请根据我的技术问题查找相关专利，列出检索条件、来源和技术相关性。",
+      "applicant": "请按申请人或公开号查找专利，只填写可核实的字段。",
+      "compare": "请比较我提供的专利的技术特征，标出依据与差异。",
+      "outline": "请根据我的技术材料梳理交底书提纲，并列出待补充事实。",
+      "missing": "请检查我的交底材料有哪些技术细节、实施方式和效果证据缺漏。",
+      "claims": "请检查我的权利要求中的术语、引用关系和表达清晰度。",
+      "consistency": "请检查我的说明书与权利要求是否一致、是否有充分技术支撑。"
+    }
+  },
+  "patentWorkspaceSettings": {
+    "description": "控制当前工作区的专利工作台访问。关闭保留已有会话与附件。",
+    "introTitle": "专利工作台开关",
+    "introDescription": "开启后可使用专利检索和写作指导，两个子功能分别保存历史与输入选择。",
+    "enableLabel": "启用专利工作台",
+    "enableDescription": "关闭后隐藏入口并停止后续访问，不删除数据。",
+    "saveSuccess": "专利工作台设置已保存",
+    "saveFailed": "保存专利工作台设置失败：{message}",
+    "deleteTitle": "删除专利工作台数据",
+    "deleteDescription": "删除当前工作区全部专利检索、写作指导会话及其消息和临时附件。共享知识库保留。",
+    "deleteButton": "删除全部数据",
+    "deleteConfirmTitle": "确认删除专利工作台数据？",
+    "deleteConfirmBody": "将删除当前工作区全部专利检索和写作指导会话、消息、建议及临时附件。此操作不可恢复。共享知识库和其他工作台数据保留。",
+    "deleteSuccess": "专利工作台数据已删除",
+    "deleteFailed": "删除专利工作台数据失败：{message}",
+    "cancel": "取消",
+    "adminOnly": "只有管理员可以修改设置；只有所有者可以清理专利工作台数据。",
+    "disabledMessage": "专利工作台当前已关闭。"
   }
+
 }

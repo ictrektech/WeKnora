@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 import { nextTick } from "vue";
-import { BUILTIN_LEGAL_ASSISTANT_ID, BUILTIN_QUICK_ANSWER_ID, BUILTIN_SMART_REASONING_ID } from "@/api/agent";
+import { useAuthStore } from "@/stores/auth";
+import type { PatentMode } from "@/utils/workspaceMode";
+import { BUILTIN_PATENT_SEARCH_ID, BUILTIN_PATENT_WRITING_ID, BUILTIN_LEGAL_ASSISTANT_ID, BUILTIN_QUICK_ANSWER_ID, BUILTIN_SMART_REASONING_ID } from "@/api/agent";
 import { getApiBaseUrl } from "@/utils/api-base";
 import { isAgentStreamAgentId } from "@/utils/agent-mode";
 import { loadAndReconcileSettings } from "@/stores/settingsStorage";
@@ -168,6 +170,9 @@ export const useSettingsStore = defineStore("settings", {
     _isApplyingSessionState: false,
     legalAssistantProfile: loadLegalAssistantProfile(),
     _legalAssistantSnapshot: null as Settings | null,
+    _patentSnapshot: null as Settings | null,
+    _patentMode: null as PatentMode | null,
+    _patentProfileKey: "",
     // Session-only preference: never written into global settings/localStorage.
     reasoningEffortOverride: '' as ReasoningLevel | '',
   }),
@@ -231,8 +236,52 @@ export const useSettingsStore = defineStore("settings", {
   },
 
   actions: {
+    patentProfile(): LegalAssistantComposerProfile {
+      const s = this.settings;
+      return JSON.parse(JSON.stringify({
+        isAgentEnabled: s.isAgentEnabled, agentConfig: s.agentConfig,
+        selectedAgentId: s.selectedAgentId, selectedAgentSourceTenantId: s.selectedAgentSourceTenantId,
+        selectedKnowledgeBases: s.selectedKnowledgeBases, selectedFiles: s.selectedFiles,
+        selectedFileKbMap: s.selectedFileKbMap, selectedTags: s.selectedTags,
+        selectedMCPServices: s.selectedMCPServices, selectedSkills: s.selectedSkills,
+        webSearchEnabled: s.webSearchEnabled, conversationModels: s.conversationModels,
+      }));
+    },
+    persistComposerSettings() {
+      if (this._patentMode && this._patentSnapshot) {
+        localStorage.setItem(this._patentProfileKey, JSON.stringify(this.patentProfile()));
+        localStorage.setItem("WeKnora_settings", JSON.stringify(this._patentSnapshot));
+        return;
+      }
+      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+    },
+    enterPatentWorkspace(mode: PatentMode) {
+      this.leavePatentWorkspace();
+      this.restoreDefaultsIfSnapshotted();
+      const auth = useAuthStore();
+      this._patentSnapshot = JSON.parse(JSON.stringify(this.settings));
+      this._patentMode = mode;
+      this._patentProfileKey = `WeKnora_patent_profile:${auth.effectiveTenantId}:${auth.currentUserId}:${mode}`;
+      const defaults = { ...defaultLegalAssistantProfile(), selectedAgentId:
+        mode === 'patent_search' ? BUILTIN_PATENT_SEARCH_ID : BUILTIN_PATENT_WRITING_ID };
+      let profile = defaults;
+      try {
+        profile = { ...defaults, ...JSON.parse(localStorage.getItem(this._patentProfileKey) || '{}') };
+      } catch { /* Use defaults for a corrupt saved profile. */ }
+      this.settings = { ...this.settings, ...profile };
+    },
+    leavePatentWorkspace() {
+      if (!this._patentMode || !this._patentSnapshot) return;
+      this.persistComposerSettings();
+      this._defaultsSnapshot = null;
+      this.settings = this._patentSnapshot;
+      this._patentMode = null;
+      this._patentProfileKey = '';
+      this._patentSnapshot = null;
+    },
     /** Enter the legal assistant without leaking its composer choices into chat. */
     enterLegalAssistant() {
+      this.restoreDefaultsIfSnapshotted();
       if (this._legalAssistantSnapshot) return;
       this._legalAssistantSnapshot = JSON.parse(JSON.stringify(this.settings));
       const profile = this.legalAssistantProfile || defaultLegalAssistantProfile();
@@ -255,6 +304,7 @@ export const useSettingsStore = defineStore("settings", {
 
     /** Persist the current legal composer and restore ordinary chat defaults. */
     leaveLegalAssistant() {
+      this.restoreDefaultsIfSnapshotted();
       if (!this._legalAssistantSnapshot) return;
       this.legalAssistantProfile = {
         isAgentEnabled: this.settings.isAgentEnabled,
@@ -279,7 +329,7 @@ export const useSettingsStore = defineStore("settings", {
     saveSettings(settings: Settings) {
       this.settings = { ...settings };
       // 保存到localStorage
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     // 获取设置
@@ -305,25 +355,25 @@ export const useSettingsStore = defineStore("settings", {
     // 启用/禁用 Agent
     toggleAgent(enabled: boolean) {
       this.settings.isAgentEnabled = enabled;
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 更新 Agent 配置
     updateAgentConfig(config: Partial<AgentConfig>) {
       this.settings.agentConfig = { ...this.settings.agentConfig, ...config };
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     updateConversationModels(models: Partial<ConversationModels>) {
       const current = this.settings.conversationModels || defaultSettings.conversationModels;
       this.settings.conversationModels = { ...current, ...models };
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 更新模型配置
     updateModelConfig(config: Partial<ModelConfig>) {
       this.settings.modelConfig = { ...this.settings.modelConfig, ...config };
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 添加模型
@@ -340,7 +390,7 @@ export const useSettingsStore = defineStore("settings", {
       }
       models.push(model);
       this.settings.modelConfig[key] = models as any;
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 更新模型
@@ -355,7 +405,7 @@ export const useSettingsStore = defineStore("settings", {
         }
         models[index] = { ...models[index], ...updates };
         this.settings.modelConfig[key] = models as any;
-        localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+        this.persistComposerSettings();
       }
     },
     
@@ -370,7 +420,7 @@ export const useSettingsStore = defineStore("settings", {
         models[0].isDefault = true;
       }
       this.settings.modelConfig[key] = models as any;
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 设置默认模型
@@ -379,26 +429,26 @@ export const useSettingsStore = defineStore("settings", {
       const models = [...this.settings.modelConfig[key]] as ModelItem[];
       models.forEach(m => m.isDefault = (m.id === modelId));
       this.settings.modelConfig[key] = models as any;
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 更新 Ollama 配置
     updateOllamaConfig(config: Partial<OllamaConfig>) {
       this.settings.ollamaConfig = { ...this.settings.ollamaConfig, ...config };
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 选择知识库（替换整个列表）
     selectKnowledgeBases(kbIds: string[]) {
       this.settings.selectedKnowledgeBases = kbIds;
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 添加单个知识库
     addKnowledgeBase(kbId: string) {
       if (!this.settings.selectedKnowledgeBases.includes(kbId)) {
         this.settings.selectedKnowledgeBases.push(kbId);
-        localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+        this.persistComposerSettings();
       }
     },
     
@@ -406,13 +456,13 @@ export const useSettingsStore = defineStore("settings", {
     removeKnowledgeBase(kbId: string) {
       this.settings.selectedKnowledgeBases = 
         this.settings.selectedKnowledgeBases.filter((id: string) => id !== kbId);
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 清空知识库选择
     clearKnowledgeBases() {
       this.settings.selectedKnowledgeBases = [];
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 获取选中的知识库列表
@@ -423,18 +473,18 @@ export const useSettingsStore = defineStore("settings", {
     // 本机浏览器与联网搜索可独立选择。
     toggleLocalBrowser(enabled: boolean) {
       this.settings.localBrowserEnabled = enabled;
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     toggleWebSearch(enabled: boolean) {
       this.settings.webSearchEnabled = enabled;
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     // 启用/禁用自动检查更新
     toggleAutoCheckUpdate(enabled: boolean) {
       this.settings.autoCheckUpdate = enabled;
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     // File selection actions
@@ -442,7 +492,7 @@ export const useSettingsStore = defineStore("settings", {
       if (!this.settings.selectedFiles) this.settings.selectedFiles = [];
       if (!this.settings.selectedFiles.includes(fileId)) {
         this.settings.selectedFiles.push(fileId);
-        localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+        this.persistComposerSettings();
       }
     },
 
@@ -450,71 +500,71 @@ export const useSettingsStore = defineStore("settings", {
       if (!this.settings.selectedFiles) return;
       this.settings.selectedFiles = this.settings.selectedFiles.filter((id: string) => id !== fileId);
       if (this.settings.selectedFileKbMap) delete this.settings.selectedFileKbMap[fileId];
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     clearFiles() {
       this.settings.selectedFiles = [];
       this.settings.selectedFileKbMap = {};
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     addTag(tag: { id: string; name: string; kbId: string; kbName?: string }) {
       if (!this.settings.selectedTags) this.settings.selectedTags = [];
       if (!this.settings.selectedTags.some(t => t.id === tag.id && t.kbId === tag.kbId)) {
         this.settings.selectedTags.push(tag);
-        localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+        this.persistComposerSettings();
       }
     },
 
     removeTag(tagId: string, kbId?: string) {
       if (!this.settings.selectedTags) return;
       this.settings.selectedTags = this.settings.selectedTags.filter(t => !(t.id === tagId && (!kbId || t.kbId === kbId)));
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     clearTags() {
       this.settings.selectedTags = [];
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     addMCPService(serviceId: string) {
       if (!this.settings.selectedMCPServices) this.settings.selectedMCPServices = [];
       if (!this.settings.selectedMCPServices.includes(serviceId)) {
         this.settings.selectedMCPServices.push(serviceId);
-        localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+        this.persistComposerSettings();
       }
     },
 
     removeMCPService(serviceId: string) {
       if (!this.settings.selectedMCPServices) return;
       this.settings.selectedMCPServices = this.settings.selectedMCPServices.filter(id => id !== serviceId);
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     addSkill(skillName: string) {
       if (!this.settings.selectedSkills) this.settings.selectedSkills = [];
       if (!this.settings.selectedSkills.includes(skillName)) {
         this.settings.selectedSkills.push(skillName);
-        localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+        this.persistComposerSettings();
       }
     },
 
     removeSkill(skillName: string) {
       if (!this.settings.selectedSkills) return;
       this.settings.selectedSkills = this.settings.selectedSkills.filter(name => name !== skillName);
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     setFileKbMap(updates: Record<string, string>) {
       if (!this.settings.selectedFileKbMap) this.settings.selectedFileKbMap = {};
       Object.assign(this.settings.selectedFileKbMap, updates);
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
 
     removeFileKbId(fileId: string) {
       if (this.settings.selectedFileKbMap) delete this.settings.selectedFileKbMap[fileId];
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     getSelectedFiles(): string[] {
@@ -574,7 +624,7 @@ export const useSettingsStore = defineStore("settings", {
       this.settings.selectedTags = [];
       this.settings.selectedMCPServices = [];
       this.settings.selectedSkills = [];
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+      this.persistComposerSettings();
     },
     
     // 获取选中的智能体ID
@@ -635,7 +685,7 @@ export const useSettingsStore = defineStore("settings", {
         }
         if (state.model_id !== undefined) {
           const current = this.settings.conversationModels || defaultSettings.conversationModels;
-          this.settings.conversationModels = { ...current, selectedChatModelId: state.model_id || "" };
+          this.settings.conversationModels = { ...current, selectedChatModelId: state.model_id || "", summaryModelId: state.model_id || "" };
         }
         // 后端会用 omitempty 省略空列表，所以缺失值表示“本会话没有 KB 范围”，
         // 而不是“保留上一个会话的选择”。后者会把过期的 @KB 继续发给服务端。

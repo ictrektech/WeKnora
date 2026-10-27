@@ -71,7 +71,7 @@ var versionedSQLiteColumns = map[string][]string{
 	"model_catalog_configs": {"version", "overlay", "history", "updated_by", "updated_at"},                     // 000041
 	"memory_subjects":       {"extraction_state"},                                                              // 000112
 	"memory_items":          {"replaces_id"},                                                                   // 000112
-	"tenants":               {"api_principal_config"},                                                          // 000064
+	"tenants":               {"api_principal_config", "patent_workspace_config"},                               // 000064
 	"users":                 {"is_system_admin"},                                                               // 000053
 	"knowledges":            {"pending_subtasks_count", "profile"},                                             // 000056, 000119
 	"knowledge_bases":       {"profile_config", "generated_profile"},                                           // 000119
@@ -101,7 +101,7 @@ var versionedSQLiteColumns = map[string][]string{
 	}, // 000038
 }
 
-const expectedSQLiteMigrationVersion = 60
+const expectedSQLiteMigrationVersion = 61
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

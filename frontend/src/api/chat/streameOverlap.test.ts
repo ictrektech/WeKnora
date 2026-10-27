@@ -18,6 +18,7 @@ type Call = {
 let server: ViteDevServer
 let useStream: typeof import('./streame').useStream
 let transport: { calls: Call[] }
+let mutations: { calls: Array<{ sessionId: string; patch: { title: string } }> }
 const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
 before(async () => {
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
@@ -31,6 +32,8 @@ before(async () => {
       }`,
     '@/utils/index': `export const generateRandomString = () => 'test-request';`,
     '@/i18n': `export default { global: { t: key => key, locale: { value: 'zh-CN' } } };`,
+    '@/components/sessionMutations': `export const calls = [];
+      export const notifySessionMutation = detail => calls.push(detail);`,
   }
   server = await createServer({
     configFile: false,
@@ -48,6 +51,7 @@ before(async () => {
   })
   ;({ useStream } = await server.ssrLoadModule('/src/api/chat/streame.ts'))
   transport = await server.ssrLoadModule('\0mock:@microsoft/fetch-event-source') as typeof transport
+  mutations = await server.ssrLoadModule('\0mock:@/components/sessionMutations') as typeof mutations
 })
 after(async () => {
   await server?.close()
@@ -60,6 +64,51 @@ async function nextCall(count: number): Promise<Call> {
   assert.equal(transport.calls.length, count, 'fetchEventSource was not called')
   return transport.calls[count - 1]
 }
+
+test('title updates reach the sidebar without an active chat and never enter the message replay buffer', async () => {
+  let stream!: ReturnType<typeof useStream>
+  await renderToString(createSSRApp({ setup() { stream = useStream(); return () => null } }))
+  const base = transport.calls.length
+  const mutationBase = mutations.calls.length
+  const run = stream.startStream({ session_id: 'background', query: 'q', method: 'POST', url: '/api/v1/agent-chat' })
+  const post = await nextCall(base + 1)
+  const title = { response_type: 'session_title', content: 'Generated title', done: true,
+    data: { session_id: 'background', title: 'Generated title' } }
+  post.options.onmessage({ data: JSON.stringify(title) })
+  assert.deepEqual(mutations.calls.slice(mutationBase), [
+    { sessionId: 'background', patch: { title: 'Generated title' } },
+  ])
+  assert.deepEqual(stream.drainSessionChunks('background'), [])
+
+  const chunks: any[] = []
+  const off = stream.onChunk(chunk => { chunks.push(chunk); return false })
+  post.options.onmessage({ data: JSON.stringify({ ...title, content: 'Renamed title' }) })
+  assert.equal(mutations.calls.at(-1)?.patch.title, 'Renamed title', 'an inactive chat handler must not swallow title updates')
+  assert.equal(chunks.length, 1, 'embedded title listeners still receive the event')
+  assert.deepEqual(stream.drainSessionChunks('background'), [])
+  off()
+  post.options.onclose()
+  post.resolve()
+  await run
+})
+
+test('invalid titles and superseded streams do not mutate session titles', async () => {
+  let stream!: ReturnType<typeof useStream>
+  await renderToString(createSSRApp({ setup() { stream = useStream(); return () => null } }))
+  const base = transport.calls.length
+  const mutationBase = mutations.calls.length
+  const first = stream.startStream({ session_id: 's', query: 'old', method: 'POST', url: '/api/v1/agent-chat' })
+  const old = await nextCall(base + 1)
+  const second = stream.startStream({ session_id: 's', query: 'new', method: 'POST', url: '/api/v1/agent-chat' })
+  const current = await nextCall(base + 2)
+  old.options.onmessage({ data: JSON.stringify({ response_type: 'session_title', content: 'Stale title' }) })
+  current.options.onmessage({ data: JSON.stringify({ response_type: 'session_title', content: '  ' }) })
+  assert.equal(mutations.calls.length, mutationBase)
+  old.resolve()
+  current.options.onclose()
+  current.resolve()
+  await Promise.all([first, second])
+})
 
 async function overlapping() {
   let stream!: ReturnType<typeof useStream>

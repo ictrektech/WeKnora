@@ -156,6 +156,47 @@
                     </template>
                 </div>
             </template>
+            <template v-else-if="isPatentWorkspacePanel">
+                <div class="legal-panel" :class="{ 'legal-panel--collapsed': uiStore.sidebarCollapsed }">
+                    <button type="button" class="legal-panel-back" :aria-label="t('legalWorkspace.backToPlatform')" @click="returnToMainNavigation">
+                        <TIcon name="chevron-left" size="16px" aria-hidden="true" /><span v-if="!uiStore.sidebarCollapsed">{{ t('legalWorkspace.backToPlatform') }}</span>
+                    </button>
+                    <div v-if="!uiStore.sidebarCollapsed" class="legal-panel-heading"><span>{{ t('patentWorkspace.title') }}</span></div>
+                    <t-tooltip v-for="item in patentNavigation" :key="item.mode" :content="t(item.label)" placement="right" :disabled="!uiStore.sidebarCollapsed">
+                        <button type="button" class="legal-panel-item" :class="{ 'legal-panel-item--active': currentWorkspaceMode === item.mode }"
+                            :aria-label="t(item.label)" @click="router.push(workspaceHome(item.mode))">
+                            <span class="legal-panel-item-icon"><TIcon :name="item.icon" size="18px" aria-hidden="true" /></span>
+                            <span v-if="!uiStore.sidebarCollapsed" class="legal-panel-item-label">{{ t(item.label) }}</span>
+                        </button>
+                    </t-tooltip>
+                    <div v-if="!uiStore.sidebarCollapsed && patentSessions.length" class="legal-panel-sessions" data-testid="patent-session-list">
+                        <div class="legal-panel-sessions__label">{{ t('patentWorkspace.sessions') }}</div>
+                        <div v-for="session in patentSessions" :key="session.id" class="legal-panel-session-row"
+                            :class="{ 'legal-panel-session-row--active': !batchMode && session.path === currentSecondpath, 'legal-panel-session-row--selected': batchMode && batchSelectedIds.includes(session.id) }">
+                            <SessionSidebarRow :item="session" :batch-mode="batchMode" :running="Boolean(sessionActivityEntries[session.id])"
+                                :active-path="currentSecondpath" :selected-ids="batchSelectedIds" :menu-options="buildSessionMenuOptions(session)"
+                                @navigate="gotopage(session.path)" @toggle-select="toggleBatchSelect(session.id)"
+                                @menu-click="handleSessionMenuClick($event, session)" @rename-submit="renameSessionTitle(session, $event.title)"
+                                @hover-in="mouseenteBotDownr(session.id)" @hover-out="mouseleaveBotDown" />
+                        </div>
+                    </div>
+                    <div v-if="!uiStore.sidebarCollapsed && patentExamplesVisible" class="legal-panel-sessions patent-example-sessions" data-testid="patent-example-list" data-assistant-ignore>
+                        <div class="legal-panel-sessions__label">{{ t('patentExamples.sidebarTitle') }}</div>
+                        <p v-if="patentExamplesLoading" class="patent-example-status" role="status">{{ t('patentExamples.loading') }}</p>
+                        <div v-else-if="patentExamplesFailed" class="patent-example-status" role="alert">
+                            <span>{{ t('patentExamples.loadFailed') }}</span>
+                            <t-button size="small" variant="text" @click="loadPatentExamples">{{ t('patentWorkspace.retry') }}</t-button>
+                        </div>
+                        <p v-else-if="!patentExamples.length" class="patent-example-status" :title="t('patentExamples.unavailable')">{{ t('patentExamples.empty') }}</p>
+                        <div v-for="example in patentExamples" :key="example.id" class="legal-panel-session-row"
+                            :class="{ 'legal-panel-session-row--active': route.path === example.path }">
+                            <SessionSidebarRow :item="example" :batch-mode="batchMode" read-only
+                                :active-path="route.path" :selected-ids="[]" :menu-options="[]"
+                                @navigate="openPatentExample(example.path)" />
+                        </div>
+                    </div>
+                </div>
+            </template>
             <template v-else>
             <!-- 全局搜索入口：点击打开命令面板（⌘K）。展开态移至顶部 logo_row 的图标按钮；
                  折叠态在此处保留为图标项 + 深色 tooltip。 -->
@@ -194,7 +235,7 @@
                         :class="['menu_item', item.childrenPath && item.childrenPath == currentpath ? 'menu_item_c_active' : isMenuItemActive(item.path) ? 'menu_item_active' : '']">
                         <div class="menu_item-box">
                             <div class="menu_icon" :class="`menu_icon--${item.icon}`">
-                                <TIcon v-if="item.icon === 'institution'" :name="item.icon" size="18px" aria-hidden="true" />
+                                <TIcon v-if="item.icon === 'institution' || item.icon === 'file-search'" :name="item.icon" size="18px" aria-hidden="true" />
                                 <img class="icon"
                                     v-else
                                     :src="getImgSrc(item.icon == 'zhishiku' ? knowledgeIcon : item.icon == 'agent' ? agentIcon : item.icon == 'artifact' ? artifactIcon : item.icon == 'automation' ? automationIcon : item.icon == 'toolbox' ? toolboxIcon : item.icon == 'organization' ? organizationIcon : item.icon == 'logout' ? logoutIcon : item.icon == 'setting' ? settingIcon : prefixIcon)"
@@ -380,6 +421,9 @@ import { useMenuStore } from '@/stores/menu';
 import { useSessionActivityStore } from '@/stores/sessionActivity';
 import { useAuthStore } from '@/stores/auth';
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities';
+import { isPatentMode, isPatentRoute, routeWorkspaceMode, workspaceHome, workspaceChatPath } from '@/utils/workspaceMode';
+import { usePatentWorkspaceStore } from '@/stores/patentWorkspace';
+import { listPatentExamples } from '@/api/patent-examples';
 import { useLegalWorkspaceStore } from '@/stores/legalWorkspace';
 import { TOOLBOX_ITEMS, canAccessToolboxSection } from '@/config/toolbox';
 import BrowserIcon from '@/components/icons/BrowserIcon.vue';
@@ -438,6 +482,7 @@ let sessionActivityTimer: ReturnType<typeof setInterval> | undefined;
 const authStore = useAuthStore();
 const deploymentCapabilities = useDeploymentCapabilitiesStore();
 const legalWorkspace = useLegalWorkspaceStore();
+const patentWorkspace = usePatentWorkspaceStore();
 const toolboxPreview = computed(() => TOOLBOX_ITEMS.filter((item) => canAccessToolboxSection(item.key, {
     currentTenantRole: authStore.currentTenantRole,
     canAccessAllTenants: authStore.canAccessAllTenants,
@@ -518,10 +563,49 @@ const batchMode = ref(false)
 const batchSelectedIds = ref<string[]>([])
 const batchDeleting = ref(false)
 
+const currentWorkspaceMode = computed(() => isLegalWorkspaceRouteName(route.name) ? 'legal_assistant' : routeWorkspaceMode(route.name));
+const isPatentWorkspacePanel = computed(() => isPatentRoute(route.name));
+const patentNavigation = [
+    { mode: 'patent_search', label: 'patentWorkspace.search', icon: 'file-search' },
+    { mode: 'patent_writing', label: 'patentWorkspace.writing', icon: 'edit-1' },
+];
 const isSessionInCurrentWorkspace = (session: { workspace_mode?: string }): boolean =>
-    isLegalWorkspaceRouteName(route.name)
+    currentWorkspaceMode.value === 'legal_assistant'
         ? session.workspace_mode === 'legal_assistant'
-        : session.workspace_mode !== 'legal_assistant';
+        : currentWorkspaceMode.value === 'platform'
+            ? session.workspace_mode !== 'legal_assistant' && !isPatentMode(session.workspace_mode)
+            : session.workspace_mode === currentWorkspaceMode.value;
+const patentSessions = computed(() => ((menuArr.value as unknown as MenuItem[]).find(item => item.path === 'creatChat')?.children || []).filter(isSessionInCurrentWorkspace));
+const patentExamples = ref<Array<{ id: string; title: string; path: string }>>([]);
+const patentExamplesLoading = ref(false);
+const patentExamplesFailed = ref(false);
+const patentExamplesVisible = computed(() => isPatentWorkspacePanel.value && patentWorkspace.loaded && patentWorkspace.enabled && patentWorkspace.examplesEnabled && !patentWorkspace.loadError);
+let patentExamplesGeneration = 0;
+async function loadPatentExamples() {
+    const current = ++patentExamplesGeneration;
+    const mode = currentWorkspaceMode.value;
+    patentExamples.value = [];
+    patentExamplesFailed.value = false;
+    patentExamplesLoading.value = false;
+    if (!patentExamplesVisible.value || !isPatentMode(mode)) return;
+    patentExamplesLoading.value = true;
+    try {
+        const response = await listPatentExamples(mode);
+        if (current !== patentExamplesGeneration) return;
+        patentExamples.value = response.data.examples.filter(entry => entry.workspace_mode === mode).map(entry => ({
+            id: entry.id, title: entry.title, path: `${workspaceHome(mode)}/examples/${entry.id}`,
+        }));
+    } catch {
+        if (current === patentExamplesGeneration) patentExamplesFailed.value = true;
+    } finally {
+        if (current === patentExamplesGeneration) patentExamplesLoading.value = false;
+    }
+}
+function openPatentExample(path: string) {
+    exitBatchMode();
+    void router.push(path);
+}
+watch(() => [currentWorkspaceMode.value, authStore.effectiveTenantId, patentExamplesVisible.value], loadPatentExamples, { immediate: true, flush: 'sync' });
 
 const allSessionIds = computed(() => {
     const chatMenu = (menuArr.value as unknown as MenuItem[]).find((item: MenuItem) => item.path === 'creatChat');
@@ -605,6 +689,8 @@ const isMenuItemActive = (itemPath: string): boolean => {
             return currentRoute === 'kbCreatChat' || currentRoute === 'globalCreatChat';
         case 'legal':
             return isLegalWorkspaceRouteName(currentRoute);
+        case 'patent':
+            return isPatentRoute(currentRoute);
         case 'settings':
             return currentRoute === 'settings';
         default:
@@ -633,11 +719,11 @@ const getIconActiveState = (itemPath: string) => {
 const TOP_MENU_PATHS = new Set(['creatChat', 'knowledge-bases', 'artifacts', 'agents', 'automations', 'toolbox', 'organizations']);
 
 const topMenuItems = computed<MenuItem[]>(() => {
-    return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) => TOP_MENU_PATHS.has(item.path) || item.path === 'legal');
+    return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) => TOP_MENU_PATHS.has(item.path) || item.path === 'legal' || item.path === 'patent');
 });
 
 const bottomMenuItems = computed<MenuItem[]>(() => {
-    return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) => !TOP_MENU_PATHS.has(item.path) && item.path !== 'legal');
+    return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) => !TOP_MENU_PATHS.has(item.path) && item.path !== 'legal' && item.path !== 'patent');
 });
 
 // 当前知识库信息
@@ -791,7 +877,7 @@ const handleInlineBatchDelete = () => {
                     syncMenuStoreFromBuckets();
                     const currentChatId = route.params.chatid as string;
                     if (currentChatId && selectedIds.includes(currentChatId)) {
-                        router.push(isLegalAssistantRouteName(route.name) ? legalAssistantHomePath : '/platform/creatChat');
+                        router.push(workspaceHome(currentWorkspaceMode.value));
                     }
                     batchSelectedIds.value = []
                     MessagePlugin.success(t('batchManage.deleteSuccess'))
@@ -903,7 +989,7 @@ const debounce = (fn: (...args: any[]) => void, delay: number) => {
 }
 const mapSessionRow = (item: any) => ({
     title: item.title ? item.title : t('menu.newSession'),
-    path: item.workspace_mode === 'legal_assistant' ? `legal-assistant/chat/${item.id}` : `chat/${item.id}`,
+    path: workspaceChatPath(item.workspace_mode, item.id).replace('/platform/', ''),
     id: item.id,
     isMore: false,
     isNoTitle: item.title ? false : true,
@@ -932,7 +1018,7 @@ const menuChildToSessionRow = (item: Record<string, unknown>): SessionForGroupin
         id,
         path: typeof item.path === 'string'
             ? item.path
-            : workspaceMode === 'legal_assistant' ? `legal-assistant/chat/${id}` : `chat/${id}`,
+            : workspaceChatPath(workspaceMode, id).replace('/platform/', ''),
         title: typeof item.title === 'string' ? item.title : undefined,
         is_pinned: !!item.is_pinned,
         created_at: typeof item.created_at === 'string' ? item.created_at : undefined,
@@ -970,7 +1056,7 @@ const ensureSessionInSidebar = (sessionId: string) => {
 const insertCreatedSessionInSidebar = (session: SessionMutationSession): boolean => {
     const sessionId = String(session.id || '');
     const web = sessionBuckets.value.web;
-    if (!sessionId || !web) return false;
+    if (!sessionId || !web || !isSessionInCurrentWorkspace(session)) return false;
     if (sessionExistsInBuckets(sessionId)) {
         pendingCreatedSessions.delete(sessionId);
         return true;
@@ -1002,7 +1088,7 @@ const rebuildBucketDefinitions = () => buildBucketDefinitions(
         embedChannel: (name) => name,
         api: t('menu.apiChats'),
     },
-    { includeAdminChannelBuckets: authStore.hasRole('admin') },
+    { includeAdminChannelBuckets: currentWorkspaceMode.value === 'platform' && authStore.hasRole('admin') },
 );
 
 /** 首屏轻量探测各渠道是否有会话（page_size=1 只取 total），避免展示空文件夹 */
@@ -1013,7 +1099,7 @@ const probeChannelBucketCounts = async (keys: string[], token: number) => {
             const bucket = sessionBuckets.value[key];
             if (!bucket) return;
             try {
-                const res: any = await getSessionsList(1, 1, bucket.apiSource);
+                const res: any = await getSessionsList(1, 1, bucket.apiSource, undefined, currentWorkspaceMode.value);
                 if (token !== bucketRequestToken) return;
                 sessionBuckets.value = {
                     ...sessionBuckets.value,
@@ -1042,7 +1128,7 @@ const loadBucketPage = async (key: string, page?: number, token?: number) => {
     };
 
     try {
-        const res: any = await getSessionsList(nextPage, SIDEBAR_BUCKET_PAGE_SIZE, bucket.apiSource);
+        const res: any = await getSessionsList(nextPage, SIDEBAR_BUCKET_PAGE_SIZE, bucket.apiSource, undefined, currentWorkspaceMode.value);
         if (activeToken !== bucketRequestToken) return;
         const rows = (res?.data || []).map((item: any) => mapSessionRow(item));
         const current = sessionBuckets.value[key];
@@ -1221,21 +1307,34 @@ const handleSessionMutation = (event: Event) => {
         sessionBuckets.value = removeSessionFromBuckets(sessionBuckets.value, detail.sessionId);
         syncMenuStoreFromBuckets();
         if (detail.sessionId === route.params.chatid) {
-            router.push(isLegalAssistantSessionRoute.value ? legalAssistantHomePath : '/platform/creatChat');
+            router.push(workspaceHome(currentWorkspaceMode.value));
         }
     }
 };
 
+const handlePatentDataDeleted = () => {
+    pendingCreatedSessions.clear();
+    void initSessionBuckets();
+    if (isPatentWorkspacePanel.value && route.params.chatid) void router.replace(workspaceHome(currentWorkspaceMode.value));
+};
+watch(() => patentWorkspace.enabled, enabled => {
+    if (!enabled && isPatentWorkspacePanel.value) void router.replace('/platform/knowledge-bases');
+    void initSessionBuckets();
+});
+watch(() => authStore.effectiveTenantId, () => {
+    pendingCreatedSessions.clear();
+    exitBatchMode();
+    void initSessionBuckets();
+});
 onMounted(async () => {
+    window.addEventListener('patent-workspace-data-deleted', handlePatentDataDeleted);
     sessionActivity.restore();
     void sessionActivity.refresh();
     sessionActivityTimer = setInterval(() => { void sessionActivity.refresh(); }, 5000);
     const routeName = typeof route.name === 'string' ? route.name : (route.name ? String(route.name) : '')
     currentpath.value = routeName;
     if (route.params.chatid) {
-        currentSecondpath.value = route.name === LEGAL_ASSISTANT_CHAT_ROUTE
-            ? `legal-assistant/chat/${route.params.chatid}`
-            : `chat/${route.params.chatid}`;
+        currentSecondpath.value = workspaceChatPath(currentWorkspaceMode.value, String(route.params.chatid)).replace('/platform/', '');
     }
 
     window.addEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);
@@ -1244,6 +1343,7 @@ onMounted(async () => {
     // list. The optimistic store default keeps existing deployments visible
     // until the server responds, and a disabled flag removes the entry.
     void legalWorkspace.load().catch(() => undefined);
+    void patentWorkspace.load().catch(() => undefined);
 
     isLiteEdition.value = authStore.isLiteMode
     editorResources.ensureSystemInfo().then(() => {
@@ -1278,6 +1378,8 @@ watch(
 );
 
 onUnmounted(() => {
+    patentExamplesGeneration++;
+    window.removeEventListener('patent-workspace-data-deleted', handlePatentDataDeleted);
     clearInterval(sessionActivityTimer);
     clearTimeout(forkRevealTimer);
     sessionActivity.clear();
@@ -1289,16 +1391,19 @@ watch([() => route.name, () => route.params], (newvalue, oldvalue) => {
     const oldName = typeof oldvalue?.[0] === 'string' ? oldvalue[0] : (oldvalue?.[0] ? String(oldvalue[0]) : '')
     currentpath.value = nameStr;
 
-    const hasSessionList = nameStr === 'globalCreatChat' || nameStr === 'kbCreatChat' || nameStr === 'chat' || isLegalAssistantRouteName(nameStr);
-    const sessionScopeChanged = isLegalAssistantRouteName(nameStr) !== isLegalAssistantRouteName(oldName);
+    const hasSessionList = nameStr === 'globalCreatChat' || nameStr === 'kbCreatChat' || nameStr === 'chat' || isLegalAssistantRouteName(nameStr) || isPatentRoute(nameStr);
+    const sessionScopeChanged = routeWorkspaceMode(nameStr) !== routeWorkspaceMode(oldName);
+    if (sessionScopeChanged) {
+        pendingCreatedSessions.clear();
+        activeSessionBucketKey.value = DEFAULT_SESSION_BUCKET_KEY;
+        void initSessionBuckets();
+    }
     if ((!hasSessionList || sessionScopeChanged) && batchMode.value) {
         exitBatchMode();
     }
 
     if (newvalue[1].chatid) {
-        currentSecondpath.value = nameStr === LEGAL_ASSISTANT_CHAT_ROUTE
-            ? `legal-assistant/chat/${newvalue[1].chatid}`
-            : `chat/${newvalue[1].chatid}`;
+        currentSecondpath.value = workspaceChatPath(currentWorkspaceMode.value, String(newvalue[1].chatid)).replace('/platform/', '');
     } else {
         currentSecondpath.value = "";
     }
@@ -1306,7 +1411,7 @@ watch([() => route.name, () => route.params], (newvalue, oldvalue) => {
     // 创建新会话时 creatChat 会先 updataMenuChildren，再跳转 chat/:id。
     // 侧栏实际渲染 sessionBuckets，需按 buckets 判断是否缺失，不能把 menuStore 当真相来源。
     const newChatId = (newvalue[1] as any)?.chatid as string | undefined;
-    if ((nameStr === 'chat' || nameStr === LEGAL_ASSISTANT_CHAT_ROUTE) && newChatId) {
+    if ((nameStr === 'chat' || nameStr === LEGAL_ASSISTANT_CHAT_ROUTE || isPatentRoute(nameStr)) && newChatId) {
         ensureSessionInSidebar(newChatId);
         void syncActiveBucketFromChat(newChatId);
     }
@@ -1377,6 +1482,8 @@ const handleMenuClick = async (path: string) => {
     } else if (path === 'organizations') {
         // 组织菜单项：跳转到组织列表
         router.push('/platform/organizations')
+    } else if (path === 'patent') {
+        router.push('/platform/patent/search')
     } else if (path === 'legal') {
         router.push('/platform/contract-review')
     } else if (path === 'settings') {
@@ -1434,7 +1541,9 @@ const gotopage = async (path: string) => {
         router.push('/login');
         return;
     } else {
-        if (path === 'legal') {
+        if (path === 'patent') {
+            router.push('/platform/patent/search')
+        } else if (path === 'legal') {
             router.push('/platform/contract-review')
         } else if (path === 'creatChat') {
             // 如果在知识库详情页，跳转到全局对话创建页
@@ -1720,6 +1829,15 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         padding: 0 12px 5px;
         color: var(--td-text-color-placeholder);
         font-size: 11px;
+    }
+
+    .patent-example-sessions { user-select: none; }
+    .patent-example-status {
+        margin: 0;
+        padding: 4px 12px;
+        color: var(--td-text-color-placeholder);
+        font-size: var(--app-text-sm);
+        line-height: 1.5;
     }
 
     .legal-panel-session-row {

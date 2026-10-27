@@ -48,6 +48,7 @@
       <ClawSkillLanding v-if="tab === 'claw'" />
       <CliIntegrationLanding v-if="tab === 'cli'" />
       <LegalWorkspaceSettings v-if="tab === 'legal'" />
+      <PatentWorkspaceSettings v-if="tab === 'patent'" />
     </div>
   </div>
 </template>
@@ -62,6 +63,7 @@ import McpServerIntegrationSettings from '@/views/integrations/McpServerIntegrat
 import ChromeExtensionLanding from '@/views/integrations/ChromeExtensionLanding.vue'
 import ClawSkillLanding from '@/views/integrations/ClawSkillLanding.vue'
 import CliIntegrationLanding from '@/views/integrations/CliIntegrationLanding.vue'
+import PatentWorkspaceSettings from '@/views/settings/PatentWorkspaceSettings.vue'
 import LegalWorkspaceSettings from '@/views/settings/LegalWorkspaceSettings.vue'
 import type { IntegrationTab } from '@/config/integrations'
 import { docsUrl } from '@/utils/docsUrl'

@@ -22,7 +22,7 @@ test('legal assistant creation uses the dedicated endpoint and preserves the leg
   const menu = readFileSync(join(here, 'components/menu.vue'), 'utf8')
   assert.match(api, /legal-assistant\/sessions/)
   assert.match(home, /workspace-mode="legal_assistant"/)
-  assert.match(creatChat, /legal-assistant\/chat\//)
+  assert.match(creatChat, /workspaceChatPath\(props.workspaceMode, sessionId\)/)
   assert.match(creatChat, /legalAssistant\.homeGreeting/)
   assert.match(creatChat, /workspace_mode: 'legal_assistant'/)
   assert.match(creatChat, /createLegalAssistantSession/)

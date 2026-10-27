@@ -351,7 +351,7 @@ func (h *Handler) IssueSandboxTerminalTicket(c *gin.Context) {
 		return
 	}
 	if _, err := h.sessionService.GetOwnedSession(ctx, sessionID); err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}

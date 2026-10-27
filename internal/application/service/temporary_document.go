@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -277,11 +278,16 @@ func (s *temporaryDocumentService) Delete(ctx context.Context, tenantID uint64, 
 	for _, ref := range temporaryDocumentImageRefs(document.ImageRefs) {
 		refs[ref.URL] = struct{}{}
 	}
+	var cleanupErr error
 	for ref := range refs {
 		if err := s.releaseResource(ctx, document.ID, ref); err != nil {
+			cleanupErr = errors.Join(cleanupErr, err)
 			logger.Warnf(ctx, "keeping attachment resource after cleanup failure: document_id=%s err=%v",
 				document.ID, err)
 		}
+	}
+	if cleanupErr != nil {
+		return cleanupErr
 	}
 	return s.repo.DeleteScoped(ctx, tenantID, sessionID, documentID)
 }
@@ -295,6 +301,9 @@ func (s *temporaryDocumentService) releaseResource(ctx context.Context, document
 	}
 	if s.resourceCatalog != nil {
 		remaining, err := s.resourceCatalog.Release(ctx, ref, types.ResourceOwnerTemporaryDocument, documentID)
+		if errors.Is(err, ErrResourceNotFound) {
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("release attachment resource: %w", err)
 		}
@@ -302,7 +311,7 @@ func (s *temporaryDocumentService) releaseResource(ctx context.Context, document
 			return nil
 		}
 	}
-	return s.fileService.DeleteFile(ctx, ref)
+	return deleteFileIfPresent(ctx, s.fileService, s.resourceCatalog, ref)
 }
 
 func temporaryDocumentImageRefs(raw types.JSON) []types.TemporaryDocumentImage {
@@ -320,10 +329,15 @@ func (s *temporaryDocumentService) CleanupExpired(ctx context.Context) error {
 		if len(documents) == 0 {
 			return nil
 		}
+		var cleanupErr error
 		for _, document := range documents {
 			if err := s.Delete(ctx, document.TenantID, document.SessionID, document.ID); err != nil {
 				logger.Warnf(ctx, "cleanup temporary document failed: document_id=%s err=%v", document.ID, err)
+				cleanupErr = errors.Join(cleanupErr, err)
 			}
+		}
+		if cleanupErr != nil {
+			return cleanupErr
 		}
 		if len(documents) < 100 {
 			return nil

@@ -129,7 +129,9 @@ func (s *sessionService) AgentQA(
 	}
 
 	// Resolve model ID using shared helper (AgentQA requires a model, so error if not found)
-	effectiveModelID, err := s.resolveChatModelID(ctx, req, agentConfig.KnowledgeBases, agentConfig.KnowledgeIDs)
+	effectiveModelID, modelTenantID, err := s.resolveChatModelID(
+		ctx, req, agentConfig.KnowledgeBases, agentConfig.KnowledgeIDs,
+	)
 	if err != nil {
 		return err
 	}
@@ -138,7 +140,8 @@ func (s *sessionService) AgentQA(
 		return errors.New("summary model (model_id) is not configured in custom agent settings")
 	}
 
-	summaryModel, err := s.modelService.GetChatModel(ctx, effectiveModelID)
+	modelCtx := types.WithExecutionTenant(ctx, modelTenantID)
+	summaryModel, err := s.modelService.GetChatModel(modelCtx, effectiveModelID)
 	if err != nil {
 		logger.Warnf(ctx, "Failed to get chat model: %v", err)
 		return fmt.Errorf("failed to get chat model: %w", err)
@@ -151,7 +154,7 @@ func (s *sessionService) AgentQA(
 	var agentModelSupportsVision bool
 	modelContextWindow := 0
 	if effectiveModelID != "" {
-		if modelInfo, err := s.modelService.GetModelByID(ctx, effectiveModelID); err == nil && modelInfo != nil {
+		if modelInfo, err := s.modelService.GetModelByID(modelCtx, effectiveModelID); err == nil && modelInfo != nil {
 			agentModelSupportsVision = modelInfo.Parameters.SupportsVision
 			modelContextWindow = modelInfo.Parameters.ContextWindow
 			agentConfig.ModelMaxOutputTokens = modelMaxOutputTokens(modelInfo)
@@ -318,7 +321,7 @@ func (s *sessionService) AgentQA(
 
 	// Recall long-term memory for this turn. Like the RAG path this is a
 	// no-model read, and an agent may opt out of it entirely.
-	memoryCtx := types.ApplyAgentMemoryPreference(ctx, agentConfig.MemoryEnabled)
+	memoryCtx := types.ApplySessionMemoryPreference(ctx, req.Session, agentConfig.MemoryEnabled)
 	if s.memoryService != nil {
 		recall := s.memoryService.Recall(memoryCtx, req.Query)
 		if recall.Prompt != "" {

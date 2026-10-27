@@ -82,6 +82,10 @@ func (h *Handler) RewindSession(c *gin.Context) {
 		ctx, tenantID, userID, sessionID, strings.TrimSpace(req.MessageID),
 	)
 	if err != nil {
+		if stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) || stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			c.Error(errors.NewForbiddenError(err.Error()))
+			return
+		}
 		if stderrors.Is(err, service.ErrRewindSourceBusy) {
 			c.JSON(http.StatusConflict, gin.H{
 				"success": false,

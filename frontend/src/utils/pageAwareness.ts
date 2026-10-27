@@ -37,6 +37,11 @@ export function selectedTextControl(): TextControl | null {
 
 /** What is selected on the page now; undefined keeps the last selection. */
 function readSelection(): PageSelectionInfo | null | undefined {
+  // Display-only recordings must stay out of context even when Select All spans the page.
+  if (document.querySelector('[data-assistant-ignore="page"]')) {
+    selectedField = null
+    return null
+  }
   const active = document.activeElement
   // Typing to the assistant moves the focus there; the page keeps its selection.
   if (active && active !== document.body && isAssistantUI(active)) return undefined

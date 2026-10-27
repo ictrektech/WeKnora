@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import { onUnmounted } from 'vue'
+import { onBeforeUnmount } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 
 const settings = useSettingsStore()
@@ -13,7 +13,7 @@ const settings = useSettingsStore()
 // Apply before the nested composer mounts so its initial resource loads use
 // legal preferences rather than the ordinary chat profile.
 settings.enterLegalAssistant()
-onUnmounted(() => settings.leaveLegalAssistant())
+onBeforeUnmount(() => settings.leaveLegalAssistant())
 </script>
 
 <style scoped>

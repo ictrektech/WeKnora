@@ -217,7 +217,7 @@ func (h *MessageHandler) LoadMessages(c *gin.Context) {
 		logger.Infof(ctx, "Getting recent messages for session, session ID: %s, limit: %d", sessionID, limitInt)
 		messages, err := h.MessageService.GetRecentMessagesBySession(ctx, sessionID, limitInt)
 		if err != nil {
-			if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+			if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 				c.Error(errors.NewForbiddenError(err.Error()))
 				return
 			}
@@ -265,7 +265,7 @@ func (h *MessageHandler) LoadMessages(c *gin.Context) {
 		sessionID, beforeTime.Format(time.RFC3339Nano), limitInt)
 	messages, err := h.MessageService.GetMessagesBySessionBeforeTime(ctx, sessionID, beforeTime, limitInt)
 	if err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}
@@ -318,7 +318,7 @@ func (h *MessageHandler) DeleteMessage(c *gin.Context) {
 
 	// Delete the message using the message service
 	if err := h.MessageService.DeleteMessage(ctx, sessionID, messageID); err != nil {
-		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) {
+		if stderrors.Is(err, errors.ErrLegalWorkspaceDisabled) || stderrors.Is(err, errors.ErrPatentWorkspaceDisabled) {
 			c.Error(errors.NewForbiddenError(err.Error()))
 			return
 		}

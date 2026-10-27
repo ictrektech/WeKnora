@@ -3,6 +3,7 @@ import { ref, onUnmounted } from 'vue';
 import { generateRandomString } from '@/utils/index';
 import i18n from '@/i18n';
 import { getApiBaseUrl } from '@/utils/api-base';
+import { notifySessionMutation } from '@/components/sessionMutations';
 import type { AssistantAccessLevel } from '@/api/assistant';
 export type { CollaborationStatus, CollaborationTaskStatus, CollaborationProgress,
   CollaborationStatusStreamEvent, ProgressStreamEvent, AgentStepRecord, ChatHistoryMessage } from './streamTypes';
@@ -23,7 +24,16 @@ const pendingChunks = new Map<string, any[]>()
 const chunkHandlers = new Set<StreamChunkHandler>()
 
 const dispatchChunk = (chunk: any) => {
-  let handled = false
+  // Titles update shared session state even when their chat view is unmounted.
+  const isTitle = chunk.response_type === 'session_title'
+  if (isTitle) {
+    const sessionId = chunk.__stream_session_id || chunk.data?.session_id
+    const title = chunk.content || chunk.data?.title
+    if (sessionId && typeof title === 'string' && title.trim()) {
+      notifySessionMutation({ sessionId, patch: { title } })
+    }
+  }
+  let handled = isTitle
   chunkHandlers.forEach((handler) => {
     try {
       if (handler(chunk) === true) handled = true
