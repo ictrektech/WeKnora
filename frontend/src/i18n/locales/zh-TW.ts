@@ -6637,7 +6637,15 @@ export default {
       "providerDeleted": "搜尋引擎設定已刪除",
       "testSuccess": "連接測試成功",
       "testFailed": "連接測試失敗"
-    }
+    },
+    clients: {
+      label: '搜尋與網頁讀取',
+      search: '搜尋',
+      fetch: '網頁讀取',
+      viaApi: '{name} API',
+      local: '內建網頁讀取器',
+      help: '搜尋結果由該引擎回傳；智慧體讀取網頁內文時使用上方的網頁讀取方式。'
+    },
   },
   "settings": {
     "modelManagement": "模型管理",
@@ -8551,7 +8559,11 @@ export default {
       "welcome": {
         "title": "歡迎使用 WeKnora",
         "desc": "只需幾步，帶你快速瞭解知識庫、對話與智能體的核心用法。點擊「下一步」開始。"
-      }
+      },
+      assistant: {
+        title: '認識 WeKnora 助手',
+        desc: '可以詢問 WeKnora 的版本、功能與設定，也可以結合目前頁面，以你的身分建立智慧代理、設定定時任務或整理知識。'
+      },
     }
   },
   "chatHeader": {
@@ -10037,4 +10049,72 @@ export default {
     "disabledMessage": "專利工作台目前已關閉。"
   }
 
+,
+  defaultSettings: {
+    loadFailed: '預設設定載入失敗，請重試後再編輯。',
+    title: '預設設定',
+    description: '集中管理本空間各項功能預設使用的模型和搜尋引擎。',
+    introTitle: '資源未單獨指定時使用這裡的預設值',
+    introDescription: '智慧體、知識庫或單次對話明確選擇的模型優先；未選擇時使用這裡的空間預設；空間也未設定時，使用部署內建的預設模型。',
+    readOnly: '僅空間管理員可以修改，你可以查看目前生效的預設值。',
+    modelGroup: '模型',
+    webSearchGroup: '網路搜尋',
+    unsetPlaceholder: '未設定（使用系統預設）',
+    followChatPlaceholder: '未設定（跟隨預設對話模型）',
+    slots: {
+      chat: {
+        label: '預設對話模型',
+        description: '新建智慧體和問答預設使用，也作為背景任務的備援模型。',
+        none: '空間內沒有可用的對話模型，問答和背景生成將無法使用。',
+      },
+      utility: {
+        label: '輕量生成模型',
+        description: '用於生成會話標題、MCP 服務使用說明、記憶擷取等短文字任務，可選更快更便宜的模型。',
+        none: '空間內沒有可用的對話模型，標題和說明生成將無法使用。',
+      },
+      embedding: {
+        label: '預設 Embedding 模型',
+        description: '新建知識庫時預設選用。既有知識庫不受影響。',
+        none: '空間內沒有可用的 Embedding 模型，無法新建知識庫。',
+      },
+      rerank: {
+        label: '預設 Rerank 模型',
+        description: '未單獨設定重排模型的檢索和內建智慧體使用。',
+        none: '空間內沒有可用的 Rerank 模型，檢索將依召回順序返回。',
+      },
+      vlm: {
+        label: '預設視覺模型',
+        description: '用於圖片理解和多模態解析的預設選擇。',
+        none: '空間內沒有可用的視覺模型，圖片理解不可用。',
+      },
+      asr: {
+        label: '預設語音辨識模型',
+        description: '用於影音轉寫的預設選擇。',
+        none: '空間內沒有可用的語音辨識模型，影音轉寫不可用。',
+      },
+    },
+    hints: {
+      workspace: '使用空間設定。',
+      system: '未設定，目前使用系統預設：{name}',
+      auto: '未設定，目前自動使用第一個可用模型：{name}',
+      followChat: '未設定，跟隨預設對話模型：{name}',
+      staleFallback: '所選模型已刪除或不可用，目前回退到：{name}',
+      staleNone: '所選模型已刪除或不可用，且沒有可回退的模型。',
+    },
+    webSearch: {
+      label: '預設搜尋引擎',
+      description: '未單獨指定搜尋引擎的智慧體開啟聯網搜尋時使用。',
+      unset: '未設定預設搜尋引擎，未單獨指定搜尋引擎的智慧體將無法聯網搜尋。',
+      placeholder: '選擇搜尋引擎',
+    },
+    toasts: {
+      saveSuccess: '預設設定已儲存',
+      saveFailed: '儲存失敗：{message}',
+    },
+  },
+  assistantEntryGuide: {
+    stepOf: 'v0.9.0 新功能',
+    skip: '知道了',
+    interactHint: '點擊反白的入口，開啟助手試試。',
+  },
 }

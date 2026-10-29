@@ -4,6 +4,8 @@
 
 开发分支的上游整合、兼容取舍及验证范围见[上游同步记录](docs/upstream-sync.md)。源码合并后仍须完成镜像与 VOS 包发布，已安装应用才会获得更新。
 
+源码已合入空间默认模型设置：在「设置 → 默认设置」配置各用途模型；显式选择的资源模型优先，清空时恢复部署默认回退。用法见[默认模型](../website-docs/03-features/06-models.md#workspace-defaults)，新增迁移编号及隔离升级结果见[本轮同步记录](docs/upstream-sync.md#2026-10-29-上游整合记录)。
+
 当前只发布 pull 模式安装包：本地 `update_version.sh` 负责更新版本、创建 release commit 和触发 tag，GitHub Actions 负责读取飞书和依赖 release、打包并发布正式 release。需要把 VOS changelog 随版本一起提交时，先用 `$cl` 准备并审核 `ictrek.app/CHANGELOG.md`，再使用 `--with-changelog`。
 
 后端镜像在 appuser 与 root 的默认 DuckDB 缓存目录均预装同版本 spatial/excel 扩展。VOS root 模式启动不依赖外网下载扩展，也不需要禁用 DuckDB 或 XLSX 能力。

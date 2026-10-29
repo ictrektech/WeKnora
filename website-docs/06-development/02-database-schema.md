@@ -20,14 +20,14 @@ WeKnora 使用版本化迁移维护数据库结构，PostgreSQL 与 SQLite 分�
 
 ```text
 migrations/
-├── versioned/     # PostgreSQL/ParadeDB 版本化迁移：000000-000141
-├── sqlite/        # SQLite 迁移：000000_init（压平的全量 schema）+ 000001-000047 增量版本
+├── versioned/     # PostgreSQL/ParadeDB 版本化迁移：000000-000157
+├── sqlite/        # SQLite 迁移：000000_init（压平的全量 schema）+ 000001-000062 增量版本
 ├── paradedb/      # ParadeDB 附加脚本：00-init-db.sql、01-migrate-to-paradedb.sql（存量库切换）
 └── mysql/         # 00-init-db.sql，遗留的一次性 MySQL 建表脚本（未接入代码）
 ```
 
-- PostgreSQL 的 `versioned/` 从 `000000_init` 到 fork 迁移 `000141_agent_prompts`；上游迁移编号与 fork 的对应关系见下表。
-- `sqlite/` 以 `000000_init` 作为压平后的全量初始化（JSONB→TEXT、SERIAL→AUTOINCREMENT 等方言差异已适配），增量迁移到 fork 版本 `000047_agent_prompts`，同样由 golang-migrate 顺序执行。
+- PostgreSQL 的 `versioned/` 从 `000000_init` 到 fork 迁移 `000157_tenant_default_settings`；上游迁移编号与 fork 的对应关系见下表。
+- `sqlite/` 以 `000000_init` 作为压平后的全量初始化（JSONB→TEXT、SERIAL→AUTOINCREMENT 等方言差异已适配），增量迁移到 fork 版本 `000062_tenant_default_settings`，同样由 golang-migrate 顺序执行。
 - `uuid-ossp`、`vector`、`pg_trgm`、`pg_search` 等扩展由 `versioned/` 迁移自行创建；BM25 索引使用中文 Lindera 分词器建在 `embeddings.content` 上。
 - `paradedb/00-init-db.sql` 含旧版建表语句，**没有被 compose 或代码引用**。不要把它挂成数据库 initdb 脚本：它先建出的旧表会让 `000000_init` 失败。
 
@@ -52,7 +52,7 @@ migrations/
 | 000078 | 分块编辑与自定义元数据 | `chunks` 增加 `source_content`/`content_revision`/`index_status`/`last_editor_id`/`context_header`，新增 `chunk_revisions` 表，`knowledges` 增加 `custom_metadata` |
 | 000079 | 上游合并修复 | Wiki 与租户 API key 兼容修复 |
 
-### Fork 迁移编号（000080–000140） {#_2-2-fork-迁移编号-000080–000132}
+### Fork 迁移编号（000080–000157） {#_2-2-fork-迁移编号-000080–000132}
 
 迁移编号以下表中的 fork 版本为准。上游最近增加的 PG 迁移经重编号后与 fork 的对应关系列在“上游 PG”列。
 
@@ -94,6 +94,10 @@ migrations/
 | 000139 | 000117 | 活跃用户消息附件引用索引，供过期附件保留检查使用 |
 | 000140 | 000118 | MCP OAuth 时间戳改为带时区类型；已有字面值按 UTC 解释 |
 | 000141 | 000119 | 智能体人工交互提示与暂停状态表、`messages.run_state` |
+| 000142–000150 | 000120–000128 | 助手配置、会话种类、飞书重同步、资源索引、协作、空图片清理、工具风险、授权及自动化 |
+| 000151–000155 | 000129–000133 | 会话认证来源、共享沙箱、自动化执行时长、模型覆盖及助手执行 |
+| 000156 | — | `tenants.patent_workspace_config`，专利工作台入口及示例开关 |
+| 000157 | 000134 | `tenants.default_settings`（JSONB），空间默认模型；空值沿用部署默认回退 |
 
 SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 
@@ -125,6 +129,10 @@ SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 | 000044 | `mcp_services.usage_instructions` 与 `mcp_metadata` 工具目录快照（PG 000108）；保留已有服务数据 |
 | 000045–000046 | 显式默认工具、活跃用户消息附件引用索引（PG 000138–000139） |
 | 000047 | 智能体人工交互提示与暂停状态（PG 000141；上游 SQLite 000037 已被本地迁移占用） |
+| 000048–000055 | 助手配置、会话种类、飞书重同步、协作、空图片清理、工具风险、授权及自动化（PG 000142–000144、000146–000150） |
+| 000056–000060 | 会话认证来源、共享沙箱及自动化变更（PG 000151–000155） |
+| 000061 | `tenants.patent_workspace_config`，专利工作台配置（PG 000156） |
+| 000062 | `tenants.default_settings`（TEXT，存储 JSON；PG 000157，上游 SQLite 000051） |
 
 PG `000117`、`000137`（pg_search 升级）及 `000140`（OAuth 时间戳类型）没有 SQLite 对应版本。SQLite `000044–000046` 从 fork 已发布的 `000043` 升级；上游原编号 `000034–000036` 已被本地 Smart Archive 迁移占用，不能复用或重编号已有迁移。
 
@@ -138,7 +146,7 @@ PG `000117`、`000137`（pg_search 升级）及 `000140`（OAuth 时间戳类型
 
 | 表 | 用途 | 关键字段 |
 | --- | --- | --- |
-| `tenants` | 租户（工作空间），多租户体系根 | `id`（SERIAL，起始 10000）、`name`、`retriever_engines`（JSONB）、`status`、`storage_quota`/`storage_used`、`agent_config`/`context_config`/`conversation_config`/`web_search_config`/`credentials`/`api_principal_config`/`memory_config`（JSONB）、`default_storage_backend_id`。原 `api_key` 列已在 000065 迁入 `tenant_api_keys` 并删除 |
+| `tenants` | 租户（工作空间），多租户体系根 | `id`（SERIAL，起始 10000）、`name`、`retriever_engines`（JSONB）、`status`、`storage_quota`/`storage_used`、`agent_config`/`context_config`/`conversation_config`/`web_search_config`/`credentials`/`api_principal_config`/`memory_config`/`default_settings`（JSONB）、`default_storage_backend_id`。原 `api_key` 列已在 000065 迁入 `tenant_api_keys` 并删除 |
 | `users` | 登录用户 | `id`（UUID）、`username`（唯一）、`email`（唯一）、`password_hash`、`tenant_id`（FK→tenants，ON DELETE SET NULL）、`is_active`、`can_access_all_tenants`（跨空间访问）、`is_system_admin`（系统管理员，000053）、`preferences`（JSON） |
 | `auth_tokens` | 登录令牌 | `id`、`user_id`（FK→users，CASCADE）、`token`、`token_type`（access/refresh）、`expires_at`（TIMESTAMPTZ，000080 起）、`is_revoked` |
 | `tenant_members` | 租户级 RBAC 成员关系 | `user_id`+`tenant_id`（软删除下唯一）、`role`（owner/admin/contributor/viewer）、`status`、`invited_by`、`joined_at` |

@@ -1276,7 +1276,7 @@ func (s *sessionService) persistFallbackTitle(
 }
 
 // GenerateTitle generates a title for the current conversation content.
-// modelID: effective assistant model; empty uses message context then fallback.
+// modelID: effective assistant model; empty uses message context then workspace defaults.
 func (s *sessionService) GenerateTitle(ctx context.Context,
 	session *types.Session, messages []types.Message, modelID string,
 ) (string, error) {
@@ -1316,8 +1316,7 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 		return "", stderrors.New("no user message found")
 	}
 
-	// Use the recorded assistant model, or fallback to the first available
-	// KnowledgeQA model when callers do not provide message context.
+	// Prefer the recorded assistant model, then workspace utility/chat defaults.
 	if modelID == "" {
 		for _, m := range messages {
 			if m.Role == "assistant" && strings.TrimSpace(m.ModelID) != "" {
@@ -1332,15 +1331,9 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 		if err != nil {
 			return s.persistFallbackTitle(ctx, session, message.Content, fmt.Errorf("failed to list models: %w", err))
 		}
-		for _, model := range models {
-			if model == nil {
-				continue
-			}
-			if model.Type == types.ModelTypeKnowledgeQA {
-				modelID = model.ID
-				logger.Infof(ctx, "Using first available KnowledgeQA model for title: %s", modelID)
-				break
-			}
+		if model := types.PickUtilityModel(models); model != nil {
+			modelID = model.ID
+			logger.Infof(ctx, "Using workspace default KnowledgeQA model for title: %s", modelID)
 		}
 		if modelID == "" {
 			return s.persistFallbackTitle(ctx, session, message.Content,

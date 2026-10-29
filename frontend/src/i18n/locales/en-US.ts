@@ -464,7 +464,11 @@ export default {
       done: {
         title: 'You are all set',
         desc: 'You now know the essentials — start building your knowledge assistant! Revisit this tour anytime from the help button next to your name in this menu.'
-      }
+      },
+      assistant: {
+        title: 'Meet the WeKnora Assistant',
+        desc: 'Ask about WeKnora versions, features and setup. Using the current page as context, the assistant can create agents, schedule tasks and organize knowledge on your behalf, within your permissions.'
+      },
     }
   },
   contextualGuide: {
@@ -2388,7 +2392,15 @@ export default {
       providerDeleted: 'Search provider deleted',
       testSuccess: 'Connection test succeeded',
       testFailed: 'Connection test failed'
-    }
+    },
+    clients: {
+      label: 'Search & page reading',
+      search: 'Search',
+      fetch: 'Page reading',
+      viaApi: '{name} API',
+      local: 'Built-in page reader',
+      help: 'Search results come from this provider; agents read page content with the reader above.'
+    },
   },
   vectorStoreSettings: {
     title: 'Vector Database Engine',
@@ -10097,6 +10109,72 @@ export default {
     "cancel": "Cancel",
     "adminOnly": "Admins can change settings; only Owners can purge patent workspace data.",
     "disabledMessage": "Patent workspace is disabled."
-  }
-
+  },
+  assistantEntryGuide: {
+    stepOf: 'NEW IN v0.9.0',
+    skip: 'Got it',
+    interactHint: 'Click the highlighted entry to open the assistant.',
+  },
+  defaultSettings: {
+    loadFailed: 'Could not load defaults. Retry before editing.',
+    title: 'Defaults',
+    description: 'Manage the models and search engine this workspace uses by default, in one place.',
+    introTitle: 'Used whenever a resource does not pick its own',
+    introDescription: 'A model chosen on an agent, knowledge base or conversation always wins. Otherwise the workspace default here applies, and if none is set, the deployment\'s built-in default is used.',
+    readOnly: 'Only workspace admins can change these. You can see which defaults are in effect.',
+    modelGroup: 'Models',
+    webSearchGroup: 'Web search',
+    unsetPlaceholder: 'Not set (system default)',
+    followChatPlaceholder: 'Not set (follow default chat model)',
+    slots: {
+      chat: {
+        label: 'Default chat model',
+        description: 'Used by new agents and Q&A, and as the fallback for background tasks.',
+        none: 'No chat model is available, so Q&A and background generation will not work.',
+      },
+      utility: {
+        label: 'Lightweight generation model',
+        description: 'Used for short tasks such as session titles, MCP usage instructions and memory extraction. A faster, cheaper model works well.',
+        none: 'No chat model is available, so titles and instructions cannot be generated.',
+      },
+      embedding: {
+        label: 'Default embedding model',
+        description: 'Preselected for new knowledge bases. Existing knowledge bases are unchanged.',
+        none: 'No embedding model is available, so knowledge bases cannot be created.',
+      },
+      rerank: {
+        label: 'Default rerank model',
+        description: 'Used by searches and built-in agents that have no rerank model of their own.',
+        none: 'No rerank model is available, so search results keep their retrieval order.',
+      },
+      vlm: {
+        label: 'Default vision model',
+        description: 'Default choice for image understanding and multimodal parsing.',
+        none: 'No vision model is available, so image understanding is unavailable.',
+      },
+      asr: {
+        label: 'Default speech recognition model',
+        description: 'Default choice for audio and video transcription.',
+        none: 'No speech recognition model is available, so transcription is unavailable.',
+      },
+    },
+    hints: {
+      workspace: 'Using the workspace setting.',
+      system: 'Not set. Currently using the system default: {name}',
+      auto: 'Not set. Currently using the first available model: {name}',
+      followChat: 'Not set. Following the default chat model: {name}',
+      staleFallback: 'The selected model was deleted or is unavailable. Currently falling back to: {name}',
+      staleNone: 'The selected model was deleted or is unavailable, and there is nothing to fall back to.',
+    },
+    webSearch: {
+      label: 'Default search engine',
+      description: 'Used when web search is on for an agent that has no search engine of its own.',
+      unset: 'No default search engine. Agents without their own search engine cannot search the web.',
+      placeholder: 'Select a search engine',
+    },
+    toasts: {
+      saveSuccess: 'Defaults saved',
+      saveFailed: 'Save failed: {message}',
+    },
+  },
 }

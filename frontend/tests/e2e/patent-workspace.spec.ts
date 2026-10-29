@@ -17,6 +17,7 @@ async function setup(page: Page, enabled = true, role = 'owner') {
     localStorage.setItem('weknora_memberships', JSON.stringify(memberships))
     localStorage.setItem('locale', 'en-US')
     localStorage.setItem('weknora:new-user-guide-done:v1', '1')
+    localStorage.setItem('weknora:assistant-entry-guide-done:v0.9.0', '1')
   }, { user, tenant, memberships })
   const modes = ['platform', 'legal_assistant', 'patent_search', 'patent_writing']
   const sessions = modes.map(workspace_mode => ({ id: `${workspace_mode}-session`, title: `${workspace_mode} history`, workspace_mode, created_at: timestamp, updated_at: timestamp, user_id: user.id }))

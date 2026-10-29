@@ -30,7 +30,7 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				var db *sql.DB
 				var m *migrate.Migrate
-				ceiling, latest := uint(55), uint(61)
+				ceiling, latest := uint(55), uint(expectedSQLiteMigrationVersion)
 				if dialect == "sqlite" {
 					path := filepath.Join(t.TempDir(), "upgrade.db")
 					var err error
@@ -58,7 +58,7 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 					require.NoError(t, err)
 					m, err = migrate.New("file://"+root+"/migrations/versioned", u.String())
 					require.NoError(t, err)
-					ceiling, latest = 150, 156
+					ceiling, latest = 150, uint(latestVersionedMigration(t, root))
 				}
 				t.Cleanup(func() { _ = db.Close(); _, _ = m.Close() })
 				if upgrade {
@@ -81,7 +81,7 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 						VALUES ('saved-run', 'saved-task', 1, CURRENT_TIMESTAMP, 'schedule', 'awaiting_approval', 'Saved answer', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
 					require.NoError(t, err)
 				}
-				if baseline == latest-1 {
+				if (dialect == "sqlite" && baseline >= 59) || (dialect == "postgres" && baseline >= 154) {
 					_, err := db.Exec(`UPDATE automations SET model_id = 'chosen-model' WHERE id = 'saved-task'`)
 					require.NoError(t, err)
 				}
@@ -146,7 +146,7 @@ func TestSandboxAutomationMigrationUpgrade(t *testing.T) {
 					var duration int64
 					require.NoError(t, db.QueryRow(`SELECT instruction, model_id FROM automations WHERE id = 'saved-task'`).Scan(&instruction, &model))
 					require.Equal(t, "Keep this instruction", instruction)
-					if baseline == latest-1 {
+					if (dialect == "sqlite" && baseline >= 59) || (dialect == "postgres" && baseline >= 154) {
 						require.Equal(t, "chosen-model", model)
 					} else {
 						require.Empty(t, model)

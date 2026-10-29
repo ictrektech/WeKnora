@@ -78,6 +78,7 @@ test('loads documents while settings are blocked and retains partial bulk failur
     localStorage.setItem('weknora_memberships', JSON.stringify([{ tenant_id: 1, role: 'contributor' }]))
     localStorage.setItem('locale', 'en-US')
     localStorage.setItem('weknora:new-user-guide-done:v1', '1')
+    localStorage.setItem('weknora:assistant-entry-guide-done:v0.9.0', '1')
   })
 
   await page.route('**/api/v1/**', async (route) => {

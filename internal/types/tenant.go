@@ -124,6 +124,8 @@ type Tenant struct {
 	PatentWorkspaceConfig *PatentWorkspaceConfig `yaml:"patent_workspace_config" json:"patent_workspace_config" gorm:"column:patent_workspace_config;type:jsonb"`
 	// Assistant config: display name and access ceiling of the WeKnora assistant
 	AssistantConfig *AssistantConfig `yaml:"assistant_config" json:"assistant_config" gorm:"type:jsonb"`
+	// Default settings: the workspace's default model for each type and purpose
+	DefaultSettings *DefaultSettings `yaml:"default_settings" json:"default_settings" gorm:"type:jsonb"`
 	// API principal config: controls how X-API-Key requests map to terminal principals.
 	APIPrincipalConfig *APIPrincipalConfig `yaml:"api_principal_config" json:"-" gorm:"type:jsonb"`
 	// Creation time
