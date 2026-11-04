@@ -2,6 +2,13 @@
 
 记录 VOS HybRAG 应用的可验证变化。
 
+## [0.1.79] - 2026-11-05
+
+### 修复
+
+- VOS 前端构建显式使用相对资源路径，修复上游 Docker 默认基础路径导致的内嵌页资源 404 和空白页。
+- 前端镜像发布前检查普通页、嵌入页的编译资源路径及文件完整性，覆盖开发服务回归未覆盖的生产构建场景。
+
 ## [0.1.78] - 2026-11-04
 
 ### 新增
@@ -658,4 +665,5 @@
 
 [0.1.74]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.73...vos-hybrag-v0.1.74
 
+[0.1.79]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.78...vos-hybrag-v0.1.79
 [0.1.78]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.77...vos-hybrag-v0.1.78

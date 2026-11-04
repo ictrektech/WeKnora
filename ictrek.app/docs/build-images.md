@@ -59,6 +59,8 @@ EOF
 
 前端镜像使用 `frontend/Dockerfile` 和仓库根目录 `.` 作为构建上下文，以便打包 `docs/api/*.md`。Dockerfile 会在 API 文档缺失时终止构建；不要改回已依赖废弃的 `frontend/packages` 目录的旧 Dockerfile。
 
+VOS 构建显式传入 `VITE_BASE_PATH=./`，让运行时 `<base>` 同时支持站点根路径和 `/app/com.ictrek.hybrag/`。构建后、推送前会自动执行 `ictrek.app/scripts/verify_frontend_image.sh`，检查镜像内普通页与嵌入页的资源使用相对路径且文件存在；开发服务回归不能替代这项生产镜像检查。上游 Dockerfile 的默认 `/` 会使 VOS 请求站点根目录的资源而出现空白页，不能依赖该默认值。
+
 `--no-push` 用于只做本机构建检查；`--no-feishu` 用于不更新飞书发布表。
 脚本只读取并计算下一个 patch 版本，不会修改 `ictrek.app/VERSION`；正式发布时再由 `scripts/update_version.sh` 更新 VOS 版本。
 
@@ -136,6 +138,12 @@ docreader, and sandbox images should not use a `cu130` tag unless the image
 itself starts depending on CUDA libraries.
 
 ## Build
+
+VOS builds explicitly set `VITE_BASE_PATH=./` so the runtime `<base>` works at
+both `/` and `/app/com.ictrek.hybrag/`. Before pushing, the build script checks
+the ordinary and embedded HTML entries in the production image for relative
+asset URLs and existing files. Development-server tests do not cover Docker's
+upstream `/` default, which sends VOS asset requests to the wrong site root.
 
 Do not run git on the remote build host. Resolve the commit in the source
 checkout, then sync the working tree and pass that commit to the build host.

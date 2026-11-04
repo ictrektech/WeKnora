@@ -853,6 +853,8 @@ APP_BUILD_ARGS=(
 FRONTEND_BUILD_ARGS=(
   --build-arg "NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmmirror.com}"
   --build-arg "VITE_FRONTEND_COMMIT=${COMMIT_ID_VALUE}"
+  # The runtime <base> supports both / and the VOS application prefix.
+  --build-arg "VITE_BASE_PATH=./"
 )
 
 DOCREADER_BUILD_ARGS=(
@@ -877,6 +879,7 @@ if [[ "$SKIP_BUILD" != "1" && "$BUILD_FRONTEND" == "1" ]]; then
     -f frontend/Dockerfile \
     -t "${UI_IMAGE}:${TAG}" \
     .
+  bash ictrek.app/scripts/verify_frontend_image.sh "${UI_IMAGE}:${TAG}"
 fi
 
 if [[ "$SKIP_BUILD" != "1" && "$BUILD_DOCREADER" == "1" ]]; then
