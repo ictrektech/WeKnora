@@ -1449,7 +1449,8 @@ export default {
       ima: '同步腾讯 IMA 知识库中的文档、笔记与文件（暂不支持 AI 会话与视频解析）',
       rss: '同步 RSS / Atom 订阅源中的文章',
       gitlab: '同步 GitLab 项目中的文件',
-      seafile: '同步 Seafile 资料库中的目录与文件'
+      seafile: '同步 Seafile 资料库中的目录与文件',
+      "nextcloud": "通过 WebDAV 同步 Nextcloud 中的目录与文件",
     },
     connector: {
       feishu: '飞书',
@@ -1463,7 +1464,8 @@ export default {
       ima: '腾讯 IMA',
       rss: 'RSS / Atom 订阅',
       gitlab: 'GitLab',
-      seafile: 'Seafile'
+      seafile: 'Seafile',
+      "nextcloud": "Nextcloud",
     },
     logDetail: {
       startTime: '开始时间',
@@ -1536,8 +1538,31 @@ export default {
       seafile_source_changed: 'Seafile 文件在获取过程中发生变化，下次同步将重试。',
       seafile_invalid_response: 'Seafile 返回了无法解析的响应，请检查服务器版本与反向代理配置。',
       seafile_ssrf_blocked: 'Seafile 文件下载地址被 SSRF 策略拦截，请将 fileserver 域名加入 SSRF_WHITELIST。',
-      seafile_fetch_failed: '从 Seafile 获取文件失败，下次同步将重试。'
+      seafile_fetch_failed: '从 Seafile 获取文件失败，下次同步将重试。',
+      "nextcloud_permission_denied": "无权访问该 Nextcloud 文件，请检查账号权限。",
+      "nextcloud_not_found": "Nextcloud 文件在扫描后消失，下次同步将重试。",
+      "nextcloud_file_too_large": "Nextcloud 文件超过 MAX_FILE_SIZE_MB 限制。",
+      "nextcloud_empty_file": "Nextcloud 文件内容为空，已跳过。",
+      "nextcloud_source_changed": "Nextcloud 文件在下载过程中发生变化，下次同步将重试。",
+      "nextcloud_invalid_response": "Nextcloud 返回了无效或不完整的 WebDAV 响应。",
+      "nextcloud_ssrf_blocked": "Nextcloud 请求被 SSRF 策略拦截，请检查 SSRF_WHITELIST。",
+      "nextcloud_fetch_failed": "从 Nextcloud 获取文件失败，下次同步将重试。",
     },
+    "nextcloud": {
+      "baseUrl": "Nextcloud 地址",
+      "baseUrlHint": "填写安装地址，如 https://nextcloud.example.com/cloud，不含 /remote.php/dav。私网部署请使用现有的 SSRF_WHITELIST 配置。",
+      "username": "用户名",
+      "appPassword": "应用密码",
+      "appPasswordHint": "在「个人设置 → 安全 → 设备和会话」中创建应用密码，使用生成的用户名和应用密码。",
+      "selectionRequired": "请至少选择一个目录或文件",
+      "includeExtensions": "包含的扩展名（可选）",
+      "excludeExtensions": "排除的扩展名（可选）",
+      "extensionsHint": "用逗号分隔扩展名，如 .pdf, .md。包含项留空表示所有支持的格式，排除项优先。修改过滤条件也会改变删除对账范围。"
+    },
+    "noResourcesDesc_nextcloud": "未找到可访问的目录或支持的文件",
+    "guideStep1_nextcloud": "登录 Nextcloud，确认账号有权读取所选目录",
+    "guideStep2_nextcloud": "在「个人设置 → 安全 → 设备和会话」中创建应用密码",
+    "guideStep3_nextcloud": "在这里替换凭据，然后重新加载资源",
   },
   ollama: {
     unknown: '未知',
@@ -2135,7 +2160,9 @@ export default {
       readWeKnoraDoc: '阅读产品文档',
       readPage: '查看当前页面',
       selectTab: '切换标签',
-      fillPage: '填写页面'
+      fillPage: '填写页面',
+      "requestSecureForm": "请求登录凭据",
+      "browserFillSecret": "填写登录凭据",
     },
     collaboration: {
       tabs: '任务标签页',
@@ -2464,7 +2491,8 @@ export default {
       previous: '上一个',
       next: '下一个',
       collapse: '收起',
-      expand: '展开'
+      expand: '展开',
+      "secureFormTitle": "需要你填写凭据",
     },
     toolApproval: {
       title: '人工审核',
@@ -2557,7 +2585,7 @@ export default {
     hostApproval: {
       titleDelete: '删除文件前需要你确认',
       titleDangerous: '危险操作确认',
-      titleDenied: '命令被沙盒拦截，需要访问以下目录',
+      titleDenied: "WeKnora 想要访问以下目录",
       titleGeneric: '需要你确认',
       command: '命令',
       cwd: '目录',
@@ -2575,13 +2603,52 @@ export default {
       rejectedTag: '已拒绝',
       submitted: '已提交',
       submitFailed: '提交失败',
-      userRejected: '用户拒绝'
+      userRejected: '用户拒绝',
+      "titleFileWrite": "写入工作区外的文件",
+      "fileOnly": "只授权这一个文件",
+      "writeMode": "方式",
+      "writeModeOverwrite": "覆盖",
+      "writeModeAppend": "追加",
+      "writeModeEdit": "编辑",
+      "writeBytes": "{bytes} 字节",
+      "preview": "内容",
+      "previewTruncated": "只显示前 64 KB",
+      "env": "环境变量",
+      "skillName": "技能",
+      "stdin": "标准输入",
+      "script": "命令运行的脚本",
     }
 ,
     entityLink: {
       kb: '知识库',
       doc: '文档',
       chunk: '片段'
+    },
+    "secureForm": {
+      "onlyFillInto": "只会填入：{domains}",
+      "observedAt": "浏览器当前页面：{origin}",
+      "originUnknown": "无法确认浏览器当前页面，请确认浏览器停在要登录的网站上再填写",
+      "originMismatch": "浏览器当前页面（{origin}）与要登录的网站不一致，请确认后再填写",
+      "originInsecure": "浏览器当前页面不是 HTTPS，凭据不会填入",
+      "savedAccount": "已保存的账号",
+      "useNew": "使用新的账号密码",
+      "username": "账号",
+      "password": "密码",
+      "saveToVault": "保存到保险库",
+      "useOnce": "仅用一次",
+      "fill": "填写",
+      "decline": "拒绝",
+      "submittedHidden": "已提交（内容不显示）",
+      "declined": "已拒绝",
+      "timedOut": "超时未填写",
+      "canceled": "已取消",
+      "submitFailed": "提交失败",
+      "savedButClosed": "凭据已保存到保险库，但这次请求已结束"
+    },
+    "hostReview": {
+      "reviewing": "自动审批中…",
+      "approved": "已自动批准：{reason}",
+      "denied": "自动审批已拒绝：{reason}"
     },
   },
   kbSettings: {
@@ -3778,7 +3845,8 @@ export default {
         query_understand_model: '问题理解模型',
         follow_up_model: '追问模型',
         extract_model: '记忆提取模型',
-        unknown: '其他模型配置'
+        unknown: '其他模型配置',
+        "question_model": "问题生成模型",
       }
     },
     debug: {
@@ -5143,6 +5211,8 @@ export default {
     docreaderImageVersionDescription: '当前运行的 weknora-docreader 镜像版本号',
     sandboxImageVersionLabel: 'Sandbox 镜像版本',
     sandboxImageVersionDescription: '当前配置的 weknora-sandbox 镜像版本号',
+    "docreaderVersionLabel": "Docreader 版本",
+    "docreaderVersionDescription": "当前文档解析服务（weknora-docreader）的构建版本号",
   },
   tenant: {
     title: '空间信息',
@@ -5554,7 +5624,10 @@ export default {
         countDescription: '每个文档分块生成的问题数量（1-10）',
     instructionsLabel: '问题生成要求',
         instructionsDescription: '指定问题面向的人群、场景和表达方式，系统仍维护稳定输出格式',
-        instructionsPlaceholder: '例如：生成客服用户常问的自然语言问题，避免考试题式表达…'
+        instructionsPlaceholder: '例如：生成客服用户常问的自然语言问题，避免考试题式表达…',
+        "modelLabel": "问题生成模型",
+        "modelDescription": "留空时使用知识库摘要模型。",
+        "modelPlaceholder": "请选择问题生成模型",
       },
       profile: {
         label: '自动生成知识库描述',
@@ -6101,7 +6174,14 @@ export default {
       issueFixSuggestions: '内容优化建议 ({count})',
       issueFixSingle: '修复',
       issueFixPromptSingle: '修复这个 Wiki 问题：{description}',
-      issueFixPromptAll: '修复当前页面的 {count} 个待处理问题'
+      issueFixPromptAll: '修复当前页面的 {count} 个待处理问题',
+      "cardOverviewDetailHint": "当前为精简视图，向右拖动滑块可查看更多页面",
+      "graphDetailLevel": "展开范围",
+      "graphDetailHint": "向右展开更多关联页面，最右侧显示全部",
+      "graphDetailOverview": "概览",
+      "graphDetailOneHop": "1 层",
+      "graphDetailTwoHops": "2 层",
+      "graphDetailAll": "全部",
     },
     indexing: {
       title: '索引策略',
@@ -6138,7 +6218,9 @@ export default {
       granularityExhaustive: '详尽',
       granularityFocusedHint: '只抽取文档的主角（如简历 → 人物和项目）。最干净，但可能漏掉次要实体。',
       granularityStandardHint: '抽取主角 + 被详细描述的次要实体/概念。跳过一带而过的通用名词。适合大多数场景。',
-      granularityExhaustiveHint: '抽取所有可识别的命名实体与概念，包括一带而过的技术栈。适合将知识库当作术语表使用。'
+      granularityExhaustiveHint: '抽取所有可识别的命名实体与概念，包括一带而过的技术栈。适合将知识库当作术语表使用。',
+      "autoGenerateLabel": "自动生成 Wiki 页面",
+      "autoGenerateTip": "关闭后仍可浏览和手工维护 Wiki 页面，但文档处理不会自动调用 LLM 生成或更新页面",
     },
     basic: {
       title: '基本信息',
@@ -6455,7 +6537,16 @@ export default {
     deleteConfirm: '确定删除该嵌入渠道？已部署的网站代码将失效。',
     defaultLocale: '默认语言',
     defaultLocaleDesc: '访客打开聊天时使用的界面语言；留空则跟随浏览器或宿主页面通过 Widget 设置的 locale。',
-    defaultLocaleBrowser: '跟随浏览器 / 宿主'
+    defaultLocaleBrowser: '跟随浏览器 / 宿主',
+    "history": "对话历史",
+    "historyHint": "最近 30 个对话，仅保存在此浏览器。清除记录不会删除服务端消息。",
+    "historyEmpty": "暂无对话记录",
+    "historyUntitled": "未命名对话",
+    "historyClear": "清除本地历史",
+    "historyClearConfirm": "清除此浏览器的历史并开启新对话？服务端消息将保留。",
+    "historyRetry": "重试",
+    "historyLoadFailed": "无法打开对话，请稍后重试。",
+    "historyUnavailable": "该对话已不可用，已从本地历史中移除。",
   },
   knowledgeList: {
     create: '新建知识库',
@@ -6618,6 +6709,25 @@ export default {
     placeholderKbAndWeb:
       "Enter your question, will answer based on knowledge base and web search",
     placeholderAgent: "Ask {name}",
+    "voiceTooltip": "按住说话（{shortcut}）",
+    "voicePreparing": "麦克风准备中，按钮变红后再说话",
+    "voiceRecording": "正在录音，松开结束",
+    "voiceReleasedEarly": "麦克风还没准备好，请按住直到按钮变红再说话",
+    "voiceTranscribing": "正在识别语音…",
+    "voiceUnsupported": "当前浏览器不支持录音",
+    "voiceInsecureContext": "语音输入需要 HTTPS 或 localhost 访问",
+    "voicePermissionDenied": "无法使用麦克风，请在浏览器中允许麦克风权限",
+    "voiceDeviceError": "未找到可用的麦克风",
+    "voiceDecodeError": "录音处理失败，请重试",
+    "voiceTranscribeFailed": "语音识别失败，请检查智能体的 ASR 模型配置",
+    "voiceEmptyResult": "未识别到语音内容",
+    "hostApprovalMode": {
+      "ask": "请求批准",
+      "askHint": "删除和工作区外的写入都要你确认",
+      "auto": "替我审批",
+      "autoHint": "由模型代你判断，不打扰你",
+      "switchFailed": "切换审批模式失败"
+    },
   },
   manualEditor: {
     assistant: {
@@ -8117,7 +8227,10 @@ export default {
       mineruLegacySectionHint: 'MinerU 4.0 已移除以下请求参数，连接 4.0 及以上服务时会被忽略；VLM 地址改在 MinerU 服务端配置。',
       paddleocrVlEndpointPlaceholder: '如 http://your-paddleocr-vl:8080',
       paddleocrVlEndpointHint: '填写 PaddleOCR-VL 完整服务（pipeline）地址，无需 /layout-parsing 后缀',
-      paddleocrVlCloudTokenPlaceholder: 'PaddleOCR-VL 飞桨星河社区 Token'
+      paddleocrVlCloudTokenPlaceholder: 'PaddleOCR-VL 飞桨星河社区 Token',
+      "mineruEffortLabel": "混合解析精度",
+      "mineruEffortDefault": "服务端默认（medium）",
+      "mineruEffortHint": "high 可在旧版混合解析后端启用图片和图表分析，但耗时更长。",
     },
     weknoraCloud: {
       title: 'WeKnora Cloud',
@@ -8184,7 +8297,11 @@ export default {
       dataExtensions: '数据与扩展',
       systemAdministration: '系统管理',
       platform: '平台'
-    }
+    },
+    "hostApprovalDefault": {
+      "title": "默认执行权限审批",
+      "description": "智能体要删除文件，或写入工作区以外时，用这里决定是每次问你，还是由模型替你审批。新会话按这个开始；当前会话可在输入框左侧切换。"
+    },
   },
   agent: {
     taskLabel: '任务:',
@@ -9050,6 +9167,7 @@ export default {
     partialUploadSuccess:
       "Partial upload success (success: {success}, failed: {fail})",
     allUploadFailed: "All files failed to upload ({count} files)",
+    "channelNextcloud": "Nextcloud",
   },
   resourceOrigin: {
     mine: '我创建',
@@ -10070,6 +10188,107 @@ export default {
     "cancel": "取消",
     "adminOnly": "只有管理员可以修改设置；只有所有者可以清理专利工作台数据。",
     "disabledMessage": "专利工作台当前已关闭。"
-  }
-
+  },
+  "documentProgress": {
+    "queueView": "队列任务",
+    "title": "资料与 Wiki 进度",
+    "description": "分别查看当前入库和 Wiki 处理情况，恢复后的原始失败记录继续保留。",
+    "refresh": "刷新",
+    "search": "搜索资料或知识库",
+    "searchButton": "搜索",
+    "filter": "进度筛选",
+    "count": "启动数量（1–100）",
+    "batchStart": "批量整理 Wiki",
+    "confirmBatch": "按当前搜索范围，从等待最久的资料开始，安排最多 {count} 份 Wiki 待办？",
+    "confirmOne": "使用“{title}”的已有进度，安排 Wiki 整理？",
+    "attempt": "第 {value} 次处理",
+    "pendingOps": "{count} 项待办 · 重试计数 {retries}",
+    "historyCount": "{count} 条记录",
+    "details": "详情",
+    "startNow": "立即整理",
+    "currentStatus": "当前状态",
+    "history": "失败历史",
+    "historyDescription": "这里保留原始失败记录，也包含后来已恢复的失败；历史记录不代表资料当前仍在失败。",
+    "noHistory": "该资料没有归档失败记录。",
+    "failureAttempts": "累计失败 {count} 次",
+    "historyLimit": "显示最近 50 条，原始历史继续保留。",
+    "unfinished": "未完成",
+    "all": "全部资料",
+    "document": "资料",
+    "ingestion": "入库",
+    "wiki": "Wiki",
+    "actions": "操作",
+    "loadError": "暂时无法读取资料进度，请刷新重试。",
+    "started": "已安排 {count} 份，另有 {queued} 份已在队列中；已有进度保留。",
+    "startError": "队列交接中断前已接收 {count} 份；请刷新后再安排剩余资料。",
+    "states": {
+      "ready": "已入库",
+      "pending": "待处理",
+      "processing": "处理中",
+      "finalizing": "收尾中",
+      "completed": "已完成",
+      "failed": "失败",
+      "skipped": "已跳过",
+      "cancelled": "已取消",
+      "queued": "排队中",
+      "retrying": "重试中",
+      "disabled": "未启用",
+      "notStarted": "尚未开始"
+    },
+    "stages": {
+      "docreader": "文档解析",
+      "chunking": "分块",
+      "embedding": "索引构建",
+      "multimodal": "图片处理",
+      "postprocess": "后处理"
+    }
+  },
+  "mentionBrowser": {
+    "browse": "按目录浏览",
+    "path": "目录路径",
+    "root": "根目录",
+    "searchFolder": "搜索当前目录",
+    "searchKb": "搜索知识库",
+    "subtree": "搜索包含当前目录及其子目录。",
+    "wholeKb": "当前仍选中了整库，选择单文件不会缩小该范围。",
+    "tags": "已有标签仍会过滤所选文件。",
+    "folderCount": "含子目录共 {count} 个文档",
+    "selected": "已选择",
+    "deleting": "正在删除",
+    "unsupported": "当前智能体不支持此格式",
+    "forbidden": "你已无权访问此内容。",
+    "missing": "目录已失效，请返回并重新选择。",
+    "error": "目录加载失败，请重试。",
+    "retry": "重试",
+    "empty": "当前视图没有文件。",
+    "previous": "上一页",
+    "next": "下一页",
+    "page": "第 {page} 页 · 共 {total} 个文档"
+  },
+  "credentialVault": {
+    "title": "凭据保险库",
+    "description": "agent 在沙盒浏览器里登录网站时，可以直接使用这里保存的账号。密码加密保存，页面上不会再显示，只能重新设置。填写时密码会进入沙盒浏览器，agent 在同一沙盒中运行，请只对信任的 agent 和网站使用。",
+    "unavailable": "服务端没有配置有效的 SYSTEM_AES_KEY，暂时无法保存凭据。",
+    "loading": "加载中…",
+    "loadFailed": "加载失败",
+    "empty": "还没有保存的凭据。agent 请求登录时，你可以在卡片上选择\"保存到保险库\"。",
+    "add": "添加凭据",
+    "edit": "编辑",
+    "delete": "删除",
+    "deleteConfirm": "确定删除这条凭据吗？",
+    "save": "保存",
+    "saved": "已保存",
+    "deleted": "已删除",
+    "saveFailed": "保存失败",
+    "titleLabel": "名称",
+    "site": "站点",
+    "domains": "允许填入的域名",
+    "domainsHint": "用逗号分隔，最多 5 个，站点本身总是包含在内",
+    "username": "账号",
+    "password": "密码",
+    "newPassword": "新密码",
+    "passwordHint": "留空表示不修改",
+    "lastUsed": "最近使用：{time}",
+    "never": "从未使用"
+  },
 }

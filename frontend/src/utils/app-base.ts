@@ -26,7 +26,7 @@ export function getAppBasePath(): string {
     }
   }
 
-  return normalizeBasePath(import.meta.env.BASE_URL)
+  return normalizeBasePath(import.meta.env?.BASE_URL)
 }
 
 export function getAppBaseUrlPrefix(): string {

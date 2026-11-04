@@ -104,9 +104,11 @@ ENV VERSION=${VERSION_ARG} \
 # and without the mount each rebuild regenerates the whole compile cache inside
 # the layer (~2.7 GB), which occupies disk locally and is uploaded to the CI
 # layer cache. Mounted, the cache lives outside the layer and repeated builds
-# reuse compiled objects instead of recompiling from scratch.
+# reuse compiled objects instead of recompiling from scratch. Read the Go
+# version in this builder so host machines without Go still report it correctly.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    export GO_VERSION="$(go version)"; \
     if [ "$WITH_ANYDOC" = "1" ]; then \
         make build-prod GO_BUILD_TAGS=anydoc; \
     else \
@@ -126,7 +128,7 @@ ARG DOCKER_COMPOSE_VERSION=v2.40.3
 
 # Pairing derives the gateway URL from the user's page origin by default.
 ENV BROWSERSKILL_BINARY=/opt/weknora/browserskill/bsk \
-    BROWSERSKILL_EXTENSION_PATH=/opt/weknora/browserskill/browser-skill-weknora-0.3.1.zip
+    BROWSERSKILL_EXTENSION_PATH=/opt/weknora/browserskill/browser-skill-weknora-0.4.1.zip
 COPY --from=browserskill /opt/weknora/browserskill /opt/weknora/browserskill
 
 # Create a non-root user first

@@ -16,11 +16,11 @@ import (
 func TestDefaultSettingsMigrationUpgrade(t *testing.T) {
 	root := sqliteRepoRoot(t)
 	for _, dialect := range []string{"sqlite", "postgres"} {
-		previous, latest, directory := uint(61), uint(62), "sqlite"
+		previous, latest, directory := uint(61), uint(63), "sqlite"
 		if dialect == "postgres" {
-			previous, latest, directory = 156, 157, "versioned"
+			previous, latest, directory = 156, 159, "versioned"
 		}
-		for _, baseline := range []uint{0, previous} {
+		for _, baseline := range []uint{0, previous, previous + 1} {
 			t.Run(fmt.Sprintf("%s/from-%d", dialect, baseline), func(t *testing.T) {
 				var db *sql.DB
 				var migrationURL string
@@ -91,6 +91,25 @@ func TestDefaultSettingsMigrationUpgrade(t *testing.T) {
 					require.NoError(t, err)
 					require.NoError(t, db.QueryRow(`SELECT default_settings FROM tenants WHERE id = 1`).Scan(&defaults))
 					require.JSONEq(t, `{"chat_model_id":"saved-chat","utility_model_id":"saved-utility"}`, defaults.String)
+				}
+				// The vault must work on both fresh installs and the released fork
+				// history, without reusing upstream's lower migration numbers.
+				_, err = db.Exec(`INSERT INTO credential_vault_items
+					(id, tenant_id, user_id, title, site, username, secret_ciphertext, created_at, updated_at)
+					VALUES ('vault-upgrade-test', 1, 'saved-owner', 'Saved login', 'example.test', 'saved-user', 'ciphertext-only', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+				require.NoError(t, err)
+				var secret, domains string
+				require.NoError(t, db.QueryRow(`SELECT secret_ciphertext, domains FROM credential_vault_items WHERE id = 'vault-upgrade-test'`).Scan(&secret, &domains))
+				require.Equal(t, "ciphertext-only", secret)
+				require.JSONEq(t, `[]`, domains)
+				_, err = db.Exec(`INSERT INTO credential_vault_items
+					(id, tenant_id, user_id, title, site, username, secret_ciphertext, created_at, updated_at)
+					VALUES ('vault-duplicate', 1, 'saved-owner', 'Duplicate', 'example.test', 'saved-user', 'ciphertext-only', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+				require.Error(t, err, "live owner/site/username must remain unique")
+				if dialect == "postgres" {
+					var width int
+					require.NoError(t, db.QueryRow(`SELECT character_maximum_length FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'actor_user_id'`).Scan(&width))
+					require.GreaterOrEqual(t, width, 42)
 				}
 				require.ErrorIs(t, m.Up(), migrate.ErrNoChange)
 				t.Logf("migration %d -> %d/dirty=%t, nullable %s settings and saved data verified", baseline, version, dirty, kind)

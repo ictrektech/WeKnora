@@ -856,6 +856,8 @@ FRONTEND_BUILD_ARGS=(
 )
 
 DOCREADER_BUILD_ARGS=(
+  --build-arg "VERSION_ARG=${TAG}"
+  --build-arg "COMMIT_ID_ARG=${COMMIT_ID_VALUE}"
   --build-arg "APT_MIRROR=${APT_MIRROR:-http://mirrors.tuna.tsinghua.edu.cn}"
 )
 

@@ -17,7 +17,7 @@ type UserService interface {
 	// LoginWithOIDC exchanges the callback code, auto-provisions users if needed, and completes login.
 	// provisioning is the default tenant mode for a newly auto-created user
 	// (resolved by the caller from auth.default_tenant_mode).
-	LoginWithOIDC(ctx context.Context, code, redirectURI string, provisioning types.TenantProvisioningMode) (*types.OIDCCallbackResponse, error)
+	LoginWithOIDC(ctx context.Context, code, redirectURI string, provisioning types.TenantProvisioningMode, codeVerifier string) (*types.OIDCCallbackResponse, error)
 	// LoginWithTrustedIdentity provisions or loads a local account from an
 	// externally verified identity, then issues normal WeKnora JWT tokens.
 	// The external token must already have been validated by the caller.

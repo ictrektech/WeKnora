@@ -67,7 +67,16 @@ export default {
     "newChat": "新增對話",
     "rotateConfirmTitle": "確認輪換 Token？",
     "rotateConfirmBody": "輪換後舊 Token 立即失效，已發佈的嵌入程式碼需全部更新。",
-    "tokenRequiredForPreview": "需要發佈 Token 才能預覽。請先建立渠道，或點擊「輪換 Token」獲取新 Token。"
+    "tokenRequiredForPreview": "需要發佈 Token 才能預覽。請先建立渠道，或點擊「輪換 Token」獲取新 Token。",
+    "history": "對話歷史",
+    "historyHint": "最近 30 個對話，僅儲存在此瀏覽器。清除紀錄不會刪除伺服器訊息。",
+    "historyEmpty": "暫無對話紀錄",
+    "historyUntitled": "未命名對話",
+    "historyClear": "清除本機歷史",
+    "historyClearConfirm": "清除此瀏覽器的歷史並開啟新對話？伺服器訊息將保留。",
+    "historyRetry": "重試",
+    "historyLoadFailed": "無法開啟對話，請稍後重試。",
+    "historyUnavailable": "此對話已無法使用，已從本機歷史移除。",
   },
   "chat": {
     "title": "對話",
@@ -295,7 +304,9 @@ export default {
     "reasoningRounds": "思考 <strong>{rounds}</strong> 輪",
     "toolCalls": "調用 <strong>{tools}</strong> 次工具",
     "durationSuffix": "耗時 <strong>{duration}</strong>",
-    "stepSummarySeparator": " · "
+    "stepSummarySeparator": " · ",
+    "earlierSteps": "已完成 {count} 個步驟",
+    "viewReasoning": "檢視思路",
   },
   "agentStream": {
     "toolApproval": {

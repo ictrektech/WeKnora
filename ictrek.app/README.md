@@ -4,6 +4,8 @@
 
 开发分支的上游整合、兼容取舍及验证范围见[上游同步记录](docs/upstream-sync.md)。源码合并后仍须完成镜像与 VOS 包发布，已安装应用才会获得更新。
 
+2026-11-04 同步包含文档处理进度、Wiki 队列控制、语音输入、凭据库和沙箱浏览器改进；保留 VOS 登录、子路径、模型适配及工作台。迁移映射和验证范围见[本轮同步记录](docs/upstream-sync.md#2026-11-04-上游整合记录)。
+
 源码已合入空间默认模型设置：在「设置 → 默认设置」配置各用途模型；显式选择的资源模型优先，清空时恢复部署默认回退。用法见[默认模型](../website-docs/03-features/06-models.md#workspace-defaults)，新增迁移编号及隔离升级结果见[本轮同步记录](docs/upstream-sync.md#2026-10-29-上游整合记录)。
 
 当前只发布 pull 模式安装包：本地 `update_version.sh` 负责更新版本、创建 release commit 和触发 tag，GitHub Actions 负责读取飞书和依赖 release、打包并发布正式 release。需要把 VOS changelog 随版本一起提交时，先用 `$cl` 准备并审核 `ictrek.app/CHANGELOG.md`，再使用 `--with-changelog`。

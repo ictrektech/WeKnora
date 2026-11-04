@@ -1447,7 +1447,8 @@ export default {
       ima: 'Tencent IMA 지식베이스에서 문서, 노트 및 파일 동기화 (AI 세션과 동영상 분석은 지원되지 않음)',
       rss: 'RSS / Atom 피드에서 글 동기화',
       gitlab: 'GitLab 프로젝트의 파일 동기화',
-      seafile: 'Seafile 라이브러리의 폴더와 파일 동기화'
+      seafile: 'Seafile 라이브러리의 폴더와 파일 동기화',
+      "nextcloud": "WebDAV로 Nextcloud 폴더와 파일 동기화",
     },
     connector: {
       feishu: '페이슈 (Feishu)',
@@ -1461,7 +1462,8 @@ export default {
       ima: 'Tencent IMA',
       rss: 'RSS / Atom 피드',
       gitlab: 'GitLab',
-      seafile: 'Seafile'
+      seafile: 'Seafile',
+      "nextcloud": "Nextcloud",
     },
     logDetail: {
       startTime: '시작 시간',
@@ -1534,8 +1536,31 @@ export default {
       seafile_source_changed: '가져오는 동안 Seafile 파일이 변경되었습니다. 다음 동기화에서 다시 시도합니다.',
       seafile_invalid_response: 'Seafile이 해석할 수 없는 응답을 반환했습니다. 서버 버전과 리버스 프록시 설정을 확인하세요.',
       seafile_ssrf_blocked: 'Seafile 다운로드 URL이 SSRF 정책에 의해 차단되었습니다. fileserver 호스트를 SSRF_WHITELIST에 추가하세요.',
-      seafile_fetch_failed: 'Seafile에서 파일을 가져오지 못했습니다. 다음 동기화에서 다시 시도합니다.'
+      seafile_fetch_failed: 'Seafile에서 파일을 가져오지 못했습니다. 다음 동기화에서 다시 시도합니다.',
+      "nextcloud_permission_denied": "Nextcloud 파일 접근이 거부되었습니다. 계정 권한을 확인하세요.",
+      "nextcloud_not_found": "목록 조회 후 Nextcloud 파일이 사라졌습니다. 다음 동기화에서 재시도합니다.",
+      "nextcloud_file_too_large": "Nextcloud 파일이 MAX_FILE_SIZE_MB 제한을 초과합니다.",
+      "nextcloud_empty_file": "Nextcloud 파일이 비어 있어 건너뛰었습니다.",
+      "nextcloud_source_changed": "다운로드 중 Nextcloud 파일이 변경되었습니다. 다음 동기화에서 재시도합니다.",
+      "nextcloud_invalid_response": "Nextcloud WebDAV 응답이 잘못되었거나 불완전합니다.",
+      "nextcloud_ssrf_blocked": "SSRF 정책이 Nextcloud 요청을 차단했습니다. SSRF_WHITELIST를 확인하세요.",
+      "nextcloud_fetch_failed": "Nextcloud 파일을 가져오지 못했습니다. 다음 동기화에서 재시도합니다.",
     },
+    "nextcloud": {
+      "baseUrl": "Nextcloud URL",
+      "baseUrlHint": "https://nextcloud.example.com/cloud 같은 설치 주소를 입력하세요. /remote.php/dav는 포함하지 않습니다. 사설 배포는 기존 SSRF_WHITELIST를 설정하세요.",
+      "username": "사용자 이름",
+      "appPassword": "앱 비밀번호",
+      "appPasswordHint": "개인 설정 → 보안 → 장치 및 세션에서 앱 비밀번호를 만들고 생성된 사용자 이름과 앱 비밀번호를 사용하세요.",
+      "selectionRequired": "폴더 또는 파일을 하나 이상 선택하세요",
+      "includeExtensions": "포함할 확장자 (선택)",
+      "excludeExtensions": "제외할 확장자 (선택)",
+      "extensionsHint": ".pdf, .md처럼 쉼표로 구분하세요. 포함 항목이 비어 있으면 지원하는 모든 형식을 동기화합니다. 제외가 우선하며 필터 변경은 삭제 대조 범위에도 영향을 줍니다."
+    },
+    "noResourcesDesc_nextcloud": "접근 가능한 폴더 또는 지원하는 파일이 없습니다",
+    "guideStep1_nextcloud": "Nextcloud에 로그인하여 선택한 폴더의 읽기 권한을 확인하세요",
+    "guideStep2_nextcloud": "개인 설정 → 보안 → 장치 및 세션에서 앱 비밀번호를 만드세요",
+    "guideStep3_nextcloud": "여기서 인증 정보를 교체한 후 리소스를 다시 불러오세요",
   },
   ollama: {
     unknown: '알 수 없음',
@@ -2133,7 +2158,9 @@ export default {
       readWeKnoraDoc: '제품 문서 읽기',
       readPage: '페이지 보기',
       selectTab: '탭 선택',
-      fillPage: '페이지 입력'
+      fillPage: '페이지 입력',
+      "requestSecureForm": "자격 증명 요청",
+      "browserFillSecret": "자격 증명 입력",
     },
     collaboration: {
       tabs: '작업 탭',
@@ -2462,7 +2489,8 @@ export default {
       previous: '이전',
       next: '다음',
       collapse: '접기',
-      expand: '펼치기'
+      expand: '펼치기',
+      "secureFormTitle": "자격 증명 입력이 필요합니다",
     },
     toolApproval: {
       title: '승인',
@@ -2555,7 +2583,7 @@ export default {
     hostApproval: {
       titleDelete: '파일을 삭제하기 전에 확인이 필요합니다',
       titleDangerous: '위험한 작업 확인',
-      titleDenied: '샌드박스가 이 명령을 차단했습니다. 다음 디렉터리에 대한 접근이 필요합니다',
+      titleDenied: "WeKnora가 다음 디렉터리에 접근하려고 합니다",
       titleGeneric: '확인이 필요합니다',
       command: '명령',
       cwd: '디렉터리',
@@ -2573,13 +2601,52 @@ export default {
       rejectedTag: '거부됨',
       submitted: '제출됨',
       submitFailed: '제출 실패',
-      userRejected: '사용자가 거부함'
+      userRejected: '사용자가 거부함',
+      "titleFileWrite": "작업 공간 밖 파일에 쓰기",
+      "fileOnly": "이 파일만 허용합니다",
+      "writeMode": "방식",
+      "writeModeOverwrite": "덮어쓰기",
+      "writeModeAppend": "추가",
+      "writeModeEdit": "편집",
+      "writeBytes": "{bytes}바이트",
+      "preview": "내용",
+      "previewTruncated": "처음 64KB만 표시",
+      "env": "환경 변수",
+      "skillName": "스킬",
+      "stdin": "표준 입력",
+      "script": "명령이 실행하는 스크립트",
     }
 ,
     entityLink: {
       kb: '지식베이스',
       doc: '문서',
       chunk: '청크'
+    },
+    "secureForm": {
+      "onlyFillInto": "입력 대상: {domains}에만",
+      "observedAt": "브라우저 현재 페이지: {origin}",
+      "originUnknown": "브라우저의 현재 페이지를 확인할 수 없습니다. 로그인할 사이트가 열려 있는지 확인하세요",
+      "originMismatch": "브라우저의 현재 페이지({origin})가 로그인할 사이트와 다릅니다. 확인한 후 입력하세요",
+      "originInsecure": "브라우저 페이지가 HTTPS가 아니므로 자격 증명이 입력되지 않습니다",
+      "savedAccount": "저장된 계정",
+      "useNew": "새 사용자 이름과 비밀번호 사용",
+      "username": "사용자 이름",
+      "password": "비밀번호",
+      "saveToVault": "보관함에 저장",
+      "useOnce": "이번만 사용",
+      "fill": "입력",
+      "decline": "거절",
+      "submittedHidden": "제출됨(내용 숨김)",
+      "declined": "거절함",
+      "timedOut": "시간 초과",
+      "canceled": "취소됨",
+      "submitFailed": "제출 실패",
+      "savedButClosed": "자격 증명은 보관함에 저장되었지만 이 요청은 이미 종료되었습니다"
+    },
+    "hostReview": {
+      "reviewing": "자동 검토 중…",
+      "approved": "자동 승인됨: {reason}",
+      "denied": "자동 검토에서 거부됨: {reason}"
     },
   },
   kbSettings: {
@@ -3776,7 +3843,8 @@ export default {
         query_understand_model: '질의 이해 모델',
         follow_up_model: '후속 질문 모델',
         extract_model: '메모리 추출 모델',
-        unknown: '기타 모델 설정'
+        unknown: '기타 모델 설정',
+        "question_model": "질문 생성 모델",
       }
     },
     debug: {
@@ -5141,6 +5209,8 @@ export default {
     docreaderImageVersionDescription: '실행 중인 weknora-docreader 이미지 버전',
     sandboxImageVersionLabel: 'Sandbox 이미지 버전',
     sandboxImageVersionDescription: '설정된 weknora-sandbox 이미지 버전',
+    "docreaderVersionLabel": "Docreader 버전",
+    "docreaderVersionDescription": "현재 문서 분석 서비스(weknora-docreader)의 빌드 버전",
   },
   tenant: {
     title: '워크스페이스 정보',
@@ -5553,7 +5623,10 @@ export default {
         countDescription: '각 문서 청크에서 생성할 질문 수 (1-10)',
     instructionsLabel: '질문 생성 지침',
         instructionsDescription: '안정적인 출력 형식을 유지하면서 대상, 상황 및 표현 방식을 지정합니다',
-        instructionsPlaceholder: '예: 시험 문제 형식을 피하고 자연스러운 고객 지원 질문을 생성…'
+        instructionsPlaceholder: '예: 시험 문제 형식을 피하고 자연스러운 고객 지원 질문을 생성…',
+        "modelLabel": "질문 생성 모델",
+        "modelDescription": "비워 두면 지식 베이스 요약 모델을 사용합니다.",
+        "modelPlaceholder": "질문 생성 모델 선택",
       },
       profile: {
         label: '지식베이스 설명 자동 생성',
@@ -6100,7 +6173,14 @@ export default {
       issueFixSuggestions: '콘텐츠 최적화 제안 ({count})',
       issueFixSingle: '수정',
       issueFixPromptSingle: '이 Wiki 문제를 수정해 줘: {description}',
-      issueFixPromptAll: '이 페이지의 처리할 문제 {count}개를 수정해 줘'
+      issueFixPromptAll: '이 페이지의 처리할 문제 {count}개를 수정해 줘',
+      "cardOverviewDetailHint": "간략 보기입니다. 슬라이더를 오른쪽으로 이동하면 더 많은 페이지가 표시됩니다",
+      "graphDetailLevel": "확장 범위",
+      "graphDetailHint": "오른쪽으로 이동하면 연결이 확장되고, 끝에서는 모든 페이지를 표시합니다",
+      "graphDetailOverview": "개요",
+      "graphDetailOneHop": "1단계",
+      "graphDetailTwoHops": "2단계",
+      "graphDetailAll": "전체",
     },
     indexing: {
       title: '인덱싱 전략',
@@ -6137,7 +6217,9 @@ export default {
       granularityExhaustive: '상세',
       granularityFocusedHint: '문서의 주요 주체만 추출합니다 (예: 이력서 → 인물과 프로젝트). 가장 깔끔하지만 부수 엔티티는 누락될 수 있습니다.',
       granularityStandardHint: '주요 주체 + 상세히 논의된 부수 엔티티/개념. 지나가듯 언급된 용어는 생략합니다. 권장 기본값입니다.',
-      granularityExhaustiveHint: '스쳐 지나가는 기술 스택 언급을 포함해 명명된 모든 엔티티와 개념을 추출합니다. KB를 용어집으로 사용할 때 적합합니다.'
+      granularityExhaustiveHint: '스쳐 지나가는 기술 스택 언급을 포함해 명명된 모든 엔티티와 개념을 추출합니다. KB를 용어집으로 사용할 때 적합합니다.',
+      "autoGenerateLabel": "Wiki 페이지 자동 생성",
+      "autoGenerateTip": "사용하지 않아도 Wiki 페이지를 탐색하고 수동으로 편집할 수 있지만, 문서 처리 중 LLM으로 페이지를 생성하거나 업데이트하지 않습니다",
     },
     basic: {
       title: '기본 정보',
@@ -6454,7 +6536,16 @@ export default {
     deleteConfirm: '이 임베드 채널을 삭제하시겠습니까? 배포된 코드가 작동하지 않습니다.',
     defaultLocale: '기본 언어',
     defaultLocaleDesc: '방문자가 채팅을 열 때 사용할 UI 언어; 비우면 브라우저 또는 Widget setLocale()을 따릅니다.',
-    defaultLocaleBrowser: '브라우저 / 호스트 기본값'
+    defaultLocaleBrowser: '브라우저 / 호스트 기본값',
+    "history": "대화 기록",
+    "historyHint": "최근 대화 30개가 이 브라우저에만 저장됩니다. 기록을 지워도 서버 메시지는 삭제되지 않습니다.",
+    "historyEmpty": "저장된 대화 없음",
+    "historyUntitled": "제목 없는 대화",
+    "historyClear": "로컬 기록 지우기",
+    "historyClearConfirm": "기록을 지우고 새 대화를 시작할까요? 서버 메시지는 유지됩니다.",
+    "historyRetry": "다시 시도",
+    "historyLoadFailed": "대화를 열 수 없습니다. 다시 시도해 주세요.",
+    "historyUnavailable": "사용할 수 없는 대화이므로 로컬 기록에서 삭제했습니다.",
   },
   knowledgeList: {
     create: '지식베이스 생성',
@@ -6617,6 +6708,25 @@ export default {
     placeholderKbAndWeb:
       "Enter your question, will answer based on knowledge base and web search",
     placeholderAgent: "Ask {name}",
+    "voiceTooltip": "길게 눌러 말하기 ({shortcut})",
+    "voicePreparing": "마이크를 준비하는 중입니다. 버튼이 빨간색이 되면 말하세요",
+    "voiceRecording": "녹음 중, 손을 떼면 종료됩니다",
+    "voiceReleasedEarly": "마이크가 아직 준비되지 않았습니다. 버튼이 빨간색이 될 때까지 누른 채 말하세요",
+    "voiceTranscribing": "음성을 인식하는 중…",
+    "voiceUnsupported": "현재 브라우저는 녹음을 지원하지 않습니다",
+    "voiceInsecureContext": "음성 입력은 HTTPS 또는 localhost에서만 사용할 수 있습니다",
+    "voicePermissionDenied": "마이크를 사용할 수 없습니다. 브라우저에서 마이크 권한을 허용하세요",
+    "voiceDeviceError": "사용 가능한 마이크가 없습니다",
+    "voiceDecodeError": "녹음 처리에 실패했습니다. 다시 시도하세요",
+    "voiceTranscribeFailed": "음성 인식에 실패했습니다. 에이전트의 ASR 모델 설정을 확인하세요",
+    "voiceEmptyResult": "인식된 음성이 없습니다",
+    "hostApprovalMode": {
+      "ask": "승인 요청",
+      "askHint": "삭제와 작업 공간 밖 쓰기는 확인합니다",
+      "auto": "대신 승인",
+      "autoHint": "모델이 대신 판단하며 방해하지 않습니다",
+      "switchFailed": "승인 모드를 전환하지 못했습니다"
+    },
   },
   manualEditor: {
     assistant: {
@@ -8116,7 +8226,10 @@ export default {
       mineruLegacySectionHint: 'MinerU 4.0에서 아래 요청 파라미터가 제거되어 4.0 이상 서버에서는 무시됩니다. VLM 서버는 MinerU 쪽에서 설정하세요.',
       paddleocrVlEndpointPlaceholder: '예: http://your-paddleocr-vl:8080',
       paddleocrVlEndpointHint: 'PaddleOCR-VL 전체 서비스(pipeline) 주소를 입력하세요. /layout-parsing 접미사는 불필요합니다',
-      paddleocrVlCloudTokenPlaceholder: 'PaddleOCR-VL AI Studio Token'
+      paddleocrVlCloudTokenPlaceholder: 'PaddleOCR-VL AI Studio Token',
+      "mineruEffortLabel": "하이브리드 파싱 수준",
+      "mineruEffortDefault": "서버 기본값 (medium)",
+      "mineruEffortHint": "high는 이전 하이브리드 백엔드에서 이미지와 차트 분석을 활성화하지만 처리 시간이 늘어납니다.",
     },
     weknoraCloud: {
       title: 'WeKnora Cloud',
@@ -8183,7 +8296,11 @@ export default {
       dataExtensions: '데이터 및 확장',
       systemAdministration: '시스템 관리',
       platform: '플랫폼'
-    }
+    },
+    "hostApprovalDefault": {
+      "title": "기본 실행 권한 승인",
+      "description": "에이전트가 파일을 삭제하거나 작업 영역 밖에 쓸 때, 매번 물어볼지 모델이 대신 승인할지를 정합니다. 새 대화는 여기서 시작하고, 현재 대화는 입력창 왼쪽에서 바꿀 수 있습니다."
+    },
   },
   agent: {
     taskLabel: '작업:',
@@ -9049,6 +9166,7 @@ export default {
     partialUploadSuccess:
       "Partial upload success (success: {success}, failed: {fail})",
     allUploadFailed: "All files failed to upload ({count} files)",
+    "channelNextcloud": "Nextcloud",
   },
   resourceOrigin: {
     mine: '내 생성',
@@ -10084,6 +10202,107 @@ export default {
     "cancel": "취소",
     "adminOnly": "관리자는 설정을 변경할 수 있습니다. 소유자만 데이터를 삭제할 수 있습니다.",
     "disabledMessage": "특허 워크스페이스가 비활성화되었습니다."
-  }
-
+  },
+  "documentProgress": {
+    "queueView": "큐 작업",
+    "title": "자료 및 Wiki 진행 상황",
+    "description": "수집과 Wiki의 현재 처리 상태를 각각 확인합니다. 복구 후에도 원래 실패 기록은 유지됩니다.",
+    "refresh": "새로고침",
+    "search": "자료 또는 지식 베이스 검색",
+    "searchButton": "검색",
+    "filter": "진행 상태 필터",
+    "count": "자료 수 (1–100)",
+    "batchStart": "Wiki 일괄 시작",
+    "confirmBatch": "현재 검색 범위에서 가장 오래 기다린 자료부터 최대 {count}개의 Wiki 처리를 예약할까요?",
+    "confirmOne": "“{title}”의 기존 진행 상황을 유지하면서 Wiki 처리를 예약할까요?",
+    "attempt": "처리 시도 {value}",
+    "pendingOps": "대기 작업 {count}개 · 재시도 횟수 {retries}",
+    "historyCount": "기록 {count}개",
+    "details": "상세 정보",
+    "startNow": "지금 Wiki 시작",
+    "currentStatus": "현재 상태",
+    "history": "실패 기록",
+    "historyDescription": "복구된 실패를 포함한 원래 기록입니다. 기록이 있다는 것이 현재도 실패 중이라는 뜻은 아닙니다.",
+    "noHistory": "이 자료의 보관된 실패 기록이 없습니다.",
+    "failureAttempts": "실패 횟수 {count}",
+    "historyLimit": "최근 50개를 표시합니다. 원래 기록은 유지됩니다.",
+    "unfinished": "미완료",
+    "all": "모든 자료",
+    "document": "자료",
+    "ingestion": "수집",
+    "wiki": "Wiki",
+    "actions": "작업",
+    "loadError": "진행 상황을 읽을 수 없습니다. 새로고침 후 다시 시도하세요.",
+    "started": "{count}개를 예약했습니다. {queued}개는 이미 대기 중입니다. 기존 진행 상황은 유지됩니다.",
+    "startError": "큐 전달이 중단되기 전에 {count}개가 접수되었습니다. 새로고침 후 나머지를 예약하세요.",
+    "states": {
+      "ready": "수집 완료",
+      "pending": "대기",
+      "processing": "처리 중",
+      "finalizing": "마무리 중",
+      "completed": "완료",
+      "failed": "실패",
+      "skipped": "건너뜀",
+      "cancelled": "취소됨",
+      "queued": "큐 대기",
+      "retrying": "재시도 중",
+      "disabled": "비활성",
+      "notStarted": "시작 전"
+    },
+    "stages": {
+      "docreader": "문서 분석",
+      "chunking": "분할",
+      "embedding": "색인 생성",
+      "multimodal": "이미지 처리",
+      "postprocess": "후처리"
+    }
+  },
+  "mentionBrowser": {
+    "browse": "폴더별 탐색",
+    "path": "폴더 경로",
+    "root": "루트",
+    "searchFolder": "이 폴더 검색",
+    "searchKb": "지식베이스 검색",
+    "subtree": "하위 폴더도 검색합니다.",
+    "wholeKb": "전체 지식베이스가 선택되어 있습니다. 파일을 선택해도 범위가 좁아지지 않습니다.",
+    "tags": "기존 태그가 선택한 파일을 계속 필터링합니다.",
+    "folderCount": "하위 폴더 포함 문서 {count}개",
+    "selected": "선택됨",
+    "deleting": "삭제 중",
+    "unsupported": "이 에이전트에서 지원하지 않는 형식",
+    "forbidden": "이 콘텐츠에 접근할 권한이 없습니다.",
+    "missing": "폴더가 더 이상 유효하지 않습니다. 돌아가서 다시 선택하세요.",
+    "error": "폴더를 불러오지 못했습니다. 다시 시도하세요.",
+    "retry": "다시 시도",
+    "empty": "이 보기에 파일이 없습니다.",
+    "previous": "이전",
+    "next": "다음",
+    "page": "{page}페이지 · 문서 {total}개"
+  },
+  "credentialVault": {
+    "title": "자격 증명 보관함",
+    "description": "agent가 샌드박스 브라우저에서 사이트에 로그인할 때 여기에 저장한 계정을 사용할 수 있습니다. 비밀번호는 암호화되어 저장되며 화면에 다시 표시되지 않고 다시 설정만 할 수 있습니다. 입력된 비밀번호는 agent도 실행되는 샌드박스 브라우저로 들어가므로 신뢰할 수 있는 agent와 사이트에서만 사용하세요.",
+    "unavailable": "서버에 유효한 SYSTEM_AES_KEY가 설정되지 않아 자격 증명을 저장할 수 없습니다.",
+    "loading": "불러오는 중…",
+    "loadFailed": "불러오기 실패",
+    "empty": "저장된 자격 증명이 아직 없습니다. agent가 로그인을 요청하면 카드에서 \"보관함에 저장\"을 선택하세요.",
+    "add": "자격 증명 추가",
+    "edit": "편집",
+    "delete": "삭제",
+    "deleteConfirm": "이 자격 증명을 삭제할까요?",
+    "save": "저장",
+    "saved": "저장됨",
+    "deleted": "삭제됨",
+    "saveFailed": "저장 실패",
+    "titleLabel": "이름",
+    "site": "사이트",
+    "domains": "입력 허용 도메인",
+    "domainsHint": "쉼표로 구분, 최대 5개. 사이트 자체는 항상 포함됩니다",
+    "username": "사용자 이름",
+    "password": "비밀번호",
+    "newPassword": "새 비밀번호",
+    "passwordHint": "비워 두면 변경하지 않습니다",
+    "lastUsed": "마지막 사용: {time}",
+    "never": "사용한 적 없음"
+  },
 }

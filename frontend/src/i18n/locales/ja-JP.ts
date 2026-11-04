@@ -1098,8 +1098,9 @@ export default {
     allUploadFailed:
       "すべてのファイルのアップロードに失敗しました（{count}件）",
 
-"assistantDeleted": "アシスタントがこのナレッジベースを削除しました。"
-},
+"assistantDeleted": "アシスタントがこのナレッジベースを削除しました。",
+    "channelNextcloud": "Nextcloud",
+  },
   uploadConfirm: {
     imageEmbeddingModel: "画像インデックス用 Embedding モデル",
     imageIndexInherited: "画像インデックスにはナレッジベースの Embedding モデルを使用します。変更はナレッジベース設定で行ってください。",
@@ -2236,7 +2237,10 @@ export default {
       mineruLegacySectionHint: 'MinerU 4.0 ではこれらのリクエストパラメータが廃止されたため、4.0 以降のサーバーでは無視されます。VLM サーバーは MinerU 側で設定してください。',
       paddleocrVlEndpointPlaceholder: '例: http://your-paddleocr-vl:8080',
       paddleocrVlEndpointHint: 'PaddleOCR-VLパイプラインサービスのベースURLです。末尾に/layout-parsingを付ける必要はありません',
-      paddleocrVlCloudTokenPlaceholder: 'PaddleOCR-VL AI Studio Token'
+      paddleocrVlCloudTokenPlaceholder: 'PaddleOCR-VL AI Studio Token',
+      "mineruEffortLabel": "ハイブリッド解析の精度",
+      "mineruEffortDefault": "サーバーの既定値（medium）",
+      "mineruEffortHint": "high は旧版ハイブリッド解析で画像と図表の分析を有効にしますが、処理時間が長くなります。",
     },
     storageBackend: {
       description: 'ファイルと画像に使用するストレージインスタンスを管理します。同じ種類のインスタンスを複数設定できます。',
@@ -2354,7 +2358,11 @@ export default {
       saveFailed: '保存に失敗しました',
       unknownError: '不明なエラー',
       requestFailed: 'リクエストに失敗しました'
-    }
+    },
+    "hostApprovalDefault": {
+      "title": "既定の実行権限の承認",
+      "description": "エージェントがファイルを削除するとき、またはワークスペースの外へ書き込むときに、毎回確認するかモデルに承認させるかを決めます。新しいチャットはここから始まり、今のチャットは入力欄の左で切り替えられます。"
+    },
   },
   webSearchSettings: {
     title: 'Web検索の設定',
@@ -3154,8 +3162,27 @@ export default {
 
 "modelAuto": "既定",
 "modelFollowDefault": "既定に従う",
-"modelAutoHint": "現在のナレッジベースのチャットモデル。ナレッジベース外や未設定の場合は、最初に利用可能なチャットモデルを使用します"
-},
+"modelAutoHint": "現在のナレッジベースのチャットモデル。ナレッジベース外や未設定の場合は、最初に利用可能なチャットモデルを使用します",
+    "voiceTooltip": "押したまま話す（{shortcut}）",
+    "voicePreparing": "マイクを準備しています。ボタンが赤くなってから話してください",
+    "voiceRecording": "録音中、離すと終了します",
+    "voiceReleasedEarly": "マイクの準備ができていません。ボタンが赤くなるまで押したまま話してください",
+    "voiceTranscribing": "音声を認識しています…",
+    "voiceUnsupported": "このブラウザは録音に対応していません",
+    "voiceInsecureContext": "音声入力には HTTPS または localhost でのアクセスが必要です",
+    "voicePermissionDenied": "マイクを使用できません。ブラウザでマイクの使用を許可してください",
+    "voiceDeviceError": "利用可能なマイクが見つかりません",
+    "voiceDecodeError": "録音の処理に失敗しました。もう一度お試しください",
+    "voiceTranscribeFailed": "音声認識に失敗しました。エージェントの ASR モデル設定を確認してください",
+    "voiceEmptyResult": "音声が認識されませんでした",
+    "hostApprovalMode": {
+      "ask": "承認を求める",
+      "askHint": "削除とワークスペース外への書き込みは確認します",
+      "auto": "代わりに承認",
+      "autoHint": "モデルが代わりに判断し、中断しません",
+      "switchFailed": "承認モードを切り替えられませんでした"
+    },
+  },
   createChat: {
     title: 'こんにちは、Vivibit AIアシスタントです。あなたのナレッジを、すぐそばに',
     newSessionTitle: '新しいセッション',
@@ -3372,7 +3399,16 @@ export default {
     deleteConfirm: 'この埋め込みチャネルを削除しますか？設置済みのスニペットは動作しなくなります。',
     defaultLocale: 'デフォルト言語',
     defaultLocaleDesc: 'チャットを開いたときの訪問者UIの言語です。空欄の場合はブラウザまたはホストのWidget setLocale()に従います。',
-    defaultLocaleBrowser: 'ブラウザ／ホストのデフォルト'
+    defaultLocaleBrowser: 'ブラウザ／ホストのデフォルト',
+    "history": "チャット履歴",
+    "historyHint": "最新 30 件をこのブラウザーに保存します。履歴を消去してもサーバーのメッセージは削除されません。",
+    "historyEmpty": "保存済みのチャットはありません",
+    "historyUntitled": "無題のチャット",
+    "historyClear": "ローカル履歴を消去",
+    "historyClearConfirm": "履歴を消去して新しいチャットを開始しますか？サーバーのメッセージは保持されます。",
+    "historyRetry": "再試行",
+    "historyLoadFailed": "チャットを開けませんでした。もう一度お試しください。",
+    "historyUnavailable": "このチャットは利用できないため、ローカル履歴から削除しました。",
   },
   knowledgeEditor: {
     activity: {
@@ -3586,7 +3622,9 @@ export default {
       granularityExhaustive: '網羅',
       granularityFocusedHint: 'ドキュメントの主題のみを抽出します（例: 履歴書なら本人とそのプロジェクト）。最もすっきりしますが、副次的なエンティティを取りこぼす場合があります。',
       granularityStandardHint: '主題に加えて、十分に言及されている副次的なエンティティや概念も抽出します。名前だけの言及は除外します。推奨のデフォルトです。',
-      granularityExhaustiveHint: '技術スタックやツールへの軽微な言及も含め、名前付きのエンティティと概念をすべて抽出します。ナレッジベースを用語集として使う場合に適しています。'
+      granularityExhaustiveHint: '技術スタックやツールへの軽微な言及も含め、名前付きのエンティティと概念をすべて抽出します。ナレッジベースを用語集として使う場合に適しています。',
+      "autoGenerateLabel": "Wikiページを自動生成",
+      "autoGenerateTip": "無効にしてもWikiページの閲覧と手動編集は利用できますが、ドキュメント処理でLLMによるページの生成や更新は行われません",
     },
     indexing: {
       title: 'インデックス戦略',
@@ -3867,8 +3905,15 @@ export default {
       issueFixSuggestions: 'コンテンツ最適化の提案（{count}）',
       issueFixSingle: '修正',
       issueFixPromptSingle: "この Wiki の問題を修正して：{description}",
-"issueFixPromptAll": "このページの未対応の問題 {count} 件を修正して"
-},
+"issueFixPromptAll": "このページの未対応の問題 {count} 件を修正して",
+      "cardOverviewDetailHint": "簡略表示中です。スライダーを右に動かすと、さらにページが表示されます",
+      "graphDetailLevel": "展開範囲",
+      "graphDetailHint": "右に動かすと関連ページが増え、右端ですべて表示します",
+      "graphDetailOverview": "概要",
+      "graphDetailOneHop": "1段階",
+      "graphDetailTwoHops": "2段階",
+      "graphDetailAll": "すべて",
+    },
     buttons: {
       create: 'ナレッジベースを作成',
       save: '設定を保存',
@@ -4140,7 +4185,10 @@ export default {
         countDescription: 'ドキュメントのチャンクごとに生成する質問の数（1〜10）',
         instructionsLabel: '質問生成の指示',
         instructionsDescription: '出力形式はシステム側で固定したまま、対象読者、利用シーン、表現を指定できます',
-        instructionsPlaceholder: '例: カスタマーサポートで自然に出てくる質問を生成し、試験問題のような表現は避ける…'
+        instructionsPlaceholder: '例: カスタマーサポートで自然に出てくる質問を生成し、試験問題のような表現は避ける…',
+        "modelLabel": "質問生成モデル",
+        "modelDescription": "未選択の場合はナレッジベースの要約モデルを使用します。",
+        "modelPlaceholder": "質問生成モデルを選択",
       },
       profile: {
         label: 'ナレッジベース説明の自動生成',
@@ -5143,6 +5191,8 @@ export default {
     sandboxImageVersionLabel: "Sandbox Image Version",
     sandboxImageVersionDescription:
       "Version of the configured weknora-sandbox image",
+    "docreaderVersionLabel": "Docreaderバージョン",
+    "docreaderVersionDescription": "現在の文書解析サービス（weknora-docreader）のビルドバージョン",
   },
   mcp: {
     testResult: {
@@ -5915,7 +5965,8 @@ export default {
         query_understand_model: 'クエリ理解モデル',
         follow_up_model: 'フォローアップモデル',
         extract_model: 'メモリ抽出モデル',
-        unknown: 'その他のモデル設定'
+        unknown: 'その他のモデル設定',
+        "question_model": "質問生成モデル",
       }
     },
     debug: {
@@ -6685,7 +6736,8 @@ export default {
       previous: '前へ',
       next: '次へ',
       collapse: '折りたたむ',
-      expand: '展開'
+      expand: '展開',
+      "secureFormTitle": "認証情報の入力が必要です",
     },
     toolApproval: {
       waiting: '承認待ち · {target}',
@@ -6841,8 +6893,10 @@ export default {
 "readWeKnoraDoc": "製品ドキュメントを読む",
 "readPage": "ページを確認",
 "selectTab": "タブを選択",
-"fillPage": "ページに入力"
-},
+"fillPage": "ページに入力",
+      "requestSecureForm": "認証情報をリクエスト",
+      "browserFillSecret": "認証情報を入力",
+    },
     skillFiles: {
       heading: 'スキルファイル',
       script: 'スクリプト',
@@ -7256,7 +7310,7 @@ export default {
   hostApproval: {
       titleDelete: 'ファイルを削除する前に確認してください',
       titleDangerous: '危険な操作の確認',
-      titleDenied: 'サンドボックスがこのコマンドを拒否しました。次のディレクトリへのアクセスが必要です',
+      titleDenied: "WeKnora が次のディレクトリへのアクセスを求めています",
       titleGeneric: '確認が必要です',
       command: 'コマンド',
       cwd: 'ディレクトリ',
@@ -7274,9 +7328,48 @@ export default {
       rejectedTag: '拒否済み',
       submitted: '送信しました',
       submitFailed: '送信に失敗しました',
-      userRejected: 'ユーザーが拒否しました'
+      userRejected: 'ユーザーが拒否しました',
+    "titleFileWrite": "ワークスペース外のファイルに書き込む",
+    "fileOnly": "このファイルだけを許可します",
+    "writeMode": "方式",
+    "writeModeOverwrite": "上書き",
+    "writeModeAppend": "追記",
+    "writeModeEdit": "編集",
+    "writeBytes": "{bytes} バイト",
+    "preview": "内容",
+    "previewTruncated": "先頭 64 KB のみ表示",
+    "env": "環境変数",
+    "skillName": "スキル",
+    "stdin": "標準入力",
+    "script": "コマンドが実行するスクリプト",
+  },
+    "secureForm": {
+      "onlyFillInto": "入力先：{domains} のみ",
+      "observedAt": "ブラウザの現在のページ：{origin}",
+      "originUnknown": "ブラウザの現在のページを確認できません。ログインするサイトが表示されていることを確認してください",
+      "originMismatch": "ブラウザの現在のページ（{origin}）はログイン先のサイトと一致しません。確認してから入力してください",
+      "originInsecure": "ブラウザのページが HTTPS ではないため、認証情報は入力されません",
+      "savedAccount": "保存済みアカウント",
+      "useNew": "新しいユーザー名とパスワードを使う",
+      "username": "ユーザー名",
+      "password": "パスワード",
+      "saveToVault": "保管庫に保存",
+      "useOnce": "今回のみ使用",
+      "fill": "入力",
+      "decline": "拒否",
+      "submittedHidden": "送信済み（内容は非表示）",
+      "declined": "拒否しました",
+      "timedOut": "タイムアウト",
+      "canceled": "キャンセルされました",
+      "submitFailed": "送信に失敗しました",
+      "savedButClosed": "認証情報は保管庫に保存されましたが、このリクエストはすでに終了しています"
     },
-},
+    "hostReview": {
+      "reviewing": "自動審査中…",
+      "approved": "自動承認：{reason}",
+      "denied": "自動審査で拒否：{reason}"
+    },
+  },
   agentEditor: {
     builtinHint: 'これは組み込みエージェントです。名前と説明は変更できませんが、設定パラメータは調整できます。',
     navGroups: {
@@ -7841,7 +7934,8 @@ export default {
       rss: 'RSS / Atomフィード',
       ima: 'Tencent IMA',
       gitlab: 'GitLab',
-      seafile: 'Seafile'
+      seafile: 'Seafile',
+      "nextcloud": "Nextcloud",
     },
     connectorDesc: {
       feishu: 'Feishu Wikiからドキュメント、スプレッドシート、ファイルを同期します',
@@ -7855,7 +7949,8 @@ export default {
       rss: 'RSS / Atomフィードから記事を同期します',
       ima: 'Tencent IMAのナレッジベースからドキュメント、ノート、ファイルを同期します（AIセッションと動画の解析は非対応）',
       gitlab: 'GitLabプロジェクトからファイルを同期します',
-      seafile: 'Seafileライブラリのフォルダとファイルを同期します'
+      seafile: 'Seafileライブラリのフォルダとファイルを同期します',
+      "nextcloud": "WebDAV 経由で Nextcloud のフォルダーとファイルを同期",
     },
     drive: {
       folderTokenLabel: 'Driveフォルダトークン',
@@ -8010,6 +8105,14 @@ export default {
       seafile_fetch_failed: 'Seafileからファイルを取得できませんでした。次回の同期で再試行します。'
 ,
       dingtalk_document_too_large: 'DingTalkファイルが64 MiBのダウンロード上限を超えたため、今回の同期ではスキップしました。圧縮または分割してください。',
+      "nextcloud_permission_denied": "Nextcloud ファイルへのアクセスが拒否されました。権限を確認してください。",
+      "nextcloud_not_found": "一覧取得後に Nextcloud ファイルが消失しました。次回再試行します。",
+      "nextcloud_file_too_large": "Nextcloud ファイルが MAX_FILE_SIZE_MB を超えています。",
+      "nextcloud_empty_file": "Nextcloud ファイルが空のためスキップしました。",
+      "nextcloud_source_changed": "ダウンロード中に Nextcloud ファイルが変更されました。次回再試行します。",
+      "nextcloud_invalid_response": "Nextcloud の WebDAV 応答が無効または不完全です。",
+      "nextcloud_ssrf_blocked": "SSRF ポリシーが Nextcloud リクエストを拒否しました。SSRF_WHITELIST を確認してください。",
+      "nextcloud_fetch_failed": "Nextcloud ファイルの取得に失敗しました。次回再試行します。",
     }
   ,
 "parseModeLabel": "解析モード",
@@ -8018,8 +8121,23 @@ export default {
   "blocks": "ブロック解析（デフォルト）",
   "export": "エクスポート解析（docx）"
 },
-"parseModeHint": "Feishuクラウドドキュメントの解析方式。ブロック解析は高速でドキュメント内の添付ファイルを保持します。エクスポート解析はdocxに変換して解析し、画像とドキュメントの関連付けがより正確になります。"
-},
+"parseModeHint": "Feishuクラウドドキュメントの解析方式。ブロック解析は高速でドキュメント内の添付ファイルを保持します。エクスポート解析はdocxに変換して解析し、画像とドキュメントの関連付けがより正確になります。",
+    "nextcloud": {
+      "baseUrl": "Nextcloud URL",
+      "baseUrlHint": "https://nextcloud.example.com/cloud のようなインストール先を指定します。/remote.php/dav は含めません。プライベート環境では既存の SSRF_WHITELIST を設定してください。",
+      "username": "ユーザー名",
+      "appPassword": "アプリパスワード",
+      "appPasswordHint": "「個人設定 → セキュリティ → デバイスとセッション」で作成したユーザー名とアプリパスワードを使用します。",
+      "selectionRequired": "フォルダーまたはファイルを1つ以上選択してください",
+      "includeExtensions": "含める拡張子（任意）",
+      "excludeExtensions": "除外する拡張子（任意）",
+      "extensionsHint": ".pdf, .md のようにカンマで区切ります。含める拡張子が空なら対応する全形式が対象です。除外が優先され、変更は削除の照合範囲にも影響します。"
+    },
+    "noResourcesDesc_nextcloud": "アクセス可能なフォルダーや対応ファイルがありません",
+    "guideStep1_nextcloud": "Nextcloud にログインし、対象フォルダーの読み取り権限を確認します",
+    "guideStep2_nextcloud": "「個人設定 → セキュリティ → デバイスとセッション」でアプリパスワードを作成します",
+    "guideStep3_nextcloud": "ここで認証情報を置き換え、リソースを再読み込みします",
+  },
   integrations: {
     cli: {
       title: 'WeKnora CLI',
@@ -10170,5 +10288,107 @@ export default {
       saveSuccess: 'デフォルト設定を保存しました',
       saveFailed: '保存に失敗しました：{message}',
     },
+  },
+  "documentProgress": {
+    "queueView": "キュータスク",
+    "title": "資料と Wiki の進捗",
+    "description": "取り込みと Wiki の現在の状態を個別に確認できます。復旧後も元の失敗履歴は保持されます。",
+    "refresh": "更新",
+    "search": "資料・ナレッジベースを検索",
+    "searchButton": "検索",
+    "filter": "進捗フィルター",
+    "count": "資料数（1～100）",
+    "batchStart": "Wiki を一括開始",
+    "confirmBatch": "現在の検索範囲で、待機時間の長い資料から最大 {count} 件の Wiki 処理を予約しますか？",
+    "confirmOne": "「{title}」の既存の進捗を引き継いで Wiki 処理を予約しますか？",
+    "attempt": "処理回数 {value}",
+    "pendingOps": "待機中 {count} 件 · 再試行回数 {retries}",
+    "historyCount": "履歴 {count} 件",
+    "details": "詳細",
+    "startNow": "Wiki を今すぐ開始",
+    "currentStatus": "現在の状態",
+    "history": "失敗履歴",
+    "historyDescription": "復旧済みのものを含む、元の失敗記録です。履歴があることは、現在も失敗していることを意味しません。",
+    "noHistory": "この資料の失敗履歴はありません。",
+    "failureAttempts": "失敗回数 {count}",
+    "historyLimit": "最新の 50 件を表示しています。元の履歴は保持されます。",
+    "unfinished": "未完了",
+    "all": "すべての資料",
+    "document": "資料",
+    "ingestion": "取り込み",
+    "wiki": "Wiki",
+    "actions": "操作",
+    "loadError": "進捗を取得できませんでした。更新して再試行してください。",
+    "started": "{count} 件を予約しました。{queued} 件は予約済みです。既存の進捗は保持されます。",
+    "startError": "キューへの受け渡しが中断する前に {count} 件を受け付けました。更新してから残りを予約してください。",
+    "states": {
+      "ready": "取り込み済み",
+      "pending": "待機",
+      "processing": "処理中",
+      "finalizing": "仕上げ中",
+      "completed": "完了",
+      "failed": "失敗",
+      "skipped": "スキップ済み",
+      "cancelled": "キャンセル済み",
+      "queued": "キュー待機",
+      "retrying": "再試行中",
+      "disabled": "無効",
+      "notStarted": "未開始"
+    },
+    "stages": {
+      "docreader": "文書解析",
+      "chunking": "分割",
+      "embedding": "索引作成",
+      "multimodal": "画像処理",
+      "postprocess": "後処理"
+    }
+  },
+  "credentialVault": {
+    "title": "認証情報の保管庫",
+    "description": "agent がサンドボックスのブラウザでサイトにログインするとき、ここに保存したアカウントを使えます。パスワードは暗号化して保存され、画面には再表示されません。再設定のみ可能です。入力したパスワードは agent も動作するサンドボックスのブラウザに入るため、信頼できる agent とサイトでのみ使ってください。",
+    "unavailable": "サーバーに有効な SYSTEM_AES_KEY が設定されていないため、認証情報を保存できません。",
+    "loading": "読み込み中…",
+    "loadFailed": "読み込みに失敗しました",
+    "empty": "保存済みの認証情報はまだありません。agent からログインを求められたら、カードで「保管庫に保存」を選んでください。",
+    "add": "認証情報を追加",
+    "edit": "編集",
+    "delete": "削除",
+    "deleteConfirm": "この認証情報を削除しますか？",
+    "save": "保存",
+    "saved": "保存しました",
+    "deleted": "削除しました",
+    "saveFailed": "保存に失敗しました",
+    "titleLabel": "名前",
+    "site": "サイト",
+    "domains": "入力を許可するドメイン",
+    "domainsHint": "カンマ区切りで最大 5 個。サイト自体は常に含まれます",
+    "username": "ユーザー名",
+    "password": "パスワード",
+    "newPassword": "新しいパスワード",
+    "passwordHint": "空欄のままにすると変更しません",
+    "lastUsed": "最終使用：{time}",
+    "never": "未使用"
+  },
+  "mentionBrowser": {
+    "browse": "フォルダーで参照",
+    "path": "フォルダーパス",
+    "root": "ルート",
+    "searchFolder": "このフォルダーを検索",
+    "searchKb": "ナレッジベースを検索",
+    "subtree": "サブフォルダーも検索します。",
+    "wholeKb": "ナレッジベース全体が選択されています。ファイルの選択で範囲は狭まりません。",
+    "tags": "既存のタグで選択したファイルが絞り込まれます。",
+    "folderCount": "サブフォルダーを含め {count} 件",
+    "selected": "選択済み",
+    "deleting": "削除中",
+    "unsupported": "このエージェントでは未対応の形式",
+    "forbidden": "この内容へのアクセス権がありません。",
+    "missing": "フォルダーが無効です。戻って選択し直してください。",
+    "error": "読み込みに失敗しました。再試行してください。",
+    "retry": "再試行",
+    "empty": "この表示にファイルはありません。",
+    "previous": "前へ",
+    "next": "次へ",
+    "page": "{page} ページ · {total} 件"
   },
 }

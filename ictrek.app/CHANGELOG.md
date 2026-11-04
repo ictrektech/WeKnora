@@ -2,6 +2,20 @@
 
 记录 VOS HybRAG 应用的可验证变化。
 
+## [0.1.78] - 2026-11-04
+
+### 新增
+
+- 合入 Tencent 上游更新，增加文档与 Wiki 处理进度、Nextcloud 数据源、语音输入，以及沙箱凭据库和安全表单。
+- 空间默认设置支持对话、辅助、向量、重排、视觉及语音模型；显式选择的资源模型优先。
+
+### 优化与修复
+
+- 更新 BrowserSkill 至 0.4.1，改进会话浏览器共享、沙箱操作和执行审批。
+- 修复取消聊天后的并发槽位释放、模型流式错误记录、重排结果稳定性和文档解析；按向量维度建立 HNSW 索引。
+- 保留 VOS 自动登录、应用子路径、语言跟随、模型适配、脱敏、法律与专利工作台和归档只读行为。
+- 新增迁移追加到 PostgreSQL 158–159、SQLite 63，保留已发布迁移历史；PGV 依赖版本由打包流程从当前发布记录解析。
+
 ## [0.1.77] - 2026-10-28
 
 以下记录已提交的源码变化；VOS 安装、升级及外部服务联调尚待验证。
@@ -643,3 +657,5 @@
 [0.1.60]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.58...vos-hybrag-v0.1.60
 
 [0.1.74]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.73...vos-hybrag-v0.1.74
+
+[0.1.78]: https://github.com/ictrektech/WeKnora/compare/vos-hybrag-v0.1.77...vos-hybrag-v0.1.78

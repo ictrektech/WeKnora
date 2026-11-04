@@ -1447,7 +1447,8 @@ export default {
       ima: 'Синхронизация документов, заметок и файлов из баз знаний Tencent IMA (ИИ-сессии и разбор видео не поддерживаются)',
       rss: 'Синхронизация статей из лент RSS / Atom',
       gitlab: 'Синхронизация файлов из проектов GitLab',
-      seafile: 'Синхронизация папок и файлов из библиотек Seafile'
+      seafile: 'Синхронизация папок и файлов из библиотек Seafile',
+      "nextcloud": "Синхронизация папок и файлов Nextcloud через WebDAV",
     },
     connector: {
       feishu: 'Feishu (Фэйшу)',
@@ -1461,7 +1462,8 @@ export default {
       ima: 'Tencent IMA',
       rss: 'RSS / Atom лента',
       gitlab: 'GitLab',
-      seafile: 'Seafile'
+      seafile: 'Seafile',
+      "nextcloud": "Nextcloud",
     },
     logDetail: {
       startTime: 'Время начала',
@@ -1534,8 +1536,31 @@ export default {
       seafile_source_changed: 'Файл Seafile изменился во время получения; при следующей синхронизации попытка повторится.',
       seafile_invalid_response: 'Seafile вернул ответ, который не удалось разобрать. Проверьте версию сервера и обратный прокси.',
       seafile_ssrf_blocked: 'URL скачивания Seafile заблокирован политикой SSRF. Добавьте хост fileserver в SSRF_WHITELIST.',
-      seafile_fetch_failed: 'Не удалось получить файл из Seafile; при следующей синхронизации попытка повторится.'
+      seafile_fetch_failed: 'Не удалось получить файл из Seafile; при следующей синхронизации попытка повторится.',
+      "nextcloud_permission_denied": "Нет доступа к файлу Nextcloud. Проверьте права учётной записи.",
+      "nextcloud_not_found": "Файл Nextcloud исчез после получения списка. Следующая синхронизация повторит попытку.",
+      "nextcloud_file_too_large": "Файл Nextcloud превышает ограничение MAX_FILE_SIZE_MB.",
+      "nextcloud_empty_file": "Пустой файл Nextcloud пропущен.",
+      "nextcloud_source_changed": "Файл Nextcloud изменился во время загрузки. Следующая синхронизация повторит попытку.",
+      "nextcloud_invalid_response": "Nextcloud вернул неверный или неполный ответ WebDAV.",
+      "nextcloud_ssrf_blocked": "Политика SSRF заблокировала запрос Nextcloud. Проверьте SSRF_WHITELIST.",
+      "nextcloud_fetch_failed": "Не удалось получить файл Nextcloud. Следующая синхронизация повторит попытку.",
     },
+    "nextcloud": {
+      "baseUrl": "URL Nextcloud",
+      "baseUrlHint": "Укажите адрес установки, например https://nextcloud.example.com/cloud, без /remote.php/dav. Для частной сети используйте существующий SSRF_WHITELIST.",
+      "username": "Имя пользователя",
+      "appPassword": "Пароль приложения",
+      "appPasswordHint": "Создайте пароль в разделе «Личные настройки → Безопасность → Устройства и сеансы». Используйте выданные имя пользователя и пароль приложения.",
+      "selectionRequired": "Выберите хотя бы одну папку или файл",
+      "includeExtensions": "Включить расширения (необязательно)",
+      "excludeExtensions": "Исключить расширения (необязательно)",
+      "extensionsHint": "Расширения через запятую, например .pdf, .md. Пустой список включает все поддерживаемые форматы. Исключения имеют приоритет. Изменение фильтров влияет на область сверки удалений."
+    },
+    "noResourcesDesc_nextcloud": "Нет доступных папок или поддерживаемых файлов",
+    "guideStep1_nextcloud": "Войдите в Nextcloud и проверьте права чтения выбранных папок",
+    "guideStep2_nextcloud": "Создайте пароль приложения в разделе «Личные настройки → Безопасность → Устройства и сеансы»",
+    "guideStep3_nextcloud": "Замените учётные данные здесь и повторите загрузку ресурсов",
   },
   ollama: {
     unknown: 'Неизвестно',
@@ -2133,7 +2158,9 @@ export default {
       readWeKnoraDoc: 'Чтение документации',
       readPage: 'Просмотр страницы',
       selectTab: 'Выбор вкладки',
-      fillPage: 'Заполнение страницы'
+      fillPage: 'Заполнение страницы',
+      "requestSecureForm": "Запрос учётных данных",
+      "browserFillSecret": "Ввод учётных данных",
     },
     collaboration: {
       tabs: 'Вкладки задач',
@@ -2462,7 +2489,8 @@ export default {
       previous: 'Назад',
       next: 'Далее',
       collapse: 'Свернуть',
-      expand: 'Развернуть'
+      expand: 'Развернуть',
+      "secureFormTitle": "Нужны ваши учётные данные",
     },
     toolApproval: {
       title: 'Подтверждение',
@@ -2555,7 +2583,7 @@ export default {
     hostApproval: {
       titleDelete: 'Подтвердите удаление файлов',
       titleDangerous: 'Подтвердите опасную операцию',
-      titleDenied: 'Песочница заблокировала команду; нужен доступ к каталогу',
+      titleDenied: "WeKnora хочет получить доступ к следующему каталогу",
       titleGeneric: 'Нужно ваше подтверждение',
       command: 'Команда',
       cwd: 'Каталог',
@@ -2573,13 +2601,52 @@ export default {
       rejectedTag: 'Отклонено',
       submitted: 'Отправлено',
       submitFailed: 'Не удалось отправить',
-      userRejected: 'Отклонено пользователем'
+      userRejected: 'Отклонено пользователем',
+      "titleFileWrite": "Запись файла вне рабочей области",
+      "fileOnly": "Разрешается только этот файл",
+      "writeMode": "Режим",
+      "writeModeOverwrite": "Перезапись",
+      "writeModeAppend": "Добавление",
+      "writeModeEdit": "Правка",
+      "writeBytes": "{bytes} байт",
+      "preview": "Содержимое",
+      "previewTruncated": "Показаны первые 64 КБ",
+      "env": "Переменные окружения",
+      "skillName": "Навык",
+      "stdin": "Стандартный ввод",
+      "script": "Скрипт, который запускает команда",
     }
 ,
     entityLink: {
       kb: 'База знаний',
       doc: 'Документ',
       chunk: 'Фрагмент'
+    },
+    "secureForm": {
+      "onlyFillInto": "Будет введено только на: {domains}",
+      "observedAt": "Браузер открыт на: {origin}",
+      "originUnknown": "Не удалось определить страницу в браузере. Убедитесь, что открыт сайт, на который вы входите",
+      "originMismatch": "Браузер открыт на {origin}, а не на сайте для входа. Проверьте перед вводом",
+      "originInsecure": "Страница в браузере не использует HTTPS, учётные данные не будут введены",
+      "savedAccount": "Сохранённая учётная запись",
+      "useNew": "Ввести новые логин и пароль",
+      "username": "Логин",
+      "password": "Пароль",
+      "saveToVault": "Сохранить в хранилище",
+      "useOnce": "Использовать один раз",
+      "fill": "Ввести",
+      "decline": "Отклонить",
+      "submittedHidden": "Отправлено (содержимое скрыто)",
+      "declined": "Отклонено",
+      "timedOut": "Время истекло",
+      "canceled": "Отменено",
+      "submitFailed": "Не удалось отправить",
+      "savedButClosed": "Учётные данные сохранены в хранилище, но этот запрос уже завершён"
+    },
+    "hostReview": {
+      "reviewing": "Идёт автопроверка…",
+      "approved": "Одобрено автоматически: {reason}",
+      "denied": "Автопроверка отклонила: {reason}"
     },
   },
   kbSettings: {
@@ -3776,7 +3843,8 @@ export default {
         query_understand_model: 'Модель понимания запроса',
         follow_up_model: 'Модель уточняющих вопросов',
         extract_model: 'Модель извлечения памяти',
-        unknown: 'Другая настройка модели'
+        unknown: 'Другая настройка модели',
+        "question_model": "Модель генерации вопросов",
       }
     },
     debug: {
@@ -5141,6 +5209,8 @@ export default {
     docreaderImageVersionDescription: 'Версия запущенного образа weknora-docreader',
     sandboxImageVersionLabel: 'Версия образа Sandbox',
     sandboxImageVersionDescription: 'Версия настроенного образа weknora-sandbox',
+    "docreaderVersionLabel": "Версия Docreader",
+    "docreaderVersionDescription": "Версия сборки текущего сервиса обработки документов (weknora-docreader)",
   },
   tenant: {
     title: 'Информация о пространстве',
@@ -5553,7 +5623,10 @@ export default {
         countDescription: 'Количество вопросов для генерации на фрагмент документа (1-10)',
     instructionsLabel: 'Инструкции генерации вопросов',
         instructionsDescription: 'Задайте аудиторию, сценарий и формулировки, сохраняя стабильный формат вывода',
-        instructionsPlaceholder: 'Например: естественные вопросы службы поддержки без экзаменационного стиля…'
+        instructionsPlaceholder: 'Например: естественные вопросы службы поддержки без экзаменационного стиля…',
+        "modelLabel": "Модель генерации вопросов",
+        "modelDescription": "Оставьте пустым, чтобы использовать модель сводки базы знаний.",
+        "modelPlaceholder": "Выберите модель генерации вопросов",
       },
       profile: {
         label: 'Автоматическое описание базы знаний',
@@ -6100,7 +6173,14 @@ export default {
       issueFixSuggestions: 'Предложения по оптимизации ({count})',
       issueFixSingle: 'Исправить',
       issueFixPromptSingle: 'Исправь эту проблему Wiki: {description}',
-      issueFixPromptAll: 'Исправь {count} открытых проблем на этой странице'
+      issueFixPromptAll: 'Исправь {count} открытых проблем на этой странице',
+      "cardOverviewDetailHint": "Упрощённый вид. Передвиньте ползунок вправо, чтобы увидеть больше страниц.",
+      "graphDetailLevel": "Охват графа",
+      "graphDetailHint": "Вправо — больше связей, крайнее положение — все страницы.",
+      "graphDetailOverview": "Обзор",
+      "graphDetailOneHop": "1 переход",
+      "graphDetailTwoHops": "2 перехода",
+      "graphDetailAll": "Все",
     },
     indexing: {
       title: 'Стратегия индексации',
@@ -6137,7 +6217,9 @@ export default {
       granularityExhaustive: 'Полный',
       granularityFocusedHint: 'Извлекает только главные темы документа (например, резюме → человек и его проекты). Самый чистый результат, возможны пропуски.',
       granularityStandardHint: 'Главные темы плюс подробно обсуждаемые сущности/концепции. Пропускает упомянутые вскользь. Рекомендуемое значение.',
-      granularityExhaustiveHint: 'Извлекает все именованные сущности и концепции, включая мимоходом упомянутые технологии. Подходит для глоссария.'
+      granularityExhaustiveHint: 'Извлекает все именованные сущности и концепции, включая мимоходом упомянутые технологии. Подходит для глоссария.',
+      "autoGenerateLabel": "Автоматически создавать страницы Wiki",
+      "autoGenerateTip": "При отключении страницы Wiki остаются доступными для просмотра и ручного редактирования, но обработка документов не будет вызывать LLM для их создания или обновления",
     },
     basic: {
       title: 'Основная информация',
@@ -6454,7 +6536,16 @@ export default {
     deleteConfirm: 'Удалить этот канал? Развёрнутые фрагменты перестанут работать.',
     defaultLocale: 'Язык по умолчанию',
     defaultLocaleDesc: 'Язык интерфейса при открытии чата; пусто — браузер или setLocale() виджета.',
-    defaultLocaleBrowser: 'Браузер / хост'
+    defaultLocaleBrowser: 'Браузер / хост',
+    "history": "История чатов",
+    "historyHint": "Последние 30 чатов сохраняются только в этом браузере. Очистка истории не удаляет сообщения на сервере.",
+    "historyEmpty": "Нет сохранённых чатов",
+    "historyUntitled": "Чат без названия",
+    "historyClear": "Очистить локальную историю",
+    "historyClearConfirm": "Очистить историю и начать новый чат? Сообщения на сервере сохранятся.",
+    "historyRetry": "Повторить",
+    "historyLoadFailed": "Не удалось открыть чат. Повторите попытку.",
+    "historyUnavailable": "Чат недоступен и удалён из локальной истории.",
   },
   knowledgeList: {
     create: 'Создать базу знаний',
@@ -6617,6 +6708,25 @@ export default {
     placeholderKbAndWeb:
       "Enter your question, will answer based on knowledge base and web search",
     placeholderAgent: "Ask {name}",
+    "voiceTooltip": "Удерживайте, чтобы говорить ({shortcut})",
+    "voicePreparing": "Микрофон включается, начните говорить, когда кнопка станет красной",
+    "voiceRecording": "Идёт запись, отпустите для завершения",
+    "voiceReleasedEarly": "Микрофон ещё не был готов. Удерживайте, пока кнопка не станет красной, затем говорите",
+    "voiceTranscribing": "Распознавание речи…",
+    "voiceUnsupported": "Этот браузер не поддерживает запись звука",
+    "voiceInsecureContext": "Голосовой ввод доступен только по HTTPS или на localhost",
+    "voicePermissionDenied": "Нет доступа к микрофону. Разрешите его в настройках браузера",
+    "voiceDeviceError": "Микрофон не найден",
+    "voiceDecodeError": "Не удалось обработать запись. Попробуйте ещё раз",
+    "voiceTranscribeFailed": "Не удалось распознать речь. Проверьте настройки ASR-модели агента",
+    "voiceEmptyResult": "Речь не распознана",
+    "hostApprovalMode": {
+      "ask": "Спрашивать меня",
+      "askHint": "Удаление и запись вне рабочей области требуют вашего подтверждения",
+      "auto": "Одобрять за меня",
+      "autoHint": "Модель решает за вас, не отвлекая",
+      "switchFailed": "Не удалось сменить режим одобрения"
+    },
   },
   manualEditor: {
     assistant: {
@@ -8116,7 +8226,10 @@ export default {
       mineruLegacySectionHint: 'В MinerU 4.0 эти параметры запроса удалены, поэтому серверы 4.0+ их игнорируют; VLM-сервер настраивается на стороне MinerU.',
       paddleocrVlEndpointPlaceholder: 'напр. http://your-paddleocr-vl:8080',
       paddleocrVlEndpointHint: 'Адрес полного сервиса PaddleOCR-VL (pipeline); суффикс /layout-parsing не требуется',
-      paddleocrVlCloudTokenPlaceholder: 'Токен PaddleOCR-VL AI Studio'
+      paddleocrVlCloudTokenPlaceholder: 'Токен PaddleOCR-VL AI Studio',
+      "mineruEffortLabel": "Точность гибридного разбора",
+      "mineruEffortDefault": "По умолчанию на сервере (medium)",
+      "mineruEffortHint": "high включает анализ изображений и диаграмм в старом гибридном API, но работает медленнее.",
     },
     weknoraCloud: {
       title: 'WeKnora Cloud',
@@ -8183,7 +8296,11 @@ export default {
       dataExtensions: 'Данные и расширения',
       systemAdministration: 'Системное администрирование',
       platform: 'Платформа'
-    }
+    },
+    "hostApprovalDefault": {
+      "title": "Одобрение действий по умолчанию",
+      "description": "Когда агент удаляет файлы или пишет вне рабочей области, здесь выбирается: спрашивать вас каждый раз или пусть решает модель. Новые чаты начинают отсюда; в текущем чате режим меняется слева от поля ввода."
+    },
   },
   agent: {
     taskLabel: 'Задача:',
@@ -9049,6 +9166,7 @@ export default {
     partialUploadSuccess:
       "Partial upload success (success: {success}, failed: {fail})",
     allUploadFailed: "All files failed to upload ({count} files)",
+    "channelNextcloud": "Nextcloud",
   },
   resourceOrigin: {
     mine: 'Мои',
@@ -10090,6 +10208,107 @@ export default {
     "cancel": "Отмена",
     "adminOnly": "Администраторы меняют настройки; удалять данные могут только владельцы.",
     "disabledMessage": "Патентная область отключена."
-  }
-
+  },
+  "documentProgress": {
+    "queueView": "Задачи очереди",
+    "title": "Прогресс документов и Wiki",
+    "description": "Текущее состояние загрузки и Wiki показано отдельно. Исходная история ошибок сохраняется после восстановления.",
+    "refresh": "Обновить",
+    "search": "Поиск документа или базы знаний",
+    "searchButton": "Поиск",
+    "filter": "Фильтр прогресса",
+    "count": "Число документов (1–100)",
+    "batchStart": "Запустить пакет Wiki",
+    "confirmBatch": "Запланировать Wiki для максимум {count} ожидающих документов по текущему поиску, начиная с самых старых?",
+    "confirmOne": "Запланировать Wiki для «{title}», сохранив текущий прогресс?",
+    "attempt": "Попытка {value}",
+    "pendingOps": "Ожидающих операций: {count} · повторов: {retries}",
+    "historyCount": "Записей: {count}",
+    "details": "Подробнее",
+    "startNow": "Запустить Wiki сейчас",
+    "currentStatus": "Текущее состояние",
+    "history": "История ошибок",
+    "historyDescription": "Это исходные записи ошибок, в том числе уже устранённых. История не означает, что документ по-прежнему обрабатывается с ошибкой.",
+    "noHistory": "Архивных ошибок для документа нет.",
+    "failureAttempts": "Неудачных попыток: {count}",
+    "historyLimit": "Показаны последние 50 записей. Исходная история сохранена.",
+    "unfinished": "Не завершено",
+    "all": "Все документы",
+    "document": "Документ",
+    "ingestion": "Загрузка",
+    "wiki": "Wiki",
+    "actions": "Действия",
+    "loadError": "Не удалось загрузить прогресс. Обновите и повторите попытку.",
+    "started": "Запланировано: {count}; уже в очереди: {queued}. Текущий прогресс сохранён.",
+    "startError": "До сбоя передачи в очередь принято: {count}. Обновите список перед запуском оставшихся документов.",
+    "states": {
+      "ready": "Загружено",
+      "pending": "Ожидает",
+      "processing": "Обработка",
+      "finalizing": "Завершение",
+      "completed": "Завершено",
+      "failed": "Ошибка",
+      "skipped": "Пропущено",
+      "cancelled": "Отменено",
+      "queued": "В очереди",
+      "retrying": "Повтор",
+      "disabled": "Отключено",
+      "notStarted": "Не начато"
+    },
+    "stages": {
+      "docreader": "Разбор документа",
+      "chunking": "Разбиение",
+      "embedding": "Индексация",
+      "multimodal": "Обработка изображений",
+      "postprocess": "Постобработка"
+    }
+  },
+  "mentionBrowser": {
+    "browse": "Обзор по папкам",
+    "path": "Путь к папке",
+    "root": "Корень",
+    "searchFolder": "Поиск в этой папке",
+    "searchKb": "Поиск баз знаний",
+    "subtree": "Поиск включает вложенные папки.",
+    "wholeKb": "Выбрана вся база знаний; выбор файла не сужает область поиска.",
+    "tags": "Существующие теги продолжают фильтровать выбранные файлы.",
+    "folderCount": "Документов с учётом вложенных папок: {count}",
+    "selected": "Уже выбран",
+    "deleting": "Удаляется",
+    "unsupported": "Формат не поддерживается агентом",
+    "forbidden": "У вас больше нет доступа к этому содержимому.",
+    "missing": "Папка недоступна. Вернитесь и выберите её снова.",
+    "error": "Не удалось загрузить папку. Повторите попытку.",
+    "retry": "Повторить",
+    "empty": "В этом представлении нет файлов.",
+    "previous": "Назад",
+    "next": "Далее",
+    "page": "Страница {page} · документов: {total}"
+  },
+  "credentialVault": {
+    "title": "Хранилище учётных данных",
+    "description": "Когда агент входит на сайт в браузере песочницы, он может использовать сохранённые здесь учётные записи. Пароли хранятся в зашифрованном виде и больше не показываются, их можно только задать заново. Введённый пароль попадает в браузер песочницы, где работает и агент, поэтому используйте сохранённые входы только с доверенными агентами и сайтами.",
+    "unavailable": "На сервере не настроен действительный SYSTEM_AES_KEY, поэтому сохранять учётные данные нельзя.",
+    "loading": "Загрузка…",
+    "loadFailed": "Не удалось загрузить",
+    "empty": "Сохранённых учётных данных пока нет. Когда агент попросит войти, выберите на карточке «Сохранить в хранилище».",
+    "add": "Добавить",
+    "edit": "Изменить",
+    "delete": "Удалить",
+    "deleteConfirm": "Удалить эти учётные данные?",
+    "save": "Сохранить",
+    "saved": "Сохранено",
+    "deleted": "Удалено",
+    "saveFailed": "Не удалось сохранить",
+    "titleLabel": "Название",
+    "site": "Сайт",
+    "domains": "Разрешённые домены",
+    "domainsHint": "Через запятую, не более 5; сам сайт включается всегда",
+    "username": "Логин",
+    "password": "Пароль",
+    "newPassword": "Новый пароль",
+    "passwordHint": "Оставьте пустым, чтобы не менять",
+    "lastUsed": "Последнее использование: {time}",
+    "never": "Не использовалось"
+  },
 }

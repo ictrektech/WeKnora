@@ -1098,8 +1098,9 @@ export default {
       "Partial upload success (success: {success}, failed: {fail})",
     allUploadFailed: "All files failed to upload ({count} files)",
 
-"assistantDeleted": "The assistant deleted this knowledge base."
-},
+"assistantDeleted": "The assistant deleted this knowledge base.",
+    "channelNextcloud": "Nextcloud",
+  },
   uploadConfirm: {
     imageEmbeddingModel: "Image indexing embedding model",
     imageIndexInherited: "Image indexing uses the embedding model assigned to this knowledge base. Change it in knowledge base settings.",
@@ -2236,7 +2237,10 @@ export default {
       mineruLegacySectionHint: 'MinerU 4.0 removed these request parameters, so they are ignored by 4.0+ servers; configure the VLM server on the MinerU side instead.',
       paddleocrVlEndpointPlaceholder: 'e.g. http://your-paddleocr-vl:8080',
       paddleocrVlEndpointHint: 'Base URL of the full PaddleOCR-VL pipeline service; no /layout-parsing suffix needed',
-      paddleocrVlCloudTokenPlaceholder: 'PaddleOCR-VL AI Studio Token'
+      paddleocrVlCloudTokenPlaceholder: 'PaddleOCR-VL AI Studio Token',
+      "mineruEffortLabel": "Hybrid parsing effort",
+      "mineruEffortDefault": "Server default (medium)",
+      "mineruEffortHint": "High enables image and chart analysis on legacy hybrid backends, but takes longer.",
     },
     storageBackend: {
       description: 'Manage the storage instances used for files and images; multiple instances of the same type can be configured.',
@@ -2354,7 +2358,11 @@ export default {
       saveFailed: 'Save failed',
       unknownError: 'Unknown error',
       requestFailed: 'Request failed'
-    }
+    },
+    "hostApprovalDefault": {
+      "title": "Default execution approval",
+      "description": "When the agent deletes a file or writes outside the workspace, this chooses whether to ask you each time or let the model approve it. New chats start here; switch the current chat to the left of the input box."
+    },
   },
   webSearchSettings: {
     title: 'Web Search Configuration',
@@ -3154,8 +3162,27 @@ export default {
 
 "modelAuto": "Default",
 "modelFollowDefault": "Follow default",
-"modelAutoHint": "The current knowledge base's chat model, or the first available chat model outside a knowledge base or when it has none"
-},
+"modelAutoHint": "The current knowledge base's chat model, or the first available chat model outside a knowledge base or when it has none",
+    "voiceTooltip": "Hold to talk ({shortcut})",
+    "voicePreparing": "Opening microphone, start talking when the button turns red",
+    "voiceRecording": "Recording, release to finish",
+    "voiceReleasedEarly": "The microphone was not ready yet. Hold until the button turns red, then talk.",
+    "voiceTranscribing": "Transcribing…",
+    "voiceUnsupported": "This browser does not support audio recording",
+    "voiceInsecureContext": "Voice input requires HTTPS or localhost",
+    "voicePermissionDenied": "Microphone access was denied. Allow it in your browser settings.",
+    "voiceDeviceError": "No microphone available",
+    "voiceDecodeError": "Could not process the recording. Please try again.",
+    "voiceTranscribeFailed": "Transcription failed. Check the agent's ASR model settings.",
+    "voiceEmptyResult": "No speech detected",
+    "hostApprovalMode": {
+      "ask": "Ask me",
+      "askHint": "Asks you before deletes and writes outside the workspace",
+      "auto": "Approve for me",
+      "autoHint": "A model decides for you without interrupting",
+      "switchFailed": "Could not switch the approval mode"
+    },
+  },
   createChat: {
     title: 'Hi, I am Vivibit AI Assistant — your knowledge, within reach',
     newSessionTitle: 'New Session',
@@ -3371,7 +3398,16 @@ export default {
     deleteConfirm: 'Delete this embed channel? Deployed snippets will stop working.',
     defaultLocale: 'Default language',
     defaultLocaleDesc: 'Visitor UI language when chat opens; empty follows the browser or host Widget setLocale().',
-    defaultLocaleBrowser: 'Browser / host default'
+    defaultLocaleBrowser: 'Browser / host default',
+    "history": "Chat history",
+    "historyHint": "The latest 30 chats are saved in this browser only. Clearing history does not delete server messages.",
+    "historyEmpty": "No saved chats",
+    "historyUntitled": "Untitled chat",
+    "historyClear": "Clear local history",
+    "historyClearConfirm": "Clear this browser’s history and start a new chat? Server messages will be kept.",
+    "historyRetry": "Retry",
+    "historyLoadFailed": "Could not open the chat. Please try again.",
+    "historyUnavailable": "This chat is no longer available and was removed from local history.",
   },
   knowledgeEditor: {
     activity: {
@@ -3585,7 +3621,9 @@ export default {
       granularityExhaustive: 'Exhaustive',
       granularityFocusedHint: 'Extract only the document’s main subjects (e.g. a resume yields the person and their projects). Cleanest, may miss secondary entities.',
       granularityStandardHint: 'Main subjects plus secondary entities/concepts that receive substantial discussion. Skips name-dropped terms. Recommended default.',
-      granularityExhaustiveHint: 'Extract every named entity and concept, including passing mentions of stacks/tools. Use when the KB serves as a glossary.'
+      granularityExhaustiveHint: 'Extract every named entity and concept, including passing mentions of stacks/tools. Use when the KB serves as a glossary.',
+      "autoGenerateLabel": "Automatically generate Wiki pages",
+      "autoGenerateTip": "When disabled, Wiki pages remain available for browsing and manual editing, but document processing will not call the LLM to generate or update pages",
     },
     indexing: {
       title: 'Indexing Strategy',
@@ -3866,8 +3904,15 @@ export default {
       issueFixSuggestions: 'Content Optimization Suggestions ({count})',
       issueFixSingle: 'Fix',
       issueFixPromptSingle: "Fix this Wiki issue: {description}",
-"issueFixPromptAll": "Fix the {count} open issues on this page"
-},
+"issueFixPromptAll": "Fix the {count} open issues on this page",
+      "cardOverviewDetailHint": "Simplified view. Move the slider right to see more pages.",
+      "graphDetailLevel": "Expand graph",
+      "graphDetailHint": "Move right to expand connections, or to the end to show all pages.",
+      "graphDetailOverview": "Overview",
+      "graphDetailOneHop": "1 hop",
+      "graphDetailTwoHops": "2 hops",
+      "graphDetailAll": "All",
+    },
     buttons: {
       create: 'Create Knowledge Base',
       save: 'Save Configuration',
@@ -4139,7 +4184,10 @@ export default {
         countDescription: 'Number of questions to generate per document chunk (1-10)',
         instructionsLabel: 'Question Generation Instructions',
         instructionsDescription: 'Specify audience, scenario, and wording while the system retains the stable output format',
-        instructionsPlaceholder: 'For example: generate natural customer-support questions and avoid exam-style wording…'
+        instructionsPlaceholder: 'For example: generate natural customer-support questions and avoid exam-style wording…',
+        "modelLabel": "Question Generation Model",
+        "modelDescription": "Leave empty to use the knowledge-base summary model.",
+        "modelPlaceholder": "Select a question generation model",
       },
       profile: {
         label: 'Auto-generate knowledge base description',
@@ -5142,6 +5190,8 @@ export default {
     sandboxImageVersionLabel: "Sandbox Image Version",
     sandboxImageVersionDescription:
       "Version of the configured weknora-sandbox image",
+    "docreaderVersionLabel": "Docreader Version",
+    "docreaderVersionDescription": "Build version of the current document parsing service (weknora-docreader)",
   },
   mcp: {
     testResult: {
@@ -5915,7 +5965,8 @@ export default {
         query_understand_model: 'Query understanding model',
         follow_up_model: 'Follow-up model',
         extract_model: 'Memory extraction model',
-        unknown: 'Other model setting'
+        unknown: 'Other model setting',
+        "question_model": "Question generation model",
       }
     },
     debug: {
@@ -6685,7 +6736,8 @@ export default {
       previous: 'Previous',
       next: 'Next',
       collapse: 'Collapse',
-      expand: 'Expand'
+      expand: 'Expand',
+      "secureFormTitle": "Needs your credentials",
     },
     toolApproval: {
       waiting: 'Awaiting review · {target}',
@@ -6841,8 +6893,10 @@ export default {
 "readWeKnoraDoc": "Read product doc",
 "readPage": "View page",
 "selectTab": "Select tab",
-"fillPage": "Fill page"
-},
+"fillPage": "Fill page",
+      "requestSecureForm": "Request credentials",
+      "browserFillSecret": "Fill credentials",
+    },
     skillFiles: {
       heading: 'Skill files',
       script: 'script',
@@ -7256,7 +7310,7 @@ export default {
   hostApproval: {
       titleDelete: 'Confirm before deleting files',
       titleDangerous: 'Confirm a dangerous operation',
-      titleDenied: 'The sandbox blocked this command; it needs access to',
+      titleDenied: "WeKnora wants to access the following directory",
       titleGeneric: 'Needs your confirmation',
       command: 'Command',
       cwd: 'Directory',
@@ -7274,9 +7328,48 @@ export default {
       rejectedTag: 'Rejected',
       submitted: 'Submitted',
       submitFailed: 'Submission failed',
-      userRejected: 'Rejected by user'
+      userRejected: 'Rejected by user',
+    "titleFileWrite": "Write a file outside the workspace",
+    "fileOnly": "Only this file is opened",
+    "writeMode": "Mode",
+    "writeModeOverwrite": "Overwrite",
+    "writeModeAppend": "Append",
+    "writeModeEdit": "Edit",
+    "writeBytes": "{bytes} bytes",
+    "preview": "Content",
+    "previewTruncated": "Showing the first 64 KB",
+    "env": "Environment variables",
+    "skillName": "Skill",
+    "stdin": "Standard input",
+    "script": "Script this command runs",
+  },
+    "secureForm": {
+      "onlyFillInto": "Only filled into: {domains}",
+      "observedAt": "Browser is on: {origin}",
+      "originUnknown": "Could not confirm the page the browser is on. Make sure it shows the site you are signing in to.",
+      "originMismatch": "The browser is on {origin}, not the site you are signing in to. Check before filling.",
+      "originInsecure": "The browser page is not HTTPS; credentials will not be filled there.",
+      "savedAccount": "Saved account",
+      "useNew": "Use a new username and password",
+      "username": "Username",
+      "password": "Password",
+      "saveToVault": "Save to vault",
+      "useOnce": "Use once",
+      "fill": "Fill in",
+      "decline": "Decline",
+      "submittedHidden": "Submitted (contents hidden)",
+      "declined": "Declined",
+      "timedOut": "Timed out",
+      "canceled": "Canceled",
+      "submitFailed": "Submission failed",
+      "savedButClosed": "The credential was saved to your vault, but this request has already ended"
     },
-},
+    "hostReview": {
+      "reviewing": "Auto review in progress…",
+      "approved": "Auto-approved: {reason}",
+      "denied": "Auto review denied: {reason}"
+    },
+  },
   agentEditor: {
     builtinHint: 'This is a built-in agent. Name and description cannot be modified, but configuration parameters can be adjusted.',
     navGroups: {
@@ -7841,7 +7934,8 @@ export default {
       rss: 'RSS / Atom Feed',
       ima: 'Tencent IMA',
       gitlab: 'GitLab',
-      seafile: 'Seafile'
+      seafile: 'Seafile',
+      "nextcloud": "Nextcloud",
     },
     connectorDesc: {
       feishu: 'Sync documents, spreadsheets and files from Feishu Wiki',
@@ -7855,7 +7949,8 @@ export default {
       rss: 'Sync articles from RSS / Atom feeds',
       ima: 'Sync documents, notes and files from Tencent IMA knowledge bases (AI sessions and video parses are not supported)',
       gitlab: 'Sync files from GitLab projects',
-      seafile: 'Sync folders and files from Seafile libraries'
+      seafile: 'Sync folders and files from Seafile libraries',
+      "nextcloud": "Sync folders and files from Nextcloud over WebDAV",
     },
     drive: {
       folderTokenLabel: 'Drive folder token',
@@ -8010,6 +8105,14 @@ export default {
       seafile_fetch_failed: 'Failed to fetch the file from Seafile; the next sync retries it.'
 ,
       dingtalk_document_too_large: 'DingTalk file exceeds the 64 MiB download limit; skipped for this sync. Compress or split the file.',
+      "nextcloud_permission_denied": "Access to the Nextcloud file was denied; check account permissions.",
+      "nextcloud_not_found": "The Nextcloud file disappeared after listing; the next sync retries it.",
+      "nextcloud_file_too_large": "The Nextcloud file exceeds MAX_FILE_SIZE_MB.",
+      "nextcloud_empty_file": "The Nextcloud file is empty and was skipped.",
+      "nextcloud_source_changed": "The Nextcloud file changed during download; the next sync retries it.",
+      "nextcloud_invalid_response": "Nextcloud returned an invalid or incomplete WebDAV response.",
+      "nextcloud_ssrf_blocked": "The Nextcloud request was blocked by the SSRF policy; check SSRF_WHITELIST.",
+      "nextcloud_fetch_failed": "Failed to fetch the file from Nextcloud; the next sync retries it.",
     }
   ,
 "parseModeLabel": "Parse mode",
@@ -8018,8 +8121,23 @@ export default {
   "blocks": "Blocks (default)",
   "export": "Export (docx)"
 },
-"parseModeHint": "How Feishu cloud documents are parsed. Blocks is faster and keeps in-document attachments; Export converts documents to docx for parsing and keeps images associated with the document."
-},
+"parseModeHint": "How Feishu cloud documents are parsed. Blocks is faster and keeps in-document attachments; Export converts documents to docx for parsing and keeps images associated with the document.",
+    "nextcloud": {
+      "baseUrl": "Nextcloud URL",
+      "baseUrlHint": "Installation URL, for example https://nextcloud.example.com/cloud, without /remote.php/dav. Private deployments must use the existing SSRF_WHITELIST.",
+      "username": "Username",
+      "appPassword": "App password",
+      "appPasswordHint": "Create an app password under Personal settings → Security → Devices & sessions. Use the generated username and app password.",
+      "selectionRequired": "Select at least one folder or file",
+      "includeExtensions": "Include extensions (optional)",
+      "excludeExtensions": "Exclude extensions (optional)",
+      "extensionsHint": "Comma-separated extensions, for example .pdf, .md. Empty includes all supported formats; exclusions take priority. Changing filters also changes the deletion scope."
+    },
+    "noResourcesDesc_nextcloud": "No accessible folders or supported files were found",
+    "guideStep1_nextcloud": "Sign in to Nextcloud and verify read access to the selected folders",
+    "guideStep2_nextcloud": "Create an app password under Personal settings → Security → Devices & sessions",
+    "guideStep3_nextcloud": "Replace the credentials here, then retry loading resources",
+  },
   integrations: {
     cli: {
       title: 'WeKnora CLI',
@@ -10176,5 +10294,107 @@ export default {
       saveSuccess: 'Defaults saved',
       saveFailed: 'Save failed: {message}',
     },
+  },
+  "documentProgress": {
+    "queueView": "Queue tasks",
+    "title": "Document and Wiki progress",
+    "description": "Inspect current ingestion and Wiki work separately. Failure history remains available after recovery.",
+    "refresh": "Refresh",
+    "search": "Search document or knowledge base",
+    "searchButton": "Search",
+    "filter": "Progress filter",
+    "count": "Number of documents (1–100)",
+    "batchStart": "Start Wiki batch",
+    "confirmBatch": "Schedule up to {count} eligible waiting documents, oldest first, within the current search?",
+    "confirmOne": "Schedule Wiki work for “{title}” using its existing progress?",
+    "attempt": "Attempt {value}",
+    "pendingOps": "{count} pending operations · retry count {retries}",
+    "historyCount": "{count} records",
+    "details": "Details",
+    "startNow": "Start Wiki now",
+    "currentStatus": "Current status",
+    "history": "Failure history",
+    "historyDescription": "These are original failure records, including failures followed by later recovery. They do not mean the document is still failing.",
+    "noHistory": "No archived failures for this document.",
+    "failureAttempts": "{count} failed attempts",
+    "historyLimit": "Showing the latest 50 records; original history is retained.",
+    "unfinished": "Unfinished",
+    "all": "All documents",
+    "document": "Document",
+    "ingestion": "Ingestion",
+    "wiki": "Wiki",
+    "actions": "Actions",
+    "loadError": "Unable to load document progress. Refresh to try again.",
+    "started": "{count} documents scheduled; {queued} already queued. Existing progress is retained.",
+    "startError": "{count} documents accepted before the queue handoff stopped. Refresh before scheduling the remaining documents.",
+    "states": {
+      "ready": "Ingested",
+      "pending": "Pending",
+      "processing": "Processing",
+      "finalizing": "Finalizing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "cancelled": "Cancelled",
+      "queued": "Queued",
+      "retrying": "Retrying",
+      "disabled": "Disabled",
+      "notStarted": "Not started"
+    },
+    "stages": {
+      "docreader": "Document parsing",
+      "chunking": "Chunking",
+      "embedding": "Indexing",
+      "multimodal": "Image processing",
+      "postprocess": "Post-processing"
+    }
+  },
+  "credentialVault": {
+    "title": "Credential vault",
+    "description": "When the agent signs in to a site in the sandbox browser, it can use the accounts saved here. Passwords are stored encrypted and never shown again; you can only replace them. A filled password enters the sandbox browser, where the agent also runs, so use saved logins only with agents and sites you trust.",
+    "unavailable": "The server has no valid SYSTEM_AES_KEY, so credentials cannot be saved.",
+    "loading": "Loading…",
+    "loadFailed": "Failed to load",
+    "empty": "No saved credentials yet. When the agent asks you to sign in, choose \"Save to vault\" on the card.",
+    "add": "Add credential",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this credential?",
+    "save": "Save",
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "saveFailed": "Failed to save",
+    "titleLabel": "Name",
+    "site": "Site",
+    "domains": "Allowed domains",
+    "domainsHint": "Comma-separated, at most 5; the site itself is always included",
+    "username": "Username",
+    "password": "Password",
+    "newPassword": "New password",
+    "passwordHint": "Leave empty to keep the current one",
+    "lastUsed": "Last used: {time}",
+    "never": "Never used"
+  },
+  "mentionBrowser": {
+    "browse": "Browse by folder",
+    "path": "Folder path",
+    "root": "Root",
+    "searchFolder": "Search this folder",
+    "searchKb": "Search knowledge bases",
+    "subtree": "Search includes subfolders.",
+    "wholeKb": "The whole knowledge base is still selected; picking a file does not narrow that scope.",
+    "tags": "Existing tags still filter the selected files.",
+    "folderCount": "{count} documents including subfolders",
+    "selected": "Already selected",
+    "deleting": "Being deleted",
+    "unsupported": "Unsupported by this agent",
+    "forbidden": "You no longer have access to this content.",
+    "missing": "This folder is no longer available. Go back and select it again.",
+    "error": "Could not load this folder. Please retry.",
+    "retry": "Retry",
+    "empty": "No files in this view.",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {page} · {total} documents"
   },
 }

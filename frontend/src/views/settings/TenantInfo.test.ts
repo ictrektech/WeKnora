@@ -18,6 +18,9 @@ test('assistant profile changes refresh the workspace page without discarding an
     '@/composables/useRoleLabel': { useRoleLabel: () => ({ formatRole: String }), useHomeTenant: () => ({ homeTenantId: ref(7) }) },
     '@/utils/tenantSwitch': {},
     '@/utils/app-base': { withAppBasePath: (path: string) => path },
+    '@/utils/authRefresh': {
+      redirectToLogin: t.mock.fn(),
+    },
   })
   await flush()
   assert.equal(vm.tenantInfo.name, 'Original')
