@@ -4587,7 +4587,7 @@ export default {
     api: {
       title: 'API Information',
       docLabel: 'API Documentation',
-      docDescription: 'View complete API documentation and examples,',
+      docDescription: 'Browse the API reference and integration examples. Documentation follows the interface language.',
       openDoc: 'Open documentation',
       userIdLabel: 'User ID',
       userIdDescription: 'Your unique user identifier',

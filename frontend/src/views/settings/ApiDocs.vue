@@ -22,37 +22,18 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useApiDocs } from '@/composables/useApiDocs'
 import { marked } from 'marked'
 import { sanitizeMarkdownHTML } from '@/utils/security'
 
-const modules = {
-  ...import.meta.glob('../../../../website-docs/04-api/*.md', {
-    eager: true,
-    query: '?raw',
-    import: 'default',
-  }),
-  ...import.meta.glob('../../../../docs/api/*.md', {
-    eager: true,
-    query: '?raw',
-    import: 'default',
-  }),
-} as Record<string, string>
-const docs = Object.entries(modules).map(([path, raw]) => {
-  const fileName = path.split('/').pop() || path
-  return {
-    slug: fileName.replace(/\.md$/, ''),
-    title: raw.match(/^#\s+(.+)$/m)?.[1]?.trim() || fileName,
-    sourcePath: path.replace(/^\.\.\/\.\.\/\.\.\/\.\.\//, ''),
-    raw,
-  }
-}).sort((a, b) => a.slug === 'vos-external-api' ? -1 : b.slug === 'vos-external-api' ? 1 : a.title.localeCompare(b.title))
-const slugs = new Set(docs.map((doc) => doc.slug))
+const docs = useApiDocs()
+const slugs = computed(() => new Set(docs.value.map((doc) => doc.slug)))
 const search = ref('')
-const selectedSlug = ref(docs[0]?.slug || '')
-const filteredDocs = computed(() => docs.filter((doc) =>
+const selectedSlug = ref(docs.value[0]?.slug || '')
+const filteredDocs = computed(() => docs.value.filter((doc) =>
   `${doc.title} ${doc.raw}`.toLowerCase().includes(search.value.trim().toLowerCase()),
 ))
-const selectedDoc = computed(() => docs.find((doc) => doc.slug === selectedSlug.value) || filteredDocs.value[0])
+const selectedDoc = computed(() => docs.value.find((doc) => doc.slug === selectedSlug.value) || filteredDocs.value[0])
 function resolveRepoMarkdownPath(sourcePath: string, href: string) {
   if (href.startsWith('/') || href.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return ''
   const segments = sourcePath.split('/').slice(0, -1)
@@ -65,8 +46,8 @@ function resolveRepoMarkdownPath(sourcePath: string, href: string) {
 const selectedHtml = computed(() => {
   const raw = selectedDoc.value?.raw || ''
   const linked = raw.replace(/\]\(([^)]+\.md)(#[^)]+)?\)/g, (match, href: string, hash = '') => {
-    const slug = (href.split('/').pop() || '').replace(/\.md$/, '')
-    if (slugs.has(slug)) return `](#api-doc:${slug}${hash || ''})`
+    const slug = (href.split('/').pop() || '').replace(/(?:\.en|\.zh-TW)?\.md$/, '')
+    if (slugs.value.has(slug)) return `](#api-doc:${slug}${hash || ''})`
     const repoPath = resolveRepoMarkdownPath(selectedDoc.value?.sourcePath || '', href)
     return repoPath
       ? `](https://github.com/ictrektech/WeKnora/blob/main/${repoPath}${hash || ''})`
@@ -84,7 +65,7 @@ function onLinkClick(event: MouseEvent) {
   }
   if (!href.startsWith('#api-doc:')) return
   const slug = href.slice('#api-doc:'.length).split('#')[0]
-  if (!slugs.has(slug)) return
+  if (!slugs.value.has(slug)) return
   event.preventDefault()
   selectedSlug.value = slug
 }

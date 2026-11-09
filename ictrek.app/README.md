@@ -14,6 +14,12 @@
 
 系统设置的“版本信息”会同时显示代码构建版本、VOS App 版本以及当前 profile 使用的 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 镜像 tag。VOS App 版本由 `package.sh` 将 `__APP_VERSION__` 渲染为发布版本；四个镜像引用由 GitHub Actions 打包时从飞书读取并写入 compose，随后作为环境变量传给后端。普通非 VOS 部署不设置这些变量时不会显示对应行，也不影响启动。
 
+## 查找 API 使用文档 / Finding the API documentation
+
+打开 HybRAG，点击左侧底部「设置」，在设置导航的「集成」分组选择「API 文档」。可搜索并阅读完整接口参考、VOS 外部接入指南和检查清单。在「API 集成」页也可点击「打开文档」阅读同一套内容。文档随界面语言切换：中文界面显示中文，英文及其他非中文界面显示英文；VOS 自动语言模式会跟随平台语言。切换语言保留当前章节。
+
+Open HybRAG → **Settings** at the bottom of the sidebar → **Integrations → API Documentation**. Search the full API reference, VOS external integration guide, and validation checklist. **API Integration → Open documentation** opens the same collection in a drawer. Chinese interfaces show Chinese documentation; English and other non-Chinese interfaces show English. Automatic language mode follows VOS. Changing language preserves the selected chapter.
+
 ## 文档结构
 
 | 路径 | 状态 | 用途 |

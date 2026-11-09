@@ -512,8 +512,8 @@
     <SettingDrawer
       v-model:visible="apiDocDrawerVisible"
       class="api-doc-drawer"
-      title="HybRAG API 使用指南"
-      description="面向外部系统集成，说明如何从 VOS 内访问 HybRAG RAG API。"
+      :title="$t('tenant.api.docLabel')"
+      :description="$t('tenant.api.docDescription')"
       icon="file"
       width="760px"
       :min-width="560"
@@ -526,7 +526,7 @@
           <t-input
             v-model="apiDocSearch"
             clearable
-            placeholder="搜索 API 文档"
+            :placeholder="$t('tenant.api.docLabel')"
             class="api-doc-search"
           >
             <template #prefix-icon><t-icon name="search" /></template>
@@ -548,8 +548,8 @@
         <article class="api-doc-reader">
           <header class="api-doc-reader__header">
             <div>
-              <h3>{{ selectedApiDoc?.title || 'API 文档' }}</h3>
-              <p>内容来自 <code>docs/api/{{ selectedApiDoc?.fileName }}</code>，重新打包 Web 镜像后会随 Markdown 更新。</p>
+              <h3>{{ selectedApiDoc?.title || $t('tenant.api.docLabel') }}</h3>
+              <p>{{ $t('tenant.api.docDescription') }}</p>
             </div>
             <t-button
               v-if="selectedApiDoc"
@@ -567,7 +567,7 @@
             @click="handleApiDocMarkdownClick"
             v-html="selectedApiDocHtml"
           ></div>
-          <t-empty v-else description="没有匹配的 API 文档" />
+          <t-empty v-else :description="$t('common.noData')" />
         </article>
       </div>
     </SettingDrawer>
@@ -798,6 +798,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
+import { useApiDocs } from '@/composables/useApiDocs'
 import { marked } from 'marked'
 import { copyWithToast } from '@/utils/clipboard'
 import { BUILTIN_SMART_REASONING_ID, type CustomAgent } from '@/api/agent'
@@ -829,53 +830,7 @@ import {
 import { normalizeAPIKeyKnowledgeBaseIDs } from './apiKeyScope'
 import { consumeApiPlaygroundSSE } from './apiPlaygroundSSE'
 
-type ApiDocItem = {
-  slug: string
-  fileName: string
-  title: string
-  sourcePath: string
-  raw: string
-}
-
-const apiDocModules = import.meta.glob('../../../../docs/api/*.md', {
-  eager: true,
-  query: '?raw',
-  import: 'default',
-}) as Record<string, string>
-
-const apiDocOrder = [
-  'README',
-  'vos-external-api',
-  'vos-external-api-validation',
-  'vos-external-api-validation.zh-TW',
-]
-
-function apiDocSortWeight(slug: string) {
-  const index = apiDocOrder.indexOf(slug)
-  return index >= 0 ? index : apiDocOrder.length
-}
-
-function extractMarkdownTitle(fileName: string, raw: string) {
-  const match = raw.match(/^#\s+(.+)$/m)
-  return match?.[1]?.trim() || fileName.replace(/\.md$/, '')
-}
-
-const apiDocs: ApiDocItem[] = Object.entries(apiDocModules)
-  .map(([path, raw]) => {
-    const fileName = path.split('/').pop() || path
-    const slug = fileName.replace(/\.md$/, '')
-    return {
-      slug,
-      fileName,
-      title: extractMarkdownTitle(fileName, raw),
-      sourcePath: path.replace(/^\.\.\/\.\.\/\.\.\/\.\.\//, ''),
-      raw,
-    }
-  })
-  .sort((a, b) => {
-    const weight = apiDocSortWeight(a.slug) - apiDocSortWeight(b.slug)
-    return weight !== 0 ? weight : a.fileName.localeCompare(b.fileName)
-  })
+const apiDocs = useApiDocs()
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -909,7 +864,7 @@ const agentsError = ref('')
 const playgroundDrawerVisible = ref(false)
 const apiDocDrawerVisible = ref(false)
 const apiDocSearch = ref('')
-const selectedApiDocSlug = ref(apiDocs.find((doc) => doc.slug === 'vos-external-api')?.slug || apiDocs[0]?.slug || '')
+const selectedApiDocSlug = ref(apiDocs.value.find((doc) => doc.slug === 'vos-external-api')?.slug || apiDocs.value[0]?.slug || '')
 const playgroundController = ref<AbortController | null>(null)
 const showHMACSecret = ref(false)
 const wailsApiBaseURL = ref<string | null>(null)
@@ -1227,8 +1182,8 @@ const knowledgeBaseOptions = computed(() => knowledgeBases.value.map((kb) => ({
 
 const filteredApiDocs = computed(() => {
   const keyword = apiDocSearch.value.trim().toLowerCase()
-  if (!keyword) return apiDocs
-  return apiDocs.filter((doc) => (
+  if (!keyword) return apiDocs.value
+  return apiDocs.value.filter((doc) => (
     doc.title.toLowerCase().includes(keyword)
     || doc.fileName.toLowerCase().includes(keyword)
     || doc.raw.toLowerCase().includes(keyword)
@@ -1236,18 +1191,18 @@ const filteredApiDocs = computed(() => {
 })
 
 const selectedApiDoc = computed(() => (
-  apiDocs.find((doc) => doc.slug === selectedApiDocSlug.value)
+  apiDocs.value.find((doc) => doc.slug === selectedApiDocSlug.value)
   || filteredApiDocs.value[0]
   || null
 ))
 
-const apiDocSlugSet = new Set(apiDocs.map((doc) => doc.slug))
+const apiDocSlugSet = computed(() => new Set(apiDocs.value.map((doc) => doc.slug)))
 
 function rewriteApiDocLinks(markdown: string, sourcePath: string) {
   return markdown.replace(/\]\(([^)]+\.md)(#[^)]+)?\)/g, (match, href: string, hash = '') => {
     const fileName = href.split('/').pop() || ''
-    const slug = fileName.replace(/\.md$/, '')
-    if (apiDocSlugSet.has(slug)) return `](#api-doc:${slug}${hash || ''})`
+    const slug = fileName.replace(/(?:\.en|\.zh-TW)?\.md$/, '')
+    if (apiDocSlugSet.value.has(slug)) return `](#api-doc:${slug}${hash || ''})`
     if (href.startsWith('/') || href.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return match
     const segments = sourcePath.split('/').slice(0, -1)
     for (const segment of href.split('/')) {
@@ -1778,7 +1733,7 @@ function handleApiDocMarkdownClick(event: MouseEvent) {
   if (!href.startsWith('#api-doc:')) return
   event.preventDefault()
   const slug = href.replace(/^#api-doc:/, '').split('#')[0]
-  if (apiDocSlugSet.has(slug)) {
+  if (apiDocSlugSet.value.has(slug)) {
     selectedApiDocSlug.value = slug
   }
 }

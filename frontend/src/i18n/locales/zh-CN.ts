@@ -5237,7 +5237,7 @@ export default {
     api: {
       title: 'API 信息',
       docLabel: 'API 文档',
-      docDescription: '查看完整的 API 调用文档和示例，',
+      docDescription: '查看完整的 API 参考和接入示例。文档随界面语言切换。',
       openDoc: '打开文档',
       userIdLabel: '用户 ID',
       userIdDescription: '您的唯一用户标识',
