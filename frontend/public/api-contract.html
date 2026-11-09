@@ -1,0 +1,5512 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="native-openapi" content="./api-contract.openapi.json"><title>HybRAG API</title><style>body{font:16px/1.65 system-ui,sans-serif;color:#233247;background:#fff;max-width:1100px;margin:auto;padding:24px}nav{position:sticky;top:0;background:#fff;padding:12px 0;border-bottom:1px solid #ddd}nav a{margin-right:10px}a{color:#086a81}pre{overflow:auto;background:#f4f6f8;padding:16px;border-radius:8px}code{overflow-wrap:anywhere}table{display:block;overflow:auto;border-collapse:collapse}td,th{padding:8px;border:1px solid #ddd;text-align:left}h2,h3{scroll-margin-top:85px}#zh:target~main #en-doc{display:none}#zh:target~main #zh-doc{display:block}#zh-doc{display:none}</style><span id="zh"></span><span id="en"></span><nav><strong>HybRAG API</strong> · <a href="#zh">简体中文</a> · <a href="#en">English</a></nav><main><article id="zh-doc" lang="zh-CN"><details open><summary>快速跳转</summary><a href="#zh-section-1">入口与完整字段</a> · <a href="#zh-section-2">用户身份和权限范围</a> · <a href="#zh-section-3">API Key 创建、修改和撤销</a> · <a href="#zh-section-4">检索、入库和对话生命周期</a> · <a href="#zh-section-5">返回、文件、分页和错误</a> · <a href="#zh-section-6">逐操作契约目录</a></details><h1>VOS API 契约、密钥和生命周期</h1>
+<h2 id="zh-section-1">入口与完整字段</h2>
+<p>“设置 → API 文档”保留原有完整章节库，“完整字段 / Full contract”提供可搜索的原生操作参数、请求、返回和共享结构。生产 GIN_MODE=release 会禁用 /swagger，因此文档打包版本匹配的 schema，不要求管理员开启开发模式。下方目录覆盖该原生规范声明的全部操作；新引入的路由及有意开放的工具/provider JSON 仍以实际路由与所属协议为准，不伪造统一固定结构。</p>
+<p>VOS API 通常为 <code>https://&lt;VOS_HOST&gt;:&lt;VOS_PORT&gt;/app/com.ictrek.hybrag/api/v1</code>。独立映射存在时默认 API <code>http://&lt;HOST&gt;:29081/api/v1</code>、前端29080，安装参数可改变或取消映射。后端原生监听8080不是普遍对外地址，以 API 集成页显示的实际地址为准，不使用开发 SSH 别名作为接口域名。</p>
+<h2 id="zh-section-2">用户身份和权限范围</h2>
+<p>外部调用可携带 <code>X-API-Key: $HYBRAG_KEY</code>，或经授权获得的 VOS/OAuth 用户 <code>Authorization: Bearer $VOS_ACCESS_TOKEN</code>。应用核验/映射用户后执行成员角色、capability和知识库范围限制。OAuth 不支持 password grant，使用既有授权码/Fastpath，或获授权的 VOS 登录接口进行命令行验证。密码、令牌及返回的 Key 不得写日志。</p>
+<p>个人 Key 属于用户，不代表全工作区数据。普通用户可选择 retrieve/chat/ingest 并绑定允许的知识库；个人空间 Owner 不自动拥有全工作区或平台权限。CanAccessAllTenants=true 的平台管理员才可创建工作区级 Key。API Key 路由默认拒绝，只有明确策略放行才可访问；full_access工作区 Key 不是无限平台管理员。系统 Key、MCP endpoint token 具有独立范围和管理入口。HybRAG Key 不等于 Scheduler 推理 Key 或厂商 Key；统一配置模型不取消 HybRAG 自己的知识库和会话权限。</p>
+<h2 id="zh-section-3">API Key 创建、修改和撤销</h2>
+<p>使用当前有权限的用户会话/VOS Bearer 管理。id为工作区数字 ID，key_id为 Key 记录数字 ID，均不是秘密值，不复制其他租户的 ID。</p>
+<table>
+<thead>
+<tr>
+  <th>方法/路径</th>
+  <th>请求</th>
+  <th>成功</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>GET <code>/tenants/{id}/api-keys</code></td>
+  <td>当前用户及工作区权限</td>
+  <td>200 <code>success:true,data:KeyRecord[]</code></td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/api-keys</code></td>
+  <td>JSON <code>name:string,full_access:boolean,knowledge_base_ids:string[],capabilities:string[],expires_at_unix?:integer</code></td>
+  <td>201 <code>success:true,data:KeyRecord &amp; {token:string}</code></td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/{id}/api-keys/{key_id}</code></td>
+  <td>同创建的完整配置字段</td>
+  <td>200 <code>success:true,data:KeyRecord</code></td>
+</tr>
+<tr>
+  <td>DELETE <code>/tenants/{id}/api-keys/{key_id}</code></td>
+  <td>无 body</td>
+  <td>200 <code>success:true</code>，不是204</td>
+</tr>
+</tbody>
+</table>
+<p>KeyRecord字段为 <code>id:integer,scope_type:string,owner_user_id?:string,name:string,api_key:string,full_access:boolean,knowledge_base_ids:string[],capabilities:string[],last_used_at?:date-time,expires_at?:date-time,created_at:date-time</code>。创建在 data.token 和 data.api_key 返回生成的秘密；当前有权限的列表和修改响应也可能解密返回已保存的 api_key，<strong>本应用不是只显示一次秘密的接口</strong>。缺少保留秘密的历史记录可能为空，应保护所有管理响应；静态加密不代表可以记录返回秘密。</p>
+<p>创建要求 name非空、capability有效，个人数据能力还要求非空且有权限的KB范围。expires_at_unix为Unix秒，创建时必须在未来，返回时间使用序列化date-time。PUT是完整配置更新而非局部补丁，应提交所需名称、放行范围、能力等全部配置；省略布尔/数组会解码为false/空，可能改变权限。full_access=true会清空细粒度能力和KB范围且要求相应管理员权限。PUT不轮换秘密值；轮换应创建替代 Key、更新客户端、撤销旧 Key。DELETE撤销认证，不是卸载模型。</p>
+<h2 id="zh-section-4">检索、入库和对话生命周期</h2>
+<p>只读对接创建限定KB的retrieve/chat Key，先调用/auth/me核对实际身份，再列出/knowledge-bases?creator=all可见知识库。knowledge_base_ids表示KB，knowledge_ids表示文档，不是document_ids。POST /sessions返回data.id，同一话题多轮复用会话，新话题新建。POST /knowledge-chat/{session_id}以JSON传query及需要的knowledge_base_ids/knowledge_ids/channel。SSE data为原生StreamResponse，response_type:&quot;complete&quot;结束当前轮次，HTTP200后仍可能流内报错，需检查流事件和最终状态。</p>
+<p>/knowledge-search支持无会话检索，仍受授权范围限制。上传/URL导入/手工知识创建返回文档ID不表示解析索引完成，需轮询相应知识/任务状态。重复文件或URL可能409并返回已有Knowledge；超时后先核对任务，不盲目重复入库。停止、删除有不同权限和副作用；删除文档不能代替取消对话或卸载Scheduler权重，应使用对应流程的实际操作。</p>
+<pre><code class="language-bash">BASE='https://&lt;VOS_HOST&gt;:&lt;VOS_PORT&gt;/app/com.ictrek.hybrag/api/v1'
+curl --fail-with-body -H &quot;X-API-Key: $HYBRAG_KEY&quot; &quot;$BASE/auth/me&quot;
+curl --fail-with-body -H &quot;X-API-Key: $HYBRAG_KEY&quot; -H 'Content-Type: application/json' \
+  -d '{&quot;query&quot;:&quot;查询相关记录&quot;,&quot;knowledge_base_ids&quot;:[&quot;&lt;kb_id&gt;&quot;]}' &quot;$BASE/knowledge-search&quot;
+</code></pre>
+<h2 id="zh-section-5">返回、文件、分页和错误</h2>
+<p>多数JSON成功为success:true/data并带各操作自己的total/page/page_size；部分系统接口返回原始行/数组或code:0/msg/data。媒体、导出、SSE、MCP有独立Content-Type，不能强套统一JSON。审计/运行任务/wiki游标分页不同于page分页，按next_cursor/has_more继续。</p>
+<p>业务错误常为success:false/error:{code,message,details}；认证/RBAC中间件可直接返回error字符串和可选code字符串，网关可能非JSON。403可能来自工作区、KB、路由策略、过期/撤销Key，不应通过换不相关模型“解决”。恢复依赖/资源后再有限退避重试，不重试永久校验和权限错误。查询与上传具有不同超时/幂等语义，写请求超时后先查询已有任务。</p>
+<p>/r/:token和签名文件URL只授权编码的特定资源并可过期，不授予广泛API访问。MCP使用自己签发/可轮换的endpoint token及所选工具/KB范围。管理员诊断、本机对话框动作不默认向scoped Key开放，原章节库有各流程说明。中国大陆网络可能阻断国外API，即使本地发现成功也要分别验证上游连通、注册和用户权限。</p>
+<h2 id="zh-section-6">逐操作契约目录</h2>
+<table>
+<thead>
+<tr>
+  <th>Method/path</th>
+  <th>Operation / permission</th>
+  <th>Input</th>
+  <th>Success</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>GET <code>/admin/memory/subjects</code></td>
+  <td>/ —</td>
+  <td>query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListMemorySubjectsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/admin/memory/subjects/{subject_id}/items</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string); query:status(string); query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListItemsResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/admin/memory/subjects/{subject_id}/items</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string)</td>
+  <td>200: internal_handler.ClearResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/admin/memory/subjects/{subject_id}/items/{id}/confirm</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string); path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/admin/memory/subjects/{subject_id}/items/{id}/reject</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string); path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/admin/memory/subjects/{subject_id}/settings</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string); body:request*(internal_handler.AdminMemorySettingsRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agent-chat/{session_id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.CreateKnowledgeQARequest); query:resource_urls(string)</td>
+  <td>200: string</td>
+</tr>
+<tr>
+  <td>GET <code>/agent/grants</code></td>
+  <td>/ —</td>
+  <td>query:session_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/agent/grants/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/agent/mcp-oauth-resolutions/{pending_id}</code></td>
+  <td>/ —</td>
+  <td>path:pending_id*(string); body:request*(object)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agent/mcp-oauth-resolutions/{pending_id}/cancel</code></td>
+  <td>/ —</td>
+  <td>path:pending_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agent/prompts/{prompt_id}</code></td>
+  <td>/ —</td>
+  <td>path:prompt_id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/agent/tool-approvals/{pending_id}</code></td>
+  <td>/ —</td>
+  <td>path:pending_id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/agents</code></td>
+  <td>/ —</td>
+  <td>query:creator(string)</td>
+  <td>200: internal_handler.ListAgentsResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agents</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateAgentRequest)</td>
+  <td>201: internal_handler.AgentWriteResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/placeholders</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/tools</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/type-presets</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/agents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateAgentRequest)</td>
+  <td>200: internal_handler.AgentWriteResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/agents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/agents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchAgentRequest)</td>
+  <td>200: internal_handler.AgentWriteResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agents/{id}/copy</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/agents/{id}/shares/{share_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:share_id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/{id}/suggested-questions</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:knowledge_base_ids(string); query:knowledge_ids(string); query:tag_scopes(string); query:limit(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/artifacts</code></td>
+  <td>/ —</td>
+  <td>query:keyword(string); query:file_types(string); query:page(integer); query:page_size(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/artifacts</code></td>
+  <td>/ —</td>
+  <td>query:session_id*(string); query:message_id*(string); query:index*(integer); query:all_versions(boolean)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/auto-setup</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/change-password</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/config</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.GetAuthConfigResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/invitations/lookup</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.invitationLookupRequest)</td>
+  <td>200: internal_handler.invitationLookupResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/login</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.LoginRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/logout</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/me</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/auth/me/preferences</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.updateMyPreferencesRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/oidc/callback</code></td>
+  <td>/ —</td>
+  <td>query:code(string); query:state(string); query:error(string)</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/auth/oidc/config</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.OIDCConfigResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/oidc/start</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/auth/oidc/url</code></td>
+  <td>/ —</td>
+  <td>query:redirect_uri*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.OIDCAuthURLResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/refresh</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: internal_handler.RefreshTokenResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/register</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.RegisterRequest)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.RegisterResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/register-by-invite</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.registerByInviteRequest)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/switch-tenant</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/validate</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ValidateTokenResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/vos-oidc</code></td>
+  <td>/ —</td>
+  <td>body:request(internal_handler.vosOIDCRequest); header:Authorization(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/vos-sso</code></td>
+  <td>/ —</td>
+  <td>body:request(internal_handler.vosSSORequest); header:Authorization(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/vos-token-exchange</code></td>
+  <td>/ —</td>
+  <td>body:request(internal_handler.vosSSORequest); header:Authorization(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/automation-runs/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automation-runs/{id}/cancel</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/automations</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automations</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateAutomationRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/by-session/{session_id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/validate-trigger</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ValidateTriggerRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/automations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.AutomationPatch)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/automations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/{id}/grant-candidates</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/{id}/grants</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/{id}/grants</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/{id}/pause</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/{id}/resume</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/{id}/run</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>202: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/{id}/runs</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/chunker/preview</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.PreviewChunkingRequest)</td>
+  <td>200: internal_handler.PreviewChunkingResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/chunks/by-id/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/chunks/by-id/{id}/questions</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/chunks/{knowledge_id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); query:page(integer); query:page_size(integer); query:chunk_type(array&lt;string&gt;)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/chunks/{knowledge_id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/chunks/{knowledge_id}/{id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); path:id*(string); body:request*(internal_handler.UpdateChunkRequest)</td>
+  <td>200: internal_handler.UpdateChunkResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/chunks/{knowledge_id}/{id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/chunks/{knowledge_id}/{id}/revert</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); path:id*(string); body:request*(internal_handler.RevertChunkRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/chunks/{knowledge_id}/{id}/revisions</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource</code></td>
+  <td>/ —</td>
+  <td>query:kb_id*(string)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_handler_dto.DataSourceResponse&gt;</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.DataSource)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.DataSource</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/logs/{log_id}</code></td>
+  <td>/ —</td>
+  <td>path:log_id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.SyncLog</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/types</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_datasource.ConnectorMetadata&gt;</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/validate-credentials</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_handler_dto.DataSourceResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/datasource/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.DataSource)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.DataSource</td>
+</tr>
+<tr>
+  <td>DELETE <code>/datasource/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/{id}/logs</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:limit(integer); query:offset(integer)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.SyncLog&gt;</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/pause</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.DataSourceStatusResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/resource-ancestors</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.resolveAncestorsRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/{id}/resources</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:parent_id(string)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.Resource&gt;</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/resume</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.DataSourceStatusResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/sync</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.SyncLog</td>
+</tr>
+<tr>
+  <td>PATCH <code>/datasource/{id}/sync-settings</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchDataSourceSyncRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_handler_dto.DataSourceResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/validate</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.DataSourceStatusResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/evaluation/</code></td>
+  <td>/ —</td>
+  <td>query:task_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/evaluation/</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.EvaluationRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/faq/import/progress/{task_id}</code></td>
+  <td>/ —</td>
+  <td>path:task_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/im-channels/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: internal_handler.UpdateIMChannelResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/im-channels/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/im-channels/{id}/toggle</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.UpdateIMChannelResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/im/callback/{channel_id}</code></td>
+  <td>/ —</td>
+  <td>path:channel_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/im/callback/{channel_id}</code></td>
+  <td>/ —</td>
+  <td>path:channel_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/image-attrs/schema</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/asr/check</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ModelTestRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/config/{kbId}</code></td>
+  <td>/ —</td>
+  <td>path:kbId*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/initialization/config/{kbId}</code></td>
+  <td>/ —</td>
+  <td>path:kbId*(string); body:request*(internal_handler.KBModelConfigRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/embedding/test</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ModelTestRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/extract/fabri-tag</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/extract/fabri-text</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.FabriTextRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/extract/text-relation</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.TextRelationExtractionRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/initialize/{kbId}</code></td>
+  <td>/ —</td>
+  <td>path:kbId*(string); body:request*(internal_handler.InitializationRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/multimodal/test</code></td>
+  <td>/ —</td>
+  <td>formData:image*(file); formData:vlm_model*(string); formData:vlm_base_url*(string); formData:vlm_api_key(string); formData:vlm_interface_type(string); formData:storage_type*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/ollama/download/progress/{taskId}</code></td>
+  <td>/ —</td>
+  <td>path:taskId*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/ollama/download/tasks</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/ollama/models</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/ollama/models/check</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/ollama/models/download</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/ollama/status</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/remote/check</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.RemoteModelCheckRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/rerank/check</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ModelTestRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases</code></td>
+  <td>/ —</td>
+  <td>query:agent_id(string); query:creator(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.KnowledgeBase)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/copy</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CopyKnowledgeBaseRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/copy/progress/{task_id}</code></td>
+  <td>/ —</td>
+  <td>path:task_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:agent_id(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateKnowledgeBaseRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/knowledge-bases/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchKnowledgeBaseRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/activity</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:after_id(integer); query:limit(integer); query:action(string); query:outcome(string); query:actor(string)</td>
+  <td>200: internal_handler.auditLogListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/duplicate</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/faq/entries</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer); query:tag_id(integer); query:tag_ids(string); query:keyword(string); query:search_field(string); query:sort_order(string); query:is_enabled(boolean)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/faq/entries</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.FAQBatchUpsertPayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}/faq/entries</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.faqDeleteRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/knowledge-bases/{id}/faq/entries</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.FAQBatchPatchRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/faq/entries/export</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:format(string)</td>
+  <td>200: file</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/faq/entries/fields</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.FAQEntryFieldsBatchUpdate)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/faq/entries/tags</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/faq/entries/{entry_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:entry_id*(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/faq/entries/{entry_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:entry_id*(integer); body:request*(github_com_Tencent_WeKnora_internal_types.FAQEntryPayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/faq/entries/{entry_id}/similar-questions</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:entry_id*(integer); body:request*(internal_handler.addSimilarQuestionsRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/faq/entry</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.FAQEntryPayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/faq/import/last-result/display</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.updateLastFAQImportResultDisplayStatusRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/faq/search</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.FAQSearchRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/graph-search</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:agent_id(string); query:agent_source_tenant_id(integer); body:request*(github_com_Tencent_WeKnora_internal_types.GraphSearchRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/hybrid-search</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.SearchParams); query:resource_urls(string)</td>
+  <td>200: internal_handler.HybridSearchResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/hybrid-search</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.SearchParams); query:resource_urls(string)</td>
+  <td>200: internal_handler.HybridSearchResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/images</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer); query:keyword(string); query:search_in(string); query:sort_by(string); query:sort_order(string); query:is_enabled(boolean); query:knowledge_ids(string); query:attr_filters(string); query:attr_rules(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/images</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:body(internal_handler.imageListRequestBody)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/knowledge</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer); query:tag_ids(string); query:keyword(string); query:file_type(string); query:parse_status(string); query:source(string); query:start_time(string); query:end_time(string); query:folder_path(string); query:folder_recursive(boolean); query:sort_by(string); query:sort_order(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}/knowledge</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SubmittedTaskResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/knowledge/batch-download</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.BatchDownloadKnowledgeRequest)</td>
+  <td>200: file</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/knowledge/file</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); formData:file*(file); formData:fileName(string); formData:metadata(string); formData:enable_multimodel(boolean); formData:tag_ids(string); formData:process_config(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/knowledge/folders</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/knowledge/folders</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.RenameKnowledgeFolderRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/knowledge/manual</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.ManualKnowledgePayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/knowledge/url</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.CreateKnowledgeFromURLRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/move-targets</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/pin</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/profile/generate</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/rebuild-index</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.DataResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/shares</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.ListSharesResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/shares</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.ShareKnowledgeBaseRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/shares/{share_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:share_id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.UpdateSharePermissionRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}/shares/{share_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:share_id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/tags</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer); query:keyword(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/tags</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.CreateTagRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/tags/{tag_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tag_id*(string); body:request*(internal_handler.UpdateTagRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}/tags/{tag_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tag_id*(string); query:force(boolean); query:content_only(boolean); body:body(internal_handler.DeleteTagRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-chat/{session_id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.CreateKnowledgeQARequest); query:resource_urls(string)</td>
+  <td>200: string</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-search</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler_session.SearchKnowledgeRequest); query:resource_urls(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/batch</code></td>
+  <td>/ —</td>
+  <td>query:ids*(array&lt;string&gt;); query:kb_id(string); query:agent_id(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/batch-delete</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.BatchDeleteKnowledgeRequest)</td>
+  <td>200: internal_handler.SubmittedTaskResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/batch-reparse</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.batchReparseKnowledgeRequest)</td>
+  <td>200: internal_handler.SubmittedTaskResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/folder</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.MoveKnowledgeToFolderRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge/image/{id}/{chunk_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:chunk_id*(string); body:request*(object)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge/manual/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.ManualKnowledgePayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/move</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.MoveKnowledgeRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/move/progress/{task_id}</code></td>
+  <td>/ —</td>
+  <td>path:task_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/search</code></td>
+  <td>/ —</td>
+  <td>query:keyword(string); query:offset(integer); query:limit(integer); query:file_types(string); query:agent_id(string); query:recent(boolean)</td>
+  <td>200: internal_handler.KnowledgeSearchKnowledgeResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge/tags</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.KnowledgeTagBatchRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateKnowledgeRequest)</td>
+  <td>200: internal_handler.UpdateKnowledgeResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/{id}/cancel-parse</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/{id}/download</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: file</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/{id}/preview</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: file</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/{id}/reparse</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:body(internal_handler.ReparseKnowledgeRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/{id}/spans</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:attempt(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/auto-fix</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string)</td>
+  <td>200: internal_handler.AutoFixResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/folders</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:parent_id(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiFolderListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/folders</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); body:folder*(github_com_Tencent_WeKnora_internal_types.WikiFolderCreateRequest)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.WikiFolder</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledgebase/{kb_id}/wiki/folders/{folder_id}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:folder_id*(string); body:folder*(github_com_Tencent_WeKnora_internal_types.WikiFolderUpdateRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiFolder</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledgebase/{kb_id}/wiki/folders/{folder_id}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:folder_id*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/graph</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:mode(string); query:center(string); query:depth(integer); query:types(string); query:limit(integer)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiGraphData</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/index</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:types(string); query:limit(integer); query:cursor(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiIndexResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/issues</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:slug(string); query:status(string)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.WikiPageIssue&gt;</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledgebase/{kb_id}/wiki/issues/{issue_id}/status</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:issue_id*(string); body:status*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/lint</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_application_service.WikiLintReport</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledgebase/{kb_id}/wiki/move-page</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); body:move*(github_com_Tencent_WeKnora_internal_types.WikiPageMoveRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPage</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/pages</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:page_type(string); query:status(string); query:query(string); query:page(integer); query:page_size(integer); query:sort_by(string); query:sort_order(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPageListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/pages</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); body:page*(github_com_Tencent_WeKnora_internal_types.WikiPage)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.WikiPage</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/pages/{slug}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:slug*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPageDetail</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledgebase/{kb_id}/wiki/pages/{slug}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:slug*(string); body:page*(github_com_Tencent_WeKnora_internal_types.WikiPageUpdateRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPage</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledgebase/{kb_id}/wiki/pages/{slug}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:slug*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/rebuild-links</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string)</td>
+  <td>200: internal_handler.WikiMessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/revert</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); body:revert*(github_com_Tencent_WeKnora_internal_types.WikiPageRevertRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPage</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/revisions/{slug}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:slug*(string); query:version(integer); query:content_version(integer); query:limit(integer); query:offset(integer)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPageRevisionListResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/search</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:q*(string); query:limit(integer)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.WikiPage&gt;</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/stats</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiStats</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-endpoints</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-endpoints</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-endpoints/tools</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-endpoints/{endpoint_id}</code></td>
+  <td>/ —</td>
+  <td>path:endpoint_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/mcp-endpoints/{endpoint_id}</code></td>
+  <td>/ —</td>
+  <td>path:endpoint_id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/mcp-endpoints/{endpoint_id}</code></td>
+  <td>/ —</td>
+  <td>path:endpoint_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-endpoints/{endpoint_id}/rotate-token</code></td>
+  <td>/ —</td>
+  <td>path:endpoint_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services</code></td>
+  <td>/ —</td>
+  <td>query:agent_id(string); query:agent_source_tenant_id(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateMCPServiceRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/oauth/callback</code></td>
+  <td>/ —</td>
+  <td>query:code(string); query:state(string); query:error(string)</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/mcp-services/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateMCPServiceRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/mcp-services/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/mcp-services/{id}/credentials</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/mcp-services/{id}/credentials/{field}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:field*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}/metadata</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MCPMetadataResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services/{id}/metadata/refresh</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MCPMetadataResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services/{id}/oauth/assertion</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services/{id}/oauth/authorize-url</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}/oauth/status</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:authorization_attempt(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/mcp-services/{id}/oauth/token</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}/resources</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services/{id}/test</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/mcp-services/{id}/tool-approvals/{tool_name}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tool_name*(string); body:request*(object)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}/tools</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/me/env-vars</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/me/env-vars/sandbox</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.meEnvVarRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/me/env-vars/sandbox</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.meEnvVarRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/me/env-vars/skill</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.meEnvVarRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/me/env-vars/skill</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.meEnvVarRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/me/invitations</code></td>
+  <td>/ —</td>
+  <td>query:include_terminal(boolean)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/me/invitations/accept-by-token</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.acceptInvitationByTokenRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/me/invitations/pending-count</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/me/invitations/{inv_id}/accept</code></td>
+  <td>/ —</td>
+  <td>path:inv_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/me/invitations/{inv_id}/decline</code></td>
+  <td>/ —</td>
+  <td>path:inv_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/consolidate</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/documents</code></td>
+  <td>/ —</td>
+  <td>query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListDocumentsResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/memory/documents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/export</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ExportResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/items</code></td>
+  <td>/ —</td>
+  <td>query:status(string); query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListItemsResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/items</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/memory/items</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ClearResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/memory/items/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/memory/items/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/items/{id}/confirm</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/items/{id}/reject</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/settings</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/memory/settings</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/topics</code></td>
+  <td>/ —</td>
+  <td>query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListTopicsResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/memory/topics/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/topics/{id}/promote</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/messages/chat-history-stats</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/messages/search</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.SearchMessagesRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/messages/{session_id}/load</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); query:limit(integer); query:before_time(string); query:resource_urls(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/messages/{session_id}/{id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/models</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/models</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateModelRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/models/catalog/resolve</code></td>
+  <td>/ —</td>
+  <td>query:provider*(string); query:model(string); query:base_url(string); query:model_type(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/models/providers</code></td>
+  <td>/ —</td>
+  <td>query:model_type(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/models/providers/{provider}</code></td>
+  <td>/ —</td>
+  <td>path:provider*(string); query:model_type(string); query:keyword(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/models/weknoracloud/status</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WeKnoraCloudStatusResult</td>
+</tr>
+<tr>
+  <td>GET <code>/models/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/models/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateModelRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/models/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/models/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchModelRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/models/{id}/copy</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.CopyModelRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/notifications</code></td>
+  <td>/ —</td>
+  <td>query:limit(integer); query:cursor(string); query:unread(boolean)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/notifications/read</code></td>
+  <td>/ —</td>
+  <td>body:request(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/notifications/read</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.ListOrganizationsResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.CreateOrganizationRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/join</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.JoinOrganizationRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/join-by-id</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.JoinByOrganizationIDRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/join-request</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.SubmitJoinRequestRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/preview/{code}</code></td>
+  <td>/ —</td>
+  <td>path:code*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/search</code></td>
+  <td>/ —</td>
+  <td>query:q(string); query:limit(integer)</td>
+  <td>200: internal_handler.SearchOrganizationsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/organizations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.UpdateOrganizationRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/organizations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/agent-shares</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/{id}/invite</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.InviteMemberRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/{id}/invite-code</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/join-requests</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/organizations/{id}/join-requests/{request_id}/review</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:request_id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.ReviewJoinRequestRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/{id}/leave</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/members</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.ListMembersResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/organizations/{id}/members/{tenant_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tenant_id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.UpdateMemberRoleRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/organizations/{id}/members/{tenant_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tenant_id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/{id}/request-upgrade</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.RequestRoleUpgradeRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/search-tenants</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:q*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/search-users</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/shared-agents</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.ListOrganizationSharedAgentsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/shared-knowledge-bases</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.ListOrganizationSharedKnowledgeBasesResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/shares</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.ListSharesResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.sandboxConfigRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/sandbox-configs/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.sandboxConfigRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sandbox-configs/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:force(boolean)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/sandboxes</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs/{id}/skills</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); formData:file(file); body:request(internal_handler.skillSourceRequest)</td>
+  <td>202: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sandbox-configs/{id}/skills/{skillId}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>202: JSON</td>
+</tr>
+<tr>
+  <td>PATCH <code>/sandbox-configs/{id}/skills/{skillId}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string); body:request*(internal_handler.skillPatchRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}/files</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}/files/content</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string); query:path*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}/install-events</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: string</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs/{id}/skills/{skillId}/reinstall</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>202: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs/{id}/skills/{skillId}/stop</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}/transcript</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: string; 204: string</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/user-sandboxes</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs/{id}/user-sandboxes/{digest}/release</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:digest*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions</code></td>
+  <td>/ —</td>
+  <td>query:page(integer); query:page_size(integer); query:kind(string); query:keyword(string); query:source(string); query:agent_id(string)</td>
+  <td>200: internal_handler_session.sessionListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler_session.CreateSessionRequest)</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/batch</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler_session.batchDeleteRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/continue-stream/{session_id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); query:message_id*(string); query:resume_pending_id(string); query:resource_urls(string)</td>
+  <td>200: string</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/transcriptions</code></td>
+  <td>/ —</td>
+  <td>formData:file*(file); formData:agent_id*(string); formData:agent_source_tenant_id(string); formData:locale(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/sessions/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.Session)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{id}/messages</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{id}/pin</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{id}/steer</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{id}/steer/{steer_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:steer_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{session_id}/artifacts</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/fork</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.ForkSessionRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{session_id}/messages/{message_id}/artifacts</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td></td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{session_id}/messages/{message_id}/artifacts/{index}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:message_id*(string); path:index*(integer); query:all_versions(boolean)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{session_id}/messages/{message_id}/artifacts/{index}/download</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{session_id}/messages/{message_id}/suggestions</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:message_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/messages/{message_id}/suggestions</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:message_id*(string); body:request(internal_handler.EnsureMessageSuggestionsRequest)</td>
+  <td>200: JSON; 202: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/pin</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/rewind</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.RewindSessionRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/steer</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.SteerMessageRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/steer/{steer_id}/inject</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:steer_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/stop</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.StopSessionRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/suggestion-events</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler.SuggestionEventRequest)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/title</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.GenerateTitleRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/shared-agents</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ListSharedAgentsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/shared-knowledge-bases</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ListSharedKnowledgeBasesResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/skills</code></td>
+  <td>/ —</td>
+  <td>query:sandbox_config_id(string); query:agent_id(string); query:agent_source_tenant_id(integer)</td>
+  <td>200: internal_handler.ListSkillsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/skills/catalog</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/skills/catalog</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>GET <code>/skills/catalog/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/skills/catalog/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/skills/catalog/{id}/files</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/skills/catalog/{id}/files/content</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:path*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/skills/catalog/{id}/install</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.catalogInstallRequest)</td>
+  <td>202: internal_handler.catalogInstallResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/storage-backends</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/storage-backends</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.storageBackendRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/storage-backends/test</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.storageBackendRequest)</td>
+  <td>200: internal_handler.SuccessErrorResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/storage-backends/types</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/storage-backends/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/storage-backends/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.storageBackendRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/storage-backends/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/storage-backends/{id}/default</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/storage-backends/{id}/test</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessErrorResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/api-keys</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/api-keys</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.platformAPIKeyCreateRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/system/admin/api-keys/{key_id}</code></td>
+  <td>/ —</td>
+  <td>path:key_id*(integer)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/audit-log</code></td>
+  <td>/ —</td>
+  <td>query:after_id(integer); query:limit(integer); query:action(string); query:outcome(string); query:actor(string)</td>
+  <td>200: internal_handler.auditLogListResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/list</code></td>
+  <td>/ —</td>
+  <td>query:offset(integer); query:limit(integer)</td>
+  <td>200: internal_handler.ListSystemAdminsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/model-catalog</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_application_service.CatalogState</td>
+</tr>
+<tr>
+  <td>PUT <code>/system/admin/model-catalog</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_application_service.CatalogUpdate)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_application_service.CatalogState</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/model-catalog/preview</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_application_service.CatalogUpdate)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_application_service.CatalogState</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/promote</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.PromoteUserToSystemAdminRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.UserInfo</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/revoke</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.RevokeSystemAdminRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.UserInfo</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/runtime/documents</code></td>
+  <td>/ —</td>
+  <td>query:page(integer); query:page_size(integer); query:status(string); query:kb_id(string); query:search(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/runtime/documents/wiki-start</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_application_service.DocumentWikiStartRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/runtime/documents/{knowledge_id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/runtime/queues</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.RuntimeQueuesResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/system/admin/runtime/queues/{queue}/archived</code></td>
+  <td>/ —</td>
+  <td>path:queue*(string)</td>
+  <td>200: internal_handler.PurgeArchivedRuntimeTasksResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/runtime/queues/{queue}/tasks</code></td>
+  <td>/ —</td>
+  <td>path:queue*(string); query:state*(string); query:cursor(string); query:page_size(integer)</td>
+  <td>200: internal_handler.RuntimeTasksResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/runtime/queues/{queue}/tasks/{task_id}/actions/{action}</code></td>
+  <td>/ —</td>
+  <td>path:queue*(string); path:task_id*(string); path:action*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/settings-summary</code></td>
+  <td>/ —</td>
+  <td>query:key(string)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.SystemSettingSummary&gt;</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/settings/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.SystemSetting</td>
+</tr>
+<tr>
+  <td>PUT <code>/system/admin/settings/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string); body:request*(internal_handler.UpdateSystemSettingRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.SystemSetting</td>
+</tr>
+<tr>
+  <td>DELETE <code>/system/admin/settings/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/tenants/apply-default-storage-quota</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ApplyDefaultStorageQuotaToAllTenantsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/users</code></td>
+  <td>/ —</td>
+  <td>query:offset(integer); query:limit(integer)</td>
+  <td>200: internal_handler.ListAllUsersResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/users/create</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.AdminCreateUserRequest)</td>
+  <td>200: internal_handler.CreateSystemUserResponse; 201: internal_handler.CreateSystemUserResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/users/reset-password</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ResetUserPasswordRequest)</td>
+  <td>200: internal_handler.ResetUserPasswordResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/users/status</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.SetUserStatusRequest)</td>
+  <td>200: internal_handler.SetUserStatusResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/capabilities</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.GetDeploymentCapabilitiesResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/docreader/reconnect</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/system/info</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/system/parser-engines</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ListParserEnginesResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/parser-engines/check</code></td>
+  <td>/ —</td>
+  <td>body:body*(object)</td>
+  <td>200: no body</td>
+</tr>
+<tr>
+  <td>POST <code>/system/sandbox-check</code></td>
+  <td>/ —</td>
+  <td>body:body*(internal_handler.SandboxCheckRequest)</td>
+  <td>200: internal_handler.SandboxCheckResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/storage-engine-check</code></td>
+  <td>/ —</td>
+  <td>body:body*(internal_handler.StorageCheckRequest)</td>
+  <td>200: internal_handler.StorageCheckResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/storage-engine-status</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.GetStorageEngineStatusResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.createTenantRequest)</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/all</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/current</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.WorkspaceResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/tenants/current</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.updateTenantRequest)</td>
+  <td>200: internal_handler.WorkspaceResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/current/members</code></td>
+  <td>/ —</td>
+  <td>query:q(string); query:page(integer); query:page_size(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/kv/prompt-templates</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/kv/web-search-config</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/kv/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/kv/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/search</code></td>
+  <td>/ —</td>
+  <td>query:keyword(string); query:tenant_id(integer); query:page(integer); query:page_size(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer); body:request*(internal_handler.updateTenantRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/tenants/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}/api-principal-config</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/{id}/api-principal-config</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer); body:request*(internal_handler.apiPrincipalConfigRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/api-principal-test-token</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer); body:request*(internal_handler.apiPrincipalTestTokenRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}/audit-log</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:after_id(integer); query:limit(integer); query:action(string); query:outcome(string); query:actor(string)</td>
+  <td>200: internal_handler.auditLogListResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}/invitations</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:include_terminal(boolean); query:page(integer); query:page_size(integer)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/invitations</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.createInvitationRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/tenants/{id}/invitations/{inv_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:inv_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/invite-links</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.createInviteLinkRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/leave</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}/members</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:q(string); query:page(integer); query:page_size(integer)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/members</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.addMemberRequest)</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/{id}/members/{user_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:user_id*(string); body:request*(internal_handler.updateMemberRoleRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/tenants/{id}/members/{user_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:user_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/user/favorites</code></td>
+  <td>/ —</td>
+  <td>query:type*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/user/favorites</code></td>
+  <td>/ —</td>
+  <td>body:body*(internal_handler.AddFavoriteRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/user/favorites/{type}/{id}</code></td>
+  <td>/ —</td>
+  <td>path:type*(string); path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/vector-stores</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/vector-stores</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateStoreRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/vector-stores/test</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.TestStoreRequest)</td>
+  <td>200: internal_handler.TestStoreRawResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/vector-stores/types</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/vector-stores/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/vector-stores/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateStoreRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/vector-stores/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/vector-stores/{id}/test</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.TestStoreByIDResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/web-search-providers</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/web-search-providers/test</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.TestProviderRequest)</td>
+  <td>200: internal_handler.SuccessErrorResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/web-search-providers/types</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/web-search-providers/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/web-search-providers/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateProviderRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WebSearchProviderEntity</td>
+</tr>
+<tr>
+  <td>DELETE <code>/web-search-providers/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/web-search-providers/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchWebSearchProviderRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/web-search-providers/{id}/test</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.WebSearchProviderTestResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/web-search/providers</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/wechat/qrcode</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/wechat/qrcode/status</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/weknoracloud/credentials</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/wiki-search</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.SearchWikiRequest)</td>
+  <td>200: JSON</td>
+</tr>
+</tbody>
+</table>
+<p>星号为必填参数；请求/返回 DTO 的全部嵌套字段在应用内“完整原生字段参考”展开，包含 required、default、enum 和媒体类型。</p>
+</article><article id="en-doc" lang="en"><details open><summary>Quick navigation</summary><a href="#en-section-1">Entry and complete field reference</a> · <a href="#en-section-2">User identity and access scope</a> · <a href="#en-section-3">Creating, editing and revoking user/workspace Keys</a> · <a href="#en-section-4">Retrieval, ingestion and conversation lifecycle</a> · <a href="#en-section-5">Payloads, files, pagination and errors</a> · <a href="#en-section-6">Operation contract catalogue</a></details><h1>VOS API contracts, keys and lifecycle</h1>
+<h2 id="en-section-1">Entry and complete field reference</h2>
+<p>Open <strong>Settings → API documentation</strong> for the existing full chapter library, then <strong>Full contract / 完整字段</strong> for searchable native operation parameters, body types, response schemas and shared definitions. Production disables <code>/swagger</code> when <code>GIN_MODE=release</code>; the shipped documentation uses the version-matched schema bundled at build time instead of requiring an administrator to enable development mode. The catalogue below includes every operation declared in that native Swagger specification; application policy and live routes remain authoritative for newly introduced or intentionally open-ended integration payloads. Do not treat a generic provider/tool payload as a new universally fixed schema.</p>
+<p>VOS base is normally <code>https://&lt;VOS_HOST&gt;:&lt;VOS_PORT&gt;/app/com.ictrek.hybrag/api/v1</code>. Direct API default mapping, when installed, is <code>http://&lt;HOST&gt;:29081/api/v1</code>, frontend29080; actual installation parameters can change or omit these mappings. Backend native listen8080 is not a universal externally reachable port. The API Integration settings show the correct installed address. Never use a developer SSH alias as an API hostname.</p>
+<h2 id="en-section-2">User identity and access scope</h2>
+<p>External callers may use <code>X-API-Key: $HYBRAG_KEY</code> or an authorized VOS/OAuth user token in <code>Authorization: Bearer $VOS_ACCESS_TOKEN</code>. The app verifies/maps the user and applies membership, capability and knowledge-base scope. OAuth password grant is not supported: use the existing authorization-code/Fastpath flow or the authorized VOS login endpoint for command-line access. Do not put passwords, tokens or returned secrets in logs.</p>
+<p>A personal Key belongs to the user, not to all workspace data. Regular users may select <code>retrieve</code>, <code>chat</code>, <code>ingest</code>, with allowed knowledge-base IDs; they cannot obtain full workspace/platform permissions merely by owning a personal space. Platform administrators with <code>CanAccessAllTenants=true</code> may create workspace-level keys. API Key routes are deny-by-default unless an explicit policy grants them; a full-access workspace Key is not an unrestricted platform administrator. System-scoped keys and MCP endpoint tokens have separate scopes, endpoints and permission requirements.</p>
+<p>HybRAG Keys are not V-Scheduler inference keys or upstream vendor credentials. Configuring an upstream once in Scheduler does not remove HybRAG's own KB/session authorization.</p>
+<h2 id="en-section-3">Creating, editing and revoking user/workspace Keys</h2>
+<p>Use the current authorized user session/VOS Bearer for management. Path <code>id</code> is the numeric workspace ID; <code>key_id</code> is the numeric key record ID, not the secret. Do not copy another tenant's ID.</p>
+<table>
+<thead>
+<tr>
+  <th>Method/path</th>
+  <th>Request</th>
+  <th>Success</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>GET <code>/tenants/{id}/api-keys</code></td>
+  <td>Current user and workspace scope</td>
+  <td>200 <code>{success:true,data:KeyRecord[]}</code></td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/api-keys</code></td>
+  <td>JSON <code>name:string,full_access:boolean,knowledge_base_ids:string[],capabilities:string[],expires_at_unix?:integer</code></td>
+  <td>201 <code>{success:true,data:KeyRecord &amp; {token:string}}</code></td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/{id}/api-keys/{key_id}</code></td>
+  <td>Same configurable fields as creation</td>
+  <td>200 <code>{success:true,data:KeyRecord}</code></td>
+</tr>
+<tr>
+  <td>DELETE <code>/tenants/{id}/api-keys/{key_id}</code></td>
+  <td>No body</td>
+  <td>200 <code>{success:true}</code> (not204)</td>
+</tr>
+</tbody>
+</table>
+<p>KeyRecord fields: <code>id:integer,scope_type:string,owner_user_id?:string,name:string,api_key:string,full_access:boolean,knowledge_base_ids:string[],capabilities:string[],last_used_at?:date-time,expires_at?:date-time,created_at:date-time</code>. Creation returns the generated secret in both <code>data.token</code> and <code>data.api_key</code>; current authorized list/update responses may also return the stored <code>api_key</code> after decryption. <strong>This app is not a one-time-secret-only API</strong>. Protect all management responses; legacy records lacking a retained secret may show an empty value. Encryption at rest does not make the returned secret safe to log.</p>
+<p>Creation requires a nonblank name, valid capabilities and, for personal data capabilities, a nonempty allowed KB scope. <code>expires_at_unix</code> is Unix <strong>seconds</strong>, must be future on creation; returned date-time fields use their serialized timestamp format. PUT is a full configuration update, not a partial patch: send the complete desired name/access/scope/capability settings; omitted boolean/arrays decode as false/empty and can change authorization. <code>full_access=true</code> clears fine-grained capabilities and KB scope and requires eligible administrator authority. PUT changes configuration, not the token value. Rotate by creating a replacement and revoking the old Key. DELETE marks revocation, so it no longer authenticates; it is not a model-unload operation.</p>
+<h2 id="en-section-4">Retrieval, ingestion and conversation lifecycle</h2>
+<p>For read-only integration, create <code>retrieve</code>/<code>chat</code> within selected KBs, call <code>/auth/me</code> to verify the effective principal, then list visible <code>/knowledge-bases?creator=all</code>. Use <code>knowledge_base_ids</code> for KBs and <code>knowledge_ids</code> for document IDs; do not substitute <code>document_ids</code>. <code>POST /sessions</code> returns <code>data.id</code>; reuse that session for a multi-turn topic and create another for a new topic. <code>POST /knowledge-chat/{session_id}</code> accepts JSON <code>query</code>, optional <code>knowledge_base_ids</code>, <code>knowledge_ids</code>, and appropriate channel. Its SSE <code>data</code> frames are native <code>StreamResponse</code> records; <code>response_type:&quot;complete&quot;</code> ends the turn. Errors can occur after HTTP200, so inspect stream records and persist successful final state.</p>
+<p>Sessionless <code>/knowledge-search</code> retrieves within the allowed scope. Upload/import/manual knowledge creation returns a knowledge/document ID, not proof that parsing/indexing has completed. Poll the matching knowledge/task status. A duplicate upload/URL can return409 with an existing Knowledge in data; do not blindly enqueue duplicate ingestion after a timeout. Stop/delete operations have distinct ownership and side effects; deleting a document is not a generic way to cancel a conversation or unload Scheduler weights. Use the documented task/conversation operations for their actual scope.</p>
+<pre><code class="language-bash">BASE='https://&lt;VOS_HOST&gt;:&lt;VOS_PORT&gt;/app/com.ictrek.hybrag/api/v1'
+curl --fail-with-body -H &quot;X-API-Key: $HYBRAG_KEY&quot; &quot;$BASE/auth/me&quot;
+curl --fail-with-body -H &quot;X-API-Key: $HYBRAG_KEY&quot; -H 'Content-Type: application/json' \
+  -d '{&quot;query&quot;:&quot;Find relevant records&quot;,&quot;knowledge_base_ids&quot;:[&quot;&lt;kb_id&gt;&quot;]}' &quot;$BASE/knowledge-search&quot;
+</code></pre>
+<h2 id="en-section-5">Payloads, files, pagination and errors</h2>
+<p>Most JSON success responses use <code>{success:true,data:...}</code>, with per-endpoint <code>total/page/page_size</code>. Some system endpoints return raw rows/arrays or <code>{code:0,msg:&quot;success&quot;,data:...}</code>; media, export, SSE and MCP routes have their own content types. Read the operation schema and Content-Type, not one assumed universal envelope. Cursor pagination (audit/runtime/wiki) differs from page pagination; use each response's next_cursor/has_more fields.</p>
+<p>Application errors commonly use <code>{success:false,error:{code,message,details}}</code>; middleware authentication/RBAC can return <code>{error:string,code?:string}</code> and proxy failures can be non-JSON. Permission403 can be tenant, KB scope, route policy or expired/revoked Key; do not “fix” it by selecting an unrelated model. Retry bounded transient failures after restoring dependency/capacity, not permanent validation/auth errors. Queries and uploads have different timeout/idempotency behavior; inspect existing task state before retrying a write.</p>
+<p><code>/r/:token</code> and signed file URLs grant only their encoded resource, with expiry; they do not grant broad API access. MCP endpoints use their own issued/rotatable endpoint token and selected tools/KB scope. Admin-only diagnostics and native desktop/dialog actions are not generally callable by scoped API Keys. The existing chapter library documents these specific flows. Regional network restrictions can block foreign API providers even while Scheduler/HybRAG local discovery succeeds; verify upstream connectivity separately from registration and user authorization.</p>
+<h2 id="en-section-6">Operation contract catalogue</h2>
+<table>
+<thead>
+<tr>
+  <th>Method/path</th>
+  <th>Operation / permission</th>
+  <th>Input</th>
+  <th>Success</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>GET <code>/admin/memory/subjects</code></td>
+  <td>/ —</td>
+  <td>query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListMemorySubjectsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/admin/memory/subjects/{subject_id}/items</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string); query:status(string); query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListItemsResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/admin/memory/subjects/{subject_id}/items</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string)</td>
+  <td>200: internal_handler.ClearResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/admin/memory/subjects/{subject_id}/items/{id}/confirm</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string); path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/admin/memory/subjects/{subject_id}/items/{id}/reject</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string); path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/admin/memory/subjects/{subject_id}/settings</code></td>
+  <td>/ —</td>
+  <td>path:subject_id*(string); body:request*(internal_handler.AdminMemorySettingsRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agent-chat/{session_id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.CreateKnowledgeQARequest); query:resource_urls(string)</td>
+  <td>200: string</td>
+</tr>
+<tr>
+  <td>GET <code>/agent/grants</code></td>
+  <td>/ —</td>
+  <td>query:session_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/agent/grants/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/agent/mcp-oauth-resolutions/{pending_id}</code></td>
+  <td>/ —</td>
+  <td>path:pending_id*(string); body:request*(object)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agent/mcp-oauth-resolutions/{pending_id}/cancel</code></td>
+  <td>/ —</td>
+  <td>path:pending_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agent/prompts/{prompt_id}</code></td>
+  <td>/ —</td>
+  <td>path:prompt_id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/agent/tool-approvals/{pending_id}</code></td>
+  <td>/ —</td>
+  <td>path:pending_id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/agents</code></td>
+  <td>/ —</td>
+  <td>query:creator(string)</td>
+  <td>200: internal_handler.ListAgentsResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agents</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateAgentRequest)</td>
+  <td>201: internal_handler.AgentWriteResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/placeholders</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/tools</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/type-presets</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/agents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateAgentRequest)</td>
+  <td>200: internal_handler.AgentWriteResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/agents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/agents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchAgentRequest)</td>
+  <td>200: internal_handler.AgentWriteResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/agents/{id}/copy</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/agents/{id}/shares/{share_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:share_id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/agents/{id}/suggested-questions</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:knowledge_base_ids(string); query:knowledge_ids(string); query:tag_scopes(string); query:limit(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/artifacts</code></td>
+  <td>/ —</td>
+  <td>query:keyword(string); query:file_types(string); query:page(integer); query:page_size(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/artifacts</code></td>
+  <td>/ —</td>
+  <td>query:session_id*(string); query:message_id*(string); query:index*(integer); query:all_versions(boolean)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/auto-setup</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/change-password</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/config</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.GetAuthConfigResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/invitations/lookup</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.invitationLookupRequest)</td>
+  <td>200: internal_handler.invitationLookupResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/login</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.LoginRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/logout</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/me</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/auth/me/preferences</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.updateMyPreferencesRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/oidc/callback</code></td>
+  <td>/ —</td>
+  <td>query:code(string); query:state(string); query:error(string)</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/auth/oidc/config</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.OIDCConfigResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/oidc/start</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/auth/oidc/url</code></td>
+  <td>/ —</td>
+  <td>query:redirect_uri*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.OIDCAuthURLResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/refresh</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: internal_handler.RefreshTokenResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/register</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.RegisterRequest)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.RegisterResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/register-by-invite</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.registerByInviteRequest)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/switch-tenant</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/auth/validate</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ValidateTokenResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/vos-oidc</code></td>
+  <td>/ —</td>
+  <td>body:request(internal_handler.vosOIDCRequest); header:Authorization(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/vos-sso</code></td>
+  <td>/ —</td>
+  <td>body:request(internal_handler.vosSSORequest); header:Authorization(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/auth/vos-token-exchange</code></td>
+  <td>/ —</td>
+  <td>body:request(internal_handler.vosSSORequest); header:Authorization(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.LoginResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/automation-runs/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automation-runs/{id}/cancel</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/automations</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automations</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateAutomationRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/by-session/{session_id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/validate-trigger</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ValidateTriggerRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/automations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.AutomationPatch)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/automations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/{id}/grant-candidates</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/{id}/grants</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/{id}/grants</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/{id}/pause</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/{id}/resume</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/automations/{id}/run</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>202: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/automations/{id}/runs</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/chunker/preview</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.PreviewChunkingRequest)</td>
+  <td>200: internal_handler.PreviewChunkingResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/chunks/by-id/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/chunks/by-id/{id}/questions</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/chunks/{knowledge_id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); query:page(integer); query:page_size(integer); query:chunk_type(array&lt;string&gt;)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/chunks/{knowledge_id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/chunks/{knowledge_id}/{id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); path:id*(string); body:request*(internal_handler.UpdateChunkRequest)</td>
+  <td>200: internal_handler.UpdateChunkResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/chunks/{knowledge_id}/{id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/chunks/{knowledge_id}/{id}/revert</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); path:id*(string); body:request*(internal_handler.RevertChunkRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/chunks/{knowledge_id}/{id}/revisions</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string); path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource</code></td>
+  <td>/ —</td>
+  <td>query:kb_id*(string)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_handler_dto.DataSourceResponse&gt;</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.DataSource)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.DataSource</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/logs/{log_id}</code></td>
+  <td>/ —</td>
+  <td>path:log_id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.SyncLog</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/types</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_datasource.ConnectorMetadata&gt;</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/validate-credentials</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_handler_dto.DataSourceResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/datasource/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.DataSource)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.DataSource</td>
+</tr>
+<tr>
+  <td>DELETE <code>/datasource/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/{id}/logs</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:limit(integer); query:offset(integer)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.SyncLog&gt;</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/pause</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.DataSourceStatusResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/resource-ancestors</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.resolveAncestorsRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/datasource/{id}/resources</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:parent_id(string)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.Resource&gt;</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/resume</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.DataSourceStatusResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/sync</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.SyncLog</td>
+</tr>
+<tr>
+  <td>PATCH <code>/datasource/{id}/sync-settings</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchDataSourceSyncRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_handler_dto.DataSourceResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/datasource/{id}/validate</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.DataSourceStatusResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/evaluation/</code></td>
+  <td>/ —</td>
+  <td>query:task_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/evaluation/</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.EvaluationRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/faq/import/progress/{task_id}</code></td>
+  <td>/ —</td>
+  <td>path:task_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/im-channels/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: internal_handler.UpdateIMChannelResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/im-channels/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/im-channels/{id}/toggle</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.UpdateIMChannelResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/im/callback/{channel_id}</code></td>
+  <td>/ —</td>
+  <td>path:channel_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/im/callback/{channel_id}</code></td>
+  <td>/ —</td>
+  <td>path:channel_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/image-attrs/schema</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/asr/check</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ModelTestRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/config/{kbId}</code></td>
+  <td>/ —</td>
+  <td>path:kbId*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/initialization/config/{kbId}</code></td>
+  <td>/ —</td>
+  <td>path:kbId*(string); body:request*(internal_handler.KBModelConfigRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/embedding/test</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ModelTestRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/extract/fabri-tag</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/extract/fabri-text</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.FabriTextRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/extract/text-relation</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.TextRelationExtractionRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/initialize/{kbId}</code></td>
+  <td>/ —</td>
+  <td>path:kbId*(string); body:request*(internal_handler.InitializationRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/multimodal/test</code></td>
+  <td>/ —</td>
+  <td>formData:image*(file); formData:vlm_model*(string); formData:vlm_base_url*(string); formData:vlm_api_key(string); formData:vlm_interface_type(string); formData:storage_type*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/ollama/download/progress/{taskId}</code></td>
+  <td>/ —</td>
+  <td>path:taskId*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/ollama/download/tasks</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/ollama/models</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/ollama/models/check</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/ollama/models/download</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/initialization/ollama/status</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/remote/check</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.RemoteModelCheckRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/initialization/rerank/check</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ModelTestRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases</code></td>
+  <td>/ —</td>
+  <td>query:agent_id(string); query:creator(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.KnowledgeBase)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/copy</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CopyKnowledgeBaseRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/copy/progress/{task_id}</code></td>
+  <td>/ —</td>
+  <td>path:task_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:agent_id(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateKnowledgeBaseRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/knowledge-bases/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchKnowledgeBaseRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/activity</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:after_id(integer); query:limit(integer); query:action(string); query:outcome(string); query:actor(string)</td>
+  <td>200: internal_handler.auditLogListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/duplicate</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/faq/entries</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer); query:tag_id(integer); query:tag_ids(string); query:keyword(string); query:search_field(string); query:sort_order(string); query:is_enabled(boolean)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/faq/entries</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.FAQBatchUpsertPayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}/faq/entries</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.faqDeleteRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/knowledge-bases/{id}/faq/entries</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.FAQBatchPatchRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/faq/entries/export</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:format(string)</td>
+  <td>200: file</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/faq/entries/fields</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.FAQEntryFieldsBatchUpdate)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/faq/entries/tags</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/faq/entries/{entry_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:entry_id*(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/faq/entries/{entry_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:entry_id*(integer); body:request*(github_com_Tencent_WeKnora_internal_types.FAQEntryPayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/faq/entries/{entry_id}/similar-questions</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:entry_id*(integer); body:request*(internal_handler.addSimilarQuestionsRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/faq/entry</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.FAQEntryPayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/faq/import/last-result/display</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.updateLastFAQImportResultDisplayStatusRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/faq/search</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.FAQSearchRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/graph-search</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:agent_id(string); query:agent_source_tenant_id(integer); body:request*(github_com_Tencent_WeKnora_internal_types.GraphSearchRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/hybrid-search</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.SearchParams); query:resource_urls(string)</td>
+  <td>200: internal_handler.HybridSearchResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/hybrid-search</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.SearchParams); query:resource_urls(string)</td>
+  <td>200: internal_handler.HybridSearchResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/images</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer); query:keyword(string); query:search_in(string); query:sort_by(string); query:sort_order(string); query:is_enabled(boolean); query:knowledge_ids(string); query:attr_filters(string); query:attr_rules(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/images</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:body(internal_handler.imageListRequestBody)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/knowledge</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer); query:tag_ids(string); query:keyword(string); query:file_type(string); query:parse_status(string); query:source(string); query:start_time(string); query:end_time(string); query:folder_path(string); query:folder_recursive(boolean); query:sort_by(string); query:sort_order(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}/knowledge</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SubmittedTaskResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/knowledge/batch-download</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.BatchDownloadKnowledgeRequest)</td>
+  <td>200: file</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/knowledge/file</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); formData:file*(file); formData:fileName(string); formData:metadata(string); formData:enable_multimodel(boolean); formData:tag_ids(string); formData:process_config(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/knowledge/folders</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/knowledge/folders</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.RenameKnowledgeFolderRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/knowledge/manual</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.ManualKnowledgePayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/knowledge/url</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.CreateKnowledgeFromURLRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/move-targets</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/pin</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/profile/generate</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/rebuild-index</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.DataResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/shares</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.ListSharesResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/shares</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.ShareKnowledgeBaseRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/shares/{share_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:share_id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.UpdateSharePermissionRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}/shares/{share_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:share_id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge-bases/{id}/tags</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:page(integer); query:page_size(integer); query:keyword(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-bases/{id}/tags</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.CreateTagRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge-bases/{id}/tags/{tag_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tag_id*(string); body:request*(internal_handler.UpdateTagRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge-bases/{id}/tags/{tag_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tag_id*(string); query:force(boolean); query:content_only(boolean); body:body(internal_handler.DeleteTagRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-chat/{session_id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.CreateKnowledgeQARequest); query:resource_urls(string)</td>
+  <td>200: string</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge-search</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler_session.SearchKnowledgeRequest); query:resource_urls(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/batch</code></td>
+  <td>/ —</td>
+  <td>query:ids*(array&lt;string&gt;); query:kb_id(string); query:agent_id(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/batch-delete</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.BatchDeleteKnowledgeRequest)</td>
+  <td>200: internal_handler.SubmittedTaskResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/batch-reparse</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.batchReparseKnowledgeRequest)</td>
+  <td>200: internal_handler.SubmittedTaskResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/folder</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.MoveKnowledgeToFolderRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge/image/{id}/{chunk_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:chunk_id*(string); body:request*(object)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge/manual/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.ManualKnowledgePayload)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/move</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.MoveKnowledgeRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/move/progress/{task_id}</code></td>
+  <td>/ —</td>
+  <td>path:task_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/search</code></td>
+  <td>/ —</td>
+  <td>query:keyword(string); query:offset(integer); query:limit(integer); query:file_types(string); query:agent_id(string); query:recent(boolean)</td>
+  <td>200: internal_handler.KnowledgeSearchKnowledgeResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge/tags</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.KnowledgeTagBatchRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledge/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateKnowledgeRequest)</td>
+  <td>200: internal_handler.UpdateKnowledgeResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledge/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/{id}/cancel-parse</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/{id}/download</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: file</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/{id}/preview</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: file</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledge/{id}/reparse</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:body(internal_handler.ReparseKnowledgeRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledge/{id}/spans</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:attempt(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/auto-fix</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string)</td>
+  <td>200: internal_handler.AutoFixResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/folders</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:parent_id(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiFolderListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/folders</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); body:folder*(github_com_Tencent_WeKnora_internal_types.WikiFolderCreateRequest)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.WikiFolder</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledgebase/{kb_id}/wiki/folders/{folder_id}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:folder_id*(string); body:folder*(github_com_Tencent_WeKnora_internal_types.WikiFolderUpdateRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiFolder</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledgebase/{kb_id}/wiki/folders/{folder_id}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:folder_id*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/graph</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:mode(string); query:center(string); query:depth(integer); query:types(string); query:limit(integer)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiGraphData</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/index</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:types(string); query:limit(integer); query:cursor(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiIndexResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/issues</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:slug(string); query:status(string)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.WikiPageIssue&gt;</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledgebase/{kb_id}/wiki/issues/{issue_id}/status</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:issue_id*(string); body:status*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/lint</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_application_service.WikiLintReport</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledgebase/{kb_id}/wiki/move-page</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); body:move*(github_com_Tencent_WeKnora_internal_types.WikiPageMoveRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPage</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/pages</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:page_type(string); query:status(string); query:query(string); query:page(integer); query:page_size(integer); query:sort_by(string); query:sort_order(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPageListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/pages</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); body:page*(github_com_Tencent_WeKnora_internal_types.WikiPage)</td>
+  <td>201: github_com_Tencent_WeKnora_internal_types.WikiPage</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/pages/{slug}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:slug*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPageDetail</td>
+</tr>
+<tr>
+  <td>PUT <code>/knowledgebase/{kb_id}/wiki/pages/{slug}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:slug*(string); body:page*(github_com_Tencent_WeKnora_internal_types.WikiPageUpdateRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPage</td>
+</tr>
+<tr>
+  <td>DELETE <code>/knowledgebase/{kb_id}/wiki/pages/{slug}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:slug*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/rebuild-links</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string)</td>
+  <td>200: internal_handler.WikiMessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/knowledgebase/{kb_id}/wiki/revert</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); body:revert*(github_com_Tencent_WeKnora_internal_types.WikiPageRevertRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPage</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/revisions/{slug}</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); path:slug*(string); query:version(integer); query:content_version(integer); query:limit(integer); query:offset(integer)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiPageRevisionListResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/search</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string); query:q*(string); query:limit(integer)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.WikiPage&gt;</td>
+</tr>
+<tr>
+  <td>GET <code>/knowledgebase/{kb_id}/wiki/stats</code></td>
+  <td>/ —</td>
+  <td>path:kb_id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WikiStats</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-endpoints</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-endpoints</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-endpoints/tools</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-endpoints/{endpoint_id}</code></td>
+  <td>/ —</td>
+  <td>path:endpoint_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/mcp-endpoints/{endpoint_id}</code></td>
+  <td>/ —</td>
+  <td>path:endpoint_id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/mcp-endpoints/{endpoint_id}</code></td>
+  <td>/ —</td>
+  <td>path:endpoint_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-endpoints/{endpoint_id}/rotate-token</code></td>
+  <td>/ —</td>
+  <td>path:endpoint_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services</code></td>
+  <td>/ —</td>
+  <td>query:agent_id(string); query:agent_source_tenant_id(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateMCPServiceRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/oauth/callback</code></td>
+  <td>/ —</td>
+  <td>query:code(string); query:state(string); query:error(string)</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/mcp-services/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateMCPServiceRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/mcp-services/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/mcp-services/{id}/credentials</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/mcp-services/{id}/credentials/{field}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:field*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}/metadata</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MCPMetadataResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services/{id}/metadata/refresh</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MCPMetadataResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services/{id}/oauth/assertion</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services/{id}/oauth/authorize-url</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}/oauth/status</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:authorization_attempt(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/mcp-services/{id}/oauth/token</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}/resources</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/mcp-services/{id}/test</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/mcp-services/{id}/tool-approvals/{tool_name}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tool_name*(string); body:request*(object)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/mcp-services/{id}/tools</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/me/env-vars</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/me/env-vars/sandbox</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.meEnvVarRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/me/env-vars/sandbox</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.meEnvVarRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/me/env-vars/skill</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.meEnvVarRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/me/env-vars/skill</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.meEnvVarRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/me/invitations</code></td>
+  <td>/ —</td>
+  <td>query:include_terminal(boolean)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/me/invitations/accept-by-token</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.acceptInvitationByTokenRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/me/invitations/pending-count</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/me/invitations/{inv_id}/accept</code></td>
+  <td>/ —</td>
+  <td>path:inv_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/me/invitations/{inv_id}/decline</code></td>
+  <td>/ —</td>
+  <td>path:inv_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/consolidate</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/documents</code></td>
+  <td>/ —</td>
+  <td>query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListDocumentsResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/memory/documents/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/export</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ExportResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/items</code></td>
+  <td>/ —</td>
+  <td>query:status(string); query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListItemsResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/items</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/memory/items</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ClearResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/memory/items/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/memory/items/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/items/{id}/confirm</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/items/{id}/reject</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/settings</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/memory/settings</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/memory/topics</code></td>
+  <td>/ —</td>
+  <td>query:limit(integer); query:offset(integer)</td>
+  <td>200: internal_handler.ListTopicsResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/memory/topics/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/memory/topics/{id}/promote</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/messages/chat-history-stats</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/messages/search</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.SearchMessagesRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/messages/{session_id}/load</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); query:limit(integer); query:before_time(string); query:resource_urls(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/messages/{session_id}/{id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/models</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/models</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateModelRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/models/catalog/resolve</code></td>
+  <td>/ —</td>
+  <td>query:provider*(string); query:model(string); query:base_url(string); query:model_type(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/models/providers</code></td>
+  <td>/ —</td>
+  <td>query:model_type(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/models/providers/{provider}</code></td>
+  <td>/ —</td>
+  <td>path:provider*(string); query:model_type(string); query:keyword(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/models/weknoracloud/status</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WeKnoraCloudStatusResult</td>
+</tr>
+<tr>
+  <td>GET <code>/models/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/models/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateModelRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/models/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/models/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchModelRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/models/{id}/copy</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.CopyModelRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/notifications</code></td>
+  <td>/ —</td>
+  <td>query:limit(integer); query:cursor(string); query:unread(boolean)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/notifications/read</code></td>
+  <td>/ —</td>
+  <td>body:request(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/notifications/read</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.ListOrganizationsResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.CreateOrganizationRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/join</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.JoinOrganizationRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/join-by-id</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.JoinByOrganizationIDRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/join-request</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.SubmitJoinRequestRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/preview/{code}</code></td>
+  <td>/ —</td>
+  <td>path:code*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/search</code></td>
+  <td>/ —</td>
+  <td>query:q(string); query:limit(integer)</td>
+  <td>200: internal_handler.SearchOrganizationsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/organizations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.UpdateOrganizationRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/organizations/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/agent-shares</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/{id}/invite</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.InviteMemberRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/{id}/invite-code</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/join-requests</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/organizations/{id}/join-requests/{request_id}/review</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:request_id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.ReviewJoinRequestRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/{id}/leave</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/members</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.ListMembersResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/organizations/{id}/members/{tenant_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tenant_id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.UpdateMemberRoleRequest)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/organizations/{id}/members/{tenant_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:tenant_id*(string)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/organizations/{id}/request-upgrade</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.RequestRoleUpgradeRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/search-tenants</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:q*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/search-users</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/shared-agents</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.ListOrganizationSharedAgentsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/shared-knowledge-bases</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.ListOrganizationSharedKnowledgeBasesResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/organizations/{id}/shares</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.ListSharesResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.sandboxConfigRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/sandbox-configs/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.sandboxConfigRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sandbox-configs/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:force(boolean)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/sandboxes</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs/{id}/skills</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); formData:file(file); body:request(internal_handler.skillSourceRequest)</td>
+  <td>202: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sandbox-configs/{id}/skills/{skillId}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>202: JSON</td>
+</tr>
+<tr>
+  <td>PATCH <code>/sandbox-configs/{id}/skills/{skillId}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string); body:request*(internal_handler.skillPatchRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}/files</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}/files/content</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string); query:path*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}/install-events</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: string</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs/{id}/skills/{skillId}/reinstall</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>202: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs/{id}/skills/{skillId}/stop</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/skills/{skillId}/transcript</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:skillId*(string)</td>
+  <td>200: string; 204: string</td>
+</tr>
+<tr>
+  <td>GET <code>/sandbox-configs/{id}/user-sandboxes</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sandbox-configs/{id}/user-sandboxes/{digest}/release</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:digest*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions</code></td>
+  <td>/ —</td>
+  <td>query:page(integer); query:page_size(integer); query:kind(string); query:keyword(string); query:source(string); query:agent_id(string)</td>
+  <td>200: internal_handler_session.sessionListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler_session.CreateSessionRequest)</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/batch</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler_session.batchDeleteRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/continue-stream/{session_id}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); query:message_id*(string); query:resume_pending_id(string); query:resource_urls(string)</td>
+  <td>200: string</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/transcriptions</code></td>
+  <td>/ —</td>
+  <td>formData:file*(file); formData:agent_id*(string); formData:agent_source_tenant_id(string); formData:locale(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/sessions/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(github_com_Tencent_WeKnora_internal_types.Session)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{id}/messages</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{id}/pin</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{id}/steer</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{id}/steer/{steer_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:steer_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{session_id}/artifacts</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/fork</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.ForkSessionRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{session_id}/messages/{message_id}/artifacts</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td></td>
+</tr>
+<tr>
+  <td>DELETE <code>/sessions/{session_id}/messages/{message_id}/artifacts/{index}</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:message_id*(string); path:index*(integer); query:all_versions(boolean)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{session_id}/messages/{message_id}/artifacts/{index}/download</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td></td>
+</tr>
+<tr>
+  <td>GET <code>/sessions/{session_id}/messages/{message_id}/suggestions</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:message_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/messages/{message_id}/suggestions</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:message_id*(string); body:request(internal_handler.EnsureMessageSuggestionsRequest)</td>
+  <td>200: JSON; 202: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/pin</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/rewind</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.RewindSessionRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/steer</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.SteerMessageRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/steer/{steer_id}/inject</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); path:steer_id*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/stop</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.StopSessionRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/suggestion-events</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler.SuggestionEventRequest)</td>
+  <td>204: no body</td>
+</tr>
+<tr>
+  <td>POST <code>/sessions/{session_id}/title</code></td>
+  <td>/ —</td>
+  <td>path:session_id*(string); body:request*(internal_handler_session.GenerateTitleRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/shared-agents</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ListSharedAgentsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/shared-knowledge-bases</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ListSharedKnowledgeBasesResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/skills</code></td>
+  <td>/ —</td>
+  <td>query:sandbox_config_id(string); query:agent_id(string); query:agent_source_tenant_id(integer)</td>
+  <td>200: internal_handler.ListSkillsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/skills/catalog</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/skills/catalog</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>GET <code>/skills/catalog/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/skills/catalog/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/skills/catalog/{id}/files</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/skills/catalog/{id}/files/content</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:path*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/skills/catalog/{id}/install</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.catalogInstallRequest)</td>
+  <td>202: internal_handler.catalogInstallResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/storage-backends</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ListResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/storage-backends</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.storageBackendRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/storage-backends/test</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.storageBackendRequest)</td>
+  <td>200: internal_handler.SuccessErrorResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/storage-backends/types</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/storage-backends/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/storage-backends/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.storageBackendRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/storage-backends/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PUT <code>/storage-backends/{id}/default</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/storage-backends/{id}/test</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessErrorResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/api-keys</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/api-keys</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.platformAPIKeyCreateRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/system/admin/api-keys/{key_id}</code></td>
+  <td>/ —</td>
+  <td>path:key_id*(integer)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/audit-log</code></td>
+  <td>/ —</td>
+  <td>query:after_id(integer); query:limit(integer); query:action(string); query:outcome(string); query:actor(string)</td>
+  <td>200: internal_handler.auditLogListResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/list</code></td>
+  <td>/ —</td>
+  <td>query:offset(integer); query:limit(integer)</td>
+  <td>200: internal_handler.ListSystemAdminsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/model-catalog</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: github_com_Tencent_WeKnora_internal_application_service.CatalogState</td>
+</tr>
+<tr>
+  <td>PUT <code>/system/admin/model-catalog</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_application_service.CatalogUpdate)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_application_service.CatalogState</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/model-catalog/preview</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_application_service.CatalogUpdate)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_application_service.CatalogState</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/promote</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.PromoteUserToSystemAdminRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.UserInfo</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/revoke</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.RevokeSystemAdminRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.UserInfo</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/runtime/documents</code></td>
+  <td>/ —</td>
+  <td>query:page(integer); query:page_size(integer); query:status(string); query:kb_id(string); query:search(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/runtime/documents/wiki-start</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_application_service.DocumentWikiStartRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/runtime/documents/{knowledge_id}</code></td>
+  <td>/ —</td>
+  <td>path:knowledge_id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/runtime/queues</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.RuntimeQueuesResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/system/admin/runtime/queues/{queue}/archived</code></td>
+  <td>/ —</td>
+  <td>path:queue*(string)</td>
+  <td>200: internal_handler.PurgeArchivedRuntimeTasksResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/runtime/queues/{queue}/tasks</code></td>
+  <td>/ —</td>
+  <td>path:queue*(string); query:state*(string); query:cursor(string); query:page_size(integer)</td>
+  <td>200: internal_handler.RuntimeTasksResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/runtime/queues/{queue}/tasks/{task_id}/actions/{action}</code></td>
+  <td>/ —</td>
+  <td>path:queue*(string); path:task_id*(string); path:action*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/settings-summary</code></td>
+  <td>/ —</td>
+  <td>query:key(string)</td>
+  <td>200: array&lt;github_com_Tencent_WeKnora_internal_types.SystemSettingSummary&gt;</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/settings/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.SystemSetting</td>
+</tr>
+<tr>
+  <td>PUT <code>/system/admin/settings/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string); body:request*(internal_handler.UpdateSystemSettingRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.SystemSetting</td>
+</tr>
+<tr>
+  <td>DELETE <code>/system/admin/settings/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/tenants/apply-default-storage-quota</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ApplyDefaultStorageQuotaToAllTenantsResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/admin/users</code></td>
+  <td>/ —</td>
+  <td>query:offset(integer); query:limit(integer)</td>
+  <td>200: internal_handler.ListAllUsersResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/users/create</code></td>
+  <td>/ —</td>
+  <td>body:request*(github_com_Tencent_WeKnora_internal_types.AdminCreateUserRequest)</td>
+  <td>200: internal_handler.CreateSystemUserResponse; 201: internal_handler.CreateSystemUserResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/users/reset-password</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.ResetUserPasswordRequest)</td>
+  <td>200: internal_handler.ResetUserPasswordResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/admin/users/status</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.SetUserStatusRequest)</td>
+  <td>200: internal_handler.SetUserStatusResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/capabilities</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.GetDeploymentCapabilitiesResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/docreader/reconnect</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: no body</td>
+</tr>
+<tr>
+  <td>GET <code>/system/info</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/system/parser-engines</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.ListParserEnginesResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/parser-engines/check</code></td>
+  <td>/ —</td>
+  <td>body:body*(object)</td>
+  <td>200: no body</td>
+</tr>
+<tr>
+  <td>POST <code>/system/sandbox-check</code></td>
+  <td>/ —</td>
+  <td>body:body*(internal_handler.SandboxCheckRequest)</td>
+  <td>200: internal_handler.SandboxCheckResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/system/storage-engine-check</code></td>
+  <td>/ —</td>
+  <td>body:body*(internal_handler.StorageCheckRequest)</td>
+  <td>200: internal_handler.StorageCheckResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/system/storage-engine-status</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.GetStorageEngineStatusResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.createTenantRequest)</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/all</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/current</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: internal_handler.WorkspaceResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/tenants/current</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.updateTenantRequest)</td>
+  <td>200: internal_handler.WorkspaceResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/current/members</code></td>
+  <td>/ —</td>
+  <td>query:q(string); query:page(integer); query:page_size(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/kv/prompt-templates</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/kv/web-search-config</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/kv/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/kv/{key}</code></td>
+  <td>/ —</td>
+  <td>path:key*(string); body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/search</code></td>
+  <td>/ —</td>
+  <td>query:keyword(string); query:tenant_id(integer); query:page(integer); query:page_size(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer); body:request*(internal_handler.updateTenantRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/tenants/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}/api-principal-config</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/{id}/api-principal-config</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer); body:request*(internal_handler.apiPrincipalConfigRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/api-principal-test-token</code></td>
+  <td>/ —</td>
+  <td>path:id*(integer); body:request*(internal_handler.apiPrincipalTestTokenRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}/audit-log</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:after_id(integer); query:limit(integer); query:action(string); query:outcome(string); query:actor(string)</td>
+  <td>200: internal_handler.auditLogListResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}/invitations</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:include_terminal(boolean); query:page(integer); query:page_size(integer)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/invitations</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.createInvitationRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>DELETE <code>/tenants/{id}/invitations/{inv_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:inv_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/invite-links</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.createInviteLinkRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/leave</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/tenants/{id}/members</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); query:q(string); query:page(integer); query:page_size(integer)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/tenants/{id}/members</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.addMemberRequest)</td>
+  <td>201: object</td>
+</tr>
+<tr>
+  <td>PUT <code>/tenants/{id}/members/{user_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:user_id*(string); body:request*(internal_handler.updateMemberRoleRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/tenants/{id}/members/{user_id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); path:user_id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/user/favorites</code></td>
+  <td>/ —</td>
+  <td>query:type*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/user/favorites</code></td>
+  <td>/ —</td>
+  <td>body:body*(internal_handler.AddFavoriteRequest)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>DELETE <code>/user/favorites/{type}/{id}</code></td>
+  <td>/ —</td>
+  <td>path:type*(string); path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/vector-stores</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/vector-stores</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.CreateStoreRequest)</td>
+  <td>201: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/vector-stores/test</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.TestStoreRequest)</td>
+  <td>200: internal_handler.TestStoreRawResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/vector-stores/types</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/vector-stores/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/vector-stores/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateStoreRequest)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>DELETE <code>/vector-stores/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/vector-stores/{id}/test</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.TestStoreByIDResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/web-search-providers</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/web-search-providers/test</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.TestProviderRequest)</td>
+  <td>200: internal_handler.SuccessErrorResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/web-search-providers/types</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>GET <code>/web-search-providers/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>PUT <code>/web-search-providers/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.UpdateProviderRequest)</td>
+  <td>200: github_com_Tencent_WeKnora_internal_types.WebSearchProviderEntity</td>
+</tr>
+<tr>
+  <td>DELETE <code>/web-search-providers/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.SuccessResponse</td>
+</tr>
+<tr>
+  <td>PATCH <code>/web-search-providers/{id}</code></td>
+  <td>/ —</td>
+  <td>path:id*(string); body:request*(internal_handler.PatchWebSearchProviderRequest)</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/web-search-providers/{id}/test</code></td>
+  <td>/ —</td>
+  <td>path:id*(string)</td>
+  <td>200: internal_handler.WebSearchProviderTestResponse</td>
+</tr>
+<tr>
+  <td>GET <code>/web-search/providers</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: JSON</td>
+</tr>
+<tr>
+  <td>POST <code>/wechat/qrcode</code></td>
+  <td>/ —</td>
+  <td>—</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/wechat/qrcode/status</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: object</td>
+</tr>
+<tr>
+  <td>POST <code>/weknoracloud/credentials</code></td>
+  <td>/ —</td>
+  <td>body:request*(object)</td>
+  <td>200: internal_handler.MessageResponse</td>
+</tr>
+<tr>
+  <td>POST <code>/wiki-search</code></td>
+  <td>/ —</td>
+  <td>body:request*(internal_handler.SearchWikiRequest)</td>
+  <td>200: JSON</td>
+</tr>
+</tbody>
+</table>
+<p>An asterisk marks required parameters. Expand the complete native contract in the application for every nested DTO field, required/default/enum and media type.</p>
+</article></main><script>// Documentation-only viewer; never stores keys or executes business requests.
+(async () => {
+  const section=document.createElement('section'); section.id='native-contract';
+  const title=document.createElement('h2'); title.textContent='完整原生字段参考 / Complete native contract'; section.append(title);
+  const search=document.createElement('input'); search.type='search'; search.placeholder='Search method, path, operation, schema'; search.setAttribute('aria-label','Search API reference'); section.append(search);
+  const status=document.createElement('p'); section.append(status); document.querySelector('main').append(section);
+  const specUrl=new URL(new URLSearchParams(location.search).get('schema')||document.querySelector('meta[name="native-openapi"]').content,location.href);
+  if(specUrl.origin!==location.origin){status.textContent='Schema must use the same application origin.';return;}
+  try {
+    const response=await fetch(specUrl,{credentials:'same-origin'}); if(!response.ok)throw new Error('HTTP '+response.status);
+    const spec=await response.json(); if(!spec.paths)throw new Error('Not an OpenAPI document');
+    const records=[];
+    function block(summary,value) {const detail=document.createElement('details');const label=document.createElement('summary');label.textContent=summary;detail.append(label);const pre=document.createElement('pre');pre.textContent=JSON.stringify(value,null,2);detail.append(pre);section.append(detail);records.push([detail,(summary+' '+pre.textContent).toLowerCase()]);return detail;}
+    function resolve(schema,seen=new Set()) {if(!schema||typeof schema!=='object')return schema;if(schema.$ref&&schema.$ref.startsWith('#/')) {if(seen.has(schema.$ref))return {$ref:schema.$ref,description:'Recursive reference: see shared schemas'};const next=new Set(seen).add(schema.$ref);let v=spec;for(const key of schema.$ref.slice(2).split('/'))v=v[key.replace(/~1/g,'/').replace(/~0/g,'~')];return resolve(v,next);} if(Array.isArray(schema))return schema.map(v=>resolve(v,new Set(seen)));return Object.fromEntries(Object.entries(schema).map(([k,v])=>[k,resolve(v,new Set(seen))]));}
+    let count=0;
+    for(const [path,methods] of Object.entries(spec.paths))for(const [method,operation] of Object.entries(methods))if(['get','post','put','patch','delete','head','options'].includes(method)){count++;block(method.toUpperCase()+' '+path+' · '+(operation.summary||operation.operationId||''),{...operation,parameters:resolve(operation.parameters||[]),requestBody:resolve(operation.requestBody),responses:resolve(operation.responses)});}
+    for(const [name,schema] of Object.entries(spec.components?.schemas||spec.definitions||{}))block('Schema · '+name,schema);
+    block('Authentication / 身份',spec.components?.securitySchemes||spec.securityDefinitions||{});
+    status.textContent=count+' operations · live native OpenAPI · 字段 required/default/enum 与原生契约一致';
+    search.addEventListener('input',()=>{const query=search.value.toLowerCase();for(const [el,text]of records)el.hidden=!text.includes(query);});
+  } catch(error) {status.textContent='OpenAPI could not be loaded. Open the schema link in the guide and check the installed gateway route. / 无法加载，检查应用实际网关路径。 '+String(error);}
+})();
+</script></html>

@@ -4,10 +4,10 @@ import { test } from 'node:test'
 import { localizedApiDocs } from './apiDocs.ts'
 
 const modules: Record<string, string> = {}
-for (const directory of ['website-docs/04-api', 'docs/api']) {
+for (const directory of ['website-docs/04-api', 'docs/api', 'ictrek.app/docs/api']) {
   const url = new URL(`../../../${directory}/`, import.meta.url)
   for (const name of readdirSync(url).filter((name) => name.endsWith('.md'))) {
-    modules[`../../../../${directory}/${name}`] = readFileSync(new URL(name, url), 'utf8')
+    modules[`../../../${directory}/${name}`] = readFileSync(new URL(name, url), 'utf8')
   }
 }
 
@@ -25,4 +25,13 @@ test('every bundled Chinese chapter has a full English counterpart with the same
   assert.deepEqual(localizedApiDocs(modules, 'ja-JP'), english)
   assert.deepEqual(localizedApiDocs(modules, 'zh-TW'), chinese)
   assert.equal(english[0].slug, 'vos-external-api')
+})
+
+
+test('bundled glob directories resolve beside the actual composable', () => {
+  const entry = new URL('../composables/useApiDocs.ts', import.meta.url)
+  const source = readFileSync(entry, 'utf8')
+  const patterns = [...source.matchAll(/import\.meta\.glob\('([^']+)'/g)].map(m => m[1])
+  assert.equal(patterns.length, 3)
+  for (const pattern of patterns) assert.ok(readdirSync(new URL(pattern.replace('*.md', ''), entry)).some(name => name.endsWith('.md')), pattern)
 })

@@ -19,7 +19,7 @@ export function localizedApiDocs(modules: Record<string, string>, locale: string
     selected.set(slug, {
       slug, fileName, raw,
       title: raw.match(/^#\s+(.+)$/m)?.[1]?.trim() || slug,
-      sourcePath: path.replace(/^(?:\.\.\/){4}/, ''),
+      sourcePath: path.replace(/^(?:\.\.\/){3}/, ''),
     })
   }
   const first = ['vos-external-api', 'README', '01-api-overview', 'vos-external-api-validation']

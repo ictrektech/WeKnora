@@ -524,3 +524,10 @@ Trusted V-Scheduler rerank endpoints use a 180-second default request deadline t
 cover admission waiting and the first model load. Explicit configured timeouts and
 caller cancellation remain authoritative; external endpoints retain their 60-second
 default. No capacity or admission protection is bypassed.
+
+
+### 完整 API 契约文档 / Complete API contracts
+
+设置 → API 文档保留章节库，新增完整字段参考，打包当前原生 Swagger，生产环境无需开启调试模式；修正文档 glob 相对路径并纳入 VOS 专用文档。
+[中文](docs/api/vos-api-contract.md) / [English](docs/api/vos-api-contract.en.md) 说明 VOS/个人 Key、工作区/KB范围、完整配置式 Key 修改、返回秘密、SSE/入库状态、错误及不同协议边界。
+本轮只更新代码和两份用户指南，不更新本应用镜像或发布安装包，随下次发版进入界面。

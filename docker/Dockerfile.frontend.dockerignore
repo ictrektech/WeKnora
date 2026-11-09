@@ -2,6 +2,11 @@
 !frontend/
 !frontend/**
 !docs/
+!docs/swagger.json
+!ictrek.app/
+!ictrek.app/docs/
+!ictrek.app/docs/api/
+!ictrek.app/docs/api/**
 !docs/api/
 !docs/api/**
 !website-docs/

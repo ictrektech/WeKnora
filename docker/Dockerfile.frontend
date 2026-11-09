@@ -15,6 +15,8 @@ RUN npm config set registry "${NPM_REGISTRY}" && npm ci
 
 COPY frontend/ ./
 COPY docs/api /docs/api
+COPY docs/swagger.json /docs/swagger.json
+COPY ictrek.app/docs/api/ /ictrek.app/docs/api/
 COPY website-docs/04-api /website-docs/04-api
 RUN npm run build
 

@@ -44,6 +44,8 @@ RUN if [ -n "$NPM_REGISTRY" ]; then \
 
 COPY frontend/ .
 COPY docs/api/ /docs/api/
+COPY docs/swagger.json /docs/swagger.json
+COPY ictrek.app/docs/api/ /ictrek.app/docs/api/
 # The API settings drawer uses the fork's VOS-specific guides; the general API
 # viewer bundles the upstream website docs as its maintained endpoint reference.
 COPY website-docs/04-api/ /website-docs/04-api/

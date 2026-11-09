@@ -3,6 +3,7 @@
     <div class="section-header">
       <h2>{{ $t('tenant.api.docLabel') }}</h2>
       <p>{{ $t('tenant.api.docDescription') }}</p>
+      <a :href="contractUrl" target="_blank" rel="noopener">{{ locale.startsWith('zh') ? '完整字段参考' : 'Full contract reference' }}</a>
     </div>
     <div class="api-docs-layout">
       <aside class="api-docs-nav">
@@ -22,10 +23,15 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { withAppBasePath } from '@/utils/app-base'
+import swaggerSpecUrl from '../../../../docs/swagger.json?url'
 import { useApiDocs } from '@/composables/useApiDocs'
 import { marked } from 'marked'
 import { sanitizeMarkdownHTML } from '@/utils/security'
 
+const { locale } = useI18n()
+const contractUrl = computed(() => `${withAppBasePath('/api-contract.html')}?schema=${encodeURIComponent(new URL(swaggerSpecUrl, window.location.href).href)}#${locale.value.startsWith('zh') ? 'zh' : 'en'}`)
 const docs = useApiDocs()
 const slugs = computed(() => new Set(docs.value.map((doc) => doc.slug)))
 const search = ref('')
