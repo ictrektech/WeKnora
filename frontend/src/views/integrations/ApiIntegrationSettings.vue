@@ -123,7 +123,7 @@
           <div class="external-api-guide__actions">
             <t-button size="small" variant="outline" @click="openApiDoc">
               <template #icon><t-icon name="file" /></template>
-              API 使用指南
+              {{ $t('tenant.api.docLabel') }}
             </t-button>
           </div>
           <div class="code-panel external-api-guide__snippet">
@@ -1356,10 +1356,10 @@ const ragChatExample = computed(() => {
   const contentType = '  -H "Content-Type: application/json"'
   return [
     '# Base URL',
-    `# VOS 应用路径: ${apiBaseUrl.value}`,
-    directHostApiBaseUrl.value ? `# 宿主机直连: ${directHostApiBaseUrl.value}` : '',
+    `# VOS: ${apiBaseUrl.value}`,
+    directHostApiBaseUrl.value ? `# ${t('integrations.api.directHostBaseUrl')}: ${directHostApiBaseUrl.value}` : '',
     '',
-    '# 方式一：普通用户个人 API Key',
+    `# ${t('integrations.api.externalGuideAuthTitle')}: X-API-Key`,
     t('integrations.api.requestExampleCreateSession'),
     `curl -X POST ${apiBaseUrl.value}/sessions \\`,
     `${apiKeyHeader} \\`,
@@ -1370,9 +1370,9 @@ const ragChatExample = computed(() => {
     `curl -N -X POST ${apiBaseUrl.value}/knowledge-chat/<session_id> \\`,
     `${apiKeyHeader} \\`,
     `${contentType} \\`,
-    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"knowledge_ids":["<knowledge_id，可选>"],"channel":"api"}'`,
+    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"knowledge_ids":["<knowledge_id>"],"channel":"api"}'`,
     '',
-    '# 方式二：普通用户 VOS/OAuth Bearer token',
+    `# ${t('integrations.api.externalGuideAuthTitle')}: VOS/OAuth Bearer token`,
     t('integrations.api.requestExampleCreateSession'),
     `curl -X POST ${apiBaseUrl.value}/sessions \\`,
     `${vosTokenHeader} \\`,
@@ -1383,7 +1383,7 @@ const ragChatExample = computed(() => {
     `curl -N -X POST ${apiBaseUrl.value}/knowledge-chat/<session_id> \\`,
     `${vosTokenHeader} \\`,
     `${contentType} \\`,
-    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"knowledge_ids":["<knowledge_id，可选>"],"channel":"api"}'`,
+    `  -d '{"query":"${t('integrations.api.externalGuideQuestion')}","knowledge_base_ids":["<knowledge_base_id>"],"knowledge_ids":["<knowledge_id>"],"channel":"api"}'`,
   ].join('\n')
 })
 

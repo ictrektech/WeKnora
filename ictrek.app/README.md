@@ -16,9 +16,9 @@
 
 ## 查找 API 使用文档 / Finding the API documentation
 
-打开 HybRAG，点击左侧底部「设置」，在设置导航的「集成」分组选择「API 文档」。可搜索并阅读完整接口参考、VOS 外部接入指南和检查清单。在「API 集成」页也可点击「打开文档」阅读同一套内容。文档随界面语言切换：中文界面显示中文，英文及其他非中文界面显示英文；VOS 自动语言模式会跟随平台语言。切换语言保留当前章节。
+打开 HybRAG，点击左下角账户菜单 →「全部设置」，在设置导航的「发布集成」分组选择「API 文档」。可搜索并阅读完整接口参考、VOS 外部接入指南和检查清单。在「API 集成」页也可点击「打开文档」阅读同一套内容。文档随界面语言切换：中文界面显示中文，英文及其他非中文界面显示英文；VOS 自动语言模式会跟随平台语言。
 
-Open HybRAG → **Settings** at the bottom of the sidebar → **Integrations → API Documentation**. Search the full API reference, VOS external integration guide, and validation checklist. **API Integration → Open documentation** opens the same collection in a drawer. Chinese interfaces show Chinese documentation; English and other non-Chinese interfaces show English. Automatic language mode follows VOS. Changing language preserves the selected chapter.
+Open HybRAG → the account menu at the bottom left → **All Settings → Publish & Integrations → API Documentation**. Search the full API reference, VOS external integration guide, and validation checklist. **API Integration → Open documentation** opens the same collection in a drawer. Chinese interfaces show Chinese documentation; English and other non-Chinese interfaces show English. Automatic language mode follows VOS.
 
 ## 文档结构
 

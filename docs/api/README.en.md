@@ -7,7 +7,7 @@
 - [Basic Information](#basic-information)
 - [Authentication Mechanism](#authentication-mechanism)
 - [Calling the RAG API in Non-VOS Scenarios](#calling-the-rag-api-in-non-vos-scenarios)
-- [VOS External Calling HybRAG API Integration Guide](./vos-external-api.md)
+- [VOS External HybRAG API Integration Guide](./vos-external-api.md)
 - [VOS External API Integration Checklist](./vos-external-api-validation.md)
 - [VOS External API Integration Checklist (Traditional Chinese)](./vos-external-api-validation.zh-TW.md)
 - [Error Handling](#error-handling)

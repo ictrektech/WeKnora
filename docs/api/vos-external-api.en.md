@@ -1,4 +1,4 @@
-# VOS External Calling HybRAG API Integration Guide
+# VOS External HybRAG API Integration Guide
 
 [Back to Table of Contents](./README.md)
 
