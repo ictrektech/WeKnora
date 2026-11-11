@@ -124,7 +124,7 @@ curl -X POST "$BASE/api/v1/skills/catalog/catalog-1/install" \
   -d '{"sandbox_config_ids":["cfg-1"]}'
 ```
 
-For source syntax, anonymous download requirements, and ZIP restrictions, see [Skill Sources](../03-features/22-skills-sandbox.md#supported-sources).
+For source syntax, anonymous download requirements, and ZIP restrictions, see [Skill Sources](../03-features/22-skills-sandbox.md#支持的来源).
 
 ## Skills Within a Sandbox
 
@@ -169,7 +169,7 @@ When both `agent_id` and `agent_source_tenant_id` (the source workspace ID of th
 
 ## Session Interactive Terminal
 
-The terminal in the chat sidebar connects to the remote sandbox for this session via WebSocket; only Cube/E2B are supported. Routes are registered by `internal/router/routes_chat.go` and are not yet in Swagger; for desktop APIs, see [Session API](02-api-chat.md#sandbox-desktop); for proxy requirements, see [Sandbox Deployment](../06-development/04-sandbox-deployment.md#interactive-terminal-and-graphical-desktop).
+The terminal in the chat sidebar connects to the remote sandbox for this session via WebSocket; only Cube/E2B are supported. Routes are registered by `internal/router/routes_chat.go` and are not yet in Swagger; for desktop APIs, see [Session API](02-api-chat.md#sandbox-desktop); for proxy requirements, see [Sandbox Deployment](../06-development/04-sandbox-deployment.md#交互终端与图形桌面).
 
 ### POST /api/v1/sessions/:session_id/sandbox/terminal-ticket
 

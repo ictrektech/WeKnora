@@ -246,6 +246,7 @@ function navigationHarness(initialMode: 'agent' | 'quick') {
   })
   let routeChanged!: (params: Array<{ chatid: string }>) => Promise<void>
   const state = {
+    chatLoadVersion: 0,
     messagesList, fullContent, currentAssistantMessageId, loading, isReplying, session_id,
     inFlightTurnCache: new Map(), props: { embeddedMode: false },
     activitySessionId: vue.ref('A'), sessionActivity: { detach() {} },

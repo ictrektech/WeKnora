@@ -25,6 +25,7 @@ async function setup(page: Page, enabled = true, role = 'owner') {
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname
     const reply = (data: unknown, status = 200, extra: Record<string, unknown> = {}) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ success: status < 400, data, ...extra }) })
+    if (path.endsWith('/organizations')) return reply({ organizations: [], resource_counts: {} })
     if (path.endsWith('/auth/me')) return reply({ user, tenant, memberships, capabilities: { can_create_tenant: false } })
     if (path.endsWith('/system/capabilities')) return reply({ edition: 'community', capabilities: {} })
     if (path.endsWith('/patent-workspace-config')) {
@@ -723,3 +724,30 @@ for (const id of ['search-political-qa', 'search-tax-agent', 'search-topic', 'wr
     await expect(agents).toHaveCount(answers.length)
   })
 }
+
+
+test('chat navigation keeps the fork routes free of unhandled runtime errors', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => {
+    if (message.type() === 'error' && /ReferenceError|Unhandled|Vue warn/.test(message.text())) errors.push(message.text())
+  })
+  await setup(page)
+  await page.route('**/api/v1/sessions/other-chat', route => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify({ success: true, data: {
+      id: 'other-chat', title: 'Other conversation', workspace_mode: 'platform',
+    } }),
+  }))
+  await page.goto('/platform/chat/platform-history')
+  await expect(page.locator('.chat_thread')).toBeVisible()
+  for (const path of ['/platform/knowledge-bases', '/platform/agents', '/platform/settings', '/platform/creatChat', '/platform/chat/other-chat', '/platform/chat/platform-history']) {
+    await page.evaluate(async path => {
+      const app = (document.querySelector('#app') as any).__vue_app__
+      await app.config.globalProperties.$router.push(path)
+    }, path)
+    await expect.poll(() => new URL(page.url()).pathname).toBe(path)
+    await expect(page.locator('.platform-route-outlet')).toBeVisible()
+    if (path.includes('/chat/')) await expect(page.locator('.chat_thread')).toBeVisible()
+  }
+  expect(errors).toEqual([])
+})

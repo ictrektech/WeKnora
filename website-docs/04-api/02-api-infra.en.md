@@ -102,7 +102,7 @@ Request body (Create/Update/TestRaw share `storageBackendRequest`):
 | --- | --- | --- | --- |
 | `name` | string | Yes (`binding:"required"`) | Name |
 | `provider` | string | Yes (`binding:"required"`) | Provider: `local`/`minio`/`cos`/`tos`/`s3`/`oss`/`ks3`/`obs`, restricted by `STORAGE_ALLOW_LIST` |
-| `config` | object | No | Provider configuration, fields see [Storage Backends](../03-features/19-storage-backends.md#connection-parameters) (credentials masked in responses) |
+| `config` | object | No | Provider configuration, fields see [Storage Backends](../03-features/19-storage-backends.md#连接参数) (credentials masked in responses) |
 | `status` | string | No | `active` (default)/`disabled` |
 
 ### GET /api/v1/storage-backends/types

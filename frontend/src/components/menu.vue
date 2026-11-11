@@ -334,15 +334,15 @@
         <div v-if="batchMode && !uiStore.sidebarCollapsed" class="batch-inline-footer" data-testid="session-batch-footer">
             <div class="batch-footer-left">
                 <t-checkbox :checked="isAllBatchSelected" :indeterminate="isBatchIndeterminate"
-                    @change="toggleBatchSelectAll">
+                    :disabled="batchDeleting" @change="toggleBatchSelectAll">
                     {{ t('batchManage.selectAll') }}
                 </t-checkbox>
             </div>
             <div class="batch-footer-right">
-                <t-button size="small" variant="text" @click="exitBatchMode">
+                <t-button size="small" variant="text" :disabled="batchDeleting" @click="exitBatchMode">
                     {{ t('batchManage.cancel') }}
                 </t-button>
-                <t-button size="small" theme="danger" variant="base" :disabled="batchSelectedIds.length === 0"
+                <t-button size="small" theme="danger" variant="base" :disabled="batchDeleting || batchSelectedIds.length === 0"
                     :loading="batchDeleting" @click="handleInlineBatchDelete">
                     {{ t('batchManage.delete') }}{{ batchSelectedIds.length > 0 ? `(${batchDisplayCount})` : '' }}
                 </t-button>
@@ -410,6 +410,7 @@ import {
 } from './sessionSidebarSourceFilter';
 import { logout as logoutApi } from '@/api/auth';
 import { useMenuStore } from '@/stores/menu';
+import { useSettingsStore } from '@/stores/settings';
 import { useSessionActivityStore } from '@/stores/sessionActivity';
 import { useAuthStore } from '@/stores/auth';
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities';
@@ -825,16 +826,19 @@ const mouseleaveBotDown = () => {
 }
 
 const enterBatchMode = () => {
+    if (batchDeleting.value) return
     batchMode.value = true
     batchSelectedIds.value = []
 }
 
 const exitBatchMode = () => {
+    if (batchDeleting.value) return
     batchMode.value = false
     batchSelectedIds.value = []
 }
 
 const toggleBatchSelect = (id: string) => {
+    if (batchDeleting.value) return
     const idx = batchSelectedIds.value.indexOf(id)
     if (idx > -1) {
         batchSelectedIds.value.splice(idx, 1)
@@ -844,22 +848,37 @@ const toggleBatchSelect = (id: string) => {
 }
 
 const toggleBatchSelectAll = (checked: boolean) => {
+    if (batchDeleting.value) return
     batchSelectedIds.value = checked ? [...allSessionIds.value] : []
 }
 
 const handleInlineBatchDelete = () => {
-    if (batchSelectedIds.value.length === 0) return
-    const selectedIds = [...batchSelectedIds.value]
-    const displayCount = batchDisplayCount.value
+    if (batchDeleting.value || batchSelectedIds.value.length === 0) return;
+    const selectedIds = [...batchSelectedIds.value];
+    const displayCount = batchDisplayCount.value;
+    let submitted = false;
     const confirmDialog = DialogPlugin.confirm({
         header: t('batchManage.deleteConfirmTitle'),
         body: t('batchManage.deleteConfirmBody', { count: displayCount }),
         confirmBtn: { content: t('batchManage.delete'), theme: 'danger' as const },
         cancelBtn: t('batchManage.cancel'),
         theme: 'warning',
+        confirmOnEnter: false,
+        onClose: () => {
+            if (!batchDeleting.value) confirmDialog.destroy();
+        },
         onConfirm: async () => {
-            batchDeleting.value = true
+            if (submitted || batchDeleting.value) return;
+            submitted = true;
+            batchDeleting.value = true;
             try {
+                confirmDialog.update({
+                    confirmLoading: true,
+                    closeOnEscKeydown: false,
+                    closeOnOverlayClick: false,
+                    closeBtn: false,
+                    cancelBtn: { content: t('batchManage.cancel'), disabled: true },
+                });
                 const res = await batchDelSessions(selectedIds)
                 if (res && res.success === true) {
                     let next = sessionBuckets.value;
@@ -874,18 +893,19 @@ const handleInlineBatchDelete = () => {
                     }
                     batchSelectedIds.value = []
                     MessagePlugin.success(t('batchManage.deleteSuccess'))
-                    exitBatchMode()
+                    batchMode.value = false
                 } else {
-                    MessagePlugin.error(t('batchManage.deleteFailed'))
+                    MessagePlugin.error(t('batchManage.deleteFailed'));
                 }
             } catch {
-                MessagePlugin.error(t('batchManage.deleteFailed'))
+                MessagePlugin.error(t('batchManage.deleteFailed'));
+            } finally {
+                batchDeleting.value = false;
+                confirmDialog.destroy();
             }
-            batchDeleting.value = false
-            confirmDialog.destroy()
         },
-    })
-}
+    });
+};
 
 const handleSessionMenuClick = (data: { value: string }, item: any) => {
     if (data?.value === 'delete') {
@@ -1539,6 +1559,8 @@ const gotopage = async (path: string) => {
         } else if (path === 'legal') {
             router.push('/platform/contract-review')
         } else if (path === 'creatChat') {
+            // Re-clicking the current new-chat route must also clear references.
+            if (route.name === 'globalCreatChat' || route.name === 'kbCreatChat') useSettingsStore().clearChatReferences()
             // 如果在知识库详情页，跳转到全局对话创建页
             if (isInKnowledgeBase.value) {
                 router.push('/platform/creatChat')

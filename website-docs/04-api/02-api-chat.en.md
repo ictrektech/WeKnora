@@ -517,10 +517,27 @@ curl -X POST $BASE/api/v1/messages/search -H "Authorization: Bearer $TOKEN" \
 
 Purpose: Chat history index statistics. Permissions: Viewer+; API key `message_history`/full.
 
-Response: 200 `{"success":true,"data":{indexed_message_count,knowledge_base_size,last_indexed_at,...}}`
+Response: 200 `{"success":true,"data":{enabled,embedding_model_id,knowledge_base_id,knowledge_base_name,indexed_message_count,has_indexed_messages}}`.
+
+Empty model and knowledge-base fields are omitted. Disabling indexing retains existing entries, including entries pending cleanup. A failed statistics lookup is never treated as an empty index.
 
 ```bash
 curl $BASE/api/v1/messages/chat-history-stats -H "Authorization: Bearer $TOKEN"
+```
+
+### POST /api/v1/messages/chat-history-index/clear
+
+Clear the message search index for **all members of the current workspace**. Requires Admin+; API keys need `manage_tenant_settings` or full access. `message_history` and `chat` do not grant this permission. No request parameters; callers cannot select a different workspace or knowledge base.
+
+The operation first pauses automatic message indexing, then synchronously removes the indexed knowledge entries, chunks and retrieval vectors. Original messages, conversations and ordinary knowledge bases are retained. Keyword search remains available. Clearing the index cannot be undone.
+
+Returns 200 with the same data shape as the statistics endpoint: `enabled=false`, `indexed_message_count=0`, `has_indexed_messages=false`, and no old `knowledge_base_id`. You may then change the embedding model and re-enable indexing. Re-enabling creates a new index for future conversations; old messages are not automatically indexed again.
+
+If cleanup fails after pausing, indexing stays paused and the old knowledge-base binding is retained for retry. Refresh configuration and statistics before retrying; a timeout or error does not mean cleanup completed. Changing the embedding model while entries remain returns 409, even when indexing is disabled. The server timeout is five minutes; proxies and clients must allow enough time. Repeated requests do not delete original messages.
+
+```bash
+curl -X POST $BASE/api/v1/messages/chat-history-index/clear \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### GET /api/v1/messages/:session_id/load

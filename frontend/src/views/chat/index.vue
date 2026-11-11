@@ -378,6 +378,8 @@ const router = useRouter();
 const session_id = ref(props.session_id || route.params.chatid);
 watch(session_id, () => childTabs.reset(), { flush: 'sync' });
 const currentSession = ref(null);
+// A session ID can be revisited while requests from its previous visit are still pending.
+let chatLoadVersion = 0;
 const isAutomationSession = computed(() => currentSession.value?.kind === 'automation');
 const backgroundItems = ref([]);
 const viewingWorkId = ref('');
@@ -458,10 +460,11 @@ const loadSessionAndHydrate = async (sid) => {
     // Capture before awaiting: onMounted sends and clears firstQuery while this
     // request is in flight. A new session must retain the createChat draft.
     const preserveDraft = Boolean(firstQuery.value);
+    const version = chatLoadVersion;
     try {
         const sessionRes = await getSession(sid);
         if (auth.effectiveTenantId !== tenantId || auth.currentUserId !== userId) return;
-        if (sessionRes?.data && sid === session_id.value) {
+        if (sessionRes?.data && version === chatLoadVersion && sid === session_id.value) {
             currentSession.value = sessionRes.data;
             const actualMode = sessionRes.data.workspace_mode || 'platform';
             if (actualMode !== routeWorkspaceMode(route.name)) {
@@ -472,7 +475,7 @@ const loadSessionAndHydrate = async (sid) => {
             useSettingsStoreInstance.hydrateSessionInputState(lastState, preserveDraft);
         }
     } catch (error) {
-        if (sid !== session_id.value || auth.effectiveTenantId !== tenantId || auth.currentUserId !== userId) return;
+        if (version !== chatLoadVersion || sid !== session_id.value || auth.effectiveTenantId !== tenantId || auth.currentUserId !== userId) return;
         console.error('Failed to load session data:', error);
         const status = error?.status || error?.response?.status;
         if ((route.name === 'legalAssistantChat' || isPatentMode(routeWorkspaceMode(route.name))) && (status === 403 || status === 404)) {
@@ -1241,6 +1244,7 @@ watch([() => route.params], async (newvalue) => {
         steerQueue.value = [];
         session_id.value = targetSessionId;
         currentSession.value = null;
+        const version = ++chatLoadVersion;
         clearCitationChunkCache();
 
         // 切换会话时，重置状态
@@ -1260,7 +1264,7 @@ watch([() => route.params], async (newvalue) => {
         useSettingsStoreInstance.restoreDefaultsIfSnapshotted();
 
         await loadSessionAndHydrate(targetSessionId);
-        if (session_id.value !== targetSessionId) return;
+        if (version !== chatLoadVersion || session_id.value !== targetSessionId) return;
         let data = {
             session_id: targetSessionId,
             created_at: '',
@@ -1372,9 +1376,12 @@ const syncCompletedMessageReferences = (message, attempt = 0) => {
 // its carried-over queue is readable, and treating that gap as "queue is
 // empty" would wipe messages the user can still see.
 const hydrateSteerQueue = async ({ onlyWhenLive = false } = {}) => {
-    if (!session_id.value) return;
+    const sid = session_id.value;
+    const version = chatLoadVersion;
+    if (!sid) return;
     try {
-        const res = await listSteerSession(session_id.value);
+        const res = await listSteerSession(sid);
+        if (version !== chatLoadVersion || sid !== session_id.value) return;
         if (onlyWhenLive && !res?.assistant_message_id) return;
         const items = Array.isArray(res?.items) ? res.items : [];
         steerQueue.value = items.map((item) => ({
@@ -1388,6 +1395,7 @@ const hydrateSteerQueue = async ({ onlyWhenLive = false } = {}) => {
             if (item.delivery === 'inject') previewSteerMessage(messagesList, item);
         }
     } catch (e) {
+        if (version !== chatLoadVersion || sid !== session_id.value) return;
         console.warn('[Steer] Failed to restore queue:', e);
     }
 };
@@ -1421,6 +1429,7 @@ const {
     debug: import.meta.env.DEV,
     onBeforeAfterMsgList: () => anchorRestoredInFlightTurn(session_id.value),
     onAfterMsgList: async () => {
+        const version = chatLoadVersion;
         activitySessionId.value = String(session_id.value);
         for (const message of messagesList) {
             if (message.role === 'assistant' && message.is_completed && message.suggestionSet === undefined) {
@@ -1430,6 +1439,7 @@ const {
         if (!steerQueue.value.length) {
             await hydrateSteerQueue();
         }
+        if (version !== chatLoadVersion) return;
         // Resume the trailing *assistant*, not simply the last row: a turn
         // that absorbed a mid-run message ends with the injected user bubble
         // in some orderings, and keying off that row would skip the resume
@@ -1473,7 +1483,7 @@ const {
                 method: 'GET',
                 url: '/api/v1/sessions/continue-stream',
             });
-            if (session_id.value !== targetSessionId) return;
+            if (version !== chatLoadVersion || session_id.value !== targetSessionId) return;
             isAttachingContinueStream.value = false;
             if (!error.value) isAttachingImStream.value = false;
             const target = messagesList.find(
@@ -1483,7 +1493,7 @@ const {
                 if (continueStreamRetryTimer) clearTimeout(continueStreamRetryTimer);
                 continueStreamRetryTimer = setTimeout(() => {
                     continueStreamRetryTimer = null;
-                    if (session_id.value !== targetSessionId) return;
+                    if (version !== chatLoadVersion || session_id.value !== targetSessionId) return;
                     if (target.is_completed) return;
                     getmsgList({ session_id: targetSessionId, created_at: '', limit: limit.value });
                 }, 1000);
@@ -1709,13 +1719,17 @@ const replayBackgroundChunks = (targetSessionId) => {
 };
 
 const getmsgList = (data, isScrollType = false, scrollHeight) => {
-    const targetSessionId = data.session_id;
+    const sid = String(data?.session_id || session_id.value || '');
+    const version = chatLoadVersion;
+    const isCurrent = () => version === chatLoadVersion && sid === String(session_id.value || '');
+    if (!isCurrent()) return;
+    const targetSessionId = sid;
     if (isScrollType) {
         if (historyLoadingMore.value || !hasMoreHistory.value) return;
         historyLoadingMore.value = true;
     }
     return fetchMessageList(data).then(async (res) => {
-        if (data?.session_id && String(data.session_id) !== String(session_id.value || '')) {
+        if (!isCurrent()) {
             return
         }
         const batch = res?.data;
@@ -1754,12 +1768,14 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
             userHasScrolledUp.value = true;
         }
         await handleMsgList(batch, isScrollType, scrollHeight);
+        if (!isCurrent()) return;
         if (!isScrollType) {
             restoreCachedInFlightTurn(targetSessionId);
             replayBackgroundChunks(targetSessionId);
             anchorRestoredInFlightTurn(targetSessionId);
         }
     }).catch((err) => {
+        if (!isCurrent()) return;
         console.error('Failed to load messages:', err);
         if (isScrollType) {
             hasMoreHistory.value = historyHasMoreAfterAttempt(hasMoreHistory.value, {
@@ -1767,6 +1783,7 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
             });
         }
     }).finally(() => {
+        if (!isCurrent()) return;
         historyLoading.value = false;
         historyLoadingMore.value = false;
         if (!isScrollType && messagesList.length === 0) {
@@ -2084,8 +2101,9 @@ const attachSteerFollowUp = async (completedAssistantId) => {
 
 const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = [], attachmentFiles = [], options = {}) => {
     if (!props.embeddedMode && !currentSession.value) {
+        const version = chatLoadVersion;
         await loadSessionAndHydrate(session_id.value);
-        if (!currentSession.value) return;
+        if (version !== chatLoadVersion || !currentSession.value) return;
     }
     if (composerLocked.value) return
     const reasoningEffort = props.embeddedMode ? undefined : (useSettingsStoreInstance.reasoningEffortOverride || undefined);
@@ -2430,6 +2448,8 @@ const handleSessionMutation = (event) => {
         };
     }
     if (detail.messagesCleared) {
+        chatLoadVersion++;
+        historyLoading.value = false;
         messagesList.splice(0);
         steerQueue.value = [];
         created_at.value = '';
@@ -2494,6 +2514,7 @@ onMounted(async () => {
     }
 })
 const clearData = (abortStreams = true) => {
+    chatLoadVersion++;
     if (!props.embeddedMode) sessionActivity.detach(activitySessionId.value);
     activitySessionId.value = '';
     cacheCurrentInFlightTurn(session_id.value);
@@ -2510,6 +2531,7 @@ const clearData = (abortStreams = true) => {
     isImRecovering.value = false;
 }
 onUnmounted(() => {
+    chatLoadVersion++;
     if (!props.embeddedMode) sessionActivity.detach(activitySessionId.value);
     activitySessionId.value = '';
     window.removeEventListener(SESSION_MUTATION_EVENT, handleSessionMutation);

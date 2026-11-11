@@ -5335,7 +5335,10 @@ export default {
         "viewerClose": "關閉 (Esc)",
         "prev": "上一張 (←)",
         "next": "下一張 (→)",
+        "sourcePage": "第 {page} 頁",
         "attr": {
+          "builtin_page": "文件頁碼",
+          "builtin_page_description": "依來源文件分組，再依 PDF 頁碼排序；未知頁碼放在文件末尾。",
           "builtin_caption": "描述",
           "builtin_caption_description": "模型生成的圖片描述",
           "builtin_ocr_text": "OCR 文字",
@@ -6671,9 +6674,16 @@ export default {
     "statsIndexedMessages": "已索引訊息",
     "statsNotConfigured": "訊息索引未設定",
     "statsNotConfiguredDesc": "啟用並選擇 Embedding 模型後，對話訊息將自動向量化索引",
+    "clearIndexLabel": "清空訊息索引",
+    "clearIndexDescription": "暫停訊息索引，並清空目前空間的訊息搜尋索引。原始對話和訊息會保留。",
+    "clearIndexButton": "清空索引",
+    "clearIndexConfirm": "確定清空目前空間所有成員的訊息索引嗎？訊息索引將暫停，原始對話和訊息不會刪除，歷史訊息也不會自動重新索引。此操作無法復原。",
     "toasts": {
       "saveSuccess": "訊息管理設定已保存",
-      "saveFailed": "保存設定失敗: {message}"
+      "saveFailed": "保存設定失敗: {message}",
+      "loadFailed": "無法載入訊息索引設定或統計資訊",
+      "clearSuccess": "訊息索引已清空，索引已暫停，可在準備好後重新啟用。",
+      "clearFailed": "索引清理未完成，請檢查目前狀態後重試：{message}"
     }
   },
   "vectorStoreSettings": {
