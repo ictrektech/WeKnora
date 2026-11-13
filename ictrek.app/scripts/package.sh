@@ -5,7 +5,7 @@ APP_NAME="hybrag"
 APP_ID="com.ictrek.hybrag"
 ROUTER_PAGE_ID="hybrag"
 ROUTER_IFRAME_SRC="/app/com.ictrek.hybrag/?v=__APP_VERSION__"
-ROUTER_HASH_PATH="#/app/com.ictrek.hybrag/hybrag"
+ROUTER_HASH_PATH="#/app/app-drawer/com.ictrek.hybrag/hybrag"
 FRONTEND_BASE_PATH="/app/com.ictrek.hybrag"
 SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.components.json}"
@@ -572,7 +572,7 @@ verify_package() {
   if printf '%s\n' "$compose_text" | awk '/^[[:space:]]*image:/ {print $2}' | grep -v '^[^/[:space:]]\+\.[^/[:space:]]\+/' | grep -q .; then
     die "docker-compose.yml contains short image reference"
   fi
-  if ! printf '%s\n' "$compose_text" | grep -Fq 'HeadersRegexp(`Sec-Fetch-Dest`, `document`)'; then
+  if ! printf '%s\n' "$compose_text" | grep -Fq 'HeaderRegexp(`Sec-Fetch-Dest`, `document`)'; then
     die "docker-compose.yml must redirect top-level document opens to VOS hash route"
   fi
   if ! printf '%s\n' "$compose_text" | grep -Fq "${ROUTER_HASH_PATH}"; then
