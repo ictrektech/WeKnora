@@ -114,3 +114,5 @@ QA、VLM 和 embedding 模型行使用 Ollama 原生 `11434/v1`；ReRank 使用 
 V-Scheduler 使用独立 `http://v-scheduler:8080/v1`。旧 Model Hub 经实际发布的旧 V-Router 独立服务名自动发现，也可设置 `HYBRAG_LEGACY_V_ROUTER_URL` 与其专用 `HYBRAG_LEGACY_V_ROUTER_API_KEY`；两套网关密钥不混用。自动模式不等待可选本地服务才处理云模型的恢复任务。
 
 旧 Model Hub / V-Router 可继续由 `HYBRAG_MODEL_BACKEND=model-hub` 使用，但不再作为安装依赖声明，避免已安装的旧服务版本阻止 V-Scheduler 模式升级。使用旧模式前请自行确认对应服务可用。
+
+在使用 Traefik v3 的 VOS 上，从浏览器直接打开应用根地址会跳转到 VOS 应用页面。嵌入页面和 API 请求沿用原有路由。

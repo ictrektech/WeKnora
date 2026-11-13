@@ -435,7 +435,7 @@ HybRAG 的固定入口契约是：
 - `app id`: `com.ictrek.hybrag`
 - `page.id`: `hybrag`
 - `iframe-src`: `/app/com.ictrek.hybrag/?v=${VERSION}`
-- VOS 内部侧边栏路径：`#/app/com.ictrek.hybrag/hybrag`
+- VOS 内部侧边栏路径：`#/app/app-drawer/com.ictrek.hybrag/hybrag`
 
 `scripts/package.sh` 会在生成 `app.tar.gz` 后校验以上字段；不匹配时直接失败。新增或修改入口时必须同步更新模板和脚本校验值。
 

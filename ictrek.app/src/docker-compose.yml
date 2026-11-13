@@ -13,13 +13,13 @@ x-hybrag-frontend-base:
   labels: &id011
   - traefik.enable=true
   - traefik.docker.network=vos_default
-  - traefik.http.routers.hybrag-top-open.rule=PathPrefix(`/app/com.ictrek.hybrag`)
-    && HeadersRegexp(`Sec-Fetch-Dest`, `document`)
+  - traefik.http.routers.hybrag-top-open.rule=(Path(`/app/com.ictrek.hybrag`) || Path(`/app/com.ictrek.hybrag/`))
+    && HeaderRegexp(`Sec-Fetch-Dest`, `document`)
   - traefik.http.routers.hybrag-top-open.priority=1000
   - traefik.http.routers.hybrag-top-open.service=hybrag-web
   - traefik.http.routers.hybrag-top-open.middlewares=hybrag-top-open-redirect
   - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\.ictrek\.hybrag/?(?:\?.*)?$
-  - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.hybrag/hybrag
+  - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.replacement=$${1}/#/app/app-drawer/com.ictrek.hybrag/hybrag
   - traefik.http.middlewares.hybrag-top-open-redirect.redirectregex.permanent=false
   - traefik.http.routers.hybrag-web.rule=PathPrefix(`/app/com.ictrek.hybrag`)
   - traefik.http.routers.hybrag-web.service=hybrag-web

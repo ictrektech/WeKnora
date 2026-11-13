@@ -109,3 +109,5 @@ The default `HYBRAG_MODEL_BACKEND=auto` independently adds available V-Scheduler
 V-Scheduler uses the independent `http://v-scheduler:8080/v1` origin. Legacy models are discovered through the published legacy V-Router service name, optionally overridden with `HYBRAG_LEGACY_V_ROUTER_URL` and its dedicated `HYBRAG_LEGACY_V_ROUTER_API_KEY`. Credentials never cross gateway origins. Automatic mode does not wait for optional local services before resuming cloud-model tasks.
 
 Existing Model Hub / V-Router services remain supported through `HYBRAG_MODEL_BACKEND=model-hub`, but are not installation dependencies: an older installed legacy service must not block an upgrade using V-Scheduler. Verify those services are available before selecting legacy mode.
+
+On VOS with Traefik v3, opening the app root directly in a browser redirects to its VOS page. Embedded pages and API requests use their existing routes.
