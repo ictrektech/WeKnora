@@ -218,10 +218,12 @@ type OIDCUserInfo struct {
 // adapters such as VOS iframe token SSO; callers must verify the external
 // token before invoking the user service.
 type TrustedIdentityLoginRequest struct {
-	Provider string `json:"provider"`
-	Subject  string `json:"subject"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	PlatformID   string `json:"-"`
+	BindOnCreate bool   `json:"-"`
+	Provider     string `json:"provider"`
+	Subject      string `json:"subject"`
+	Username     string `json:"username"`
+	Email        string `json:"email"`
 }
 
 // RegisterRequest represents a registration request

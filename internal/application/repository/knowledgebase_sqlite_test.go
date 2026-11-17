@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     wiki_config TEXT,
     indexing_strategy TEXT,
     creator_id VARCHAR(36),
+    private_owner_id VARCHAR(128) NOT NULL DEFAULT '',
+    v_note_root_id VARCHAR(255) NOT NULL DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME

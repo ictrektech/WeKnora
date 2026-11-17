@@ -182,6 +182,7 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 	var drainedFinalizing []types.Knowledge
 	if err := h.db.WithContext(ctx).
 		Where("parse_status = ? AND pending_subtasks_count = 0", types.ParseStatusFinalizing).
+		Where("COALESCE(channel, '') <> ?", "vnote").
 		Where(noOpenCurrentAttemptSpanSQL()).
 		Find(&drainedFinalizing).Error; err != nil {
 		logger.Warnf(ctx, "[Housekeeping] drained finalizing candidate query failed: %v", err)
@@ -195,6 +196,7 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 		if len(drainedFinalizing) > 0 {
 			resDrained := h.db.WithContext(ctx).Model(&types.Knowledge{}).
 				Where("id IN ?", knowledgeIDs(drainedFinalizing)).
+				Where("COALESCE(channel, '') <> ?", "vnote").
 				Updates(map[string]interface{}{
 					"parse_status":  types.ParseStatusCompleted,
 					"processed_at":  now,
@@ -217,6 +219,7 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 	var staleCounterFinalizing []types.Knowledge
 	if err := h.db.WithContext(ctx).
 		Where("parse_status = ? AND pending_subtasks_count > 0", types.ParseStatusFinalizing).
+		Where("COALESCE(channel, '') <> ?", "vnote").
 		Where(noOpenCurrentAttemptSpanSQL()).
 		Find(&staleCounterFinalizing).Error; err != nil {
 		logger.Warnf(ctx, "[Housekeeping] stale finalizing counter candidate query failed: %v", err)
@@ -230,6 +233,7 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 		if len(staleCounterFinalizing) > 0 {
 			resStaleCounter := h.db.WithContext(ctx).Model(&types.Knowledge{}).
 				Where("id IN ?", knowledgeIDs(staleCounterFinalizing)).
+				Where("COALESCE(channel, '') <> ?", "vnote").
 				Updates(map[string]interface{}{
 					"parse_status":           types.ParseStatusCompleted,
 					"pending_subtasks_count": 0,
@@ -304,6 +308,7 @@ func (h *HousekeepingService) runSweep(ctx context.Context) {
 	if err := h.db.WithContext(ctx).
 		Where("parse_status IN ? AND updated_at < ?",
 			[]string{types.ParseStatusPending, types.ParseStatusProcessing, types.ParseStatusFinalizing}, cutoff).
+		Where("COALESCE(channel, '') <> ?", "vnote").
 		Find(&candidates).Error; err != nil {
 		logger.Warnf(ctx, "[Housekeeping] knowledge candidate query failed: %v", err)
 		return
@@ -680,6 +685,7 @@ func (h *HousekeepingService) recoverStalled(
 		res := h.db.WithContext(ctx).Model(&types.Knowledge{}).
 			Where("id = ? AND parse_status IN ?", k.ID,
 				[]string{types.ParseStatusPending, types.ParseStatusProcessing, types.ParseStatusFinalizing}).
+			Where("COALESCE(channel, '') <> ?", "vnote").
 			Updates(map[string]interface{}{
 				"parse_status":           types.ParseStatusFailed,
 				"error_message":          msg,

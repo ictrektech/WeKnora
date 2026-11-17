@@ -62,6 +62,8 @@ EOF
 VOS 构建显式传入 `VITE_BASE_PATH=./`，让运行时 `<base>` 同时支持站点根路径和 `/app/com.ictrek.hybrag/`。构建后、推送前会自动执行 `ictrek.app/scripts/verify_frontend_image.sh`，检查镜像内普通页与嵌入页的资源使用相对路径且文件存在；开发服务回归不能替代这项生产镜像检查。上游 Dockerfile 的默认 `/` 会使 VOS 请求站点根目录的资源而出现空白页，不能依赖该默认值。
 
 `--no-push` 用于只做本机构建检查；`--no-feishu` 用于不更新飞书发布表。
+设置 `BUILDX_BUILDER` 显式选择构建器时，由该构建器解析基础镜像和复用缓存；脚本不再预先
+通过宿主 Docker 拉取基础镜像，也不会失败后静默切换构建器，以保留连接配置及 CPU/内存限制。
 脚本只读取并计算下一个 patch 版本，不会修改 `ictrek.app/VERSION`；正式发布时再由 `scripts/update_version.sh` 更新 VOS 版本。
 
 每次构建 `weknora` 后端镜像后，脚本会先启动一次性 PostgreSQL，在空库中执行镜像内从 0 到最新版本的完整迁移，并检查 migration 状态及关键表列。只有迁移完成且 `dirty=false` 才会继续推送镜像和写飞书。该临时数据库在检查结束后自动删除，不连接或修改任何部署数据库。
@@ -196,7 +198,10 @@ To build only one service image:
 ```
 
 Use `--no-push` for a local build check and `--no-feishu` when the image should
-not update the release table.
+not be recorded in the release table. When `BUILDX_BUILDER` explicitly selects a
+builder, that builder resolves base images through its own cache/registry; the
+script does not pre-pull through the host daemon or silently switch builders on
+failure, preserving connection settings and CPU/memory limits.
 The script only reads and calculates the next patch version; it does not modify
 `ictrek.app/VERSION`. Update the VOS version separately with
 `scripts/update_version.sh` for an official release.

@@ -81,17 +81,18 @@ type GraphSearchRelation struct {
 // GraphSearchSourceChunk is a bounded, live SQL projection, not a raw Chunk or
 // Knowledge row. It excludes file paths, metadata, image URLs and owner details.
 type GraphSearchSourceChunk struct {
-	ID               string `json:"id"`
-	KnowledgeID      string `json:"knowledge_id"`
-	Title            string `json:"title"`
-	Content          string `json:"content"`
-	ChunkIndex       int    `json:"chunk_index"`
-	StartAt          int    `json:"start_at"`
-	EndAt            int    `json:"end_at"`
-	ContentTruncated bool   `json:"content_truncated" gorm:"-"`
-	TitleTruncated   bool   `json:"title_truncated" gorm:"-"`
-	TenantID         uint64 `json:"-"`
-	KnowledgeBaseID  string `json:"-"`
+	ID                string `json:"id"`
+	KnowledgeID       string `json:"knowledge_id"`
+	Title             string `json:"title"`
+	Content           string `json:"content"`
+	ChunkIndex        int    `json:"chunk_index"`
+	StartAt           int    `json:"start_at"`
+	EndAt             int    `json:"end_at"`
+	ContentTruncated  bool   `json:"content_truncated" gorm:"-"`
+	TitleTruncated    bool   `json:"title_truncated" gorm:"-"`
+	TenantID          uint64 `json:"-"`
+	KnowledgeBaseID   string `json:"-"`
+	PublicKnowledgeID string `json:"-"`
 }
 
 // GraphSearchMeta reports effective limits and observed clipping, not totals.

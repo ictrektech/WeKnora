@@ -13,6 +13,21 @@ func RequireKBWrite(ctx context.Context, kb *types.KnowledgeBase) error {
 	if kb == nil || kb.ID == "" || kb.TenantID == 0 {
 		return ErrNotFound
 	}
+	if !CanReadPrivateKB(ctx, kb) {
+		return ErrForbidden
+	}
+	if kb.VNoteRootID != "" {
+		trusted := false
+		grants, _ := ctx.Value(types.KBGrantsContextKey).([]kbGrant)
+		for _, grant := range grants {
+			if grant.task && grant.caller == types.CallerFromContext(ctx) && grant.kbID == kb.ID && grant.tenantID == kb.TenantID {
+				trusted = true
+			}
+		}
+		if !trusted {
+			return ErrForbidden
+		}
+	}
 	if scope, ok := types.TenantAPIKeyScopeFromContext(ctx); ok && !scope.FullAccess &&
 		!scope.HasCapability(types.APIKeyCapabilityIngest) {
 		return ErrForbidden

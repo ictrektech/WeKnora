@@ -19,6 +19,7 @@ type chunkIndexWindowEngine struct {
 	failAt        int
 	cancel        context.CancelFunc
 	indexDeletes  int
+	afterIndex    func()
 }
 
 func (e *chunkIndexWindowEngine) EstimateStorageSize(
@@ -42,10 +43,29 @@ func (e *chunkIndexWindowEngine) BatchIndex(
 	for _, info := range infos {
 		e.indexed = append(e.indexed, *info)
 	}
+	if e.afterIndex != nil {
+		e.afterIndex()
+	}
 	if e.cancel != nil {
 		e.cancel()
 	}
 	return nil
+}
+
+func TestProcessChunksRevocationDuringBatchDoesNotFinalize(t *testing.T) {
+	ctx, svc, kb, knowledge, chunks, engine, _ := chunkIndexWindowFixture(context.Background(), 1)
+	revoked := false
+	want := errors.New("revoked")
+	ctx = types.WithVNoteWriteGuard(ctx, func(context.Context) error {
+		if revoked {
+			return want
+		}
+		return nil
+	})
+	engine.afterIndex = func() { revoked = true }
+	_ = svc.processChunks(ctx, kb, knowledge, chunks)
+	require.NotEqual(t, types.ParseStatusCompleted, knowledge.ParseStatus)
+	require.Empty(t, engine.indexed, "the just-written index is cleaned when the batch loses authorization")
 }
 
 func (e *chunkIndexWindowEngine) DeleteByKnowledgeIDList(context.Context, []string, int, string) error {

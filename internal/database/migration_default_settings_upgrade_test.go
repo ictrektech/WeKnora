@@ -16,9 +16,9 @@ import (
 func TestDefaultSettingsMigrationUpgrade(t *testing.T) {
 	root := sqliteRepoRoot(t)
 	for _, dialect := range []string{"sqlite", "postgres"} {
-		previous, latest, directory := uint(61), uint(63), "sqlite"
+		previous, latest, directory := uint(61), uint(expectedSQLiteMigrationVersion), "sqlite"
 		if dialect == "postgres" {
-			previous, latest, directory = 156, 159, "versioned"
+			previous, latest, directory = 156, uint(latestVersionedMigration(t, root)), "versioned"
 		}
 		for _, baseline := range []uint{0, previous, previous + 1} {
 			t.Run(fmt.Sprintf("%s/from-%d", dialect, baseline), func(t *testing.T) {

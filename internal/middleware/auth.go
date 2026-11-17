@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tencent/WeKnora/internal/config"
 	"github.com/Tencent/WeKnora/internal/logger"
+	"github.com/Tencent/WeKnora/internal/platformidentity"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"github.com/gin-gonic/gin"
@@ -220,6 +221,9 @@ func authenticateVOSBearerUser(
 			return false
 		}
 	}
+	if verified, proofErr := platformidentity.VerifyVOS(ctx, vosOIDCUserinfoURLForMiddleware(), token); proofErr == nil && verified.Subject == identity.Subject {
+		identity.BindOnCreate = true
+	}
 	user, err := userService.ResolveTrustedIdentityUser(ctx, identity, trustedIdentityProvisioningMode(cfg))
 	if err != nil || user == nil {
 		logger.Warnf(ctx, "[auth] VOS bearer local user resolution failed: %v", err)
@@ -377,10 +381,11 @@ func trustedVOSIdentity(provider, subject, username string) (*types.TrustedIdent
 		subject = username
 	}
 	return &types.TrustedIdentityLoginRequest{
-		Provider: provider,
-		Subject:  strings.TrimSpace(subject),
-		Username: localUsername,
-		Email:    localUsername + "@local",
+		PlatformID: vosOIDCUserinfoURLForMiddleware(),
+		Provider:   provider,
+		Subject:    strings.TrimSpace(subject),
+		Username:   localUsername,
+		Email:      localUsername + "@local",
 	}, nil
 }
 

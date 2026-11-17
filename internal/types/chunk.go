@@ -3,6 +3,7 @@
 package types
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -137,7 +138,8 @@ type Chunk struct {
 	// Tenant ID, used for multi-tenant isolation
 	TenantID uint64 `json:"tenant_id"`
 	// ID of the parent knowledge, associated with the Knowledge model
-	KnowledgeID string `json:"knowledge_id" extensions:"x-agent"`
+	KnowledgeID       string `json:"knowledge_id" extensions:"x-agent"`
+	PublicKnowledgeID string `json:"-" gorm:"-"`
 	// ID of the knowledge base, for quick location
 	KnowledgeBaseID string `json:"knowledge_base_id" extensions:"x-agent"`
 	// Optional tag ID for categorization within a knowledge base (used for FAQ)
@@ -198,6 +200,15 @@ type Chunk struct {
 	// slide, sheet rows, ...) so citations can open the file at this chunk.
 	// Empty when the parser reported no positions.
 	SourceLocators SourceLocators `json:"source_locators,omitempty" gorm:"type:json"`
+}
+
+func (c Chunk) MarshalJSON() ([]byte, error) {
+	type alias Chunk
+	value := alias(c)
+	if c.PublicKnowledgeID != "" {
+		value.KnowledgeID = c.PublicKnowledgeID
+	}
+	return json.Marshal(value)
 }
 
 // ChunkRevision is an immutable snapshot of a superseded chunk revision.

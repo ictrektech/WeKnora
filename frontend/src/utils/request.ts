@@ -10,6 +10,7 @@ import type { VOSFastpathTokenSet } from './vos-fastpath';
 import { isSkillBundleUploadUrl } from './uploadLimit';
 import { isTimeoutError, uploadTimeoutMs } from './requestTimeouts';
 import { forceReloginRedirect } from './authRefresh';
+import { getVOSReadHeaders } from './vnote-read-proof';
 
 export { forceReloginRedirect };
 
@@ -70,7 +71,7 @@ export function getCurrentLanguage(): string {
 
 
 instance.interceptors.request.use(
-  (config) => {
+  async (config) => {
     const existingAuth = config.headers?.Authorization ?? config.headers?.authorization;
     const isEmbedAuth = typeof existingAuth === 'string' && existingAuth.startsWith('Embed ');
     const isEmbedPath = typeof config.url === 'string' && config.url.includes('/api/v1/embed/');
@@ -81,6 +82,8 @@ instance.interceptors.request.use(
       const token = localStorage.getItem('weknora_token');
       if (token) {
         config.headers["Authorization"] = `Bearer ${token}`;
+        const proof = await getVOSReadHeaders(config.url || '', config.baseURL || BASE_URL);
+        for (const [key,value] of Object.entries(proof)) config.headers[key]=value;
       }
     }
 

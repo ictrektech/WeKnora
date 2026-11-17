@@ -1,4 +1,13 @@
 export default {
+  vosIdentityBinding: {
+    title: "VOS account association",
+    description: "Associate this HybRAG account with your current VOS identity for V-Note integration. Existing accounts require this confirmation once.",
+    action: "Associate VOS account",
+    linked: "Associated",
+    confirm: "Confirm that the HybRAG account {username} belongs to you and should be associated with your current VOS identity. Its existing knowledge and workspace remain with this account.",
+    success: "Association completed. Return to V-Note integration and select Retry.",
+    failed: "Unable to associate accounts. Verify the current VOS and HybRAG accounts; an existing conflicting association requires administrator review.",
+  },
   patentExamples: {
       "sidebarTitle": "実行例",
       "empty": "表示できる例はまだありません",
@@ -937,6 +946,8 @@ export default {
     staleGeneratedQuestions: '編集前の内容から生成された質問です。必要に応じて再生成してください',
     noGeneratedQuestions: '検索用質問はありません',
     notInitialized: 'ナレッジベースが初期化されていません。ファイルをアップロードする前に、設定でモデルを設定してください',
+    vnoteSource: "Source: V-Note. Content is managed in V-Note; the document list shows indexing status.",
+    vnoteSettings: "Open Integrations in V-Note settings",
     missingStorageEngine: 'このナレッジベースにはストレージエンジンが選択されていません。コンテンツをアップロードする前に、設定でストレージエンジンを設定してください。',
     missingStorageEngineUpload: 'コンテンツをアップロードする前にストレージエンジンを設定してください',
     goToStorageSettings: '設定を開く',

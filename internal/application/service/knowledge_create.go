@@ -836,6 +836,7 @@ func (s *knowledgeService) CreateKnowledgeFromManual(ctx context.Context,
 		TenantID:         tenantID,
 		KnowledgeBaseID:  kbID,
 		Type:             types.KnowledgeTypeManual,
+		ID:               payload.InternalID,
 		Channel:          defaultChannel(channel),
 		Title:            title,
 		Description:      "",
@@ -853,6 +854,13 @@ func (s *knowledgeService) CreateKnowledgeFromManual(ctx context.Context,
 		return nil, err
 	}
 	knowledge.EnsureManualDefaults()
+	if payload.SourceMetadata != nil {
+		metadata, err := mergeKnowledgeMetadata(knowledge.Metadata, payload.SourceMetadata)
+		if err != nil {
+			return nil, err
+		}
+		knowledge.Metadata = metadata
+	}
 
 	if status == types.ManualKnowledgeStatusPublish {
 		knowledge.ParseStatus = "pending"
@@ -1103,6 +1111,13 @@ func (s *knowledgeService) UpdateManualKnowledge(ctx context.Context,
 		logger.Errorf(ctx, "Failed to set manual metadata during update: %v", err)
 		return nil, err
 	}
+	if payload.SourceMetadata != nil {
+		metadata, err := mergeKnowledgeMetadata(existing.Metadata, payload.SourceMetadata)
+		if err != nil {
+			return nil, err
+		}
+		existing.Metadata = metadata
+	}
 
 	if safeTitle != "" {
 		existing.Title = safeTitle
@@ -1184,6 +1199,12 @@ func (s *knowledgeService) enqueueManualProcessing(ctx context.Context,
 		Content:         content,
 		NeedCleanup:     needCleanup,
 	}
+	if knowledge.Channel == "vnote" {
+		payload.VNoteAttempt = knowledge.GetMetadata()["vnote_attempt"]
+		if payload.VNoteAttempt != "" {
+			options = append(options, asynq.TaskID(uuid.NewSHA1(uuid.NameSpaceOID, []byte(knowledge.ID+payload.VNoteAttempt)).String()))
+		}
+	}
 	langfuse.InjectTracing(ctx, &payload)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -1193,6 +1214,9 @@ func (s *knowledgeService) enqueueManualProcessing(ctx context.Context,
 	task := asynq.NewTask(types.TypeManualProcess, payloadBytes,
 		asynq.Queue(types.QueueDefault), asynq.MaxRetry(3), asynq.Timeout(30*time.Minute))
 	info, err := s.task.Enqueue(task, options...)
+	if payload.VNoteAttempt != "" && errors.Is(err, asynq.ErrTaskIDConflict) {
+		return uuid.NewSHA1(uuid.NameSpaceOID, []byte(knowledge.ID+payload.VNoteAttempt)).String(), nil
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to enqueue manual process task: %w", err)
 	}
@@ -1371,7 +1395,7 @@ func (s *knowledgeService) triggerManualProcessing(ctx context.Context,
 	var resolvedImages []docparser.StoredImage
 	var fileSvc interfaces.FileService
 	var inlineParseErr error
-	if s.imageResolver != nil {
+	if s.imageResolver != nil && knowledge.Channel != "vnote" {
 		fileSvc = s.resolveFileService(ctx, kb)
 		updatedMarkdown, inlineImages, resolveErr := s.imageResolver.ResolveAndStore(ctx,
 			&types.ReadResult{MarkdownContent: clean}, fileSvc, knowledge.TenantID)
@@ -1418,7 +1442,7 @@ func (s *knowledgeService) triggerManualProcessing(ctx context.Context,
 		return fmt.Errorf("%s: %w", message, asynq.SkipRetry)
 	}
 
-	if s.imageResolver != nil {
+	if s.imageResolver != nil && knowledge.Channel != "vnote" {
 		updatedContent, storedImages, resolveErr := s.imageResolver.ResolveRemoteImages(ctx, clean, fileSvc, knowledge.TenantID)
 		if resolveErr != nil {
 			logger.Warnf(ctx, "Remote image resolution partially failed: %v", resolveErr)

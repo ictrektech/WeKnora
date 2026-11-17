@@ -250,6 +250,23 @@ type Knowledge struct {
 	StallState string `json:"stall_state,omitempty" gorm:"-" extensions:"x-agent"`
 }
 
+// PublicID gives managed V-Note documents a stable identity across physical generations.
+func (k Knowledge) PublicID() string {
+	if k.Channel == "vnote" {
+		if id := VNoteLogicalKnowledgeID(k.KnowledgeBaseID, k.GetMetadata()["vnote_note_id"]); id != "" {
+			return id
+		}
+	}
+	return k.ID
+}
+
+func (k Knowledge) MarshalJSON() ([]byte, error) {
+	type alias Knowledge
+	value := alias(k)
+	value.ID = k.PublicID()
+	return json.Marshal(value)
+}
+
 // Stall verdicts for Knowledge.StallState.
 const (
 	StallStateQueued  = "queued"
@@ -327,6 +344,8 @@ type ManualKnowledgeMetadata struct {
 
 // ManualKnowledgePayload represents the payload for manual knowledge operations.
 type ManualKnowledgePayload struct {
+	InternalID     string            `json:"-"`
+	SourceMetadata map[string]string `json:"-"`
 	// Document title.
 	Title string `json:"title" extensions:"x-agent"`
 	// Markdown content. The assistant may send a full document; the API limit

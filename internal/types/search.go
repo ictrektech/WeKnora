@@ -255,6 +255,17 @@ type SearchResult struct {
 	ContentRewritten bool `json:"-"`
 }
 
+func (r SearchResult) MarshalJSON() ([]byte, error) {
+	type alias SearchResult
+	value := alias(r)
+	if r.KnowledgeChannel == "vnote" {
+		if id := VNoteLogicalKnowledgeID(r.KnowledgeBaseID, r.Metadata["vnote_note_id"]); id != "" {
+			value.KnowledgeID = id
+		}
+	}
+	return json.Marshal(value)
+}
+
 // SearchParams represents the search parameters
 type SearchParams struct {
 	// QueryText is required unless query_embedding is provided, keyword matching is disabled,

@@ -1,5 +1,54 @@
 # VOS API contracts, keys and lifecycle
 
+## V-Note embedding selection and refusal retries
+
+`POST /api/v1/vnote/import-note` is an integration protocol endpoint requiring
+the bound current user's proof and a one-use source ticket body
+`{"ticket":"<one-use ticket>"}`. New managed KBs prefer the workspace embedding
+default, then the deployment default. Without either, exactly one active
+YAML-managed built-in embedding may be selected. Ambiguous or unselected custom
+models require an explicit default. Existing KBs retain their model.
+
+Only a missing-model refusal before staging or enqueueing the current request
+returns HTTP 422 with
+`{"code":"vnote_embedding_unavailable","accepted":false,"error":"Configure an active default embedding model, then retry"}`.
+`code` is the fixed refusal code, `accepted` is always `false`, and `error` is an
+explanation string. The source may retry after fixing model settings. Other
+422s, timeouts and lost responses do not prove that no task was accepted. Never
+clear an uncertain attempt directly: for a legacy manual run, save the same
+settings, wait for control delivery, then Sync now. Running model tasks retain
+their processing slot. The computed read-only KB response marker
+`managed_source="vnote"` is omitted for ordinary KBs; managed cards open the
+document view without requiring a summary model.
+
+## First V-Note account association
+
+For a legacy account, open Settings → User Profile → Associate VOS account and
+confirm that the current HybRAG account belongs to you, then retry V-Note Personal
+center → Integrations → HybRAG. Association does not start synchronization, enable
+background delegation, read notes or move knowledge bases. A newly created account
+with a strictly verified VOS user is associated in the account-creation transaction.
+Existing accounts are never associated merely by matching names.
+
+The client calls `POST /auth/vos-identity`, relative to the API base below, with
+`Content-Type: application/json`, `Authorization: Bearer <current HybRAG user JWT>`
+and `{"access_token":"<fresh VOS user access token>"}`. The only body field,
+`access_token`, is required, 1–16384 characters; the body limit is 32768 bytes.
+Both proofs are required. Service tokens, disabled users and unverifiable VOS
+proofs are rejected. The JWT selects the HybRAG user; no target user ID, username
+or workspace ID is accepted. Repeating the same association succeeds. An existing
+different association on either side is never overwritten.
+
+Success is HTTP 200, `{"success":true,"data":{"bound":true}}`, with
+`Cache-Control: no-store`. HTTP 400 means invalid/missing body; 401 means an invalid
+HybRAG session or VOS user proof; 403 means VOS authentication is disabled.
+HTTP 409 with `code: "identity_conflict"` requires administrator review. Storage
+failure returns 500; an unavailable binding service returns 503. The common error
+envelope below applies to 400/401/403/500; 409/503 return `success:false` with an
+explanation. Retry after restoring the session/service; retries never overwrite a
+conflict. API keys and background grants cannot replace these user proofs. The
+frontend does not persist the VOS proof.
+
 ## Entry and complete field reference
 
 Open **Settings → API documentation** for the existing full chapter library, then **Full contract / 完整字段** for searchable native operation parameters, body types, response schemas and shared definitions. Production disables `/swagger` when `GIN_MODE=release`; the shipped documentation uses the version-matched schema bundled at build time instead of requiring an administrator to enable development mode. The catalogue below includes every operation declared in that native Swagger specification; application policy and live routes remain authoritative for newly introduced or intentionally open-ended integration payloads. Do not treat a generic provider/tool payload as a new universally fixed schema.

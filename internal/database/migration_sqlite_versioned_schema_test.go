@@ -20,6 +20,9 @@ import (
 // vector search. Fork migrations add skill tables, the host workspace column,
 // and IM channel locale alongside the local archive and application schema.
 var versionedSQLiteTables = []string{
+	"platform_user_identities",
+	"vnote_import_states",
+	"vnote_import_gates",
 	"memory_extraction_sessions",
 	"task_pending_ops",
 	"task_dead_letters",
@@ -75,7 +78,7 @@ var versionedSQLiteColumns = map[string][]string{
 	"tenants":               {"api_principal_config", "patent_workspace_config"},                               // 000064
 	"users":                 {"is_system_admin"},                                                               // 000053
 	"knowledges":            {"pending_subtasks_count", "profile"},                                             // 000056, 000119
-	"knowledge_bases":       {"profile_config", "generated_profile"},                                           // 000119
+	"knowledge_bases":       {"profile_config", "generated_profile", "private_owner_id", "v_note_root_id"},     // 000119, 000161
 	"messages":              {"attachments", "usage", "sandbox_checkpoint", "context_checkpoint", "run_state"}, // 000005/093/115/123/141
 	"sessions": {
 		"kind", "owner_auth_source", // SQLite 000056
@@ -102,7 +105,7 @@ var versionedSQLiteColumns = map[string][]string{
 	}, // 000038
 }
 
-const expectedSQLiteMigrationVersion = 63
+const expectedSQLiteMigrationVersion = 70
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

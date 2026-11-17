@@ -486,6 +486,9 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 	}
 
 	// 幂等性处理：清理旧的chunks和索引数据，避免重复数据
+	if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+		return err
+	}
 	logger.Infof(ctx, "Cleaning up existing chunks and index data for knowledge: %s", knowledge.ID)
 
 	// 删除旧的chunks
@@ -535,7 +538,9 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 		contentPreview = cutLogPreview(contentPreview, 200)
 		logger.Infof(ctx, "[DocReader] Chunk #%d (seq=%d): 内容长度=%d, 图片数=%d, 范围=[%d-%d]",
 			idx, chunkData.Seq, len(chunkData.Content), len(chunkData.Images), chunkData.Start, chunkData.End)
-		logger.Debugf(ctx, "[DocReader] Chunk #%d 内容预览: %s", idx, contentPreview)
+		if knowledge.Channel != "vnote" {
+			logger.Debugf(ctx, "[DocReader] Chunk #%d 内容预览: %s", idx, contentPreview)
+		}
 
 		// 打印图片详细信息
 		for imgIdx, img := range chunkData.Images {
@@ -681,6 +686,9 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 	}
 
 	// Save chunks to database — ALWAYS, regardless of indexing strategy.
+	if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+		return err
+	}
 	// Chunks are needed for wiki generation, graph extraction, and summary generation
 	// even when vector/keyword indexing is disabled.
 	s.beginStage(ctx, knowledge.ID, types.StageChunking, types.JSONMap{
@@ -790,7 +798,19 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 			if err = ctx.Err(); err != nil {
 				break
 			}
+			if err = types.CheckVNoteWriteGuard(ctx); err != nil {
+				break
+			}
+			if err = s.stopUnauthorizedVNoteBoundary(ctx, knowledge); err != nil {
+				break
+			}
 			err = retrieveEngine.BatchIndex(ctx, embeddingModel, buildIndexWindow(batch))
+			if err == nil {
+				err = s.stopUnauthorizedVNoteBoundary(ctx, knowledge)
+			}
+			if err == nil {
+				err = types.CheckVNoteWriteGuard(ctx)
+			}
 			if err != nil {
 				break
 			}
@@ -801,6 +821,9 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 			// error to the queue so the idempotent parse runs again; only the
 			// final attempt (or a caller without a retry loop) records failure.
 			willRetry := summaryTaskWillRetry(ctx)
+			if knowledge.Channel == "vnote" {
+				willRetry = false
+			} // Persist unknown outcomes; another delivery cannot safely re-claim them.
 			if !willRetry {
 				knowledge.ParseStatus = types.ParseStatusFailed
 				knowledge.ErrorMessage = err.Error()
@@ -877,6 +900,9 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 		logger.Infof(ctx, "Parse attempt superseded, skipping completion: %s", knowledge.ID)
 		return nil
 	}
+	if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+		return err
+	}
 
 	// Reparse has now written the replacement chunks and, when enabled, their
 	// replacement indexes. Only at this successful point is it safe to reclaim
@@ -900,9 +926,36 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 		pendingMultimodal || pendingPDFMultimodal,
 		now,
 	)
+	if admission := types.VNoteAdmissionFromContext(ctx); admission != "" {
+		// V-Note generations have no enrichment subtasks. Publish only after
+		// all index writes finish; the repository atomically verifies the control
+		// version and switches the source's visible generation.
+		publisher, ok := s.repo.(interface {
+			PublishVNoteGeneration(context.Context, string, *types.Knowledge) error
+		})
+		if !ok {
+			return errors.New("V-Note generation publisher is unavailable")
+		}
+		if err := s.stopUnauthorizedVNoteBoundary(ctx, knowledge); err != nil {
+			return err
+		}
+		knowledge.ParseStatus = types.ParseStatusCompleted
+		knowledge.SummaryStatus = types.SummaryStatusNone
+		knowledge.ErrorMessage = ""
+		if err := publisher.PublishVNoteGeneration(ctx, admission, knowledge); err != nil {
+			return err
+		}
+		if err := s.tenantRepo.AdjustStorageUsed(ctx, tenantInfo.ID, totalStorageSize); err != nil {
+			logger.GetLogger(ctx).WithField("error", err).Errorf("V-Note storage accounting failed")
+		}
+		return nil
+	}
 
 	if err := s.updateKnowledgeUnlessSourceReplaced(ctx, knowledge); err != nil {
 		logger.GetLogger(ctx).WithField("error", err).Errorf("processChunks update knowledge failed")
+		if types.VNoteAdmissionFromContext(ctx) != "" {
+			return err
+		}
 	}
 
 	// Enqueue multimodal tasks for images (async, non-blocking)
@@ -3362,6 +3415,11 @@ func (s *knowledgeService) CancelKnowledgeParse(
 	if existing == nil {
 		return nil, werrors.NewNotFoundError("knowledge not found")
 	}
+	if existing.Channel == "vnote" {
+		if _, _, err := loadKnowledgeWrite(ctx, s.repo, s.kbService, knowledgeID); err != nil {
+			return nil, err
+		}
+	}
 
 	switch existing.ParseStatus {
 	case types.ParseStatusCancelled:
@@ -3743,6 +3801,9 @@ func (s *knowledgeService) ProcessManualUpdate(ctx context.Context, t *asynq.Tas
 	ctx = logger.WithRequestID(ctx, payload.RequestId)
 	ctx = logger.WithField(ctx, "manual_process", payload.KnowledgeID)
 	ctx = types.WithExecutionTenant(ctx, payload.TenantID)
+	if payload.VNoteAttempt != "" {
+		ctx = types.WithVNoteAdmission(ctx, payload.VNoteAttempt)
+	}
 
 	tenantInfo, err := s.tenantRepo.GetTenantByID(ctx, payload.TenantID)
 	if err != nil {
@@ -3803,6 +3864,48 @@ func (s *knowledgeService) ProcessManualUpdate(ctx context.Context, t *asynq.Tas
 	if err != nil {
 		return fmt.Errorf("invalid processing scope: %v: %w", err, asynq.SkipRetry)
 	}
+	vnoteProcessing := false
+	if kb.VNoteRootID != "" {
+		// A duplicate delivery cannot cancel or re-authorize a worker that has
+		// already claimed the document and may have an external request in flight.
+		if knowledge.ParseStatus != types.ParseStatusPending {
+			return nil
+		}
+		metadata := knowledge.GetMetadata()
+		manual, readErr := knowledge.ManualMetadata()
+		if readErr != nil {
+			return readErr
+		}
+		if manual == nil || manual.Content != payload.Content || metadata["vnote_root_id"] != kb.VNoteRootID || payload.VNoteAttempt == "" || metadata["vnote_attempt"] != payload.VNoteAttempt {
+			return nil
+		}
+		if err := s.stopUnauthorizedVNoteBoundary(ctx, knowledge); err != nil {
+			return err
+		}
+		admission, supported := s.repo.(interface {
+			BeginVNoteProcessing(context.Context, string, string, string) (bool, error)
+		})
+		if !supported {
+			return fmt.Errorf("V-Note processing admission is unavailable: %w", asynq.SkipRetry)
+		}
+		vnoteProcessing, err = admission.BeginVNoteProcessing(ctx, knowledge.ID, metadata["vnote_content_hash"], payload.VNoteAttempt)
+		if err != nil {
+			return err
+		}
+		if !vnoteProcessing {
+			return nil
+		}
+		ctx = types.WithVNoteAdmission(ctx, payload.VNoteAttempt)
+		checker, supported := s.repo.(interface {
+			CheckVNoteProcessing(context.Context, string, string, string) error
+		})
+		if !supported {
+			return fmt.Errorf("V-Note processing guard is unavailable: %w", asynq.SkipRetry)
+		}
+		ctx = types.WithVNoteWriteGuard(ctx, func(checkCtx context.Context) error {
+			return checker.CheckVNoteProcessing(checkCtx, knowledge.ID, metadata["vnote_content_hash"], payload.VNoteAttempt)
+		})
+	}
 
 	// Re-check abort status right before marking processing — see the same
 	// note in ProcessDocument for the cancel race this guards.
@@ -3812,9 +3915,11 @@ func (s *knowledgeService) ProcessManualUpdate(ctx context.Context, t *asynq.Tas
 	}
 	// Update status to processing
 	markKnowledgeProcessing(knowledge, time.Now())
-	if err := s.repo.UpdateKnowledge(ctx, knowledge); err != nil {
-		logger.Errorf(ctx, "ProcessManualUpdate: failed to update status to processing: %v", err)
-		return fmt.Errorf("mark knowledge %s processing: %w", knowledge.ID, err)
+	if !vnoteProcessing {
+		if err := s.repo.UpdateKnowledge(ctx, knowledge); err != nil {
+			logger.Errorf(ctx, "ProcessManualUpdate: failed to update status to processing: %v", err)
+			return fmt.Errorf("mark knowledge %s processing: %w", knowledge.ID, err)
+		}
 	}
 
 	// Allocate a fresh span-tracking attempt for this manual (re)index.
@@ -3831,6 +3936,9 @@ func (s *knowledgeService) ProcessManualUpdate(ctx context.Context, t *asynq.Tas
 
 	// Cleanup old resources (indexes, chunks, graph) for update operations
 	if payload.NeedCleanup {
+		if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+			return err
+		}
 		if err := s.cleanupKnowledgeResources(ctx, knowledge); err != nil {
 			logger.ErrorWithFields(ctx, err, map[string]interface{}{
 				"knowledge_id": payload.KnowledgeID,

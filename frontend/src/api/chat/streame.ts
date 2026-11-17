@@ -3,6 +3,7 @@ import { ref, onUnmounted } from 'vue';
 import { generateRandomString } from '@/utils/index';
 import i18n from '@/i18n';
 import { getApiBaseUrl } from '@/utils/api-base';
+import { getVOSReadHeaders } from '@/utils/vnote-read-proof';
 import { notifySessionMutation } from '@/components/sessionMutations';
 import type { AssistantAccessLevel } from '@/api/assistant';
 export type { CollaborationStatus, CollaborationTaskStatus, CollaborationProgress,
@@ -251,6 +252,8 @@ export function useStream() {
       // replayed once. Nothing has been streamed to the UI yet when the
       // handshake 401s, so the replay is invisible to the user.
       const runStream = async (authToken: string) => {
+        const privateReadHeaders=embedToken?{}:await getVOSReadHeaders(url);
+        if(streamAbort.signal.aborted||controllers.get(streamKey)!==currentController)return;
         const connection = new AbortController();
         const abortConnection = () => connection.abort();
         streamAbort.signal.addEventListener('abort', abortConnection, { once: true });
@@ -274,6 +277,7 @@ export function useStream() {
           "Authorization": embedToken ? `Embed ${embedToken}` : `Bearer ${authToken}`,
           "Accept-Language": i18n.global.locale?.value || localStorage.getItem('locale') || 'zh-CN',
           "X-Request-ID": requestID,
+          ...privateReadHeaders,
           ...(!embedToken && tenantIdHeader ? { "X-Tenant-ID": tenantIdHeader } : {}),
           ...(params.embed_session_sig ? { "X-Embed-Session": params.embed_session_sig } : {}),
           ...(params.embed_visitor_id ? { "X-Embed-Visitor": params.embed_visitor_id } : {}),

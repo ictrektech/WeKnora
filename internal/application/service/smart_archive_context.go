@@ -79,6 +79,9 @@ func isManagedSmartArchiveKnowledgeBase(kb *types.KnowledgeBase) bool {
 }
 
 func rejectManagedSmartArchiveMutation(ctx context.Context, kb *types.KnowledgeBase) error {
+	if err := rejectVNoteMutation(ctx, kb); err != nil {
+		return err
+	}
 	if isManagedSmartArchiveKnowledgeBase(kb) && !isSmartArchiveMutation(ctx) {
 		return ErrManagedSmartArchiveKnowledgeBase
 	}

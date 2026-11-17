@@ -67,6 +67,7 @@ type RouterParams struct {
 	CredentialVaultHandler       *handler.CredentialVaultHandler
 	EvaluationHandler            *handler.EvaluationHandler
 	AuthHandler                  *handler.AuthHandler
+	VNoteImportHandler           *handler.VNoteImportHandler `optional:"true"`
 	InitializationHandler        *handler.InitializationHandler
 	SystemHandler                *handler.SystemHandler
 	MCPServiceHandler            *handler.MCPServiceHandler
@@ -133,7 +134,7 @@ func NewRouter(params RouterParams) *gin.Engine {
 		AllowOrigins: []string{"*"},
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{
-			"Origin", "Content-Type", "Accept", "Authorization", "X-API-Key", "X-Request-ID", "X-Tenant-ID",
+			"Origin", "Content-Type", "Accept", "Authorization", "X-API-Key", "X-Request-ID", "X-Tenant-ID", middleware.VOSUserProofHeader,
 			"X-Embed-Session", "X-External-User-ID", "X-External-User-Token", "X-WeKnora-Desktop-Token",
 			// Streamable HTTP MCP clients running in a browser send these on
 			// the /mcp/:endpoint_id surface.
@@ -214,11 +215,17 @@ func NewRouter(params RouterParams) *gin.Engine {
 	r.POST("/api/v1/local-browser/extension/authorize", params.SessionHandler.BrowserSkillAuthorize)
 	r.POST("/api/v1/local-browser/internal", params.SessionHandler.BrowserSkillInternal)
 
+	if params.VNoteImportHandler != nil {
+		r.POST("/api/v1/vnote/import-note", middleware.PublicAuthRateLimit(), params.VNoteImportHandler.ImportNote)
+		r.POST("/api/v1/vnote/status", middleware.PublicAuthRateLimit(), params.VNoteImportHandler.Status)
+		r.POST("/api/v1/vnote/control", middleware.PublicAuthRateLimit(), params.VNoteImportHandler.Control)
+	}
 	// 认证中间件
 	gatewayBinding := gin.WrapH(schedulergateway.Handler())
 	r.GET(schedulergateway.Endpoint, gatewayBinding)
 	r.POST(schedulergateway.Endpoint, gatewayBinding)
 	r.Use(middleware.Auth(params.TenantService, params.UserService, params.TenantMemberService, params.TenantAPIKeyService, params.Config))
+	r.Use(middleware.VNotePrivateReads(params.UserService))
 
 	// 文件服务：统一代理本地/MinIO/COS/TOS存储后端（需要认证）
 	serveFilesWithResources(r, params.FileService, params.StorageBackendResolver, params.ResourceCatalog)

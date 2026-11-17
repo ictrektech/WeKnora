@@ -19,7 +19,8 @@ func TestGraphSearchLiveEvidenceSQL(t *testing.T) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
-	require.NoError(t, db.AutoMigrate(&types.Knowledge{}, &types.Chunk{}))
+	require.NoError(t, db.AutoMigrate(&types.Knowledge{}, &types.Chunk{}, &types.KnowledgeBase{}, &types.VNoteImportState{}))
+	require.NoError(t, db.Create(&types.KnowledgeBase{ID: "kb", TenantID: 7}).Error)
 	for _, name := range []string{
 		"live", "chunk-deleted", "doc-deleted", "chunk-disabled", "doc-disabled",
 		"deleting", "wrong-tenant", "wrong-kb", "wrong-parent", "indexing", "long",
@@ -77,6 +78,13 @@ func TestGraphSearchLiveEvidenceSQL(t *testing.T) {
 	require.True(t, rows[1].ContentTruncated)
 	require.Equal(t, 512, utf8.RuneCountInString(rows[1].Title))
 	require.True(t, rows[1].TitleTruncated)
+	require.NoError(t, db.Exec("UPDATE knowledge_bases SET v_note_root_id = ?, private_owner_id = ? WHERE id = ?", "root", "owner", "kb").Error)
+	require.NoError(t, db.Create(&types.VNoteImportState{ID: "state", UserID: "owner", KnowledgeBaseID: "kb", KnowledgeID: "live"}).Error)
+	rows, err = repo.GetGraphSourceChunks(context.Background(), 7, "kb", []string{"live", "long"})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, "live", rows[0].ID)
+	require.Equal(t, "state", rows[0].PublicKnowledgeID)
 	_, err = repo.GetGraphSourceChunks(context.Background(), 7, "kb", make([]string, 513))
 	require.Error(t, err)
 	_, err = repo.GetGraphSourceChunks(context.Background(), 0, "kb", []string{"live"})

@@ -97,6 +97,7 @@ const kbInfo = ref<any>(null);
 const isManagedSmartArchive = computed(() =>
   String(kbInfo.value?.description || '').trim().startsWith(MANAGED_SMART_ARCHIVE_KB_MARKER),
 );
+const isVNoteManaged = computed(() => kbInfo.value?.managed_source === 'vnote');
 const uploadSourceRef = ref<InstanceType<typeof KbUploadSourceDropdown> | null>(null);
 const kbLoading = ref(false);
 const docListLoading = ref(true);
@@ -335,7 +336,7 @@ const effectiveKBPermission = computed(() => orgStore.getKBPermission(kbId.value
 // hasRole('contributor') is intentionally NOT here — being a Contributor
 // in a tenant does not by itself grant edit on someone else's KB.
 const canEdit = computed(() => {
-  if (isManagedSmartArchive.value) return false;
+  if (isManagedSmartArchive.value || isVNoteManaged.value) return false;
   const permission = effectiveKBPermission.value;
   if (permission) return permissionCanEditKB(permission);
   if (isViaShare.value) return orgStore.canEditKB(kbId.value, false);
@@ -2650,6 +2651,10 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
             </div>
           </div>
           <p v-if="kbInfo?.description" class="document-subtitle">{{ kbInfo.description }}</p>
+          <p v-if="isVNoteManaged" class="document-subtitle">
+            {{ $t('knowledgeBase.vnoteSource') }}
+            <a href="/#/app/com.ictrek.v-note/v-note" target="_blank" rel="noopener noreferrer">{{ $t('knowledgeBase.vnoteSettings') }}</a>
+          </p>
           <p v-if="canEdit && unsupportedFileTypes.length" class="parser-hint" @click="goToParserSettings">
             <t-icon name="info-circle" class="parser-hint-icon" />
             <span>{{$t('knowledgeBase.unsupportedTypesHint', {

@@ -1,5 +1,6 @@
 import { post, get, put } from '@/utils/request'
 import i18n from '@/i18n'
+import { getApiBaseUrl } from '@/utils/api-base'
 
 const t = (key: string) => i18n.global.t(key)
 
@@ -267,6 +268,23 @@ export async function loginWithVOSOIDC(accessToken: string, idToken?: string): P
       message: error.message || 'VOS OIDC unavailable',
     }
   }
+}
+
+// Pin the explicitly confirmed session. Generic automatic SSO retry must not
+// change the target account or resend this identity-association operation.
+export async function bindVOSIdentity(accessToken: string, localSession: string): Promise<{ success: boolean }> {
+  const endpoint = new URL(`${getApiBaseUrl().replace(/\/$/, '')}/api/v1/auth/vos-identity`, window.location.origin)
+  if (endpoint.origin !== window.location.origin || !localSession) throw new Error('invalid_identity_binding_session')
+  const response = await fetch(endpoint.href, {
+    method: 'POST', credentials: 'omit', redirect: 'error', cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localSession}` },
+    body: JSON.stringify({ access_token: accessToken }),
+  })
+  if (!response.ok) throw new Error(response.status === 409 ? 'identity_conflict' : 'identity_binding_failed')
+  const result = await response.json()
+  if (result?.success !== true || result?.data?.bound !== true) throw new Error('identity_binding_failed')
+  return { success: true }
 }
 
 /**

@@ -74,7 +74,9 @@ type KnowledgeBase struct {
 	// their own KBs without granting them access to everyone else's.
 	// Nullable for backward compatibility with rows created before the
 	// RBAC migration backfilled the column to the workspace Owner.
-	CreatorID string `yaml:"creator_id"              json:"creator_id"              gorm:"type:varchar(36);index"`
+	CreatorID      string `yaml:"creator_id"              json:"creator_id"              gorm:"type:varchar(36);index"`
+	PrivateOwnerID string `yaml:"-" json:"-" gorm:"type:varchar(128);not null;default:'';<-:create"`
+	VNoteRootID    string `yaml:"-" json:"-" gorm:"type:varchar(255);not null;default:'';<-:create"`
 	// Chunking configuration
 	ChunkingConfig ChunkingConfig `yaml:"chunking_config"         json:"chunking_config"         gorm:"type:json" extensions:"x-agent,x-agent-detail"`
 	// Image processing configuration
@@ -976,10 +978,14 @@ func (kb *KnowledgeBase) MarshalJSON() ([]byte, error) {
 	redacted.VLMConfig.APIKey = ""
 	aux := struct {
 		*alias
-		Capabilities KBCapabilities `json:"capabilities"`
+		Capabilities  KBCapabilities `json:"capabilities"`
+		ManagedSource string         `json:"managed_source,omitempty"`
 	}{
 		alias:        (*alias)(&redacted),
 		Capabilities: kb.Capabilities(),
+	}
+	if kb.PrivateOwnerID != "" && kb.VNoteRootID != "" {
+		aux.ManagedSource = "vnote"
 	}
 	return json.Marshal(aux)
 }

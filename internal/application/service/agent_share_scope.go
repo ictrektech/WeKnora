@@ -29,13 +29,11 @@ type kbBatchLookup func(ctx context.Context, ids []string) ([]*types.KnowledgeBa
 func checkAgentKBScopeShareable(
 	ctx context.Context, lookup kbBatchLookup, before, after *types.CustomAgent, userID string,
 ) error {
-	if canShareAnyKB(ctx) {
-		return nil
-	}
+	mayShareAny := canShareAnyKB(ctx)
 	previous := types.NewSharedAgentKBScope(before)
 	next := types.NewSharedAgentKBScope(after)
 	if next.IsAll() {
-		if previous.IsAll() {
+		if previous.IsAll() || mayShareAny {
 			return nil
 		}
 		return ErrAgentKBScopeNotShareable
@@ -56,6 +54,12 @@ func checkAgentKBScopeShareable(
 	for _, kb := range kbs {
 		// A KB of another workspace is outside an agent share's scope.
 		if kb == nil || kb.TenantID != after.TenantID {
+			continue
+		}
+		if kb.PrivateOwnerID != "" {
+			return ErrAgentKBScopeNotShareable
+		}
+		if mayShareAny {
 			continue
 		}
 		if kb.CreatorID == "" || kb.CreatorID != userID {

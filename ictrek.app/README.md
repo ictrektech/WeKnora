@@ -1,5 +1,30 @@
 # HybRAG VOS 应用说明
 
+V-Note 联动首次提示账号未关联时，请在 HybRAG「设置 → 用户信息 → 关联 VOS 账号」
+确认当前账号归属，再返回 V-Note 集成页重试。旧账号保留原有资料，不按同名自动建立
+关联。新账号只有在严格核验启用中的 VOS 用户及稳定 subject 后，才与账号创建一并
+写入身份绑定；冲突时整笔账号创建事务回滚。该操作不开始同步、不读取笔记正文。
+
+If V-Note reports an unassociated account, open HybRAG Settings → User Profile →
+Associate VOS account, confirm ownership, then return to V-Note and retry. Existing
+accounts retain their data and are not associated by matching names. New accounts
+are atomically associated only after strict verification of an enabled VOS user
+and stable subject; a conflicting binding rolls back account creation. Association
+does not start synchronization or read note bodies.
+
+本地候选包预检可设置 `PACKAGE_IMAGE_ENV_FILE=/绝对路径/images.env`，显式提供全部 AMD/ARM
+组件及基础镜像引用，再运行 `PACKAGE_VERSION=X.Y.Z bash ictrek.app/scripts/package.sh`。
+此入口跳过飞书镜像查询，严格校验清单且不执行其中的 shell 内容；仍实时核验 PGV 发布依赖。
+未推送的候选镜像仅用于本机预检，不能据此宣称 pull 包已可分发升级。默认发布流程仍从飞书取版本。
+
+For local candidate prechecks, set `PACKAGE_IMAGE_ENV_FILE=/absolute/path/images.env`
+with every AMD/ARM component and base-image reference, then run
+`PACKAGE_VERSION=X.Y.Z bash ictrek.app/scripts/package.sh`. This explicit map
+skips Feishu image lookup, validates every entry without evaluating shell input,
+and still verifies the live PGV release dependency. Unpublished candidate images
+support local prechecks; their pull package is not ready for distribution. The
+default release path continues to resolve images through Feishu.
+
 本目录是 ictrek 维护 HybRAG 的唯一当前部署入口。HybRAG 不再维护独立 compose 部署流程，只作为 VOS app `com.ictrek.hybrag` 打包、安装和升级。
 
 开发分支的上游整合、兼容取舍及验证范围见[上游同步记录](docs/upstream-sync.md)。源码合并后仍须完成镜像与 VOS 包发布，已安装应用才会获得更新。
@@ -15,6 +40,74 @@
 后端镜像在 appuser 与 root 的默认 DuckDB 缓存目录均预装同版本 spatial/excel 扩展。VOS root 模式启动不依赖外网下载扩展，也不需要禁用 DuckDB 或 XLSX 能力。
 
 系统设置的“版本信息”会同时显示代码构建版本、VOS App 版本以及当前 profile 使用的 `weknora`、`weknora-ui`、`weknora-docreader`、`weknora-sandbox` 镜像 tag。VOS App 版本由 `package.sh` 将 `__APP_VERSION__` 渲染为发布版本；四个镜像引用由 GitHub Actions 打包时从飞书读取并写入 compose，随后作为环境变量传给后端。普通非 VOS 部署不设置这些变量时不会显示对应行，也不影响启动。
+
+## V-Note 联动开发状态 / V-Note integration status
+
+联动仍在开发，完整范围见[设计](docs/v-note-integration.md)。当前新增身份绑定基础：
+`POST /api/v1/auth/vos-identity` 使用当前 HybRAG 用户 JWT 作为 Bearer，JSON
+`access_token` 携带该用户新取得的 VOS 令牌。接口要求两种证明，不能用工作区 API Key
+或应用永久 admin 凭据代替。绑定冲突返回 409，不会覆盖已有绑定；绑定后 VOS 改名仍解析
+到原 HybRAG 账号。
+
+V-Note integration is in development. The new `POST /api/v1/auth/vos-identity`
+endpoint requires a current HybRAG user JWT and a fresh VOS user token in the
+JSON `access_token` field. Workspace keys and permanent application credentials
+cannot substitute for these proofs. Conflicting bindings return 409; established
+bindings keep the same local account after a VOS rename. See the linked design for scope.
+
+新增单篇手动同步的后端链路：V-Note 已登录用户调用其
+`POST /api/v1/integrations/hybrag/sync-note`，由两端校验同一 VOS subject，
+通过五分钟单次票据传送指定根笔记本下的一篇笔记。HybRAG 在所属个人空间创建
+所有者私有知识库，按标题与 Markdown 正文去重；变化时整篇重新索引。
+正文保存在数据库的手工知识记录中，不生成共享原始文件。附件和特殊类型笔记暂不支持。
+摘要、问题、图谱、Wiki、自动标签均关闭；全实例 V-Note 同时仅处理一篇文档，
+其余请求返回 `409 vnote_busy`，调用方稍后重试。必须先配置启用的默认 Embedding 模型。
+
+The backend now supports manual single-note imports through V-Note's
+`POST /api/v1/integrations/hybrag/sync-note`. Both apps verify the same VOS subject;
+a five-minute, single-use ticket scopes the export to one note beneath the selected
+root notebook. HybRAG creates an owner-private knowledge base in the user's home
+workspace. Identical title/body content skips indexing; changed content rebuilds
+the entire note. Markdown is stored inline in the database, with no shared raw
+file. Attachments and specialized note types are unsupported. Summary, questions,
+graph, Wiki and auto-tag generation are off. One V-Note document can be processed
+per HybRAG instance; concurrent imports return `409 vnote_busy` for later retry.
+An active default embedding model must already be configured.
+
+HybRAG 的源地址使用 `HYBRAG_VNOTE_URL`（默认 `http://v-note-backend:8787`）；
+V-Note 的目标地址使用 `EDGE_EVER_HYBRAG_URL`（默认 `http://hybrag-app:8080`）。
+它们只能由部署配置设置，跨服务请求拒绝重定向。升级需执行 PostgreSQL 000161–000163 /
+SQLite 000065–000067 和 V-Note 0094–0099。V-Note 个人中心可选择根、查看状态并手动逐篇同步；
+目标端 `/api/v1/vnote/status` 按稳定用户绑定返回单篇状态，知识库页面显示来源。
+仅在 V-Note 页面打开时推进；自动授权、后台委托和定时同步尚未实现，未绑定旧账号不会按用户名
+静默关联。停用会阻止后续源读取和票据兑换，已接收的索引任务可能完成；源笔记删除和移动
+尚不会清理旧副本。未发布，真实 VOS 旧版升级、模型检索及 tc207 资源表现尚未验收。
+
+开发中新增 PostgreSQL 000162 / SQLite 000066 控制快照存储；源快照携带个人空间和配置版本。
+设置页可使用当前用户证明投递控制事件；目标入库、任务领取、知识记录及索引批次写入前
+检查版本。新版本使用独立暂存文档，并以数据库指针切换可见版本；源不可达校验、后台
+委托和崩溃恢复仍未完成，完整撤权闭环尚未验收。
+
+In development: PostgreSQL 000162 / SQLite 000066 add control snapshot storage,
+and source snapshots carry workspace and configuration version. Settings can
+deliver controls using the current user proof; admission, worker claims and index
+batch writes check versions. New content is staged separately and a database
+pointer selects the published version. Source availability checks, background
+delegation and crash recovery remain incomplete and the full revocation flow is
+not yet validated.
+
+Set the source address with HybRAG's `HYBRAG_VNOTE_URL` (default
+`http://v-note-backend:8787`) and the target with V-Note's `EDGE_EVER_HYBRAG_URL`
+(default `http://hybrag-app:8080`). These are deployment-controlled; cross-service
+redirects are rejected. Apply PostgreSQL 000161–000163 / SQLite 000065–000067 and V-Note 0094–0099.
+V-Note settings selects roots and advances manual imports while its page is open;
+HybRAG's `/api/v1/vnote/status` checks the stable binding and returns indexing
+state, and the knowledge base page identifies its source. Automatic account binding,
+background delegation and schedules remain unavailable. Existing unbound accounts
+are not silently matched by username. Disabling blocks later source reads and ticket
+redemption; already admitted indexing may finish. Source deletion and moves do not
+yet remove old copies. This is unreleased; actual VOS upgrades, model retrieval and
+tc207 resource behavior remain unverified.
 
 ## 查找 API 使用文档 / Finding the API documentation
 
@@ -33,6 +126,7 @@ Open HybRAG → the account menu at the bottom left → **All Settings → Publi
 | `docs/patent-workspace.md` | 当前维护 | 专利检索与写作指导、独立会话、工作区开关及数据清理边界。 |
 | `docs/legal-assistant.md` | 当前维护 | 法务对话助手的使用范围、会话归属、权限和验证边界。 |
 | `docs/smart-archive.md` | 当前维护 | 智能档案的导入队列、字段证据、检索、提醒和验证边界。 |
+| `docs/v-note-integration.md` | 设计，待实现 | V-Note 联动的设置入口、知识库映射、同步策略、资源控制、身份隔离与验收要求。 |
 | `docs/build-images.md` | 当前维护 | HybRAG 四个自有镜像的远端构建、推送和飞书记录规则。 |
 | `docs/vos-ollama-prewarm.md` | 当前维护 | Model Hub QA/VLM、embedding 下载、预热和原生 Ollama 接口排错。 |
 | `docs/local-dev/README.md` | 当前维护 | 源码后端/前端的本地快速调试、隔离基础设施和模型 endpoint 配置。 |
@@ -533,3 +627,100 @@ default. No capacity or admission protection is bypassed.
 设置 → API 文档保留章节库，新增完整字段参考，打包当前原生 Swagger，生产环境无需开启调试模式；修正文档 glob 相对路径并纳入 VOS 专用文档。
 [中文](docs/api/vos-api-contract.md) / [English](docs/api/vos-api-contract.en.md) 说明 VOS/个人 Key、工作区/KB范围、完整配置式 Key 修改、返回秘密、SSE/入库状态、错误及不同协议边界。
 本轮只更新代码和两份用户指南，不更新本应用镜像或发布安装包，随下次发版进入界面。
+
+### V-Note 后台授权 / V-Note background authorization
+
+新建 V-Note 同步知识库优先使用工作区默认 Embedding，其次使用部署默认；均未设置时，
+仅在恰有一个启用的 YAML 托管内置 Embedding 时自动使用它。多个候选或仅有未选中的
+自定义模型时，先在 HybRAG 设置默认模型再重试；已有知识库不自动换模型。
+接口仅对索引前的模型缺失返回 HTTP 422、`code=vnote_embedding_unavailable` 和
+`accepted=false`，允许源端修复配置后重试。其他 422 不代表任务未被接收。
+托管库无需配置摘要模型即可从知识库卡片打开文档；以服务端 `managed_source=vnote`
+识别来源，普通知识库仍保留原来的模型初始化检查。
+
+New V-Note knowledge bases prefer the workspace embedding default, then the
+deployment default. Without either, exactly one active YAML-managed built-in
+embedding may be selected automatically. Ambiguous or unselected custom models
+require an explicit default; existing knowledge bases keep their model. Only a
+pre-admission missing-model refusal returns HTTP 422 with
+`code=vnote_embedding_unavailable` and `accepted=false`; other 422 responses
+do not establish that a task was never accepted.
+Managed V-Note cards open their document view without a summary model, using the
+server's `managed_source=vnote` marker. Ordinary KB initialization is unchanged.
+
+开发中的后台授权使用当前 VOS 用户和源端单次票据绑定，专用凭据不能用于普通 API。
+PostgreSQL 000164 / SQLite 000068 保存按精确所有者加密的连接凭据；VOS 包在现有
+持久运行卷的 `/data/vnote-secrets/encryption.key` 自动建立独立密钥，不改变现有登录、
+签名链接或模型加密密钥。升级与备份必须保留该运行卷。独立部署可配置
+`HYBRAG_VNOTE_KEY_FILE` 或 32 字节的 `HYBRAG_VNOTE_ENCRYPTION_KEY`，旧密钥通过
+`HYBRAG_VNOTE_ENCRYPTION_KEY_PREVIOUS` 保留读取；没有可用密钥时不开放后台能力。
+委托任务在领取、索引批次前后及发布前检查平台与源范围、配置及内容版本；核验失败停止推进，
+保留旧副本。已撤销凭据仅能投递对应连接的停用控制。000165 / 000069 增加持久增量队列，
+支持源端设置的默认 15 分钟间隔、夜间窗口或仅手动模式。元数据未变化不取正文或调用模型，
+完整快照成功后才对账缺失副本。删除仅切换本人副本的可见指针，不立即回收旧索引；在途模型请求
+不会因此释放槽位。V-Note 私有知识库的 Web 读取通过现有桥接附带当前用户证明，逐请求
+检查平台启用状态和稳定绑定；主动停止同步不妨碍正常用户读取保留副本。证明仅在内存保留，
+不发往其他域或应用。仍待完成子树暂停、托管知识库删除、未知模型结果恢复及真实设备升级
+验收；尚未部署或发布。
+详见 [联动设计](docs/v-note-integration.md)。
+
+整根暂停保留可检索副本并停止新读取，保存/恢复使用新配置围栏。自动同步等待近期编辑
+稳定约一分钟再读正文；立即同步不等待。夜间窗口在真实 worker 开始前再次核验，已开始
+单篇可完成。空根及仅手动后台连接也创建私有知识库，目录改名不调用模型；创建和改名受
+数据库控制版本锁保护。未知外部结果保留槽位，页面显示恢复提示；尚无自动释放保证。
+
+000166 / 000070 为无需模型的删除待办加索引。仅手动和夜间窗口外也按间隔处理笔记删除、
+移出范围的副本，不读正文或启动模型；整根暂停和停止会保留副本。后台 pending 超过 90 秒
+时精确检查原队列 ID，确认丢失才补投同一 attempt；正常排队和重试退避不变。已开始或外部
+结果未知的模型任务不会重放；旧手动运行和真实 Redis/设备灾难恢复不在已完成验收范围。
+
+Background authorization binds the current VOS user and a single-use source ticket;
+its restricted credential cannot authenticate ordinary APIs. PostgreSQL 000164 /
+SQLite 000068 persist credentials encrypted for their exact owner. VOS packages
+automatically create an independent key at `/data/vnote-secrets/encryption.key`
+in the existing persistent runtime volume. Existing session, signing and model
+keys are unchanged; retain that volume across upgrades and backups. Standalone
+deployments may set `HYBRAG_VNOTE_KEY_FILE` or a 32-byte
+`HYBRAG_VNOTE_ENCRYPTION_KEY`, retaining the previous key through
+`HYBRAG_VNOTE_ENCRYPTION_KEY_PREVIOUS`. Background capability is unavailable when
+no valid key exists. Delegated tasks recheck platform and source scope, configuration
+and content at admission, around index batches and before publication. Failed
+checks stop advancement and preserve the old copy. Revoked credentials can only
+deliver a disable control for their existing connection. PostgreSQL 000165 /
+SQLite 000069 add persistent incremental queues for the source's interval/night/
+manual plan. The default interval is 15 minutes. Unchanged metadata needs no body
+or model call; only complete snapshots reconcile missing copies. Deletion hides
+the owner's published pointer without immediately reclaiming physical indexes
+or releasing an in-flight model slot. Private V-Note Web reads attach a current
+human proof through the existing bridge and recheck platform status plus stable
+binding per request. Stopping sync still permits an active owner to read retained
+copies. Proof stays in memory and is not sent to other origins/apps. Subtree pause,
+managed-KB deletion, uncertain model-outcome recovery and actual device upgrades
+remain pending. This feature has not been deployed or released.
+
+Whole-root pause retains searchable copies and blocks new source reads until a
+resumed configuration is delivered. Automatic sync waits about one minute for
+recent edits to settle before body export; Sync now bypasses the wait. Actual
+workers recheck the night window before starting, allowing a started document to
+finish. Empty roots and manual-only background connections provision private
+KBs; directory renames invoke no models. Creation and rename hold the delivered
+control's database lock. Unknown external outcomes retain the slot and show a
+recovery warning, without claiming safe automatic release.
+
+PostgreSQL 000166 / SQLite 000070 index deletion-only due work. Manual-only and
+closed night windows still reconcile deleted/moved-out note copies at intervals,
+without bodies or models; root pause/stop retains copies. Pending automatic work
+older than 90 seconds checks its exact queue ID and repairs confirmed missing
+delivery with the same attempt. Existing queue/backoff is preserved. Started or
+unknown external outcomes are never replayed. Older manual runs and real Redis/
+device disaster recovery have not completed acceptance.
+
+仍选中且未暂停的源根删除或移出空间后，通过完整空快照对账清理可见副本，保留空私有库和
+原名称。恢复同一根会重新核验范围并按计划补齐；暂停/停止和未知在途模型的保留边界不变。
+本轮没有新增迁移；单篇/子树暂停、知识库删除及物理回收仍待完成。
+
+A deleted/moved-away selected source root reconciles through a complete empty
+snapshot, hiding copies and retaining its private KB/name. Restoring that root
+revalidates scope and catches up under the plan. Pause/stop and unknown in-flight
+model retention boundaries still apply. No new migration is needed. Per-note/
+subtree pause, managed-KB deletion and physical reclamation remain outstanding.

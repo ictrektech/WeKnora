@@ -17,6 +17,7 @@ func scopeTestLookup(_ context.Context, ids []string) ([]*types.KnowledgeBase, e
 		"colleague": {ID: "colleague", TenantID: 42, CreatorID: "someone-else"},
 		"legacy":    {ID: "legacy", TenantID: 42},
 		"foreign":   {ID: "foreign", TenantID: 7, CreatorID: "someone-else"},
+		"private":   {ID: "private", TenantID: 42, CreatorID: "sharer", PrivateOwnerID: "sharer", VNoteRootID: "root"},
 	}
 	var out []*types.KnowledgeBase
 	for _, id := range ids {
@@ -47,6 +48,8 @@ func TestCheckAgentKBScopeShareable(t *testing.T) {
 		wantErr       bool
 	}{
 		{name: "own KBs", ctx: contributor, after: scopedAgent("selected", "mine")},
+		{name: "private KB", ctx: contributor, after: scopedAgent("selected", "private"), wantErr: true},
+		{name: "admin cannot share private KB", ctx: role(types.TenantRoleAdmin), after: scopedAgent("selected", "private"), wantErr: true},
 		{
 			name: "another workspace's KB is outside the scope", ctx: contributor,
 			after: scopedAgent("selected", "mine", "foreign"),

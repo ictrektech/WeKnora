@@ -279,7 +279,10 @@ test('a silent broken proxy connection times out and resumes by GET; heartbeats 
   const base = transport.calls.length
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const run = stream.startStream({ session_id: 'parent', query: 'work', method: 'POST', url: '/api/v1/agent-chat' })
+  // Human-proof acquisition now finishes before the transport is opened.
+  for (let i = 0; i < 20 && transport.calls.length === base; i++) await Promise.resolve()
   const post = transport.calls[base]
+  assert.ok(post)
   post.options.onmessage({ data: JSON.stringify({ response_type: 'agent_query', assistant_message_id: 'answer-1' }) })
   t.mock.timers.tick(20000)
   post.options.onmessage({ data: JSON.stringify({ response_type: 'heartbeat' }) })
@@ -349,7 +352,9 @@ test('a reopened stream with no first event times out and keeps its approval seg
   const base = transport.calls.length
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const run = stream.startStream({ session_id: 's', query: 'a1', method: 'GET', url: '/api/v1/sessions/continue-stream', resume_pending_id: 'pending-1' })
+  for (let i = 0; i < 20 && transport.calls.length === base; i++) await Promise.resolve()
   const replay = transport.calls[base]
+  assert.ok(replay)
   await replay.options.onopen(new Response('', { status: 200 }))
   t.mock.timers.tick(30001)
   for (let i = 0; i < 20; i++) await Promise.resolve()

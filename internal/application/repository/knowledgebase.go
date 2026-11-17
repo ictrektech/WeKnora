@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/application/access"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"gorm.io/gorm"
@@ -24,6 +25,17 @@ func NewKnowledgeBaseRepository(db *gorm.DB) interfaces.KnowledgeBaseRepository 
 
 // CreateKnowledgeBase creates a new knowledge base
 func (r *knowledgeBaseRepository) CreateKnowledgeBase(ctx context.Context, kb *types.KnowledgeBase) error {
+	if kb.PrivateOwnerID == "" {
+		return r.db.WithContext(ctx).Omit("private_owner_id", "v_note_root_id").Create(kb).Error
+	}
+	if scope, ok := types.VNoteRootScopeFromContext(ctx); ok {
+		return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := lockVNoteKBProvisioning(ctx, tx, scope, kb); err != nil {
+				return err
+			}
+			return tx.Create(kb).Error
+		})
+	}
 	return r.db.WithContext(ctx).Create(kb).Error
 }
 
@@ -35,6 +47,9 @@ func (r *knowledgeBaseRepository) GetKnowledgeBaseByID(ctx context.Context, id s
 			return nil, ErrKnowledgeBaseNotFound
 		}
 		return nil, err
+	}
+	if !access.CanLoadPrivateKB(ctx, &kb) {
+		return nil, ErrKnowledgeBaseNotFound
 	}
 	return &kb, nil
 }
@@ -48,6 +63,9 @@ func (r *knowledgeBaseRepository) GetKnowledgeBaseByIDAndTenant(ctx context.Cont
 		}
 		return nil, err
 	}
+	if !access.CanLoadPrivateKB(ctx, &kb) {
+		return nil, ErrKnowledgeBaseNotFound
+	}
 	return &kb, nil
 }
 
@@ -60,7 +78,7 @@ func (r *knowledgeBaseRepository) GetKnowledgeBaseByIDs(ctx context.Context, ids
 	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&kbs).Error; err != nil {
 		return nil, err
 	}
-	return kbs, nil
+	return access.FilterPrivateKBs(ctx, kbs), nil
 }
 
 // ListKnowledgeBases lists all knowledge bases
@@ -69,7 +87,7 @@ func (r *knowledgeBaseRepository) ListKnowledgeBases(ctx context.Context) ([]*ty
 	if err := r.db.WithContext(ctx).Find(&kbs).Error; err != nil {
 		return nil, err
 	}
-	return kbs, nil
+	return access.FilterPrivateKBs(ctx, kbs), nil
 }
 
 // ListKnowledgeBasesByTenantID lists all knowledge bases by tenant id.
@@ -88,7 +106,7 @@ func (r *knowledgeBaseRepository) ListKnowledgeBasesByTenantID(
 		Order("created_at DESC").Find(&kbs).Error; err != nil {
 		return nil, err
 	}
-	return kbs, nil
+	return access.FilterPrivateKBs(ctx, kbs), nil
 }
 
 // userKBPinRow mirrors the user_kb_pins table. Kept local to the
@@ -169,6 +187,9 @@ func (r *knowledgeBaseRepository) ListUserKBPinIDs(
 
 // UpdateKnowledgeBase updates a knowledge base
 func (r *knowledgeBaseRepository) UpdateKnowledgeBase(ctx context.Context, kb *types.KnowledgeBase) error {
+	if _, err := r.GetKnowledgeBaseByID(ctx, kb.ID); err != nil {
+		return err
+	}
 	return r.db.WithContext(ctx).Save(kb).Error
 }
 
@@ -195,6 +216,17 @@ func (r *knowledgeBaseRepository) UpdateKnowledgeBaseGeneratedProfile(
 
 // DeleteKnowledgeBase deletes a knowledge base
 func (r *knowledgeBaseRepository) DeleteKnowledgeBase(ctx context.Context, id string) error {
+	var kb types.KnowledgeBase
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&kb).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !access.CanLoadPrivateKB(ctx, &kb) {
+		return ErrKnowledgeBaseNotFound
+	}
 	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&types.KnowledgeBase{}).Error
 }
 

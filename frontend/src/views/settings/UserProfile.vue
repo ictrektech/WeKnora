@@ -22,6 +22,7 @@
 
     <!-- Content -->
     <div v-else class="settings-group">
+      <VOSIdentityBinding :username="userInfo?.username || ''" />
       <!-- 用户 ID -->
       <div class="setting-row">
         <div class="setting-info">
@@ -184,6 +185,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { newPasswordRules } from '@/utils/passwordPolicy'
+import VOSIdentityBinding from '@/components/VOSIdentityBinding.vue'
 
 const { t, locale } = useI18n()
 const router = useRouter()

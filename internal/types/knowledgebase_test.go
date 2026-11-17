@@ -464,3 +464,14 @@ func TestKnowledgeBase_IsImageVectorEnabled(t *testing.T) {
 		t.Errorf("round trip lost the switch: %s", raw)
 	}
 }
+
+func TestKnowledgeBaseVNoteSourceHidesOwnerAndRoot(t *testing.T) {
+	kb := &KnowledgeBase{PrivateOwnerID: "private-owner", VNoteRootID: "private-root"}
+	data, err := json.Marshal(kb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"managed_source":"vnote"`) || strings.Contains(string(data), "private-owner") || strings.Contains(string(data), "private-root") {
+		t.Fatalf("unexpected managed-source JSON: %s", data)
+	}
+}

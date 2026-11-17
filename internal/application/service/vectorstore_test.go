@@ -851,6 +851,8 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     description TEXT,
     tenant_id INTEGER NOT NULL,
     creator_id VARCHAR(36),
+    private_owner_id VARCHAR(128) NOT NULL DEFAULT '',
+    v_note_root_id VARCHAR(255) NOT NULL DEFAULT '',
     type VARCHAR(32) NOT NULL DEFAULT 'document',
     chunking_config TEXT NOT NULL DEFAULT '{}',
     image_processing_config TEXT NOT NULL DEFAULT '{}',

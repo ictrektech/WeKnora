@@ -1,4 +1,13 @@
 export default {
+  vosIdentityBinding: {
+    title: "VOS 账号关联",
+    description: "将当前 HybRAG 账号与 VOS 身份关联，以使用 V-Note 联动。旧账号首次需要确认一次。",
+    action: "关联 VOS 账号",
+    linked: "已关联",
+    confirm: "请确认 HybRAG 账号 {username} 属于您，并将其与当前 VOS 身份关联。该账号原有的知识库和空间继续保留。",
+    success: "关联成功，请返回 V-Note 的 HybRAG 集成页面点击“重试”。",
+    failed: "关联失败。请确认当前 VOS 和 HybRAG 账号；若已有冲突关联，请联系管理员核查。",
+  },
   patentExamples: {
       "sidebarTitle": "示例",
       "empty": "暂无可展示示例",
@@ -8984,6 +8993,8 @@ export default {
     staleGeneratedQuestions: '问题基于编辑前内容生成，可按需重新生成',
     noGeneratedQuestions: '暂无辅助召回问题',
     notInitialized: '该知识库尚未完成初始化配置，请先前往设置页面配置模型信息后再上传文件',
+    vnoteSource: "来源：V-Note。正文由 V-Note 管理，文档列表显示索引状态。",
+    vnoteSettings: "打开 V-Note，在个人中心选择集成",
     missingStorageEngine: '该知识库尚未选择存储引擎，请先前往设置页面配置存储引擎后再上传内容。',
     missingStorageEngineUpload: '请先配置存储引擎后再上传内容',
     goToStorageSettings: '前往配置',

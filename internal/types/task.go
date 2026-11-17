@@ -499,6 +499,7 @@ type KnowledgeMoveProgress struct {
 // ManualProcessPayload represents the manual knowledge processing task payload.
 // Used for both create (publish) and update operations.
 type ManualProcessPayload struct {
+	VNoteAttempt string `json:"vnote_attempt,omitempty"`
 	TracingContext
 	RequestId       string `json:"request_id"`
 	TenantID        uint64 `json:"tenant_id"`

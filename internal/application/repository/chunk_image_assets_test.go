@@ -28,6 +28,7 @@ import (
 func imageAssetBackends(t *testing.T, fn func(t *testing.T, db *gorm.DB)) {
 	t.Run("sqlite", func(t *testing.T) {
 		db := setupChunkTestDB(t)
+		require.NoError(t, db.AutoMigrate(&types.KnowledgeBase{}, &types.Knowledge{}, &types.VNoteImportState{}))
 		applyChunkImagesMigration(t, db)
 		fn(t, db)
 	})
@@ -38,7 +39,7 @@ func imageAssetBackends(t *testing.T, fn func(t *testing.T, db *gorm.DB)) {
 		}
 		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		require.NoError(t, err)
-		require.NoError(t, db.AutoMigrate(&types.Chunk{}))
+		require.NoError(t, db.AutoMigrate(&types.Chunk{}, &types.KnowledgeBase{}, &types.Knowledge{}, &types.VNoteImportState{}))
 		applyChunkImagesMigration(t, db)
 		fn(t, db)
 	})
@@ -68,7 +69,34 @@ type imageFixture struct {
 }
 
 func newImageFixture(t *testing.T, db *gorm.DB) *imageFixture {
-	return &imageFixture{t: t, db: db, kbID: uuid.NewString(), base: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	fx := &imageFixture{t: t, db: db, kbID: uuid.NewString(), base: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	require.NoError(t, db.Create(&types.KnowledgeBase{ID: fx.kbID, TenantID: 1}).Error)
+	return fx
+}
+
+func TestVNoteImageGalleryOnlyUsesPublishedGeneration(t *testing.T) {
+	imageAssetBackends(t, func(t *testing.T, db *gorm.DB) {
+		fx := newImageFixture(t, db)
+		require.NoError(t, db.Exec("UPDATE knowledge_bases SET v_note_root_id = ?, private_owner_id = ? WHERE id = ?", "root", "owner", fx.kbID).Error)
+		old := fx.add("image", 1, fixtureImage{URL: "shared", Caption: "published"})
+		staged := fx.add("image", 2, fixtureImage{URL: "shared", Caption: "secret"}, fixtureImage{URL: "staged-only"})
+		require.NoError(t, db.Model(&types.Chunk{}).Where("id = ?", staged.ID).Update("knowledge_id", "staged").Error)
+		for _, id := range []string{old.KnowledgeID, "staged"} {
+			require.NoError(t, db.Create(&types.Knowledge{ID: id, TenantID: 1, KnowledgeBaseID: fx.kbID}).Error)
+		}
+		require.NoError(t, db.Create(&types.VNoteImportState{ID: uuid.NewString(), UserID: "owner", KnowledgeBaseID: fx.kbID, KnowledgeID: old.KnowledgeID}).Error)
+		rows, total := fx.list(types.ImageAssetQuery{})
+		require.EqualValues(t, 1, total)
+		require.Len(t, rows, 1)
+		require.Equal(t, "published", rows[0].Caption)
+		rows, total = fx.list(types.ImageAssetQuery{Keyword: "secret", SearchFields: []types.ImageAssetField{{Builtin: "caption"}}})
+		require.Empty(t, rows)
+		require.Zero(t, total)
+		require.NoError(t, db.Exec("UPDATE vnote_import_states SET user_id = ? WHERE knowledge_base_id = ?", "other", fx.kbID).Error)
+		rows, total = fx.list(types.ImageAssetQuery{})
+		require.Empty(t, rows)
+		require.Zero(t, total)
+	})
 }
 
 // fixtureImage is one image_info entry, written in the persisted shape: the

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS knowledges (
     id              VARCHAR(64) PRIMARY KEY,
     tenant_id       INTEGER NOT NULL DEFAULT 0,
     knowledge_base_id VARCHAR(64),
+    channel         VARCHAR(50) NOT NULL DEFAULT 'web',
     parse_status    VARCHAR(32) NOT NULL DEFAULT 'pending',
     summary_status  VARCHAR(32) NOT NULL DEFAULT 'none',
     pending_subtasks_count INTEGER NOT NULL DEFAULT 0,
@@ -228,6 +229,20 @@ func TestHousekeeping_RecoversAbandoned(t *testing.T) {
 	).Row().Scan(&status, &errMsg))
 	assert.Equal(t, types.ParseStatusFailed, status)
 	assert.Contains(t, errMsg, "stuck in processing")
+}
+
+func TestHousekeepingDoesNotReleaseVNoteSlotOnTimeout(t *testing.T) {
+	db := setupHousekeepingDB(t)
+	svc := newHousekeepingSvcForTest(db)
+	insertKnowledge(t, db, "vnote-active", types.ParseStatusProcessing, time.Now().Add(-3*time.Hour))
+	insertKnowledge(t, db, "vnote-finalizing", types.ParseStatusFinalizing, time.Now().Add(-3*time.Hour))
+	require.NoError(t, db.Model(&types.Knowledge{}).Where("id IN ?", []string{"vnote-active", "vnote-finalizing"}).Update("channel", "vnote").Error)
+	svc.runSweep(context.Background())
+	var status string
+	require.NoError(t, db.Raw(`SELECT parse_status FROM knowledges WHERE id = ?`, "vnote-active").Row().Scan(&status))
+	require.Equal(t, types.ParseStatusProcessing, status)
+	require.NoError(t, db.Raw(`SELECT parse_status FROM knowledges WHERE id = ?`, "vnote-finalizing").Row().Scan(&status))
+	require.Equal(t, types.ParseStatusFinalizing, status)
 }
 
 func TestHousekeeping_RecoversPendingTaskMissingFromQueue(t *testing.T) {

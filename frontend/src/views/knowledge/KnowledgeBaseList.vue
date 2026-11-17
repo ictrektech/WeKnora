@@ -790,6 +790,7 @@ interface KB {
   pinned_at?: string;
   embedding_model_id?: string;
   summary_model_id?: string;
+  managed_source?: string;
   type?: 'document' | 'faq';
   vlm_config?: { enabled?: boolean; model_id?: string };
   extract_config?: { enabled?: boolean };
@@ -1474,6 +1475,9 @@ const isInitialized = (kb: KB) => {
   // model. It is still a valid detail page, so do not route its card to KB
   // settings just because the normal editor readiness check is false.
   if ((kb.description || '').trim().startsWith(MANAGED_SMART_ARCHIVE_KB_MARKER)) return true
+  // V-Note deliberately disables summary generation. Use the server's managed
+  // source marker, never its editable name/description, to admit its read view.
+  if (kb.managed_source === 'vnote') return Boolean(kb.embedding_model_id?.trim())
   // LLM (summary) model is always required
   if (!kb.summary_model_id || kb.summary_model_id === '') return false
   // Embedding model only required when RAG indexing is enabled (vector or keyword)

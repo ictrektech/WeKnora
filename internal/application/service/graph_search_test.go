@@ -72,6 +72,25 @@ func graphSearchTestSource(id, doc string) types.GraphSearchSourceChunk {
 	}
 }
 
+func TestVNoteGraphUsesStableDocumentIdentity(t *testing.T) {
+	kb := graphSearchTestKB()
+	node := &types.GraphNode{ID: "node", Name: "Entity", KnowledgeID: "generation-one", Chunks: []string{"chunk"}}
+	store := &graphSearchStoreStub{candidates: &types.GraphSearchCandidates{Graph: &types.GraphData{Node: []*types.GraphNode{node}}}}
+	row := graphSearchTestSource("chunk", node.KnowledgeID)
+	row.PublicKnowledgeID = "logical"
+	evidence := &graphSearchEvidenceStub{rows: []types.GraphSearchSourceChunk{row}}
+	svc := NewGraphSearchService(store, evidence)
+	first, err := svc.Search(graphSearchTestContext(kb), kb, types.GraphSearchRequest{Query: "Entity"})
+	require.NoError(t, err)
+	require.Equal(t, "logical", first.Entities[0].KnowledgeID)
+	require.Equal(t, "logical", first.SourceChunks[0].KnowledgeID)
+	node.KnowledgeID = "generation-two"
+	evidence.rows[0].KnowledgeID = node.KnowledgeID
+	second, err := svc.Search(graphSearchTestContext(kb), kb, types.GraphSearchRequest{Query: "Entity"})
+	require.NoError(t, err)
+	require.Equal(t, first.Entities[0].ID, second.Entities[0].ID)
+}
+
 func TestGraphSearchPublicIdentitiesDirectionAndProvenance(t *testing.T) {
 	kb := graphSearchTestKB()
 	graph := &types.GraphData{

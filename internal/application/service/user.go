@@ -133,7 +133,19 @@ func (s *userService) complexPasswordEnabled(ctx context.Context) bool {
 
 // Register creates a new user account
 func (s *userService) Register(ctx context.Context, req *types.RegisterRequest) (*types.User, error) {
+	return s.registerWithPlatformIdentity(ctx, req, nil)
+}
+
+func (s *userService) registerWithPlatformIdentity(ctx context.Context, req *types.RegisterRequest, identity *types.PlatformIdentity) (*types.User, error) {
 	logger.Info(ctx, "Start user registration")
+	var identityCreator platformIdentityUserCreator
+	if identity != nil {
+		var supported bool
+		identityCreator, supported = s.userRepo.(platformIdentityUserCreator)
+		if !supported {
+			return nil, errors.New("atomic platform user creation is unavailable")
+		}
+	}
 
 	// Validate input
 	if req.Username == "" || req.Email == "" || req.Password == "" {
@@ -198,7 +210,11 @@ func (s *userService) Register(ctx context.Context, req *types.RegisterRequest) 
 		user.TenantID = createdTenant.ID
 	}
 
-	err = s.userRepo.CreateUser(ctx, user)
+	if identity != nil {
+		err = identityCreator.CreateUserWithPlatformIdentity(ctx, user, identity.PlatformID, identity.Subject)
+	} else {
+		err = s.userRepo.CreateUser(ctx, user)
+	}
 	if err != nil {
 		logger.Errorf(ctx, "Failed to create user: %v", err)
 		if createdTenant != nil {
@@ -631,6 +647,19 @@ func (s *userService) ResolveTrustedIdentityUser(
 	if req == nil {
 		return nil, errors.New("trusted identity is required")
 	}
+	if req.PlatformID != "" && strings.TrimSpace(req.Subject) == "" {
+		return nil, errors.New("trusted platform subject is required")
+	}
+	identityStore, hasIdentityStore := s.userRepo.(platformIdentityStore)
+	if req.PlatformID != "" && hasIdentityStore {
+		mapped, lookupErr := identityStore.GetPlatformIdentityUser(ctx, req.PlatformID, req.Subject)
+		if lookupErr == nil && mapped != nil {
+			return mapped, nil
+		}
+		if lookupErr != nil && !isUserLookupNotFound(lookupErr) {
+			return nil, fmt.Errorf("resolve stable platform identity: %w", lookupErr)
+		}
+	}
 	email := strings.TrimSpace(strings.ToLower(req.Email))
 	username := sanitizeUsernameCandidate(req.Username)
 	if username == "" {
@@ -651,13 +680,26 @@ func (s *userService) ResolveTrustedIdentityUser(
 		return nil, fmt.Errorf("failed to query trusted user: %w", err)
 	}
 	if isUserLookupNotFound(err) || user == nil {
-		user, err = s.provisionTrustedIdentityUser(ctx, username, email, provisioning)
+		var creationIdentity *types.PlatformIdentity
+		if req.PlatformID != "" && hasIdentityStore && req.BindOnCreate {
+			creationIdentity = &types.PlatformIdentity{PlatformID: req.PlatformID, Subject: req.Subject}
+		}
+		user, err = s.provisionTrustedIdentityUser(ctx, username, email, provisioning, creationIdentity)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if !user.IsActive {
 		return user, nil
+	}
+	if req.PlatformID != "" && hasIdentityStore {
+		boundSubject, identityErr := identityStore.GetPlatformSubjectForUser(ctx, req.PlatformID, user.ID)
+		if identityErr != nil {
+			return nil, fmt.Errorf("check platform identity binding: %w", identityErr)
+		}
+		if boundSubject != "" && boundSubject != req.Subject {
+			return nil, types.ErrPlatformIdentityConflict
+		}
 	}
 
 	if strings.EqualFold(email, "admin@local") {
@@ -686,6 +728,7 @@ func (s *userService) provisionTrustedIdentityUser(
 	baseUsername string,
 	email string,
 	provisioning types.TenantProvisioningMode,
+	identity *types.PlatformIdentity,
 ) (*types.User, error) {
 	randomPassword, err := generateRandomString(32)
 	if err != nil {
@@ -694,12 +737,12 @@ func (s *userService) provisionTrustedIdentityUser(
 
 	username := baseUsername
 	for i := 0; i < 20; i++ {
-		user, err := s.Register(ctx, &types.RegisterRequest{
+		user, err := s.registerWithPlatformIdentity(ctx, &types.RegisterRequest{
 			Username:           username,
 			Email:              email,
 			Password:           randomPassword,
 			TenantProvisioning: provisioning,
-		})
+		}, identity)
 		if err == nil {
 			return user, nil
 		}

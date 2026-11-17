@@ -70,6 +70,57 @@ func NewChunkService(
 
 const maxEditableChunkLength = 200000
 
+func (s *chunkService) resolveVNoteKnowledgeID(ctx context.Context, id string) (string, error) {
+	if resolver, ok := s.knowledgeRepo.(interface {
+		ResolveVNoteKnowledgeID(context.Context, string) (string, error)
+	}); ok {
+		return resolver.ResolveVNoteKnowledgeID(ctx, id)
+	}
+	return id, nil
+}
+
+func (s *chunkService) setPublicVNoteKnowledgeIDs(ctx context.Context, chunks []*types.Chunk) error {
+	mapper, ok := s.knowledgeRepo.(interface {
+		PublicVNoteKnowledgeIDs(context.Context, []string) (map[string]string, error)
+	})
+	if !ok || len(chunks) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(chunks))
+	for _, chunk := range chunks {
+		if chunk != nil {
+			ids = append(ids, chunk.KnowledgeID)
+		}
+	}
+	mapped, err := mapper.PublicVNoteKnowledgeIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, chunk := range chunks {
+		if chunk != nil {
+			chunk.PublicKnowledgeID = mapped[chunk.KnowledgeID]
+		}
+	}
+	return nil
+}
+
+func (s *chunkService) requireVisibleVNoteGeneration(ctx context.Context, knowledgeID string) error {
+	visibility, ok := s.knowledgeRepo.(interface {
+		HiddenVNoteGenerationIDs(context.Context, []string) (map[string]bool, error)
+	})
+	if !ok {
+		return nil
+	}
+	hidden, err := visibility.HiddenVNoteGenerationIDs(ctx, []string{knowledgeID})
+	if err != nil {
+		return err
+	}
+	if hidden[knowledgeID] {
+		return ErrChunkNotFound
+	}
+	return nil
+}
+
 // GetRepository gets the chunk repository
 // Parameters:
 //   - ctx: Context with authentication and request information
@@ -124,6 +175,12 @@ func (s *chunkService) GetChunkByID(ctx context.Context, id string) (*types.Chun
 		})
 		return nil, err
 	}
+	if err := s.requireVisibleVNoteGeneration(ctx, chunk.KnowledgeID); err != nil {
+		return nil, err
+	}
+	if err := s.setPublicVNoteKnowledgeIDs(ctx, []*types.Chunk{chunk}); err != nil {
+		return nil, err
+	}
 
 	logger.Info(ctx, "Chunk retrieved successfully")
 	return chunk, nil
@@ -141,6 +198,12 @@ func (s *chunkService) GetChunkByIDOnly(ctx context.Context, id string) (*types.
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{"chunk_id": id})
 		return nil, err
 	}
+	if err := s.requireVisibleVNoteGeneration(ctx, chunk.KnowledgeID); err != nil {
+		return nil, err
+	}
+	if err := s.setPublicVNoteKnowledgeIDs(ctx, []*types.Chunk{chunk}); err != nil {
+		return nil, err
+	}
 	return chunk, nil
 }
 
@@ -154,6 +217,14 @@ func (s *chunkService) GetChunkByIDOnly(ctx context.Context, id string) (*types.
 //   - []*types.Chunk: List of chunks belonging to the knowledge document
 //   - error: Any error encountered during retrieval
 func (s *chunkService) ListChunksByKnowledgeID(ctx context.Context, knowledgeID string) ([]*types.Chunk, error) {
+	var err error
+	knowledgeID, err = s.resolveVNoteKnowledgeID(ctx, knowledgeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireVisibleVNoteGeneration(ctx, knowledgeID); err != nil {
+		return nil, err
+	}
 	logger.Info(ctx, "Start listing chunks by knowledge ID")
 	logger.Infof(ctx, "Knowledge ID: %s", knowledgeID)
 
@@ -166,6 +237,9 @@ func (s *chunkService) ListChunksByKnowledgeID(ctx context.Context, knowledgeID 
 			"knowledge_id": knowledgeID,
 			"tenant_id":    tenantID,
 		})
+		return nil, err
+	}
+	if err := s.setPublicVNoteKnowledgeIDs(ctx, chunks); err != nil {
 		return nil, err
 	}
 
@@ -186,6 +260,14 @@ func (s *chunkService) ListChunksByKnowledgeID(ctx context.Context, knowledgeID 
 func (s *chunkService) ListPagedChunksByKnowledgeID(ctx context.Context,
 	knowledgeID string, page *types.Pagination, chunkType []types.ChunkType,
 ) (*types.PageResult, error) {
+	var err error
+	knowledgeID, err = s.resolveVNoteKnowledgeID(ctx, knowledgeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireVisibleVNoteGeneration(ctx, knowledgeID); err != nil {
+		return nil, err
+	}
 	tenantID := types.MustTenantIDFromContext(ctx)
 	chunks, total, err := s.chunkRepository.ListPagedChunksByKnowledgeID(
 		ctx,
@@ -207,6 +289,9 @@ func (s *chunkService) ListPagedChunksByKnowledgeID(ctx context.Context,
 		})
 		return nil, err
 	}
+	if err := s.setPublicVNoteKnowledgeIDs(ctx, chunks); err != nil {
+		return nil, err
+	}
 
 	logger.Infof(ctx, "Retrieved %d chunks out of %d total chunks", len(chunks), total)
 	return types.NewPageResult(total, page, chunks), nil
@@ -225,7 +310,15 @@ func (s *chunkService) ListImagesByKnowledgeBaseID(
 ) (*types.PageResult, error) {
 	tenantID := types.MustTenantIDFromContext(ctx)
 
-	rows, total, err := s.chunkRepository.ListImageAssets(ctx, tenantID, kbID, buildImageAssetQuery(filter, page))
+	query := buildImageAssetQuery(filter, page)
+	for i, id := range query.KnowledgeIDs {
+		resolved, err := s.resolveVNoteKnowledgeID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		query.KnowledgeIDs[i] = resolved
+	}
+	rows, total, err := s.chunkRepository.ListImageAssets(ctx, tenantID, kbID, query)
 	if err != nil {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{"kb_id": kbID, "tenant_id": tenantID})
 		return nil, err
@@ -262,8 +355,18 @@ func (s *chunkService) ListImagesByKnowledgeBaseID(
 	// Resolve the human-readable name of each source knowledge item in one
 	// batch so the viewer can show "来源" without a per-image round trip.
 	sourceNames := resolveImageAssetSourceNames(ctx, s, tenantID, assets)
+	chunks := make([]*types.Chunk, len(assets))
+	for i := range assets {
+		chunks[i] = &types.Chunk{KnowledgeID: assets[i].KnowledgeID}
+	}
+	if err := s.setPublicVNoteKnowledgeIDs(ctx, chunks); err != nil {
+		return nil, err
+	}
 	for i := range assets {
 		assets[i].SourceName = sourceNames[assets[i].KnowledgeID]
+		if chunks[i].PublicKnowledgeID != "" {
+			assets[i].KnowledgeID = chunks[i].PublicKnowledgeID
+		}
 	}
 	return types.NewPageResult(total, page, assets), nil
 }
@@ -485,6 +588,14 @@ func (s *chunkService) ListChunkByParentID(
 			"parent_id": parentID,
 			"tenant_id": tenantID,
 		})
+		return nil, err
+	}
+	for _, chunk := range chunks {
+		if err := s.requireVisibleVNoteGeneration(ctx, chunk.KnowledgeID); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.setPublicVNoteKnowledgeIDs(ctx, chunks); err != nil {
 		return nil, err
 	}
 

@@ -62,6 +62,10 @@ Options:
                      platform; the VOS host docker-loads them at install.
   --platform         amd64 or arm64 for --image-source local (default:
                      auto-detect).
+
+Environment:
+  PACKAGE_IMAGE_ENV_FILE  Explicit complete candidate image map; skips Feishu
+                          lookup. No shell expressions are evaluated.
 EOF
 }
 
@@ -431,6 +435,20 @@ latest_image() {
 
 resolve_image_versions() {
   local env_file="$1"
+  if [[ -n "${PACKAGE_IMAGE_ENV_FILE:-}" ]]; then
+    local required=() entry profile_spec profile sheet_title component_spec env_prefix component repository
+    for entry in "${BASE_IMAGES[@]}"; do required+=("${entry%%=*}"); done
+    for profile_spec in "${PROFILES[@]}"; do
+      IFS='|' read -r profile sheet_title <<< "$profile_spec"
+      for component_spec in "${COMPONENTS[@]}"; do
+        IFS='|' read -r env_prefix component repository <<< "$component_spec"
+        required+=("${env_prefix}_$(env_key "$profile")_IMAGE")
+      done
+    done
+    "${PYTHON_BIN}" "${ROOT_DIR}/scripts/candidate_images.py" "$PACKAGE_IMAGE_ENV_FILE" "$env_file" "${required[@]}"
+    log "Using explicit candidate image map; Feishu image lookup skipped"
+    return
+  fi
   : > "$env_file"
   local base_image
   for base_image in "${BASE_IMAGES[@]}"; do
@@ -719,7 +737,7 @@ fi
 log "Package version: ${APP_VERSION}"
 log "Image source: ${IMAGE_SOURCE}"
 [[ "$IMAGE_SOURCE" == "local" ]] && log "Embedded platform: ${PLATFORM}"
-load_feishu_auth
+if [[ -z "${PACKAGE_IMAGE_ENV_FILE:-}" ]]; then load_feishu_auth; fi
 
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR"

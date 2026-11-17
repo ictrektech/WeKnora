@@ -1,4 +1,13 @@
 export default {
+  vosIdentityBinding: {
+    title: "VOS account association",
+    description: "Associate this HybRAG account with your current VOS identity for V-Note integration. Existing accounts require this confirmation once.",
+    action: "Associate VOS account",
+    linked: "Associated",
+    confirm: "Confirm that the HybRAG account {username} belongs to you and should be associated with your current VOS identity. Its existing knowledge and workspace remain with this account.",
+    success: "Association completed. Return to V-Note integration and select Retry.",
+    failed: "Unable to associate accounts. Verify the current VOS and HybRAG accounts; an existing conflicting association requires administrator review.",
+  },
   patentExamples: {
       "sidebarTitle": "예시",
       "empty": "아직 표시할 예시가 없습니다",
@@ -8983,6 +8992,8 @@ export default {
     staleGeneratedQuestions: '이전 콘텐츠를 기준으로 생성된 질문입니다. 필요하면 다시 생성하세요',
     noGeneratedQuestions: '검색 보조 질문 없음',
     notInitialized: '이 지식베이스는 아직 초기화되지 않았습니다. 설정 페이지에서 모델 정보를 먼저 구성한 후 파일을 업로드하세요',
+    vnoteSource: "Source: V-Note. Content is managed in V-Note; the document list shows indexing status.",
+    vnoteSettings: "Open Integrations in V-Note settings",
     missingStorageEngine: '이 지식베이스에 스토리지 엔진이 선택되지 않았습니다. 콘텐츠를 업로드하기 전에 설정 페이지에서 스토리지 엔진을 구성하세요.',
     missingStorageEngineUpload: '콘텐츠를 업로드하기 전에 스토리지 엔진을 구성하세요',
     goToStorageSettings: '설정으로 이동',

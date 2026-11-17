@@ -153,7 +153,11 @@ func (s *graphSearchService) Search(
 		if !valid {
 			continue
 		}
-		id := graphSearchPublicID("entity", kb.ID, node.KnowledgeID, node.Name)
+		publicKnowledgeID := node.KnowledgeID
+		if public := sources[chunkIDs[0]].PublicKnowledgeID; public != "" {
+			publicKnowledgeID = public
+		}
+		id := graphSearchPublicID("entity", kb.ID, publicKnowledgeID, node.Name)
 		if publicIDs[id] {
 			continue
 		}
@@ -179,7 +183,7 @@ func (s *graphSearchService) Search(
 			attributes = append(attributes, attribute)
 		}
 		entity := types.GraphSearchEntity{
-			ID: id, Name: node.Name, KnowledgeID: node.KnowledgeID,
+			ID: id, Name: node.Name, KnowledgeID: publicKnowledgeID,
 			Attributes: attributes, SourceChunkIDs: chunkIDs,
 		}
 		nodes[node.ID] = entity
@@ -188,6 +192,9 @@ func (s *graphSearchService) Search(
 		for _, id := range chunkIDs {
 			if !returnedSources[id] {
 				row := sources[id]
+				if row.PublicKnowledgeID != "" {
+					row.KnowledgeID = row.PublicKnowledgeID
+				}
 				result.SourceChunks = append(result.SourceChunks, row)
 				returnedSources[id] = true
 				if row.ContentTruncated || row.TitleTruncated {

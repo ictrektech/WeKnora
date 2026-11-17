@@ -135,6 +135,9 @@ func (v *KeywordsVectorHybridRetrieveEngineService) BatchIndex(ctx context.Conte
 			if len(embeddings) != len(window) {
 				return fmt.Errorf("embedding model returned %d embeddings for %d inputs", len(embeddings), len(window))
 			}
+			if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+				return err
+			}
 			chunks := utils.ChunkSlice(window, batchSize)
 			if err := v.concurrentBatchSave(ctx, chunks, embeddings, batchSize); err != nil {
 				return err
@@ -144,6 +147,9 @@ func (v *KeywordsVectorHybridRetrieveEngineService) BatchIndex(ctx context.Conte
 	}
 
 	// For non-vector retrieval, use concurrent batch saving as well
+	if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+		return err
+	}
 	chunks := utils.ChunkSlice(indexInfoList, 10)
 	const maxConcurrency = 5
 	if len(chunks) <= maxConcurrency {
@@ -162,11 +168,17 @@ func batchEmbedWithBackoff(ctx context.Context, embedder embedding.Embedder, con
 		err        error
 	)
 	for attempt := 0; attempt < embedRetryAttempts; attempt++ {
+		if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+			return nil, err
+		}
 		embeddings, err = embedder.BatchEmbedWithPool(ctx, embedder, contentList)
 		if err == nil {
 			return embeddings, nil
 		}
 		logger.Errorf(ctx, "BatchEmbedWithPool attempt %d/%d failed: %v", attempt+1, embedRetryAttempts, err)
+		if guardErr := types.CheckVNoteWriteGuard(ctx); guardErr != nil {
+			return nil, guardErr
+		}
 		if attempt+1 < embedRetryAttempts {
 			select {
 			case <-time.After(delay):
@@ -211,6 +223,9 @@ func (v *KeywordsVectorHybridRetrieveEngineService) concurrentBatchSave(
 	g, ctx := errgroup.WithContext(ctx)
 	for i, indexChunk := range chunks {
 		g.Go(func() error {
+			if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+				return err
+			}
 			params := make(map[string]any)
 			embeddingMap := make(map[string][]float32)
 			for j, indexInfo := range indexChunk {
@@ -231,6 +246,9 @@ func (v *KeywordsVectorHybridRetrieveEngineService) concurrentBatchSaveNoEmbeddi
 	g, ctx := errgroup.WithContext(ctx)
 	for _, indexChunk := range chunks {
 		g.Go(func() error {
+			if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+				return err
+			}
 			params := make(map[string]any)
 			return v.indexRepository.BatchSave(ctx, indexChunk, params)
 		})
@@ -254,6 +272,9 @@ func (v *KeywordsVectorHybridRetrieveEngineService) boundedConcurrentBatchSaveNo
 				defer func() { <-sem }()
 			case <-ctx.Done():
 				return ctx.Err()
+			}
+			if err := types.CheckVNoteWriteGuard(ctx); err != nil {
+				return err
 			}
 
 			params := make(map[string]any)

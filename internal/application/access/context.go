@@ -60,25 +60,53 @@ func HasKBGrant(ctx context.Context, kbID string, tenantID uint64, required type
 // shares for one service operation. Pass nil shares when that entry point does
 // not permit organization expansion (for example, a caller without a user).
 type KBPermissions struct {
-	ctx    context.Context
-	caller types.Caller
-	shares *KBSharePermissions
+	ctx             context.Context
+	caller          types.Caller
+	shares          *KBSharePermissions
+	visibility      KBVisibilityLookup
+	visibilityCache map[string]bool
+}
+
+type KBVisibilityLookup interface {
+	CanReadPrivateKnowledgeBase(context.Context, string) (bool, error)
 }
 
 // NewKBPermissions resolves reads for one caller and operation.
 func NewKBPermissions(ctx context.Context, shares KBShareLookup) *KBPermissions {
 	caller := types.CallerFromContext(ctx)
+	visibility, _ := shares.(KBVisibilityLookup)
 	return &KBPermissions{
-		ctx:    ctx,
-		caller: caller,
-		shares: NewKBSharePermissions(ctx, shares, caller.TenantID, caller.Role),
+		ctx:             ctx,
+		caller:          caller,
+		shares:          NewKBSharePermissions(ctx, shares, caller.TenantID, caller.Role),
+		visibility:      visibility,
+		visibilityCache: make(map[string]bool),
 	}
+}
+
+func (p *KBPermissions) WithoutOrganizationShares() *KBPermissions {
+	p.shares = NewKBSharePermissions(p.ctx, nil, p.caller.TenantID, p.caller.Role)
+	return p
 }
 
 // Check combines caller ownership, exact grants and organization sharing.
 func (p *KBPermissions) Check(kbID string, ownerTenantID uint64, required types.OrgMemberRole) (bool, error) {
 	if kbID == "" || ownerTenantID == 0 || !required.IsValid() {
 		return false, nil
+	}
+	if p.visibility != nil {
+		visible, known := p.visibilityCache[kbID]
+		if !known {
+			var err error
+			visible, err = p.visibility.CanReadPrivateKnowledgeBase(p.ctx, kbID)
+			if err != nil {
+				return false, err
+			}
+			p.visibilityCache[kbID] = visible
+		}
+		if !visible {
+			return false, nil
+		}
 	}
 	if err := types.AuthorizeTenantAPIKeyKnowledgeBases(p.ctx, kbID); err != nil {
 		return false, err

@@ -100,16 +100,35 @@ func TestBuildImageAssetQuery_页码字段和旧默认兼容(t *testing.T) {
 // pageRowsRepository 只提供数据库已校验的投影，验证响应层使用同一页码而不重猜定位。
 type pageRowsRepository struct {
 	interfaces.ChunkRepository
-	rows []types.ImageAssetRow
+	rows  []types.ImageAssetRow
+	query *types.ImageAssetQuery
 }
 
 func (r *pageRowsRepository) ListImageAssets(
-	context.Context,
-	uint64,
-	string,
-	*types.ImageAssetQuery,
+	_ context.Context,
+	_ uint64,
+	_ string,
+	query *types.ImageAssetQuery,
 ) ([]types.ImageAssetRow, int64, error) {
+	r.query = query
 	return r.rows, int64(len(r.rows)), nil
+}
+
+type galleryVNoteRepo struct{ vnoteVisibilityRepo }
+
+func (galleryVNoteRepo) GetKnowledgeBatch(context.Context, uint64, []string) ([]*types.Knowledge, error) {
+	return []*types.Knowledge{{ID: "old", Title: "Published"}}, nil
+}
+
+func TestVNoteGalleryUsesStableDocumentID(t *testing.T) {
+	repo := &pageRowsRepository{rows: []types.ImageAssetRow{{ChunkID: "chunk", KnowledgeID: "old", AttrsJSON: `{}`}}}
+	svc := &chunkService{chunkRepository: repo, knowledgeRepo: galleryVNoteRepo{}}
+	result, err := svc.ListImagesByKnowledgeBaseID(types.WithExecutionTenant(context.Background(), 1), "kb", &types.Pagination{}, &types.ImageListFilter{KnowledgeIDs: []string{"logical"}})
+	require.NoError(t, err)
+	require.Equal(t, []string{"old"}, repo.query.KnowledgeIDs)
+	assets := result.Data.([]types.ImageAsset)
+	require.Equal(t, "logical", assets[0].KnowledgeID)
+	require.Equal(t, "Published", assets[0].SourceName)
 }
 
 func TestListImages_旧图回退页码进入响应并剔除非法页码(t *testing.T) {

@@ -246,6 +246,21 @@ func (s *knowledgeBaseService) hybridSearchCandidates(ctx context.Context,
 	if err := s.authorizeKBAccess(ctx, kbs); err != nil {
 		return nil, err
 	}
+	if len(params.KnowledgeIDs) > 0 {
+		if resolver, ok := s.kgRepo.(interface {
+			ResolveVNoteKnowledgeID(context.Context, string) (string, error)
+		}); ok {
+			resolved := make([]string, len(params.KnowledgeIDs))
+			for i, id := range params.KnowledgeIDs {
+				var err error
+				resolved[i], err = resolver.ResolveVNoteKnowledgeID(ctx, id)
+				if err != nil {
+					return nil, err
+				}
+			}
+			params.KnowledgeIDs = resolved
+		}
+	}
 
 	// Explicit embedding-model consistency check. Multi-KB searches that
 	// span different embedding spaces would otherwise silently produce
@@ -340,6 +355,9 @@ func (s *knowledgeBaseService) hybridSearchCandidates(ctx context.Context,
 		},
 	})
 	retrieveResults, err := s.retrieveFromStores(retrieveCtx, groups, retriever.EngineAwareNormalizer{})
+	if err == nil {
+		err = s.hideUnpublishedVNoteHits(retrieveCtx, kbs, retrieveResults)
+	}
 	retrieveSpan.Finish(langfuse.SummarizeRetrieveOutput(retrieveResults), nil, err)
 	if err != nil {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{
@@ -372,8 +390,16 @@ func (s *knowledgeBaseService) hybridSearchCandidates(ctx context.Context,
 	// AppError from inside the iterative fan-out path (e.g. a per-group
 	// timeout surfaced as ErrVectorStoreUnavailable) must surface to the
 	// caller rather than be silently converted to a truncated chunk list.
-	return s.applyFAQPostProcessing(
+	final, err := s.applyFAQPostProcessing(
 		ctx, kb, kbs, deduplicatedChunks, vectorLists, groups, params, matchCount)
+	if err != nil {
+		return nil, err
+	}
+	refill := &types.RetrieveResult{Results: final}
+	if err := s.hideUnpublishedVNoteHits(ctx, kbs, []*types.RetrieveResult{refill}); err != nil {
+		return nil, err
+	}
+	return refill.Results, nil
 }
 
 // normalizedMatchCount resolves the effective primary-match cap for a search.

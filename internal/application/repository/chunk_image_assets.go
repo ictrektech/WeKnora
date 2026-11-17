@@ -28,6 +28,17 @@ func (r *chunkRepository) ListImageAssets(
 
 	d := imageAssetDialect{postgres: r.db.Name() == "postgres"}
 	where, args, filtered := d.where(tenantID, kbID, q)
+	var kb types.KnowledgeBase
+	if err := r.db.WithContext(ctx).Select("id", "v_note_root_id").Where("id = ? AND tenant_id = ?", kbID, tenantID).First(&kb).Error; err != nil {
+		return nil, 0, err
+	}
+	if kb.VNoteRootID != "" {
+		// Apply the same published-pointer check to both candidates and the
+		// competing copies used for de-duplication, before count and paging.
+		where += " AND " + visibleVNoteImage("i")
+		where = strings.Replace(where, "AND o.image_key = i.image_key", "AND o.image_key = i.image_key AND "+visibleVNoteImage("o"), 1)
+		filtered = true
+	}
 	// Unfiltered, the total is the number of distinct images, which the
 	// copies index answers without probing every row.
 	count, countArgs := "SELECT COUNT(*) FROM chunk_images i WHERE "+where, args
@@ -69,6 +80,14 @@ func (r *chunkRepository) ListImageAssets(
 	var total int64
 	err := r.db.WithContext(ctx).Raw(count, countArgs...).Scan(&total).Error
 	return rows, total, err
+}
+
+func visibleVNoteImage(alias string) string {
+	return `EXISTS (SELECT 1 FROM knowledges vk JOIN knowledge_bases vb
+		ON vb.id = vk.knowledge_base_id AND vb.tenant_id = vk.tenant_id
+		JOIN vnote_import_states vs ON vs.knowledge_id = vk.id AND vs.knowledge_base_id = vb.id AND vs.user_id = vb.private_owner_id
+		WHERE vk.id = ` + alias + `.knowledge_id AND vk.knowledge_base_id = ` + alias + `.knowledge_base_id
+		AND vk.tenant_id = ` + alias + `.tenant_id AND vk.deleted_at IS NULL AND vb.deleted_at IS NULL AND vb.v_note_root_id <> '')`
 }
 
 // winnerClause keeps one copy per image: the one on the most recently updated

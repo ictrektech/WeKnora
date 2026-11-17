@@ -153,6 +153,9 @@ func validateTransferPair(
 	if source.ID == target.ID {
 		return fmt.Errorf("source and target knowledge bases must differ")
 	}
+	if source.PrivateOwnerID != "" || target.PrivateOwnerID != "" {
+		return ErrForbidden
+	}
 	if operation != KBTransferClone && operation != KBTransferMove || create && operation != KBTransferClone {
 		return ErrForbidden
 	}

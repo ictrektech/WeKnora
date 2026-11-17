@@ -356,6 +356,7 @@ func (h *AuthHandler) LoginWithVOSSSO(c *gin.Context) {
 		return
 	}
 
+	enablePlatformIdentityCreation(ctx, token, identity)
 	resp, err := h.userService.LoginWithTrustedIdentity(ctx, identity, h.resolveDefaultTenantMode(ctx))
 	if err != nil {
 		logger.Errorf(ctx, "VOS SSO local login failed for %s: %v", identity.Email, err)
@@ -412,6 +413,7 @@ func (h *AuthHandler) LoginWithVOSOIDC(c *gin.Context) {
 		return
 	}
 
+	enablePlatformIdentityCreation(ctx, token, identity)
 	resp, err := h.userService.LoginWithTrustedIdentity(ctx, identity, h.resolveDefaultTenantMode(ctx))
 	if err != nil {
 		logger.Errorf(ctx, "VOS OIDC local login failed for %s: %v", identity.Email, err)
@@ -553,10 +555,11 @@ func verifyVOSIdentity(ctx context.Context, accessToken string) (*types.TrustedI
 		return nil, fmt.Errorf("VOS username %q cannot be mapped to a local account", username)
 	}
 	return &types.TrustedIdentityLoginRequest{
-		Provider: "vos",
-		Subject:  subject,
-		Username: localUsername,
-		Email:    localUsername + "@local",
+		Provider:   "vos",
+		PlatformID: vosOIDCUserinfoURL(),
+		Subject:    subject,
+		Username:   localUsername,
+		Email:      localUsername + "@local",
 	}, nil
 }
 
@@ -614,10 +617,11 @@ func verifyVOSOIDCIdentity(ctx context.Context, accessToken string) (*types.Trus
 		return nil, fmt.Errorf("VOS OIDC username %q cannot be mapped to a local account", username)
 	}
 	return &types.TrustedIdentityLoginRequest{
-		Provider: "vos-oidc",
-		Subject:  subject,
-		Username: localUsername,
-		Email:    localUsername + "@local",
+		Provider:   "vos-oidc",
+		PlatformID: vosOIDCUserinfoURL(),
+		Subject:    subject,
+		Username:   localUsername,
+		Email:      localUsername + "@local",
 	}, nil
 }
 

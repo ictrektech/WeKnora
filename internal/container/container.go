@@ -562,6 +562,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewTemporaryDocumentService))
 	must(container.Provide(service.NewContractReviewService))
 	must(container.Provide(service.NewSmartArchiveService))
+	must(container.Provide(service.NewVNoteImportService))
+	must(container.Provide(service.NewVNoteSyncService))
 	must(container.Invoke(startTemporaryDocumentCleanup))
 
 	// Chat pipeline components for processing chat requests
@@ -728,6 +730,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewEvaluationHandler))
 	must(container.Provide(handler.NewInitializationHandler))
 	must(container.Provide(handler.NewAuthHandler))
+	must(container.Provide(handler.NewVNoteImportHandler))
 	must(container.Provide(service.NewDocumentProgressService))
 	must(container.Provide(handler.NewSystemHandler))
 	// Dig resolves exact types; adapt the registered service to the handler's
@@ -855,6 +858,9 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Invoke(recoverPendingSmartArchiveImports))
 	must(container.Invoke(recoverPendingSmartArchiveMirrors))
 	must(container.Invoke(startSmartArchiveReminderRunner))
+	// All dependencies and processing handlers must exist before metadata
+	// maintenance can admit a restored V-Note queue item.
+	must(container.Invoke(startVNoteSync))
 
 	// BrowserSkill is registered when its manager is constructed, which is
 	// early, so reverse-order cleanup would run it last. Force the manager
@@ -2219,6 +2225,11 @@ func initConnectorRegistry() (*datasource.ConnectorRegistry, error) {
 }
 
 // startDataSourceScheduler starts the data source cron scheduler and registers cleanup.
+func startVNoteSync(syncer *service.VNoteSyncService, cleaner interfaces.ResourceCleaner) {
+	stop := syncer.Start(context.Background())
+	cleaner.RegisterWithName("VNoteSync", func() error { stop(cleanupStepTimeout); return nil })
+}
+
 func startDataSourceScheduler(scheduler *datasource.Scheduler, cleaner interfaces.ResourceCleaner) {
 	if err := scheduler.Start(context.Background()); err != nil {
 		logger.Warnf(context.Background(), "[Container] data source scheduler start failed: %v", err)

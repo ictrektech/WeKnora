@@ -12,10 +12,11 @@ import (
 // Service reads accept exact upstream grants. Otherwise cross-tenant reads
 // require a user and organization permission resolved for the original caller.
 func kbReadPermissions(ctx context.Context, shares access.KBShareLookup) *access.KBPermissions {
+	permissions := access.NewKBPermissions(ctx, shares)
 	if types.CallerFromContext(ctx).UserID == "" {
-		shares = nil
+		return permissions.WithoutOrganizationShares()
 	}
-	return access.NewKBPermissions(ctx, shares)
+	return permissions
 }
 
 // kbWritableIDs returns the target KBs the caller may modify: those of its own
@@ -62,7 +63,7 @@ func kbWritableIDs(
 }
 
 func resolveKBReadTenant(ctx context.Context, kb *types.KnowledgeBase, shares access.KBShareLookup) (uint64, error) {
-	if kb != nil {
+	if kb != nil && access.CanReadPrivateKB(ctx, kb) {
 		allowed, err := kbReadPermissions(ctx, shares).Check(kb.ID, kb.TenantID, types.OrgRoleViewer)
 		if err == nil && allowed {
 			return kb.TenantID, nil

@@ -230,6 +230,15 @@ docker_build_with_local_base_fallback() {
   local dockerfile="$1"
   shift
 
+  if [[ "$BUILD_ENGINE" == "buildx" && -n "${BUILDX_BUILDER:-}" ]]; then
+    # A deliberately selected builder owns its registry access, cache and
+    # resource limits. Daemon pulls do not populate a container builder's
+    # cache, and falling back would silently bypass those limits/settings.
+    log "Using explicit buildx builder ${BUILDX_BUILDER} for base image resolution"
+    docker_build_image "$@"
+    return
+  fi
+
   ensure_dockerfile_base_images "$dockerfile"
 
   if docker_build_image "$@"; then

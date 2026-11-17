@@ -240,6 +240,7 @@ func RegisterAuthRoutes(r *gin.RouterGroup, handler *handler.AuthHandler, g *rba
 	r.POST("/auth/vos-sso", publicAuthRL, handler.LoginWithVOSSSO)
 	r.POST("/auth/vos-oidc", publicAuthRL, handler.LoginWithVOSOIDC)
 	r.POST("/auth/vos-token-exchange", publicAuthRL, handler.LoginWithVOSSSO)
+	r.POST("/auth/vos-identity", publicAuthRL, handler.BindVOSIdentity)
 	r.POST("/auth/login", handler.Login)
 	r.POST("/auth/auto-setup", handler.AutoSetup)
 	r.GET("/auth/config", handler.GetAuthConfig)

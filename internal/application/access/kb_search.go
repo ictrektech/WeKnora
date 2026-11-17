@@ -41,6 +41,9 @@ func AuthorizeKBAccess(
 	permissions := NewKBPermissions(ctx, shares)
 
 	for _, kb := range kbs {
+		if !CanReadPrivateKB(ctx, kb) {
+			return apperrors.NewNotFoundError("knowledge base not found")
+		}
 		hasPermission, permErr := permissions.Check(kb.ID, kb.TenantID, types.OrgRoleViewer)
 		if permErr != nil {
 			logger.ErrorWithFields(ctx, permErr, map[string]interface{}{

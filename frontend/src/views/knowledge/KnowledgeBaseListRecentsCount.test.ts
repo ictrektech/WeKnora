@@ -27,6 +27,8 @@ async function setup(t: TestContext, kbsByCall: any[][]) {
     organization_id: 'org-1', org_name: '协作空间',
   }]
   let call = 0
+  const navigation = { replace() {}, push: t.mock.fn() }
+  const openKBSettings = t.mock.fn()
 
   const pins = {
     favorites: vue.ref(makePins([
@@ -49,7 +51,7 @@ async function setup(t: TestContext, kbsByCall: any[][]) {
 
   const creator = vue.ref('all')
   const page = f.component(new URL('./KnowledgeBaseList.vue', import.meta.url), {
-    'vue-router': { useRoute: () => route, useRouter: () => ({ replace() {} }) },
+    'vue-router': { useRoute: () => route, useRouter: () => navigation },
     'vue-i18n': { useI18n: () => ({ t: (key: string) => key }) },
     'tdesign-vue-next': { MessagePlugin: {} },
     '@/utils/assistantDataChange': { useAssistantDataChange() {} },
@@ -68,7 +70,7 @@ async function setup(t: TestContext, kbsByCall: any[][]) {
     }) },
     '@/stores/ui': { useUIStore: () => vue.reactive({
       showKBEditorModal: false, kbEditorMode: 'create', currentKBId: '', kbEditorType: 'document',
-      closeKBEditor() {}, openKBSettings() {}, openCreateKB() {},
+      closeKBEditor() {}, openKBSettings, openCreateKB() {},
     }) },
     '@/stores/auth': { useAuthStore: () => ({
       hasRole: () => false, isLiteMode: false, effectiveTenantId: 1,
@@ -95,8 +97,28 @@ async function setup(t: TestContext, kbsByCall: any[][]) {
   })
   await flush()
   await flush()
-  return { ...f, ...page, pins, creator, shared }
+  return { ...f, ...page, pins, creator, shared, navigation, openKBSettings }
 }
+
+test('a managed V-Note card opens its documents without a summary model', async t => {
+  const managed = { id: 'vnote', name: 'V-Note / test', managed_source: 'vnote', embedding_model_id: 'platform-embedding' }
+  const f = await setup(t, [[managed]])
+  assert.equal(f.vm.hasUninitializedKbs, false)
+  f.vm.handleCardClick(managed)
+  assert.equal(f.navigation.push.mock.calls[0].arguments[0], '/platform/knowledge-bases/vnote')
+  assert.equal(f.openKBSettings.mock.callCount(), 0)
+
+  // A copied name is not proof of management; ordinary and incomplete KBs
+  // must keep the existing model setup flow.
+  for (const kb of [
+    { id: 'ordinary', name: 'V-Note / test', embedding_model_id: 'platform-embedding' },
+    { ...managed, id: 'missing-embedding', embedding_model_id: '' },
+  ]) {
+    f.vm.handleCardClick(kb)
+  }
+  assert.equal(f.openKBSettings.mock.callCount(), 2)
+  assert.equal(f.navigation.push.mock.callCount(), 1)
+})
 
 test('recent and favorite counts match the resolved lists, not the raw pins', async t => {
   const f = await setup(t, [

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Tencent/WeKnora/internal/models/embedding"
@@ -22,6 +23,78 @@ type windowEmbedder struct {
 	failCall int
 	err      error
 	short    bool
+}
+
+type blockedVNoteEmbedder struct {
+	embedding.Embedder
+	started chan struct{}
+	release chan struct{}
+}
+
+type revokingVNoteEmbedder struct {
+	embedding.Embedder
+	revoked *atomic.Bool
+	calls   int
+}
+
+func (e *revokingVNoteEmbedder) BatchEmbedWithPool(_ context.Context, _ embedding.Embedder, _ []string) ([][]float32, error) {
+	e.calls++
+	e.revoked.Store(true)
+	return nil, errors.New("transient model failure")
+}
+
+func TestVNoteRevocationStopsEmbeddingRetries(t *testing.T) {
+	repo := &windowRepository{seen: map[string]bool{}}
+	var revoked atomic.Bool
+	model := &revokingVNoteEmbedder{revoked: &revoked}
+	want := errors.New("revoked")
+	ctx := types.WithVNoteWriteGuard(context.Background(), func(context.Context) error {
+		if revoked.Load() {
+			return want
+		}
+		return nil
+	})
+	service := &KeywordsVectorHybridRetrieveEngineService{indexRepository: repo}
+	err := service.BatchIndex(ctx, model, windowRows(1), []types.RetrieverType{types.VectorRetrieverType})
+	if !errors.Is(err, want) {
+		t.Fatalf("got %v, want revocation", err)
+	}
+	if model.calls != 1 || repo.saved != 0 {
+		t.Fatalf("calls=%d saves=%d; want one call and no saves", model.calls, repo.saved)
+	}
+}
+
+func (e *blockedVNoteEmbedder) BatchEmbedWithPool(_ context.Context, _ embedding.Embedder, texts []string) ([][]float32, error) {
+	close(e.started)
+	<-e.release
+	return [][]float32{{0}}, nil
+}
+
+func TestVNoteRevocationDuringEmbeddingStopsIndexSave(t *testing.T) {
+	repo := &windowRepository{seen: map[string]bool{}}
+	model := &blockedVNoteEmbedder{started: make(chan struct{}), release: make(chan struct{})}
+	service := &KeywordsVectorHybridRetrieveEngineService{indexRepository: repo}
+	var revoked atomic.Bool
+	want := errors.New("revoked")
+	ctx := types.WithVNoteWriteGuard(context.Background(), func(context.Context) error {
+		if revoked.Load() {
+			return want
+		}
+		return nil
+	})
+	result := make(chan error, 1)
+	go func() {
+		result <- service.BatchIndex(ctx, model, windowRows(1), []types.RetrieverType{types.VectorRetrieverType})
+	}()
+	<-model.started
+	revoked.Store(true)
+	close(model.release)
+	if err := <-result; !errors.Is(err, want) {
+		t.Fatalf("got %v, want revocation", err)
+	}
+	if repo.saved != 0 {
+		t.Fatalf("saved %d rows after revocation", repo.saved)
+	}
 }
 
 func (e *windowEmbedder) BatchEmbedWithPool(

@@ -617,8 +617,8 @@ func (r *sqliteRepository) keywordsRetrieve(ctx context.Context, params types.Re
 		// to make it positive and human-readable.
 		score := row.Score
 
-		logger.GetLogger(ctx).Infof("[SQLite] keywordsRetrieve: #%d chunk_id=%s, score=%.4f, content_preview=%.60s",
-			i+1, row.ChunkID, score, row.Content)
+		logger.GetLogger(ctx).Infof("[SQLite] keywordsRetrieve: #%d chunk_id=%s, score=%.4f",
+			i+1, row.ChunkID, score)
 
 		items[i] = &types.IndexWithScore{
 			ID:              fmt.Sprintf("%d", row.ID),
@@ -736,8 +736,8 @@ func (r *sqliteRepository) vectorRetrieve(ctx context.Context, params types.Retr
 			continue
 		}
 
-		logger.GetLogger(ctx).Infof("[SQLite] vectorRetrieve: #%d chunk_id=%s, distance=%.4f, score=%.4f, content_preview=%.60s",
-			i+1, v.ChunkID, v.Distance, score, v.Content)
+		logger.GetLogger(ctx).Infof("[SQLite] vectorRetrieve: #%d chunk_id=%s, distance=%.4f, score=%.4f",
+			i+1, v.ChunkID, v.Distance, score)
 
 		items = append(items, &types.IndexWithScore{
 			ID:              fmt.Sprintf("%d", v.Rowid),

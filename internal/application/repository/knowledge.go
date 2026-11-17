@@ -56,6 +56,9 @@ func NewKnowledgeRepository(db *gorm.DB) interfaces.KnowledgeRepository {
 // CreateKnowledge creates knowledge
 func (r *knowledgeRepository) CreateKnowledge(ctx context.Context, knowledge *types.Knowledge) error {
 	knowledge.ErrorMessage = common.CleanInvalidUTF8(knowledge.ErrorMessage)
+	if knowledge.Channel == "vnote" {
+		return r.createVNoteGeneration(ctx, knowledge)
+	}
 	err := r.db.WithContext(ctx).Create(knowledge).Error
 	return err
 }
@@ -66,6 +69,10 @@ func (r *knowledgeRepository) GetKnowledgeByID(
 	tenantID uint64,
 	id string,
 ) (*types.Knowledge, error) {
+	id, err := r.ResolveVNoteKnowledgeID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	var knowledge types.Knowledge
 	if err := r.db.WithContext(ctx).Where("tenant_id = ? AND id = ?", tenantID, id).First(&knowledge).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -73,17 +80,35 @@ func (r *knowledgeRepository) GetKnowledgeByID(
 		}
 		return nil, err
 	}
+	allowed, err := r.canLoadVNoteKnowledge(ctx, &knowledge)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, ErrKnowledgeNotFound
+	}
 	return &knowledge, nil
 }
 
 // GetKnowledgeByIDOnly returns knowledge by ID without tenant filter (for permission resolution).
 func (r *knowledgeRepository) GetKnowledgeByIDOnly(ctx context.Context, id string) (*types.Knowledge, error) {
+	id, err := r.ResolveVNoteKnowledgeID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	var knowledge types.Knowledge
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&knowledge).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrKnowledgeNotFound
 		}
 		return nil, err
+	}
+	allowed, err := r.canLoadVNoteKnowledge(ctx, &knowledge)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, ErrKnowledgeNotFound
 	}
 	return &knowledge, nil
 }
@@ -93,7 +118,11 @@ func (r *knowledgeRepository) ListKnowledgeByKnowledgeBaseID(
 	ctx context.Context, tenantID uint64, kbID string,
 ) ([]*types.Knowledge, error) {
 	var knowledges []*types.Knowledge
-	if err := r.db.WithContext(ctx).Where("tenant_id = ? AND knowledge_base_id = ?", tenantID, kbID).
+	query := r.db.WithContext(ctx).Where("tenant_id = ? AND knowledge_base_id = ?", tenantID, kbID)
+	if r.db.Migrator().HasTable(&types.VNoteImportGeneration{}) {
+		query = visibleVNoteGenerations(query)
+	}
+	if err := query.
 		Order("created_at DESC").Find(&knowledges).Error; err != nil {
 		return nil, err
 	}
@@ -230,6 +259,9 @@ func (r *knowledgeRepository) ListPagedKnowledgeByKnowledgeBaseID(
 	var total int64
 
 	scope := func(q *gorm.DB) *gorm.DB {
+		if r.db.Migrator().HasTable(&types.VNoteImportGeneration{}) {
+			q = visibleVNoteGenerations(q)
+		}
 		return applyKnowledgeListFilter(
 			q.Where("tenant_id = ? AND knowledge_base_id = ?", tenantID, kbID),
 			filter,
@@ -355,6 +387,9 @@ func (r *knowledgeRepository) RenameKnowledgeFolderPath(
 
 // UpdateKnowledge updates knowledge
 func (r *knowledgeRepository) UpdateKnowledge(ctx context.Context, knowledge *types.Knowledge) error {
+	if attempt := types.VNoteAdmissionFromContext(ctx); attempt != "" {
+		return r.updateVNoteKnowledge(ctx, knowledge, attempt)
+	}
 	knowledge.ErrorMessage = common.CleanInvalidUTF8(knowledge.ErrorMessage)
 	omit := omitFieldsOnUpdate
 	// Legacy/unit-test schemas created before custom_metadata should continue
@@ -393,13 +428,17 @@ func (r *knowledgeRepository) DeleteKnowledgeList(ctx context.Context, tenantID 
 func (r *knowledgeRepository) GetKnowledgeBatch(
 	ctx context.Context, tenantID uint64, ids []string,
 ) ([]*types.Knowledge, error) {
+	ids, err := r.resolveVNoteLogicalIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	var knowledge []*types.Knowledge
 	if err := r.db.WithContext(ctx).
 		Where("tenant_id = ? AND id IN ?", tenantID, ids).
 		Find(&knowledge).Error; err != nil {
 		return nil, err
 	}
-	return knowledge, nil
+	return r.filterVNoteKnowledge(ctx, knowledge)
 }
 
 // GetKnowledgeBatchByIDOnly gets knowledge in batch without a tenant filter.
@@ -409,11 +448,15 @@ func (r *knowledgeRepository) GetKnowledgeBatchByIDOnly(
 	if len(ids) == 0 {
 		return nil, nil
 	}
+	ids, err := r.resolveVNoteLogicalIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	var knowledge []*types.Knowledge
 	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&knowledge).Error; err != nil {
 		return nil, err
 	}
-	return knowledge, nil
+	return r.filterVNoteKnowledge(ctx, knowledge)
 }
 
 // CheckKnowledgeExists checks if knowledge already exists
@@ -810,10 +853,13 @@ func (r *knowledgeRepository) CountKnowledgeByKnowledgeBaseID(
 	// Mirror the document list's view (applyKnowledgeListFilter): rows
 	// mid-deletion are hidden there, so counting them here is what produced
 	// the "4 documents, 3 listed" ghost on the KB card (issues #3338/#3345).
-	err := r.db.WithContext(ctx).Model(&types.Knowledge{}).
+	query := r.db.WithContext(ctx).Model(&types.Knowledge{}).
 		Where("tenant_id = ? AND knowledge_base_id = ? AND parse_status <> ?",
-			tenantID, kbID, types.ParseStatusDeleting).
-		Count(&count).Error
+			tenantID, kbID, types.ParseStatusDeleting)
+	if r.db.Migrator().HasTable(&types.VNoteImportGeneration{}) {
+		query = visibleVNoteGenerations(query)
+	}
+	err := query.Count(&count).Error
 	return count, err
 }
 
@@ -844,6 +890,9 @@ func (r *knowledgeRepository) CountKnowledgeByStatus(
 	query := r.db.WithContext(ctx).Model(&types.Knowledge{}).
 		Where("tenant_id = ? AND knowledge_base_id = ?", tenantID, kbID).
 		Where("parse_status IN ?", parseStatuses)
+	if r.db.Migrator().HasTable(&types.VNoteImportGeneration{}) {
+		query = visibleVNoteGenerations(query)
+	}
 
 	if err := query.Count(&count).Error; err != nil {
 		return 0, err
@@ -975,6 +1024,9 @@ func (r *knowledgeRepository) SearchKnowledge(
 		Where("knowledges.tenant_id = ?", tenantID).
 		Where("knowledge_bases.type = ?", types.KnowledgeBaseTypeDocument).
 		Where("knowledges.deleted_at IS NULL")
+	if r.db.Migrator().HasTable(&types.VNoteImportGeneration{}) {
+		query = visibleVNoteGenerations(query)
+	}
 
 	// If keyword is provided, filter by file_name or title (case-insensitive).
 	if keyword != "" {
@@ -1098,6 +1150,9 @@ func (r *knowledgeRepository) SearchKnowledgeInScopes(
 		Where(scopeCondition, args...).
 		Where("knowledge_bases.type = ?", types.KnowledgeBaseTypeDocument).
 		Where("knowledges.deleted_at IS NULL")
+	if r.db.Migrator().HasTable(&types.VNoteImportGeneration{}) {
+		query = visibleVNoteGenerations(query)
+	}
 
 	if keyword != "" {
 		escaped := strings.ToLower(escapeLikeKeyword(keyword))

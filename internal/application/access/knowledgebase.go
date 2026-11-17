@@ -101,6 +101,12 @@ func ResolveKB(ctx context.Context, request KBRequest, kb *types.KnowledgeBase, 
 	if kb == nil || kb.ID == "" {
 		return nil, ErrNotFound
 	}
+	if !CanReadPrivateKB(types.WithCaller(ctx, request.Caller), kb) {
+		return nil, ErrNotFound
+	}
+	if kb.VNoteRootID != "" && required != types.OrgRoleViewer {
+		return nil, ErrForbidden
+	}
 	if err := types.AuthorizeTenantAPIKeyKnowledgeBases(ctx, kb.ID); err != nil {
 		return nil, err
 	}

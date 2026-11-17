@@ -1,5 +1,43 @@
 # VOS API 契约、密钥和生命周期
 
+## V-Note 同步模型与拒绝重试
+
+`POST /api/v1/vnote/import-note` 仅供联动协议使用，仍要求已绑定的当前用户证明与
+单次源票据 `{ "ticket": "<单次票据>" }`。新建同步库优先使用工作区默认 Embedding，
+其次部署默认；均未设置时仅允许唯一启用的 YAML 托管内置 Embedding。多个候选或
+仅有未选中的自定义模型时，先配置默认模型。已有知识库继续使用原模型。
+
+仅在当前请求尚未暂存或排入索引时，缺少可用模型返回 HTTP 422：
+`{"code":"vnote_embedding_unavailable","accepted":false,"error":"Configure an active default embedding model, then retry"}`。
+`code` 是固定拒绝码，`accepted` 固定为 `false`，`error` 是说明字符串。
+源端可在修复模型配置后重试。其他 422、超时或响应丢失不保证任务未接收，不能直接
+清除待确认任务；旧版不确定手动运行应先保存相同设置、等控制版本送达，再立即同步。
+仍在执行的模型任务继续占用槽位。知识库响应中的 `managed_source="vnote"` 为服务端
+计算的只读来源标记，普通库省略该字段；托管库无需摘要模型即可打开文档视图。
+
+## V-Note 首次账号关联
+
+旧账号在「设置 → 用户信息 → 关联 VOS 账号」确认当前 HybRAG 账号归属后，再返回
+V-Note「个人中心 → 集成 → HybRAG」重试。此确认不开始同步、不开启后台委托、不读取
+笔记正文，也不搬移知识库。新建账号通过严格 VOS 用户校验后，在创建事务内自动关联；
+已有同名账号不会自动关联。
+
+客户端调用 `POST /auth/vos-identity`（相对于下文 API base），请求为
+`Content-Type: application/json`、`Authorization: Bearer <当前 HybRAG 用户 JWT>`，
+正文 `{"access_token":"<新的 VOS 用户 access token>"}`。唯一正文参数 `access_token`
+必填，字符串长度 1–16384；请求体最多 32768 字节。两个凭据缺一不可；应用服务 Token、
+停用用户及无法核验的 VOS 证明均拒绝。目标 HybRAG 用户由 JWT 决定，不接受客户端指定
+用户 ID、用户名或空间 ID。账号和 VOS subject 已经是同一关联时重复提交成功；任一端
+已有不同关联时不覆盖。
+
+成功 HTTP 200：`{"success":true,"data":{"bound":true}}`。响应禁止缓存
+（`Cache-Control: no-store`）。HTTP 400 表示缺失/非法正文，401 表示无效 HybRAG 会话或
+VOS 用户证明，403 表示部署禁用 VOS 认证；409 的 `code: "identity_conflict"` 表示已有
+冲突关联，需要管理员核查。存储故障返回 500，身份绑定服务不可用返回 503。
+400/401/403/500 沿用下文通用错误结构；409/503 返回 `success:false` 和错误说明。
+恢复会话或服务后可安全重试；冲突不通过重试覆盖。不接受 API Key 或后台委托替代本次
+用户确认，也不在前端持久保存 VOS 证明。
+
 ## 入口与完整字段
 
 “设置 → API 文档”保留原有完整章节库，“完整字段 / Full contract”提供可搜索的原生操作参数、请求、返回和共享结构。生产 GIN_MODE=release 会禁用 /swagger，因此文档打包版本匹配的 schema，不要求管理员开启开发模式。下方目录覆盖该原生规范声明的全部操作；新引入的路由及有意开放的工具/provider JSON 仍以实际路由与所属协议为准，不伪造统一固定结构。

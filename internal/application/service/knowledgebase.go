@@ -352,6 +352,9 @@ func (s *knowledgeBaseService) GetKnowledgeBaseByID(ctx context.Context, id stri
 	}
 
 	kb.EnsureDefaults()
+	if !access.CanLoadPrivateKB(ctx, kb) {
+		return nil, repository.ErrKnowledgeBaseNotFound
+	}
 	return kb, nil
 }
 
@@ -372,6 +375,9 @@ func (s *knowledgeBaseService) GetKnowledgeBaseByIDOnly(ctx context.Context, id 
 	}
 
 	kb.EnsureDefaults()
+	if !access.CanLoadPrivateKB(ctx, kb) {
+		return nil, repository.ErrKnowledgeBaseNotFound
+	}
 	return kb, nil
 }
 
@@ -389,7 +395,7 @@ func (s *knowledgeBaseService) GetKnowledgeBasesByIDsOnly(ctx context.Context, i
 			kb.EnsureDefaults()
 		}
 	}
-	return kbs, nil
+	return access.FilterPrivateKBs(ctx, kbs), nil
 }
 
 // ListKnowledgeBases returns all knowledge bases for a tenant
@@ -408,6 +414,7 @@ func (s *knowledgeBaseService) ListKnowledgeBases(ctx context.Context) ([]*types
 		return nil, err
 	}
 
+	kbs = access.FilterPrivateKBs(ctx, kbs)
 	// Query knowledge count and chunk count for each knowledge base
 	for _, kb := range kbs {
 		kb.EnsureDefaults()
@@ -465,6 +472,7 @@ func (s *knowledgeBaseService) ListKnowledgeBasesByTenantID(ctx context.Context,
 		})
 		return nil, err
 	}
+	kbs = access.FilterPrivateKBs(ctx, kbs)
 	for _, kb := range kbs {
 		kb.EnsureDefaults()
 		switch kb.Type {
