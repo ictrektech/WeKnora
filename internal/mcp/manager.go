@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
@@ -80,6 +82,51 @@ func cacheKey(service *types.MCPService, principal types.Principal) string {
 	return service.ID
 }
 
+func delegatedConnectionCacheKey(
+	service *types.MCPService,
+	principal types.Principal,
+	accessToken string,
+) string {
+	sum := sha256.Sum256([]byte(accessToken))
+	return service.ID + "\x00" + principal.StorageID() + "\x00" + hex.EncodeToString(sum[:])
+}
+
+func resolveVOSDelegatedService(
+	ctx context.Context,
+	service *types.MCPService,
+) (*types.MCPService, string, error) {
+	if service == nil || service.AuthConfig == nil ||
+		service.AuthConfig.AuthType != types.MCPAuthVOS {
+		return service, "", nil
+	}
+	if service.Source != types.MCPServiceSourceMCPHub {
+		return nil, "", fmt.Errorf("VOS authentication is reserved for managed MCPHub services")
+	}
+	principal, ok := types.PrincipalFromContext(ctx)
+	if !ok {
+		return nil, "", types.ErrMCPHubSignInRequired
+	}
+	token, err := types.MCPHubAccessToken(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	resolved := *service
+	auth := *service.AuthConfig
+	auth.AuthType = types.MCPAuthBearer
+	auth.Token = token
+	resolved.AuthConfig = &auth
+	return &resolved, delegatedConnectionCacheKey(service, principal, token), nil
+}
+
+// ResolveVOSDelegatedService converts a managed MCPHub service to a one-request
+// Bearer-auth service backed by the current user's verified VOS token.
+func ResolveVOSDelegatedService(
+	ctx context.Context,
+	service *types.MCPService,
+) (*types.MCPService, string, error) {
+	return resolveVOSDelegatedService(ctx, service)
+}
+
 // principalCacheKey is the cache key of one principal's connection to an
 // OAuth service.
 func principalCacheKey(serviceID string, principal types.Principal) string {
@@ -96,6 +143,9 @@ func (m *MCPManager) GetOrCreateClient(ctx context.Context, service *types.MCPSe
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if service == nil {
+		return nil, fmt.Errorf("MCP service is required")
+	}
 	// Check if service is enabled
 	if !service.Enabled {
 		return nil, fmt.Errorf("MCP service %s is not enabled", service.Name)
@@ -105,6 +155,11 @@ func (m *MCPManager) GetOrCreateClient(ctx context.Context, service *types.MCPSe
 	if service.TransportType == types.MCPTransportStdio {
 		return nil, fmt.Errorf("stdio transport is disabled for security reasons; please use SSE or HTTP Streamable transport instead")
 	}
+	resolvedService, delegatedKey, err := resolveVOSDelegatedService(ctx, service)
+	if err != nil {
+		return nil, err
+	}
+	service = resolvedService
 
 	var tenantID uint64
 	var principal types.Principal
@@ -117,6 +172,9 @@ func (m *MCPManager) GetOrCreateClient(ctx context.Context, service *types.MCPSe
 		}
 	}
 	key := cacheKey(service, principal)
+	if delegatedKey != "" {
+		key = delegatedKey
+	}
 
 	var retired MCPClient
 	m.clientsMu.Lock()

@@ -164,6 +164,9 @@ func RegisterMCPServiceRoutes(
 		mcpServices.POST("", g.Admin(), handler.CreateMCPService)
 		// List MCP services — Viewer+
 		mcpServices.GET("", g.Viewer(), handler.ListMCPServices)
+		// Import the current VOS administrator's MCPHub directory. Existing
+		// enablement and tool policy remain intact.
+		mcpServices.POST("/mcphub/refresh", g.Admin(), handler.RefreshMCPHub)
 		// Get MCP service by ID — Viewer+
 		mcpServices.GET("/:id", g.Viewer(), handler.GetMCPService)
 		// Update MCP service — Admin+

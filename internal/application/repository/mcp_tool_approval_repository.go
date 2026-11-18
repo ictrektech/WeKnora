@@ -69,8 +69,9 @@ func (r *MCPToolApprovalRepository) IsRequired(ctx context.Context, tenantID uin
 	return row.RequireApproval, nil
 }
 
-// IsEnabled returns true when a tool has no stored policy row. This preserves
-// the historical behaviour for tools discovered before per-tool settings.
+// IsEnabled returns true when a manual tool has no stored policy row. Managed
+// MCPHub tools fail closed until an administrator confirms the newly observed
+// tool, even if discovery has not persisted its policy row yet.
 func (r *MCPToolApprovalRepository) IsEnabled(ctx context.Context, tenantID uint64, serviceID, toolName string) (bool, error) {
 	var row types.MCPToolApproval
 	err := r.db.WithContext(ctx).
@@ -78,7 +79,16 @@ func (r *MCPToolApprovalRepository) IsEnabled(ctx context.Context, tenantID uint
 		Where("tenant_id = ? AND service_id = ? AND tool_name = ?", tenantID, serviceID, toolName).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return true, nil
+		var source types.MCPServiceSource
+		err = r.db.WithContext(ctx).
+			Model(&types.MCPService{}).
+			Select("source").
+			Where("(tenant_id = ? OR is_builtin = true) AND id = ?", tenantID, serviceID).
+			Scan(&source).Error
+		if err != nil {
+			return false, fmt.Errorf("get mcp service source: %w", err)
+		}
+		return source != types.MCPServiceSourceMCPHub, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("get mcp tool enabled state: %w", err)

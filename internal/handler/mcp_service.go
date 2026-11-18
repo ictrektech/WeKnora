@@ -35,6 +35,8 @@ type MCPServiceHandler struct {
 	// runResumer continues a run suspended on an approval once it is
 	// answered. Nil leaves such answers to the reaper, which closes the run.
 	runResumer RunResumer
+	// mcpHub owns MCPHub discovery and per-user access filtering.
+	mcpHub interfaces.MCPHubService
 	// scheduledPrompt queues automation-owned continuations without starting a chat run.
 	scheduledPrompt func(context.Context, *types.AgentPrompt) bool
 	// grants are the callers' remembered agent approvals.
@@ -50,6 +52,13 @@ type RunResumer interface {
 
 // SetRunResumer wires the resumer of suspended runs.
 func (h *MCPServiceHandler) SetRunResumer(r RunResumer) { h.runResumer = r }
+
+// WithMCPHubService wires managed discovery without changing the constructor
+// used by focused handler tests.
+func (h *MCPServiceHandler) WithMCPHubService(service interfaces.MCPHubService) *MCPServiceHandler {
+	h.mcpHub = service
+	return h
+}
 
 // SetScheduledPromptRouter routes automation approvals to their scheduler.
 func (h *MCPServiceHandler) SetScheduledPromptRouter(f func(context.Context, *types.AgentPrompt) bool) {
@@ -174,6 +183,10 @@ func (h *MCPServiceHandler) CreateMCPService(c *gin.Context) {
 		c.Error(errors.NewBadRequestError(err.Error()))
 		return
 	}
+	service.Source = types.MCPServiceSourceManual
+	service.ExternalID = ""
+	service.HubAvailable = true
+	service.HubLastSeenAt = nil
 
 	tenantID := c.GetUint64(types.TenantIDContextKey.String())
 	if tenantID == 0 {
@@ -257,10 +270,15 @@ func (h *MCPServiceHandler) ListMCPServices(c *gin.Context) {
 		c.Error(errors.NewInternalServerError("Failed to list MCP services: " + err.Error()))
 		return
 	}
+	var hubStatus *types.MCPHubDiscoveryStatus
+	if !mayWriteSharedMCPMetadata(ctx) && h.mcpHub != nil {
+		services, hubStatus = h.mcpHub.FilterAccessible(ctx, tenantID, services)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    h.mcpServiceResponses(ctx, tenantID, services),
+		"mcphub":  hubStatus,
 	})
 }
 
@@ -293,6 +311,9 @@ func (h *MCPServiceHandler) listSharedAgentMCPServices(c *gin.Context, agent *ty
 			enabled = append(enabled, svc)
 		}
 	}
+	if !mayWriteSharedMCPMetadata(ctx) && h.mcpHub != nil {
+		enabled, _ = h.mcpHub.FilterAccessible(ctx, agent.TenantID, enabled)
+	}
 
 	resp := dto.NewSharedAgentMCPServiceResponses(enabled)
 	if summaries, err := h.mcpServiceService.ListMCPMetadataSummaries(
@@ -304,6 +325,32 @@ func (h *MCPServiceHandler) listSharedAgentMCPServices(c *gin.Context, agent *ty
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": resp})
+}
+
+// RefreshMCPHub discovers services visible to the current administrator and
+// reconciles them without changing existing enablement or local documentation.
+func (h *MCPServiceHandler) RefreshMCPHub(c *gin.Context) {
+	ctx := c.Request.Context()
+	tenantID := c.GetUint64(types.TenantIDContextKey.String())
+	if tenantID == 0 {
+		_ = c.Error(errors.NewBadRequestError("Workspace ID cannot be empty"))
+		return
+	}
+	if h.mcpHub == nil {
+		_ = c.Error(errors.NewServiceUnavailableError("MCPHub discovery is unavailable"))
+		return
+	}
+	status, err := h.mcpHub.Refresh(ctx, tenantID)
+	if err != nil {
+		logger.Warnf(ctx, "MCPHub discovery failed: %v", err)
+		if stderrors.Is(err, types.ErrMCPHubSignInRequired) {
+			_ = c.Error(errors.NewUnauthorizedError("Open HybRAG from VOS and sign in to use MCPHub"))
+			return
+		}
+		_ = c.Error(errors.NewServiceUnavailableError("MCPHub is temporarily unavailable"))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": status})
 }
 
 // GetMCPService godoc
@@ -335,6 +382,18 @@ func (h *MCPServiceHandler) GetMCPService(c *gin.Context) {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{"service_id": secutils.SanitizeForLog(serviceID)})
 		c.Error(errors.NewNotFoundError("MCP service not found"))
 		return
+	}
+	if service == nil {
+		_ = c.Error(errors.NewNotFoundError("MCP service not found"))
+		return
+	}
+	if service.Source == types.MCPServiceSourceMCPHub &&
+		!mayWriteSharedMCPMetadata(ctx) && h.mcpHub != nil {
+		accessible, _ := h.mcpHub.FilterAccessible(ctx, tenantID, []*types.MCPService{service})
+		if len(accessible) == 0 {
+			_ = c.Error(errors.NewNotFoundError("MCP service not found"))
+			return
+		}
 	}
 
 	// dto.NewMCPServiceResponse omits secret fields and additionally strips
@@ -538,6 +597,28 @@ func (h *MCPServiceHandler) UpdateMCPService(c *gin.Context) {
 			service.AdvancedConfig.RetryDelay = int(retryDelay)
 		}
 	}
+	existing, err := h.mcpServiceService.GetMCPServiceByID(ctx, tenantID, serviceID)
+	if err != nil || existing == nil {
+		_ = c.Error(errors.NewNotFoundError("MCP service not found"))
+		return
+	}
+	if existing.Source == types.MCPServiceSourceMCPHub {
+		// MCPHub owns connection details. HybRAG only retains local enablement
+		// and usage documentation, so unrelated form fields are ignored.
+		service.Name = ""
+		service.Description = ""
+		service.TransportType = ""
+		service.URL = nil
+		service.Headers = nil
+		service.AuthConfig = nil
+		service.AdvancedConfig = nil
+		service.StdioConfig = nil
+		service.EnvVars = nil
+		updateFields = map[string]bool{
+			"enabled":            updateFields["enabled"],
+			"usage_instructions": updateFields["usage_instructions"],
+		}
+	}
 	if err := mcpsecurity.ValidateServiceOutboundURLs(&service); err != nil {
 		logger.Warnf(ctx, "SSRF validation failed for MCP service update: %v", err)
 		c.Error(errors.NewBadRequestError(err.Error()))
@@ -623,6 +704,15 @@ func (h *MCPServiceHandler) DeleteMCPService(c *gin.Context) {
 	if tenantID == 0 {
 		logger.Error(ctx, "Tenant ID is empty")
 		c.Error(errors.NewBadRequestError("Workspace ID cannot be empty"))
+		return
+	}
+	service, err := h.mcpServiceService.GetMCPServiceByID(ctx, tenantID, serviceID)
+	if err != nil || service == nil {
+		_ = c.Error(errors.NewNotFoundError("MCP service not found"))
+		return
+	}
+	if service.Source == types.MCPServiceSourceMCPHub {
+		_ = c.Error(errors.NewConflictError("MCPHub services are managed in MCPHub; disable the service here instead"))
 		return
 	}
 

@@ -111,6 +111,51 @@ func TestMCPMetadataRefreshInvalidatesLiveHeaderSchemas(t *testing.T) {
 	require.Equal(t, "region= zone=C", headers[2])
 }
 
+func TestMCPMetadataRefreshDelegatesMCPHubVOSAuthentication(t *testing.T) {
+	utils.SetSSRFWhitelistFromRaw("127.0.0.1")
+	t.Cleanup(utils.ResetSSRFWhitelistForTest)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&types.MCPService{}, &types.MCPMetadata{}))
+	repo := repository.NewMCPServiceRepository(db)
+	metadata := NewMCPServiceService(repo, mcp.NewMCPManager(nil), nil).(interfaces.MCPMetadataService)
+	ctx := context.WithValue(context.Background(), types.TenantIDContextKey, uint64(1))
+	ctx = types.WithPrincipal(ctx, types.Principal{Type: types.PrincipalWebUser, ID: "alice"})
+	ctx = types.WithMCPHubAccess(ctx, func(context.Context) (string, error) {
+		return "vos-user-token", nil
+	})
+
+	server := sdkserver.NewMCPServer("MCPHub", "1")
+	server.AddTool(sdkmcp.Tool{Name: "lookup"}, func(context.Context, sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		return sdkmcp.NewToolResultText("ok"), nil
+	})
+	handler := sdkserver.NewStreamableHTTPServer(server, sdkserver.WithStateLess(true))
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer vos-user-token" {
+			http.Error(w, "authorization required", http.StatusUnauthorized)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(upstream.Close)
+	t.Setenv("MCPHUB_BASE_URL", upstream.URL)
+	managedURL := upstream.URL + "/mcp/amap"
+
+	service := &types.MCPService{
+		ID: "hub-service", TenantID: 1, Name: "amap", Enabled: true,
+		URL: &managedURL, TransportType: types.MCPTransportHTTPStreamable,
+		AuthConfig: &types.MCPAuthConfig{AuthType: types.MCPAuthVOS},
+		Source:     types.MCPServiceSourceMCPHub,
+		ExternalID: "amap",
+	}
+	require.NoError(t, repo.Create(ctx, service))
+
+	saved, err := metadata.RefreshMCPMetadata(ctx, 1, service.ID)
+	require.NoError(t, err)
+	require.Len(t, saved.Tools, 1)
+	require.Equal(t, "lookup", saved.Tools[0].Name)
+}
+
 func TestMCPMetadataRefreshAndOfflineEditing(t *testing.T) {
 	utils.SetSSRFWhitelistFromRaw("127.0.0.1")
 	t.Cleanup(utils.ResetSSRFWhitelistForTest)

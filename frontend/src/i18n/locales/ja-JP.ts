@@ -5888,6 +5888,12 @@ export default {
     deleteConfirmBody: 'MCPサービス「{name}」を削除しますか？この操作は取り消せません。',
     unnamed: '名称未設定',
     builtin: '組み込み',
+    syncMCPHub: 'MCPHubを同期',
+    fromMCPHub: 'MCPHub',
+    hubUnavailable: 'MCPHub利用不可',
+    hubSynced: 'MCPHubを同期しました: {count}サービス',
+    hubUnavailableHint: 'MCPHubを一時的に利用できないか、VOSのサインインが期限切れです。既存のサービスと設定は保持されています。VOSからHybRAGを開き直して再試行してください。',
+    hubSignInHint: 'MCPHubサービスを同期するには、VOSからHybRAGを開いてサインインしてください。',
     toolCount: '{count} 個のツール',
     toolsNotSynced: 'ツール未同期',
     toolsStale: '再同期が必要'

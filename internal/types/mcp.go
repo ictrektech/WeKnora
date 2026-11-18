@@ -22,6 +22,14 @@ const (
 	MCPTransportStdio          MCPTransportType = "stdio"           // Stdio (Standard Input/Output)
 )
 
+// MCPServiceSource identifies who owns an MCP service's connection settings.
+type MCPServiceSource string
+
+const (
+	MCPServiceSourceManual MCPServiceSource = "manual"
+	MCPServiceSourceMCPHub MCPServiceSource = "mcphub"
+)
+
 // MCPUpdateDropSecrets is an update field-map flag that clears the service's
 // API key, token and custom headers along with the update.
 const MCPUpdateDropSecrets = "drop_secrets"
@@ -44,6 +52,10 @@ type MCPService struct {
 	StdioConfig    *MCPStdioConfig    `json:"stdio_config,omitempty" gorm:"type:json"`     // Required for stdio transport
 	EnvVars        MCPEnvVars         `json:"env_vars,omitempty"     gorm:"type:json"`     // Environment variables for stdio
 	IsBuiltin      bool               `json:"is_builtin"             gorm:"default:false"` // Whether this is a builtin MCP service (visible to all workspaces)
+	Source         MCPServiceSource   `json:"source"                gorm:"type:varchar(32);not null;default:'manual';index"`
+	ExternalID     string             `json:"external_id,omitempty" gorm:"type:varchar(255)"`
+	HubAvailable   bool               `json:"hub_available"         gorm:"not null;default:true"`
+	HubLastSeenAt  *time.Time         `json:"hub_last_seen_at,omitempty"`
 	CreatedAt      time.Time          `json:"created_at"`
 	UpdatedAt      time.Time          `json:"updated_at"`
 	DeletedAt      gorm.DeletedAt     `json:"deleted_at"             gorm:"index"`
@@ -75,6 +87,9 @@ const (
 	// (discovery + dynamic client registration + PKCE) per user. Tokens are
 	// stored per (tenant, user, service) in mcp_oauth_tokens.
 	MCPAuthOAuth MCPAuthType = "oauth"
+	// MCPAuthVOS delegates authentication to the current user's verified VOS
+	// access token. It is only used by managed MCPHub services.
+	MCPAuthVOS MCPAuthType = "vos"
 )
 
 // MCPAuthConfig represents authentication configuration for MCP service.

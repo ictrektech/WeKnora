@@ -197,7 +197,14 @@ func (s *mcpServiceService) RefreshMCPMetadata(
 		return nil, err
 	}
 	started := time.Now().UTC()
-	config := &mcp.ClientConfig{Service: service}
+	connectionService := service
+	if service.AuthConfig != nil && service.AuthConfig.AuthType == types.MCPAuthVOS {
+		connectionService, _, err = mcp.ResolveVOSDelegatedService(ctx, service)
+		if err != nil {
+			return nil, fmt.Errorf("could not refresh MCP directory: %w", err)
+		}
+	}
+	config := &mcp.ClientConfig{Service: connectionService}
 	if service.AuthConfig.IsOAuth() {
 		config.OAuthRepo, config.TenantID, config.Principal = s.oauthRepo, tenant, types.MCPOAuthPrincipalFromContext(
 			ctx,

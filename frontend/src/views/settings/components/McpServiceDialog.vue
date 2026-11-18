@@ -34,7 +34,7 @@
       <nav class="mcp-steps" :aria-label="t('mcpMetadata.setupProgress')">
         <button v-for="(label, index) in [t('mcpMetadata.connection'), t('mcpMetadata.toolsAndUsage')]"
           :key="index" type="button" :class="['mcp-step', { 'is-active': step === index, 'is-done': step > index, 'is-clickable': true }]"
-          :aria-current="step === index ? 'step' : undefined" :disabled="submitting || metadataBusy || generatingUsage"
+          :aria-current="step === index ? 'step' : undefined" :disabled="submitting || metadataBusy || generatingUsage || (isMCPHub && index === 0)"
           @click="index === 0 ? step = 0 : (step === 0 && handleNext())">
           <span class="mcp-step__marker"><t-icon v-if="step > index" name="check" /><template v-else>{{ index + 1 }}</template></span>
           <span class="mcp-step__title">{{ label }}</span>
@@ -43,7 +43,7 @@
       </nav>
     </template>
     <template #footer-left>
-      <t-button v-if="step === 1" variant="outline" :disabled="submitting || metadataBusy || generatingUsage" @click="step = 0">
+      <t-button v-if="step === 1 && !isMCPHub" variant="outline" :disabled="submitting || metadataBusy || generatingUsage" @click="step = 0">
         {{ t('mcpMetadata.previous') }}
       </t-button>
     </template>
@@ -627,6 +627,7 @@ const oauthScopesText = computed({
 })
 
 const isOAuth = computed(() => formData.value.auth_config.auth_type === 'oauth')
+const isMCPHub = computed(() => savedService.value?.source === 'mcphub')
 
 // API Key / Bearer are unified into one "credential header" strategy now that
 // the header name is configurable (Bearer is just Authorization + a "Bearer "
@@ -931,7 +932,9 @@ watch(
         auth_config: {
           // Legacy 'bearer' collapses into the unified 'api_key' strategy; ''
           // (none) and the rest are preserved.
-          auth_type: service.auth_config?.auth_type === 'bearer'
+          auth_type: service.source === 'mcphub'
+            ? ''
+            : service.auth_config?.auth_type === 'bearer'
             ? 'api_key'
             : ((service.auth_config?.auth_type as '' | 'api_key' | 'oauth') || ''),
           api_key: '',

@@ -85,12 +85,14 @@ var versionedSQLiteColumns = map[string][]string{
 		"parent_session_id", "forked_from_message_id", "fork_bootstrap", // 000115
 		"workspace_mode", "sandbox_config_tenant_id", "host_workspace_dir", // 000110/130/131
 	},
-	"tenant_invitations":          {"token", "accepted_count"},          // 000054
-	"embed_channels":              {"allow_memory"},                     // 000060
-	"im_channels":                 {"locale"},                           // 000132
-	"chunks":                      {"source_locators"},                  // 000043
-	"mcp_oauth_tokens":            {"principal_type", "principal_id"},   // 000064
-	"mcp_services":                {"usage_instructions"},               // SQLite 000044
+	"tenant_invitations": {"token", "accepted_count"},        // 000054
+	"embed_channels":     {"allow_memory"},                   // 000060
+	"im_channels":        {"locale"},                         // 000132
+	"chunks":             {"source_locators"},                // 000043
+	"mcp_oauth_tokens":   {"principal_type", "principal_id"}, // 000064
+	"mcp_services": {
+		"usage_instructions", "source", "external_id", "hub_available", "hub_last_seen_at",
+	}, // SQLite 000044, 000071
 	"mcp_tool_approvals":          {"enabled", "risk", "observed_risk"}, // 000100, SQLite 000053
 	"message_artifacts":           {"deleted_at"},                       // 000125
 	"automations":                 {"model_id"},                         // SQLite 000059
@@ -105,7 +107,7 @@ var versionedSQLiteColumns = map[string][]string{
 	}, // 000038
 }
 
-const expectedSQLiteMigrationVersion = 70
+const expectedSQLiteMigrationVersion = 71
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)

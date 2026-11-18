@@ -236,6 +236,15 @@ func authenticateVOSBearerUser(
 		c.Abort()
 		return true
 	}
+	ctx = c.Request.Context()
+	ctx = types.WithMCPHubAccess(ctx, func(checkCtx context.Context) (string, error) {
+		caller := types.CallerFromContext(checkCtx)
+		if caller.UserID == "" || caller.UserID != user.ID {
+			return "", types.ErrMCPHubSignInRequired
+		}
+		return token, nil
+	})
+	c.Request = c.Request.WithContext(ctx)
 	if authenticateJWTUser(c, tenantService, memberService, cfg, user, user.TenantID) {
 		logger.Infof(ctx, "[auth] accepted VOS bearer for user=%s", user.ID)
 	}

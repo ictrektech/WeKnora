@@ -14,7 +14,7 @@ export interface MCPService {
     // Authentication strategy. Empty/absent means none. "oauth" enables the
     // per-user OAuth2 authorization-code flow (zero-config: discovery +
     // dynamic client registration).
-    auth_type?: '' | 'api_key' | 'bearer' | 'oauth'
+    auth_type?: '' | 'api_key' | 'bearer' | 'oauth' | 'vos'
     // Secret fields (api_key, token) are NEVER returned by the server in
     // this shape — they live behind the /credentials subresource. The
     // optional-property typing remains so create-mode payloads can still
@@ -47,6 +47,10 @@ export interface MCPService {
   }
   env_vars?: Record<string, string> // Environment variables for stdio transport
   is_builtin?: boolean // Whether this is a builtin MCP service
+  source?: 'manual' | 'mcphub'
+  external_id?: string
+  hub_available?: boolean
+  hub_last_seen_at?: string
   // Per-field "configured?" map embedded on the main response (server-side
   // dto.MCPServiceResponse.Credentials). Drives the CredentialResource card
   // without a follow-up GET. Absent for builtin services.
@@ -95,6 +99,19 @@ export interface MCPTestResult {
   resources?: MCPResource[]
 }
 
+export interface MCPHubDiscoveryStatus {
+  available: boolean
+  authenticated: boolean
+  last_synced_at?: string
+  service_count: number
+  message?: string
+}
+
+export interface MCPServiceDirectory {
+  services: MCPService[]
+  mcphub?: MCPHubDiscoveryStatus | null
+}
+
 // List all MCP services
 /** Locates a shared agent's source workspace, same parameters as a chat request. */
 export interface MCPAgentScope {
@@ -111,13 +128,28 @@ export interface MCPAgentScope {
 // headers or credential metadata, which describe how the owner wired the
 // service up — since the picker needs nothing more.
 export async function listMCPServices(agent?: MCPAgentScope): Promise<MCPService[]> {
+  return (await getMCPServiceDirectory(agent)).services
+}
+
+export async function getMCPServiceDirectory(agent?: MCPAgentScope): Promise<MCPServiceDirectory> {
   const params: Record<string, string> = {}
   if (agent?.agentId && agent?.sourceTenantId) {
     params.agent_id = agent.agentId
     params.agent_source_tenant_id = String(agent.sourceTenantId)
   }
   const response: any = await get('/api/v1/mcp-services', { params })
-  return response.data || []
+  return {
+    services: response.data || [],
+    mcphub: response.mcphub ?? null,
+  }
+}
+
+// Synchronizes the administrator's MCPHub directory. MCPHub remains the
+// authority for per-user access; this call changes discovery metadata only and
+// preserves existing service enablement and tool policies.
+export async function refreshMCPHubServices(): Promise<MCPHubDiscoveryStatus> {
+  const response: any = await post('/api/v1/mcp-services/mcphub/refresh', {})
+  return response.data
 }
 
 // Get a single MCP service by ID

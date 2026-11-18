@@ -96,6 +96,7 @@ import (
 	infra_web_search "github.com/Tencent/WeKnora/internal/infrastructure/web_search"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/mcp"
+	"github.com/Tencent/WeKnora/internal/mcphub"
 	"github.com/Tencent/WeKnora/internal/mcpserver"
 	"github.com/Tencent/WeKnora/internal/models/api"
 	"github.com/Tencent/WeKnora/internal/models/embedding"
@@ -223,6 +224,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(mcp.NewMCPManager))
 	must(container.Invoke(registerMCPCleanup))
 	must(container.Provide(mcp.NewOAuthManager))
+	must(container.Provide(mcphub.NewClient))
 
 	// Sandbox manager fallback is disabled; executable backends are resolved
 	// from named workspace configurations. Lite additionally provides a host
@@ -320,6 +322,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewMessageSuggestionService))
 	must(container.Provide(service.NewMCPServiceService))
 	must(container.Provide(service.NewMCPToolApprovalService))
+	must(container.Provide(service.NewMCPHubService))
 	must(container.Provide(service.NewCustomAgentService))
 	must(container.Provide(service.NewUserResourceFavoriteService))
 	must(container.Provide(service.NewWikiPageService))
@@ -743,9 +746,10 @@ func BuildContainer(container *dig.Container) *dig.Container {
 		agents interfaces.AgentShareService,
 		grants interfaces.AgentGrantRepository,
 		secureForms *credential.Submitter,
+		mcpHub interfaces.MCPHubService,
 	) *handler.MCPServiceHandler {
 		return handler.NewMCPServiceHandler(mcpService, toolApprovals, gate, models, agents).
-			WithGrants(grants).WithSecureForms(secureForms)
+			WithGrants(grants).WithSecureForms(secureForms).WithMCPHubService(mcpHub)
 	}))
 	must(container.Provide(handler.NewCredentialVaultHandler))
 	must(container.Invoke(func(agents interfaces.AgentService, handles *credential.HandleStore) {

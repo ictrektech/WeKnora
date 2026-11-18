@@ -36,6 +36,10 @@ type MCPServiceResponse struct {
 	StdioConfig       *types.MCPStdioConfig    `json:"stdio_config,omitempty"`
 	EnvVars           types.MCPEnvVars         `json:"env_vars,omitempty"`
 	IsBuiltin         bool                     `json:"is_builtin" extensions:"x-agent"`
+	Source            types.MCPServiceSource   `json:"source" extensions:"x-agent"`
+	ExternalID        string                   `json:"external_id,omitempty"`
+	HubAvailable      bool                     `json:"hub_available" extensions:"x-agent"`
+	HubLastSeenAt     *time.Time               `json:"hub_last_seen_at,omitempty"`
 	CreatedAt         time.Time                `json:"created_at"`
 	UpdatedAt         time.Time                `json:"updated_at"`
 	// Credentials is the per-field "configured?" map. Embedded on the main
@@ -101,6 +105,10 @@ func NewMCPServiceResponse(ctx context.Context, svc *types.MCPService) *MCPServi
 		StdioConfig:       svc.StdioConfig,
 		EnvVars:           svc.EnvVars,
 		IsBuiltin:         svc.IsBuiltin,
+		Source:            svc.Source,
+		ExternalID:        svc.ExternalID,
+		HubAvailable:      svc.HubAvailable,
+		HubLastSeenAt:     svc.HubLastSeenAt,
 		CreatedAt:         svc.CreatedAt,
 		UpdatedAt:         svc.UpdatedAt,
 	}
@@ -177,6 +185,10 @@ func NewSharedAgentMCPServiceResponses(svcs []*types.MCPService) []*MCPServiceRe
 			Enabled:           s.Enabled,
 			TransportType:     s.TransportType,
 			IsBuiltin:         s.IsBuiltin,
+			Source:            s.Source,
+			ExternalID:        s.ExternalID,
+			HubAvailable:      s.HubAvailable,
+			HubLastSeenAt:     s.HubLastSeenAt,
 		})
 	}
 	return out

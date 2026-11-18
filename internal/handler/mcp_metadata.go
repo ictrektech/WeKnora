@@ -75,9 +75,11 @@ func (h *MCPServiceHandler) mcpMetadata(c *gin.Context, refresh bool) {
 	}
 	id := c.Param("id")
 	var snapshot *types.MCPMetadata
+	var service *types.MCPService
 	var err error
 	if refresh {
-		service, getErr := h.mcpServiceService.GetMCPServiceByID(ctx, tenant, id)
+		var getErr error
+		service, getErr = h.mcpServiceService.GetMCPServiceByID(ctx, tenant, id)
 		if getErr != nil || service == nil {
 			logger.ErrorWithFields(ctx, getErr, map[string]interface{}{
 				"service_id": secutils.SanitizeForLog(id),
@@ -101,6 +103,16 @@ func (h *MCPServiceHandler) mcpMetadata(c *gin.Context, refresh bool) {
 		})
 		_ = c.Error(mcpMetadataAppError(err, refresh))
 		return
+	}
+	if refresh && snapshot != nil && service != nil &&
+		service.Source == types.MCPServiceSourceMCPHub && h.mcpHub != nil {
+		if err := h.mcpHub.EnsureToolPolicies(ctx, tenant, service.ID, snapshot.Tools, false); err != nil {
+			logger.ErrorWithFields(ctx, err, map[string]interface{}{
+				"service_id": secutils.SanitizeForLog(id),
+			})
+			_ = c.Error(errors.NewInternalServerError("Failed to initialize MCPHub tool policies"))
+			return
+		}
 	}
 	response := MCPMetadataResponse{Success: true, Synced: snapshot != nil, Data: snapshot}
 	if snapshot != nil {

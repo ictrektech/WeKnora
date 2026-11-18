@@ -107,6 +107,7 @@ type agentService struct {
 	modelService          interfaces.ModelService
 	mcpServiceService     interfaces.MCPServiceService
 	mcpManager            *mcp.MCPManager
+	mcpHubService         interfaces.MCPHubService
 	eventBus              *event.EventBus
 	db                    *gorm.DB
 	webSearchService      interfaces.WebSearchService
@@ -160,6 +161,7 @@ func NewAgentService(
 	chunkService interfaces.ChunkService,
 	mcpServiceService interfaces.MCPServiceService,
 	mcpManager *mcp.MCPManager,
+	mcpHubService interfaces.MCPHubService,
 	eventBus *event.EventBus,
 	db *gorm.DB,
 	webSearchService interfaces.WebSearchService,
@@ -198,6 +200,7 @@ func NewAgentService(
 		chunkService:         chunkService,
 		mcpServiceService:    mcpServiceService,
 		mcpManager:           mcpManager,
+		mcpHubService:        mcpHubService,
 		eventBus:             eventBus,
 		db:                   db,
 		webSearchService:     webSearchService,
@@ -476,11 +479,35 @@ func (s *agentService) registerMCPTools(
 	}
 
 	enabledServices := make([]*types.MCPService, 0)
+	hubServiceCount := 0
 	for _, svc := range mcpServices {
 		if svc != nil && svc.Enabled {
 			enabledServices = append(enabledServices, svc)
-			config.MCPServices = append(config.MCPServices, svc.ID)
+			if svc.Source == types.MCPServiceSourceMCPHub {
+				hubServiceCount++
+			}
 		}
+	}
+	if s.mcpHubService != nil {
+		var hubStatus *types.MCPHubDiscoveryStatus
+		enabledServices, hubStatus = s.mcpHubService.FilterAccessible(ctx, tenantID, enabledServices)
+		if hubStatus != nil && !hubStatus.Available {
+			logger.Warnf(ctx, "MCPHub services are unavailable for this run: %s", hubStatus.Message)
+			if hubServiceCount > 0 && s.eventBus != nil {
+				notice := "MCPHub access is unavailable for this run. Open HybRAG from VOS and sign in, then retry."
+				if strings.HasPrefix(types.LanguageFromContextOrDefault(ctx), "zh") {
+					notice = "本次运行无法验证 MCPHub 权限。请从 VOS 重新打开 HybRAG 并登录后重试。"
+				}
+				sessionID, _ := types.SessionIDFromContext(ctx)
+				_ = s.eventBus.Emit(ctx, event.Event{
+					Type: event.EventAgentProgress, SessionID: sessionID,
+					Data: event.AgentProgressData{Content: notice},
+				})
+			}
+		}
+	}
+	for _, svc := range enabledServices {
+		config.MCPServices = append(config.MCPServices, svc.ID)
 	}
 	if len(enabledServices) > 0 {
 		metadataService, ok := s.mcpServiceService.(interfaces.MCPMetadataService)

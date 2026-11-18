@@ -119,3 +119,49 @@ func TestVNotePrivateReadsRejectServiceProofWithoutCallingPlatform(t *testing.T)
 	router.ServeHTTP(httptest.NewRecorder(), req)
 	require.Zero(t, calls)
 }
+
+func TestVOSProofProvidesLazyMCPHubAccessForCurrentUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	calls := 0
+	platform := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		require.Equal(t, "Bearer human-proof", r.Header.Get("Authorization"))
+		_ = json.NewEncoder(w).Encode(map[string]any{"sub": "owner-sub", "enable": 1})
+	}))
+	defer platform.Close()
+	t.Setenv("HYBRAG_VOS_OIDC_USERINFO_URL", platform.URL+"/v1000/oauth2/userinfo")
+	t.Setenv("HYBRAG_VOS_SSO_ENABLED", "true")
+	users := &vnoteReadUsers{user: &types.User{ID: "alice", TenantID: 7, IsActive: true}}
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		ctx := types.WithCaller(c.Request.Context(), types.Caller{UserID: "alice", TenantID: 7})
+		ctx = types.WithPrincipal(ctx, types.Principal{Type: types.PrincipalWebUser, ID: "alice"})
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	})
+	router.Use(VNotePrivateReads(users))
+	router.GET("/hub", func(c *gin.Context) {
+		first, err := types.MCPHubAccessToken(c.Request.Context())
+		if err != nil {
+			c.Status(401)
+			return
+		}
+		second, err := types.MCPHubAccessToken(c.Request.Context())
+		require.NoError(t, err)
+		require.Equal(t, "human-proof", first)
+		require.Equal(t, first, second)
+		c.Status(204)
+	})
+
+	withoutProof := httptest.NewRecorder()
+	router.ServeHTTP(withoutProof, httptest.NewRequest(http.MethodGet, "/hub", nil))
+	require.Equal(t, 401, withoutProof.Code)
+	require.Zero(t, calls)
+
+	req := httptest.NewRequest(http.MethodGet, "/hub", nil)
+	req.Header.Set(VOSUserProofHeader, "human-proof")
+	withProof := httptest.NewRecorder()
+	router.ServeHTTP(withProof, req)
+	require.Equal(t, 204, withProof.Code)
+	require.Equal(t, 1, calls)
+}

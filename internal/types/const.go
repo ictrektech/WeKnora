@@ -111,6 +111,9 @@ const (
 	// the agent emits a one-shot authorization notice and continues instead of
 	// blocking until the OAuth wait times out. See IsMCPOAuthNonInteractive.
 	MCPOAuthNonInteractiveContextKey ContextKey = "MCPOAuthNonInteractive"
+	// MCPHubAccessContextKey carries a lazy verifier for the current request's
+	// VOS proof. MCPHub calls use it to delegate authorization per user.
+	MCPHubAccessContextKey ContextKey = "MCPHubAccess"
 	// RunModeContextKey carries the RunMode of the agent run. See
 	// RunModeFromContext.
 	RunModeContextKey ContextKey = "RunMode"

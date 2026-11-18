@@ -243,6 +243,16 @@ configs:
       injects `window.vos_platform` into same-origin iframes, and HybRAG prefers
       this standard OIDC path; legacy `/user/check` remains as fallback.'
   default: http://172.17.0.1:8105/v1000/oauth2/userinfo
+- name: MCPHUB_BASE_URL
+  type: string
+  title:
+    zh-CN: MCPHub 服务地址
+    en: MCPHub Base URL
+  description:
+    zh-CN: HybRAG 容器访问 MCPHub 的内部地址，默认通过同一 VOS 网络的 `mcphub` 服务发现。
+    en: Internal MCPHub URL used by HybRAG, discovered by default as the `mcphub`
+      service on the shared VOS network.
+  default: http://mcphub:3000/app/com.ictrek.mcphub
 - name: WEKNORA_CHAT_RESERVED_CONCURRENCY
   type: integer
   title:

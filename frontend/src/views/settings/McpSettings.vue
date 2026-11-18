@@ -1,11 +1,25 @@
 <template>
   <div class="mcp-settings">
     <div class="section-header">
-      <h2>{{ $t('mcpSettings.title') }}</h2>
+      <div class="section-header__top">
+        <h2>{{ $t('mcpSettings.title') }}</h2>
+        <t-button v-if="authStore.hasRole('admin')" variant="outline" size="small"
+          :loading="refreshingHub" @click="syncMCPHub(true)">
+          <template #icon><t-icon name="refresh" /></template>
+          {{ $t('mcpSettings.syncMCPHub') }}
+        </t-button>
+      </div>
       <p class="section-description">
         {{ $t('mcpSettings.description') }}
       </p>
     </div>
+    <t-alert v-if="hubIssue" theme="warning" class="hub-alert" :message="hubIssue">
+      <template v-if="authStore.hasRole('admin')" #operation>
+        <t-button variant="text" size="small" :loading="refreshingHub" @click="syncMCPHub(true)">
+          {{ $t('mcpMetadata.retry') }}
+        </t-button>
+      </template>
+    </t-alert>
 
     <div v-if="loading" class="loading-container">
       <t-loading :text="$t('common.loading')" />
@@ -39,12 +53,16 @@
                 </div>
                 <h3 class="service-card__title" :title="service.name">{{ service.name }}</h3>
                 <span v-if="service.is_builtin" class="service-card__builtin">{{ $t('mcpSettings.builtin') }}</span>
+                <span v-if="service.source === 'mcphub'" class="service-card__source"
+                  :class="{ 'is-unavailable': service.hub_available === false }">
+                  {{ $t(service.hub_available === false ? 'mcpSettings.hubUnavailable' : 'mcpSettings.fromMCPHub') }}
+                </span>
                 <div v-if="authStore.hasRole('admin')" class="service-card__actions">
                   <button type="button" class="service-card__icon-btn" :title="$t('common.edit')"
                     :aria-label="`${service.name} · ${$t('common.edit')}`" @click="handleEdit(service)">
                     <t-icon name="edit" size="14px" />
                   </button>
-                  <button v-if="!service.is_builtin" type="button" class="service-card__icon-btn service-card__icon-btn--danger"
+                  <button v-if="!service.is_builtin && service.source !== 'mcphub'" type="button" class="service-card__icon-btn service-card__icon-btn--danger"
                     :disabled="togglingIds.has(service.id)" :title="$t('common.delete')"
                     :aria-label="`${service.name} · ${$t('common.delete')}`" @click="handleDelete(service)">
                     <t-icon name="delete" size="14px" />
@@ -79,7 +97,8 @@
                   <span class="service-card__type">{{ getTransportTypeLabel(service.transport_type) }}</span>
                 </div>
                 <component :is="authStore.hasRole('admin') && !service.is_builtin ? 'button' : 'span'"
-                  class="service-card__status" :class="{ 'is-enabled': service.enabled || service.is_builtin }"
+                  class="service-card__status"
+                  :class="{ 'is-enabled': (service.enabled || service.is_builtin) && service.hub_available !== false }"
                   :type="authStore.hasRole('admin') && !service.is_builtin ? 'button' : undefined"
                   :role="authStore.hasRole('admin') && !service.is_builtin ? 'switch' : undefined"
                   :aria-checked="authStore.hasRole('admin') && !service.is_builtin ? service.enabled : undefined"
@@ -122,15 +141,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { AddIcon } from 'tdesign-icons-vue-next'
 import { useI18n } from 'vue-i18n'
 import {
-  listMCPServices,
+  getMCPServiceDirectory,
+  refreshMCPHubServices,
   updateMCPService,
   deleteMCPService,
+  type MCPHubDiscoveryStatus,
   type MCPService
 } from '@/api/mcp-service'
 import McpServiceDialog from './components/McpServiceDialog.vue'
@@ -156,11 +177,20 @@ const dialogMode = ref<'add' | 'edit'>('add')
 const currentService = ref<MCPService | null>(null)
 const dialogInitialStep = ref<0 | 1>(0)
 const togglingIds = ref(new Set<string>())
+const refreshingHub = ref(false)
+const hubStatus = ref<MCPHubDiscoveryStatus | null>(null)
+let hubRefreshTimer: ReturnType<typeof setInterval> | undefined
 const serviceUsage = (service: MCPService) => service.usage_instructions?.trim() || service.description?.trim() || ''
 const query = ref('')
 const filteredServices = computed(() => services.value.filter((service) =>
   matchesResourceQuery({ name: service.name, description: serviceUsage(service) }, query.value),
 ))
+const hubIssue = computed(() => {
+  if (!hubStatus.value || hubStatus.value.available) return ''
+  return hubStatus.value.authenticated
+    ? t('mcpSettings.hubUnavailableHint')
+    : t('mcpSettings.hubSignInHint')
+})
 
 useAssistantPageContext(() => {
   const service = dialogVisible.value && dialogMode.value === 'edit' ? currentService.value : null
@@ -171,16 +201,41 @@ useAssistantPageContext(() => {
 })
 
 // Load MCP services
-const loadServices = async () => {
-  loading.value = true
+const loadServices = async (showLoading = true) => {
+  if (showLoading) loading.value = true
   try {
-    services.value = await listMCPServices()
+    const directory = await getMCPServiceDirectory()
+    services.value = directory.services
+    if (directory.mcphub) hubStatus.value = directory.mcphub
     emit('count', services.value.length)
   } catch (error) {
     MessagePlugin.error(t('mcpSettings.toasts.loadFailed'))
     console.error('Failed to load MCP services:', error)
   } finally {
-    loading.value = false
+    if (showLoading) loading.value = false
+  }
+}
+
+const syncMCPHub = async (showSuccess = false) => {
+  if (!authStore.hasRole('admin') || refreshingHub.value) return
+  refreshingHub.value = true
+  if (services.value.length === 0) loading.value = true
+  try {
+    hubStatus.value = await refreshMCPHubServices()
+    if (showSuccess && hubStatus.value.available) {
+      MessagePlugin.success(t('mcpSettings.hubSynced', { count: hubStatus.value.service_count }))
+    }
+  } catch (error) {
+    hubStatus.value = {
+      available: false,
+      authenticated: true,
+      service_count: 0,
+    }
+    if (showSuccess) MessagePlugin.warning(t('mcpSettings.hubUnavailableHint'))
+    console.warn('Failed to synchronize MCPHub services:', error)
+  } finally {
+    await loadServices(services.value.length === 0)
+    refreshingHub.value = false
   }
 }
 
@@ -197,7 +252,7 @@ const handleEdit = (service: MCPService, initialStep: 0 | 1 = 0) => {
   if (!authStore.hasRole('admin')) return
   currentService.value = { ...service }
   dialogMode.value = 'edit'
-  dialogInitialStep.value = initialStep
+  dialogInitialStep.value = service.source === 'mcphub' ? 1 : initialStep
   dialogVisible.value = true
 }
 
@@ -308,8 +363,16 @@ watch(() => assistant.pageDraft, () => {
 watch(() => route.query.service_id, openRequestedService)
 
 onMounted(async () => {
-  await loadServices()
+  if (authStore.hasRole('admin')) {
+    await syncMCPHub(false)
+    hubRefreshTimer = setInterval(() => { void syncMCPHub(false) }, 60_000)
+  } else {
+    await loadServices()
+  }
   openRequestedService()
+})
+onBeforeUnmount(() => {
+  if (hubRefreshTimer) clearInterval(hubRefreshTimer)
 })
 useAssistantDataChange(() => { void loadServices() }, { areas: ['mcp_service'] })
 
@@ -327,6 +390,10 @@ defineExpose({ openAdd: handleAdd })
 
 .section-header {
   .settings-section-header();
+}
+
+.hub-alert {
+  margin: -16px 0 20px;
 }
 
 .loading-container {
@@ -467,6 +534,21 @@ defineExpose({ openAdd: handleAdd })
   font-size: var(--app-text-sm);
   line-height: 1.35;
   color: var(--td-text-color-placeholder);
+}
+
+.service-card__source {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--td-brand-color) 9%, transparent);
+  color: var(--td-brand-color);
+  font-size: var(--app-text-xs);
+  line-height: 18px;
+
+  &.is-unavailable {
+    background: color-mix(in srgb, var(--td-warning-color) 10%, transparent);
+    color: var(--td-warning-color);
+  }
 }
 
 .service-card__type {

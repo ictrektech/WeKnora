@@ -37,6 +37,14 @@ func NewMCPServiceService(
 
 // CreateMCPService creates a new MCP service
 func (s *mcpServiceService) CreateMCPService(ctx context.Context, service *types.MCPService) error {
+	if service.Source == "" {
+		service.Source = types.MCPServiceSourceManual
+	}
+	if service.Source == types.MCPServiceSourceManual {
+		service.ExternalID = ""
+		service.HubAvailable = true
+		service.HubLastSeenAt = nil
+	}
 	// Stdio transport is disabled for security reasons
 	if service.TransportType == types.MCPTransportStdio {
 		return fmt.Errorf("stdio transport is disabled for security reasons; please use SSE or HTTP Streamable transport instead")

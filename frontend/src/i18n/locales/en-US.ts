@@ -5888,6 +5888,12 @@ export default {
     deleteConfirmBody: 'Delete MCP service "{name}"? This action cannot be undone.',
     unnamed: 'Unnamed',
     builtin: 'Built-in',
+    syncMCPHub: 'Sync MCPHub',
+    fromMCPHub: 'MCPHub',
+    hubUnavailable: 'MCPHub unavailable',
+    hubSynced: 'MCPHub synchronized: {count} services',
+    hubUnavailableHint: 'MCPHub is temporarily unavailable or the VOS sign-in has expired. Existing services and settings are preserved. Reopen HybRAG from VOS to retry.',
+    hubSignInHint: 'Open HybRAG from VOS and sign in to synchronize MCPHub services.',
     toolCount: '{count} tools',
     toolsNotSynced: 'Tools not synced',
     toolsStale: 'Needs resync'

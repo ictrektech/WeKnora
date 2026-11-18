@@ -24,7 +24,7 @@ func newMCPToolApprovalTestRepo(t *testing.T) interfaces.MCPToolApprovalReposito
 	// Match the production SQLite pool: concurrent callers share one connection.
 	// A busy timeout cannot resolve shared-cache SQLITE_LOCKED table conflicts.
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&types.MCPToolApproval{}))
+	require.NoError(t, db.AutoMigrate(&types.MCPService{}, &types.MCPToolApproval{}))
 	return NewMCPToolApprovalRepository(db)
 }
 
@@ -41,6 +41,20 @@ func TestMCPToolApprovalIsEnabledDefaultsTrue(t *testing.T) {
 	required, err := repo.IsRequired(ctx, 1, "svc", "tool")
 	require.NoError(t, err)
 	require.False(t, required)
+}
+
+func TestMCPToolApprovalIsEnabledFailsClosedForManagedMCPHub(t *testing.T) {
+	repo := newMCPToolApprovalTestRepo(t)
+	db := repo.(*MCPToolApprovalRepository).db
+	ctx := context.Background()
+	require.NoError(t, db.Create(&types.MCPService{
+		ID: "hub-svc", TenantID: 1, Name: "hub", Source: types.MCPServiceSourceMCPHub,
+		TransportType: types.MCPTransportHTTPStreamable,
+	}).Error)
+
+	enabled, err := repo.IsEnabled(ctx, 1, "hub-svc", "new-tool")
+	require.NoError(t, err)
+	require.False(t, enabled)
 }
 
 func TestMCPToolApprovalUpsertPolicyInsertDefaults(t *testing.T) {

@@ -100,6 +100,11 @@ var contextCloneAcrossDetach = map[ContextKey]bool{
 	// of emitting its one-shot notice, so the failure is a stalled reply.
 	// A detached context has no live client either, which is what this says.
 	MCPOAuthNonInteractiveContextKey: true,
+	// MCPHub access must survive the interactive run's asynchronous context.
+	// The verifier rechecks the proof before handing it to the gateway when it
+	// is first used; an expired proof yields MCPHub unavailable rather than a
+	// shared credential.
+	MCPHubAccessContextKey: true,
 	// Whether anyone can answer the run's prompts. Dropping it reads as
 	// unattended, which refuses an approval an attended run could have asked.
 	RunModeContextKey: true,

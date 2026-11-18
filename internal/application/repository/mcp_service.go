@@ -132,6 +132,16 @@ func (r *mcpServiceRepository) Update(ctx context.Context, service *types.MCPSer
 	if service.AdvancedConfig != nil {
 		updateMap["advanced_config"] = service.AdvancedConfig
 	}
+	if service.Source != "" {
+		updateMap["source"] = service.Source
+	}
+	if service.ExternalID != "" {
+		updateMap["external_id"] = service.ExternalID
+	}
+	updateMap["hub_available"] = service.HubAvailable
+	if service.HubLastSeenAt != nil {
+		updateMap["hub_last_seen_at"] = service.HubLastSeenAt
+	}
 
 	return r.db.WithContext(ctx).
 		Model(&types.MCPService{}).

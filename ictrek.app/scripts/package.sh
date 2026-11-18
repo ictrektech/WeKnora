@@ -41,6 +41,7 @@ BASE_IMAGES=(
 
 IMAGE_SOURCE="${IMAGE_SOURCE:-pull}"
 PLATFORM="${PLATFORM:-}"
+REUSE_LOCAL_IMAGES="${PACKAGE_REUSE_LOCAL_IMAGES:-0}"
 ASSET_FILES=()
 
 detect_platform() {
@@ -54,7 +55,7 @@ detect_platform() {
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/package.sh [--image-source local|pull] [--platform amd64|arm64]
+  ./scripts/package.sh [--image-source local|pull] [--platform amd64|arm64] [--reuse-local-images]
 
 Options:
   --image-source     pull: one tarball for all profiles, image names only
@@ -62,10 +63,15 @@ Options:
                      platform; the VOS host docker-loads them at install.
   --platform         amd64 or arm64 for --image-source local (default:
                      auto-detect).
+  --reuse-local-images
+                     For local packages, reuse matching local images instead
+                     of pulling them before docker save.
 
 Environment:
   PACKAGE_IMAGE_ENV_FILE  Explicit complete candidate image map; skips Feishu
                           lookup. No shell expressions are evaluated.
+  PACKAGE_REUSE_LOCAL_IMAGES
+                          1 behaves like --reuse-local-images.
 EOF
 }
 
@@ -655,8 +661,17 @@ embed_local_images() {
   mkdir -p "$asset_dir"
   for image in "${images[@]}"; do
     archive="$(printf '%s' "$image" | sed -E 's|.*/||; s|[:/]|-|g').tar.gz"
-    log "pull ${image}"
-    docker pull --platform "linux/${PLATFORM}" "$image"
+    if [[ "$REUSE_LOCAL_IMAGES" == "1" ]] && docker image inspect "$image" >/dev/null 2>&1; then
+      local image_arch
+      image_arch="$(docker image inspect --format '{{.Architecture}}' "$image")"
+      if [[ "$image_arch" != "$PLATFORM" ]]; then
+        die "local image ${image} has architecture ${image_arch}, expected ${PLATFORM}"
+      fi
+      log "reuse local ${image}"
+    else
+      log "pull ${image}"
+      docker pull --platform "linux/${PLATFORM}" "$image"
+    fi
     log "save ${image} -> assets/${PLATFORM}/${archive}"
     docker save "$image" | gzip > "${asset_dir}/${archive}"
     ASSET_FILES+=("assets/${PLATFORM}/${archive}")
@@ -702,6 +717,10 @@ while [[ $# -gt 0 ]]; do
         *) die "unsupported platform: ${2:-} (use amd64 or arm64)" ;;
       esac
       ;;
+    --reuse-local-images)
+      REUSE_LOCAL_IMAGES=1
+      shift
+      ;;
     --profile)
       die "profile is selected during VOS install; package.sh creates one tarball per run"
       ;;
@@ -722,6 +741,9 @@ if [[ "$IMAGE_SOURCE" == "local" ]]; then
   require_cmd docker
   require_cmd gzip
   PLATFORM="${PLATFORM:-$(detect_platform)}"
+fi
+if [[ "$REUSE_LOCAL_IMAGES" == "1" && "$IMAGE_SOURCE" != "local" ]]; then
+  die "--reuse-local-images requires --image-source local"
 fi
 validate_migration_versions
 mkdir -p "$DIST_DIR"
@@ -754,6 +776,17 @@ if [[ -f "${SRC_DIR}/icon.png" ]]; then
   cp "${SRC_DIR}/icon.png" "${STAGE_DIR}/icon.png"
 fi
 render_compose_file "${SRC_DIR}/docker-compose.yml" "${STAGE_DIR}/docker-compose.yml" "$ENV_FILE"
+if [[ "$IMAGE_SOURCE" == "local" ]]; then
+  "${PYTHON_BIN}" - "${STAGE_DIR}/docker-compose.yml" <<'PYOFFLINE'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace("pull_policy: always", "pull_policy: never")
+path.write_text(text, encoding="utf-8")
+PYOFFLINE
+fi
 "${PYTHON_BIN}" "${ROOT_DIR}/scripts/resolve_dependencies.py" "${STAGE_DIR}/manifest.yml" --repositories "${ROOT_DIR}/scripts/dependency-releases.json"
 if grep -q '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml"; then
   grep '\${[A-Z0-9_]*_IMAGE}' "${STAGE_DIR}/docker-compose.yml" >&2

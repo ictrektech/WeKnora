@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Tencent/WeKnora/internal/logger"
+	hubclient "github.com/Tencent/WeKnora/internal/mcphub"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	secutils "github.com/Tencent/WeKnora/internal/utils"
@@ -210,10 +211,15 @@ func NewMCPClient(config *ClientConfig) (MCPClient, error) {
 	// Create HTTP client with timeout
 	timeout := serviceTimeout(config.Service)
 
-	clientCfg := secutils.DefaultSSRFSafeHTTPClientConfig()
-	clientCfg.SameOriginRedirectsOnly = true
-	clientCfg.Timeout = timeout
-	httpClient := secutils.NewSSRFSafeHTTPClient(clientCfg)
+	var httpClient *http.Client
+	if config.Service.Source == types.MCPServiceSourceMCPHub {
+		httpClient = hubclient.NewClient().HTTPClient(timeout)
+	} else {
+		clientCfg := secutils.DefaultSSRFSafeHTTPClientConfig()
+		clientCfg.SameOriginRedirectsOnly = true
+		clientCfg.Timeout = timeout
+		httpClient = secutils.NewSSRFSafeHTTPClient(clientCfg)
+	}
 
 	// Build headers
 	headers := make(map[string]string)

@@ -43,6 +43,8 @@ async function fixture(
   const exports: any = {}
   runInNewContext(compiled, {
     exports, console: { error() {} },
+    setInterval: () => 1,
+    clearInterval: () => {},
     require(name: string) {
       if (name === '@/utils/resourceListSearch') return { matchesResourceQuery }
       if (name === 'vue-router') return {
@@ -66,7 +68,11 @@ async function fixture(
         },
       }
       if (name === '@/api/mcp-service') return {
-        listMCPServices: async () => { lists++; return [service] },
+        getMCPServiceDirectory: async () => { lists++; return { services: [service], mcphub: null } },
+        refreshMCPHubServices: async () => ({
+          available: true, authenticated: true, service_count: 1,
+          last_synced_at: '2026-11-16T00:00:00Z',
+        }),
         updateMCPService: async (id: string, data: unknown) => { calls.push({ id, data }); await update() },
       }
       return { default: {} }
@@ -114,6 +120,11 @@ test('edit and tools buttons select the correct drawer step; add resets it', asy
     f.vm.handleAdd()
     assert.equal(f.vm.dialogInitialStep, 0)
     assert.equal(f.vm.currentService, null)
+    const hubService = reactive({
+      id: 'hub', name: 'Search', enabled: false, is_builtin: false, source: 'mcphub',
+    })
+    f.vm.handleEdit(hubService)
+    assert.equal(f.vm.dialogInitialStep, 1, 'MCPHub connection fields stay managed upstream')
     assert.equal(f.calls.length, 0)
   } finally { f.close() }
 })

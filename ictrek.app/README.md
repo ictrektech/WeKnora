@@ -16,6 +16,8 @@ does not start synchronization or read note bodies.
 组件及基础镜像引用，再运行 `PACKAGE_VERSION=X.Y.Z bash ictrek.app/scripts/package.sh`。
 此入口跳过飞书镜像查询，严格校验清单且不执行其中的 shell 内容；仍实时核验 PGV 发布依赖。
 未推送的候选镜像仅用于本机预检，不能据此宣称 pull 包已可分发升级。默认发布流程仍从飞书取版本。
+使用 `--image-source local --reuse-local-images` 可直接把构建机现有镜像写入离线包，本地包会
+强制所有服务使用 `pull_policy: never`，避免未推送的候选标签在安装阶段再次访问远端仓库。
 
 For local candidate prechecks, set `PACKAGE_IMAGE_ENV_FILE=/absolute/path/images.env`
 with every AMD/ARM component and base-image reference, then run
@@ -24,6 +26,9 @@ skips Feishu image lookup, validates every entry without evaluating shell input,
 and still verifies the live PGV release dependency. Unpublished candidate images
 support local prechecks; their pull package is not ready for distribution. The
 default release path continues to resolve images through Feishu.
+`--image-source local --reuse-local-images` packages existing local images and
+forces `pull_policy: never`, so unpublished candidate tags are not fetched again
+from the registry during installation.
 
 本目录是 ictrek 维护 HybRAG 的唯一当前部署入口。HybRAG 不再维护独立 compose 部署流程，只作为 VOS app `com.ictrek.hybrag` 打包、安装和升级。
 
@@ -180,6 +185,7 @@ commit 或写入 `.git-commit`，否则系统设置会显示 `(unknown)`。
 
 - `com.ictrek.model-hub >=0.0.92`：提供 `model-hub-ollama-qa`、`model-hub-ollama-embedding` 和 `model-hub-ollama-rerank` 三个服务；旧版 Model Hub 需先升级，以提供 ReRank（对检索结果重新评分和排序）所需的 `/v1/rerank` 接口。
 - `com.ictrek.pgv`：提供 `shared-pgv:5432` PostgreSQL/pgvector 服务。统一源码与发布仓库已迁至 `ictrektech/pgv`，打包时从该仓库解析 PGV 最新发布版本；应用 ID 与连接参数不变。PGV 新增的共享 Redis 使用 `pgv-redis`，HybRAG 现有的 `hybrag-redis` 连接不在本次源码迁移中自动切换。
+- `com.ictrek.mcphub`（可选）：安装并运行后，HybRAG 可通过共享网络自动发现当前 VOS 用户可访问的 MCP 服务。未安装时其他 MCP 功能不受影响。
 
 HybRAG 安装包不启动 Model Hub 和 PGV，也不启动自己的 Ollama。安装包只包含 HybRAG app、frontend、docreader、sandbox、Redis 和 Neo4j。安装时选择 `amd` 或 `arm` profile，VOS 会按包内 `.env` 拉取飞书表中记录的四个 HybRAG 镜像。
 
@@ -210,6 +216,14 @@ VOS bridge（平台向同源应用 iframe 注入的接口）使用 `window.vos_p
 已验证（2026-10-12，本地）：[语言回归测试](../frontend/src/i18n/vosLocale.test.ts)覆盖延迟注入、快照与事件竞争、手动选择保护、切回自动、读取失败和独立打开降级；[设置组件浏览器测试](../frontend/tests/e2e/vos-locale.spec.ts)用模拟 bridge 验证中英文切换、保留手动日语选择、切回自动及未保存输入不丢失。类型检查、翻译检查和生产构建通过。真实 VOS 登录会话中的平台切换及升级后的线上行为仍待验证。
 
 已实现（打包模板）：AMD64、ARM64 后端默认将 `WEKNORA_LANGUAGE` 设为空，采用前端发送的 `Accept-Language`（请求中的语言偏好）；未提供请求头时回退到 `zh-CN`。内置智能体名称、描述以及新入库任务生成摘要和问题时的语言提示跟随该偏好。显式配置非空 `WEKNORA_LANGUAGE` 仍优先于请求头。重新打包并升级、重建后端容器后生效；已有安装包和已生成内容不会自动改变。
+
+## MCPHub 自动发现
+
+HybRAG 通过同一 `vos_default` 网络访问 MCPHub，默认地址为 `http://mcphub:3000/app/com.ictrek.mcphub`，可由安装配置 `MCPHUB_BASE_URL` 覆盖。空间管理员在「工具箱 → MCP 服务」中查看、同步并启用 MCPHub 服务；MCPHub 中新增或删除服务时页面每分钟同步一次，也可手动同步。
+
+自动发现只导入当前 VOS 用户有权访问的服务，新导入的服务默认停用。管理员启用服务后，实际调用仍使用每位使用者的 VOS 身份，由 MCPHub 再次校验其当前服务权限；撤销访问后不会继承管理员的权限。MCPHub 中新出现的工具默认停用，管理员在工具列表中确认后才可供智能体使用。
+
+MCPHub 暂时不可用时，HybRAG 保留已导入的服务、启用状态和使用说明，并显示连接异常。没有新鲜 VOS 用户身份的请求（包括无法取得用户凭据的后台任务）不会调用 MCPHub，并会提示重新从 VOS 打开 HybRAG 完成登录。
 
 ## 其他 VOS App 以当前用户身份接入 HybRAG
 

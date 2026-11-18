@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Tencent/WeKnora/internal/mcphub"
 	"github.com/Tencent/WeKnora/internal/types"
 	secutils "github.com/Tencent/WeKnora/internal/utils"
 )
@@ -19,8 +20,14 @@ func ValidateServiceOutboundURLs(service *types.MCPService) error {
 	if service.URL != nil {
 		serviceURL := strings.TrimSpace(*service.URL)
 		if serviceURL != "" {
-			if err := secutils.ValidateURLForSSRF(serviceURL); err != nil {
-				return fmt.Errorf("MCP service URL failed SSRF validation: %w", err)
+			if service.Source == types.MCPServiceSourceMCPHub {
+				if !mcphub.NewClient().IsManagedURL(serviceURL) {
+					return fmt.Errorf("MCPHub service URL does not match MCPHUB_BASE_URL")
+				}
+			} else {
+				if err := secutils.ValidateURLForSSRF(serviceURL); err != nil {
+					return fmt.Errorf("MCP service URL failed SSRF validation: %w", err)
+				}
 			}
 		}
 	}
