@@ -57,7 +57,9 @@ func TestChunkExtractCompletionDoesNotDrainNewParseAttempt(t *testing.T) {
 		modelService:  &stubModelService{chatModel: model},
 		knowledgeRepo: svc.repo, spanTracker: tracker,
 		knowledgeBaseRepo: graphKBRepo{kb: &types.KnowledgeBase{
-			ID: "kb", ExtractConfig: &types.ExtractConfig{Enabled: true},
+			ID:               "kb",
+			IndexingStrategy: types.IndexingStrategy{GraphEnabled: true},
+			ExtractConfig:   &types.ExtractConfig{Enabled: true},
 		}},
 		chunkRepo: graphChunkRepo{chunk: &types.Chunk{
 			ID: "c1", KnowledgeID: "doc", KnowledgeBaseID: "kb", Content: "text",
