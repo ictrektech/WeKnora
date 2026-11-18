@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Tencent/WeKnora/internal/application/access"
@@ -776,6 +777,11 @@ type sseStreamContext struct {
 	// mode releases on completion (the pipeline returns before the stream
 	// finishes); agent mode releases when AgentQA returns.
 	releaseTurn func()
+	// turnUsage holds the provider's token usage carried on the stream's
+	// final answer event, so completeQuickAnswerTurn can report it on the
+	// complete event and persist it with the message (issue #3865). Nil for
+	// turns that never received usage (stop, failure, usage-less providers).
+	turnUsage *types.TokenUsage
 }
 
 // setupSSEStream sets up the SSE streaming context
@@ -1501,18 +1507,6 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 		return
 	}
 
-	var completionMu sync.Mutex
-	completionHandled := false
-	markCompletionHandled := func() bool {
-		completionMu.Lock()
-		defer completionMu.Unlock()
-		if completionHandled {
-			return false
-		}
-		completionHandled = true
-		return true
-	}
-
 	// Normal mode: register completion handler on EventAgentFinalAnswer
 	// (Agent mode handles completion in the defer block instead)
 	if mode == qaModeNormal {
@@ -1534,36 +1528,15 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 			return nil
 		})
 
-		streamCtx.eventBus.On(event.EventAgentFinalAnswer, func(ctx context.Context, evt event.Event) error {
-			data, ok := evt.Data.(event.AgentFinalAnswerData)
-			if !ok {
-				return nil
-			}
-			// setupStreamHandler already accumulates each chunk on this message.
-			// Appending here duplicates the final chunk in history and final_content.
-			if data.IsFallback {
-				streamCtx.assistantMessage.IsFallback = true
-			}
-			if data.Truncated {
-				markQuickAnswerTruncated(streamCtx.assistantMessage)
-			}
-			if data.Done {
-				if !markCompletionHandled() {
-					return nil
-				}
-
-				logger.Infof(streamCtx.asyncCtx, "Knowledge QA service completed for session: %s", sessionID)
-				updateCtx := context.WithValue(streamCtx.asyncCtx, types.TenantIDContextKey, reqCtx.session.TenantID)
-				h.completeQuickAnswerTurn(updateCtx, streamCtx, reqCtx.query, reqCtx.userMessageID)
-			}
-			return nil
-		})
+		completionHandled := h.registerQuickAnswerCompletionHandler(
+			streamCtx, sessionID, reqCtx.query, reqCtx.userMessageID, reqCtx.session.TenantID,
+		)
 
 		// A failed pipeline never streams EventAgentFinalAnswer with Done=true,
 		// so the turn would otherwise end with an empty, incomplete assistant
 		// row: the live UI shows the error event, but a refresh renders a blank
 		// bubble and the SSE stream never closes (issue #4145).
-		h.registerQuickAnswerFailureHandler(streamCtx, &completionHandled, reqCtx.session.TenantID)
+		h.registerQuickAnswerFailureHandler(streamCtx, completionHandled, reqCtx.session.TenantID)
 	}
 
 	// Execute QA asynchronously
@@ -2160,13 +2133,21 @@ func (h *Handler) completeQuickAnswerTurn(
 	if streamCtx.eventBus != nil {
 		// MessageID is what handleComplete keys on. Leave FinalAnswer empty:
 		// KnowledgeQA already accumulated the answer on the message, and
-		// handleComplete would append FinalAnswer a second time.
+		// handleComplete would append FinalAnswer a second time. Usage rides
+		// along when the stream's final answer event carried it: handleComplete
+		// both persists it on the message and reports it in the complete event.
+		// Only set it when present — a typed-nil pointer would travel as a
+		// non-nil interface and read as "usage reported" downstream.
+		completeData := event.AgentCompleteData{
+			MessageID: streamCtx.assistantMessage.ID,
+		}
+		if streamCtx.turnUsage != nil {
+			completeData.Usage = streamCtx.turnUsage
+		}
 		_ = streamCtx.eventBus.Emit(ctx, event.Event{
 			Type:      event.EventAgentComplete,
 			SessionID: streamCtx.assistantMessage.SessionID,
-			Data: event.AgentCompleteData{
-				MessageID: streamCtx.assistantMessage.ID,
-			},
+			Data:      completeData,
 		})
 	}
 	h.completeStreamAssistantMessage(ctx, streamCtx, query, userMessageID)
@@ -2179,19 +2160,57 @@ func (h *Handler) completeQuickAnswerTurn(
 // message, so the failed turn does not save an empty answer.
 const quickAnswerFailureContent = "Failed to generate the answer"
 
+// registerQuickAnswerCompletionHandler completes the KnowledgeQA turn when the
+// stream's final answer event arrives, recording fallback and
+// truncation flags onto the assistant message and forwarding the provider's
+// token usage (issue #3865) to completeQuickAnswerTurn. Returns the shared
+// completion flag the failure handler must honor so a turn cannot complete
+// twice.
+func (h *Handler) registerQuickAnswerCompletionHandler(
+	streamCtx *sseStreamContext, sessionID, query, userMessageID string, sessionTenantID uint64,
+) *atomic.Bool {
+	completionHandled := new(atomic.Bool)
+	streamCtx.eventBus.On(event.EventAgentFinalAnswer, func(_ context.Context, evt event.Event) error {
+		data, ok := evt.Data.(event.AgentFinalAnswerData)
+		if !ok {
+			return nil
+		}
+		// The stream handler already appends each answer chunk to the message.
+		if data.IsFallback {
+			streamCtx.assistantMessage.IsFallback = true
+		}
+		if data.Truncated {
+			markQuickAnswerTruncated(streamCtx.assistantMessage)
+		}
+		if usage, ok := data.Usage.(*types.TokenUsage); ok && usage != nil {
+			streamCtx.turnUsage = usage
+		}
+		if data.Done {
+			if !completionHandled.CompareAndSwap(false, true) {
+				return nil
+			}
+
+			logger.Infof(streamCtx.asyncCtx, "Knowledge QA service completed for session: %s", sessionID)
+			updateCtx := context.WithValue(streamCtx.asyncCtx, types.TenantIDContextKey, sessionTenantID)
+			h.completeQuickAnswerTurn(updateCtx, streamCtx, query, userMessageID)
+		}
+		return nil
+	})
+	return completionHandled
+}
+
 // registerQuickAnswerFailureHandler completes and persists the assistant
 // message when the quick-answer pipeline reports EventError. The empty query
 // keeps the failed turn out of the chat-history index, follow-up suggestions
 // and memory writes — only the visible error text belongs in history.
 func (h *Handler) registerQuickAnswerFailureHandler(
-	streamCtx *sseStreamContext, completionHandled *bool, sessionTenantID uint64,
+	streamCtx *sseStreamContext, completionHandled *atomic.Bool, sessionTenantID uint64,
 ) {
 	streamCtx.eventBus.On(event.EventError, func(ctx context.Context, evt event.Event) error {
 		data, ok := evt.Data.(event.ErrorData)
-		if !ok || *completionHandled {
+		if !ok || !completionHandled.CompareAndSwap(false, true) {
 			return nil
 		}
-		*completionHandled = true
 
 		errorContent := strings.TrimSpace(data.Error)
 		if errorContent == "" {

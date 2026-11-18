@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ func newQuickAnswerFailureHarness(
 		assistantMessage: msg,
 		releaseTurn:      func() { released = true },
 	}
-	h.registerQuickAnswerFailureHandler(streamCtx, new(bool), 1)
+	h.registerQuickAnswerFailureHandler(streamCtx, new(atomic.Bool), 1)
 	return streamCtx, messages, stream, &released
 }
 
@@ -93,7 +94,8 @@ func TestQuickAnswerFailureAfterCompletionIsIgnored(t *testing.T) {
 	h.setupStreamHandler(ctx, "s", "m", "req", 1, time.Now(), msg, bus)
 	streamCtx := &sseStreamContext{eventBus: bus, assistantMessage: msg}
 
-	handled := true
+	var handled atomic.Bool
+	handled.Store(true)
 	h.registerQuickAnswerFailureHandler(streamCtx, &handled, 1)
 
 	require.NoError(t, bus.Emit(ctx, event.Event{

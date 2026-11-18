@@ -237,7 +237,7 @@ func (s *ChunkExtractService) Handle(ctx context.Context, t *asynq.Task) error {
 		if kb, err := s.knowledgeBaseRepo.GetKnowledgeBaseByID(ctx, k.KnowledgeBaseID); err == nil && kb != nil && !kb.IsGraphEnabled() {
 			logger.Infof(ctx, "graph extract: KB %s disabled graph, skipping chunk %s", k.KnowledgeBaseID, p.ChunkID)
 			finalizeSubtaskDetached(ctx, s.knowledgeRepo, p.KnowledgeID,
-				fmt.Sprintf("graph_chunk[%d]", p.ChunkIndex), nil, false, true)
+				fmt.Sprintf("graph_chunk[%d]", p.ChunkIndex), nil, false, true, p.Attempt)
 			return nil
 		}
 	}
@@ -279,7 +279,7 @@ func (s *ChunkExtractService) Handle(ctx context.Context, t *asynq.Task) error {
 		// payload field; legacy in-flight tasks without it are skipped.
 		finalizeSubtaskDetached(ctx, s.knowledgeRepo, p.KnowledgeID,
 			fmt.Sprintf("graph_chunk[%d]", p.ChunkIndex),
-			handleErr, false, isFinalAsynqAttempt(ctx))
+			handleErr, false, isFinalAsynqAttempt(ctx), p.Attempt)
 		if gSpan == nil {
 			return
 		}

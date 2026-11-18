@@ -2450,21 +2450,27 @@ func cleanupKnowledgeFeatureTasks(
 	errorCode string,
 	reason string,
 ) {
+	// Capture the attempt before cancelling queued work so a concurrent reparse
+	// cannot have its new counter decremented by this cleanup.
+	var attempt int
+	var attemptErr error
+	if spanRepo != nil {
+		attempt, attemptErr = spanRepo.LatestAttempt(ctx, knowledgeID)
+		if attemptErr != nil {
+			logger.Warnf(ctx, "[startup-feature-cleanup]: read parse attempt for %s: %v", knowledgeID, attemptErr)
+		}
+	}
 	deleted, _, err := inspector.CancelTasksForKnowledgeTypes(ctx, knowledgeID, taskTypes)
 	if err != nil {
 		logger.Warnf(ctx, "[startup-feature-cleanup] cancel tasks knowledge=%s failed: %v", knowledgeID, err)
 	}
-	for i := 0; i < deleted; i++ {
-		if _, _, err := kgRepo.FinalizeSubtask(ctx, knowledgeID); err != nil {
+	for i := 0; attemptErr == nil && i < deleted; i++ {
+		if _, _, err := kgRepo.FinalizeSubtask(ctx, knowledgeID, attempt); err != nil {
 			logger.Warnf(ctx, "[startup-feature-cleanup] release subtask knowledge=%s failed: %v", knowledgeID, err)
 			break
 		}
 	}
-	if spanRepo == nil {
-		return
-	}
-	attempt, err := spanRepo.LatestAttempt(ctx, knowledgeID)
-	if err != nil || attempt <= 0 {
+	if attemptErr != nil || attempt <= 0 {
 		return
 	}
 	if _, err := spanRepo.CancelOpenSpansByNamePrefixes(ctx, knowledgeID, attempt, spanPrefixes, errorCode, reason); err != nil {

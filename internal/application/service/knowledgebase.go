@@ -1083,6 +1083,16 @@ func (s *knowledgeBaseService) enqueueRecoveredMultimodal(
 func (s *knowledgeBaseService) cancelKnowledgeFeatureTasks(
 	ctx context.Context, knowledgeID string, taskTypes []string, spanPrefixes []string, errorCode string, reason string,
 ) {
+	// Capture the attempt before cancelling queued work so a concurrent reparse
+	// cannot have its new counter decremented by this cleanup.
+	var attempt int
+	var attemptErr error
+	if s.spanRepo != nil {
+		attempt, attemptErr = s.spanRepo.LatestAttempt(ctx, knowledgeID)
+		if attemptErr != nil {
+			logger.Warnf(ctx, "feature cleanup: read parse attempt for %s: %v", knowledgeID, attemptErr)
+		}
+	}
 	deleted := 0
 	if s.taskInspector != nil {
 		d, _, err := s.taskInspector.CancelTasksForKnowledgeTypes(ctx, knowledgeID, taskTypes)
@@ -1091,17 +1101,13 @@ func (s *knowledgeBaseService) cancelKnowledgeFeatureTasks(
 		}
 		deleted = d
 	}
-	for i := 0; i < deleted; i++ {
-		if _, _, err := s.kgRepo.FinalizeSubtask(ctx, knowledgeID); err != nil {
+	for i := 0; attemptErr == nil && i < deleted; i++ {
+		if _, _, err := s.kgRepo.FinalizeSubtask(ctx, knowledgeID, attempt); err != nil {
 			logger.Warnf(ctx, "feature cleanup: release subtask failed, knowledge=%s: %v", knowledgeID, err)
 			break
 		}
 	}
-	if s.spanRepo == nil {
-		return
-	}
-	attempt, err := s.spanRepo.LatestAttempt(ctx, knowledgeID)
-	if err != nil || attempt <= 0 {
+	if attemptErr != nil || attempt <= 0 {
 		return
 	}
 	if _, err := s.spanRepo.CancelOpenSpansByNamePrefixes(ctx, knowledgeID, attempt, spanPrefixes, errorCode, reason); err != nil {

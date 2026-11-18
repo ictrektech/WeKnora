@@ -43,7 +43,7 @@ export default {
   },
   "modelCatalog": {
     "title": "模型目錄",
-    "description": "模型目錄決定新增模型時可選的模型清單，以及上下文窗口、是否支援思考等預設參數。在這裡修改後，所有空間立即生效。",
+    "description": "模型目錄決定新增模型時可選的模型清單，以及脈絡視窗、是否支援思考等預設參數。在這裡修改後，所有空間立即生效。",
     "howItWorks": "設定如何生效",
     "layers": {
       "builtin": "內建目錄：隨版本發佈的預設模型清單。",
@@ -142,7 +142,7 @@ export default {
     "required": "請選擇廠商並填寫模型 ID",
     "exists": "該模型已在目錄中，請直接編輯",
     "jsonDescription": "用 models.json 格式直接編輯全部管理員修改，適合批量調整或遷移。",
-    "jsonHint": "只寫需要修改的欄位，刪除欄位即恢復預設。憑據、請求頭和環境變量引用請在模型設定或部署文件中維護；圖標僅支援內聯 SVG；最大 1 MiB。",
+    "jsonHint": "只寫需要修改的欄位，刪除欄位即復原預設。憑據、請求頭和環境變數引用請在模型設定或部署檔案中維護；圖示僅支援行內 SVG；最大 1 MiB。",
     "jsonClear": "清空全部修改",
     "jsonCheck": "檢查變更",
     "jsonPublish": "發佈 {count} 項變更",
@@ -581,7 +581,7 @@ export default {
       "docsHint": "安裝說明與完整命令參考",
       "quickstart": "快速開始",
       "installTitle": "安裝 CLI",
-      "installDesc": "目前支援源碼構建，需要 Git 和 Go 1.26+。以下示例適用於 macOS / Linux，PATH 設定僅在目前終端生效；長期使用請將二進制放入 PATH 目錄。",
+      "installDesc": "目前支援源碼建構，需要 Git 和 Go 1.26+。以下示例適用於 macOS / Linux，PATH 設定僅在當前終端生效；長期使用請將二進位放入 PATH 目錄。",
       "connectTitle": "連接目前服務",
       "connectDesc": "建立並啟用名為 weknora 的連接設定，然後使用電子郵件和密碼登入。如果已有同名設定，請更換名稱，並同步修改 MCP 示例中的設定名。",
       "verifyTitle": "驗證連接",
@@ -589,7 +589,7 @@ export default {
       "commandsTitle": "常用命令",
       "commandsDesc": "將 KB_ID 替換為知識庫 ID，按需替換檔案路徑、檢索詞和問題。上傳後的文件需解析完成才能檢索。",
       "mcpTitle": "接入 MCP 客戶端",
-      "mcpDesc": "完成登入後，將以下設定新增到支援 stdio 的 MCP 客戶端。若客戶端無法找到 weknora，請將 command 改為二進制的絕對路徑。",
+      "mcpDesc": "完成登入後，將以下設定新增到支援 stdio 的 MCP 用戶端。若用戶端無法找到 weknora，請將 command 改為二進位的絕對路徑。",
       "copy": "複製",
       "copied": "已複製"
     },
@@ -646,7 +646,7 @@ export default {
         },
         "url": {
           "title": "匯入網頁",
-          "desc": "通過 URL 抓取網頁內容並寫入知識庫，支援解析狀態輪詢。"
+          "desc": "透過 URL 抓取網頁內容並寫入知識庫，支援解析狀態輪詢。"
         },
         "upload": {
           "title": "上傳檔案",
@@ -704,7 +704,7 @@ export default {
         },
         "qa": {
           "title": "知識庫智能問答",
-          "desc": "側邊欄對話面板，支援多知識庫切換與快速/深度/精確三種回答模式，邊瀏覽邊提問不打斷工作流。"
+          "desc": "側邊欄對話面板，支援多知識庫切換與快速/深度/精確三種回答模式，邊瀏覽邊提問不打斷工作流程。"
         }
       }
     },
@@ -1202,7 +1202,7 @@ export default {
 
     },
     "confluence": {
-      "cloudFolderLimitation": "Confluence Cloud 暫不支援在此列出空間頂層文件夾等容器下的頁面；選擇整個空間仍會同步它們。"
+      "cloudFolderLimitation": "Confluence Cloud 暫不支援在此列出空間頂層資料夾等容器下的頁面；選擇整個空間仍會同步它們。"
     },
     "connectorDesc": {
       "feishu": "同步飛書知識庫中的文件、表格、文件",
@@ -1213,7 +1213,7 @@ export default {
       "confluence": "將 Confluence 空間和頁面同步為 Markdown",
       "yuque": "同步語雀知識庫中的文件",
       "dingtalk": "同步釘釘知識庫中的在線文件",
-      "ima": "同步騰訊 IMA 知識庫中的文件、筆記與文件（暫不支援 AI 會話與影片解析）",
+      "ima": "同步騰訊 IMA 知識庫中的文件、筆記與檔案（暫不支援 AI 會話與影片解析）",
       "rss": "同步 RSS / Atom 訂閱源中的文章",
       "gitlab": "同步 GitLab 項目中的文件",
       "seafile": "同步 Seafile 資料庫中的目錄與檔案",
@@ -1281,7 +1281,7 @@ export default {
     "drive": {
       "folderTokenLabel": "雲盤文件夾 Token",
       "folderTokenPlaceholder": "輸入 folder_token 或飛書雲盤文件夾連結",
-      "folderTokenRequired": "請輸入具體文件夾的 folder_token，不支援雲空間根目錄",
+      "folderTokenRequired": "請輸入具體資料夾的 folder_token，不支援雲空間根目錄",
       "rootNotSupportedHint": "根目錄不分頁且不返回快捷方式，請選擇具體文件夾",
       "load": "載入",
       "shareHint": "需先將該雲盤文件夾分享給應用所在的群，應用才能訪問",
@@ -1323,7 +1323,7 @@ export default {
       "singleLibraryOnly": "一個資料源只能同步一個資料庫，請先取消已選資料庫中的內容再改選。",
       "selectionRequired": "請至少勾選一個資料庫、目錄或檔案"
     },
-    "noResourcesDesc_seafile": "該權杖能存取的資料庫為空，或全部為加密資料庫（不支持同步）",
+    "noResourcesDesc_seafile": "該權杖能存取的資料庫為空，或全部為加密資料庫（不支援同步）",
     "guideStep1_seafile": "登入 Seafile，確認帳號至少擁有一個未加密資料庫的讀取權限",
     "guideStep2_seafile": "在「設定 → Web API 權杖」中生成或重新生成權杖",
     "guideStep3_seafile": "回到這裡填入新權杖並點重新載入",
@@ -1395,8 +1395,8 @@ export default {
   "agentEditor": {
     "builtinHint": "這是內建智能體，名稱和描述不可修改，但可以調整設定參數",
     "fileTypes": {
-      "label": "支援的文件類型",
-      "desc": "限制可選擇的文件類型，留空表示支援所有類型",
+      "label": "支援的檔案類型",
+      "desc": "限制可選擇的檔案類型，留空表示支援所有類型",
       "allTypes": "全部類型",
       "pdf": "PDF 文件",
       "word": "Word 文件 (.docx/.doc)",
@@ -1496,7 +1496,7 @@ export default {
     },
     "im": {
       "title": "IM 集成",
-      "description": "將智能體接入即時通訊平台，支援企業微信、飛書、Slack、Telegram、釘釘、Mattermost、微信、QQBot 和雲之家",
+      "description": "將智慧代理接入即時通訊平台，支援企業微信、飛書、Slack、Telegram、釘釘、Mattermost、微信、QQBot 和雲之家",
       "feishu": "飛書",
       "lark": "Lark（飛書國際版）",
       "slack": "Slack",
@@ -1539,7 +1539,7 @@ export default {
       "yunzhijiaConsole": "雲之家開放平台",
       "yunzhijiaRobotDoc": "機器人訊息文件",
       "yunzhijiaImageDoc": "開發者平台（圖片功能）",
-      "yunzhijiaModeHint": "支援 Webhook 和 WebSocket；WebSocket 模式無需設定公網回調地址。",
+      "yunzhijiaModeHint": "支援 Webhook 和 WebSocket；WebSocket 模式無需設定公網回呼地址。",
       "yunzhijiaSendMsgUrl": "發送訊息地址",
       "yunzhijiaSendMsgUrlHint": "用於機器人回復訊息。",
       "yunzhijiaSecret": "簽名密鑰（可選）",
@@ -1608,7 +1608,7 @@ export default {
       "searchKnowledge": "檢索知識庫",
       "searchKnowledgeDesc": "語義、關鍵詞或混合檢索知識庫分塊",
       "readDocument": "閱讀文件",
-      "readDocumentDesc": "讀取文件元資料與分塊內容，支援分頁和文內查找",
+      "readDocumentDesc": "讀取文件元資料與切塊內容，支援分頁和文內尋找",
       "listDocuments": "瀏覽文件清單",
       "listDocumentsDesc": "分頁列出知識庫中的文件",
       "grepChunks": "關鍵詞搜尋",
@@ -2564,6 +2564,10 @@ export default {
     "clearRecent": "清除",
     "retrieval": "檢索參數",
     "untitledSession": "未命名對話",
+    "errors": {
+      "knowledge": "知識庫搜尋失敗，請重試。",
+      "messages": "對話內容搜尋失敗，請重試。"
+    },
     "hotkey": {
       "select": "選擇",
       "enter": "打開",
@@ -2610,7 +2614,7 @@ export default {
     "loading": "正在載入文件預覽...",
     "loadFailed": "載入文件預覽失敗",
     "retry": "重試",
-    "unsupported": "該文件類型暫不支援在線預覽",
+    "unsupported": "該檔案類型暫不支援線上預覽",
     "unsupportedHint": "請下載檔案後使用本地應用查看",
     "zoomIn": "放大",
     "zoomOut": "縮小",
@@ -2619,7 +2623,7 @@ export default {
     "htmlRendered": "渲染預覽",
     "htmlSource": "查看源碼",
     "audioLoading": "載入音頻中…",
-    "audioNotSupported": "您的瀏覽器不支援音頻播放",
+    "audioNotSupported": "您的瀏覽器不支援音訊播放",
     "videoNotSupported": "您的瀏覽器不支援影片播放"
   },
   "organization": {
@@ -3385,7 +3389,7 @@ export default {
   },
   "agentSettings": {
     "systemPrompt": {
-      "desc": "設定 Agent 的系統提示詞，支援佔位符模板。佔位符會在運行時自動替換為實際內容。"
+      "desc": "設定 Agent 的系統提示語，支援預留位置模板。預留位置會在運行時自動取代為實際內容。"
     },
     "allowedTools": {
       "desc": "目前 Agent 可使用的工具清單"
@@ -3532,7 +3536,7 @@ export default {
   },
   "theme": {
     "theme": "主題模式",
-    "themeDescription": "選擇介面的顯示主題，支援跟隨系統自動切換",
+    "themeDescription": "選擇界面的顯示主題，支援跟隨系統自動切換",
     "light": "淺色",
     "dark": "深色",
     "system": "跟隨系統",
@@ -3897,7 +3901,7 @@ export default {
     "tokenRefreshFailed": "Token重新整理失敗",
     "pleaseRelogin": "請重新登入",
     "fileSizeExceeded": "檔案大小不能超過 {size}M！",
-    "unsupportedFileType": "不支援的文件類型！",
+    "unsupportedFileType": "不支援的檔案類型！",
     "invalidFileType": "文件類型錯誤！",
     "invalidImageLink": "無效的圖片連結",
     "missingKbId": "缺少知識庫ID",
@@ -4241,7 +4245,7 @@ export default {
       },
       "runtime": {
         "title": "任務隊列運行時",
-        "description": "後台任務隊列的實時負載，以及各獨立 worker 池的每實例併發設定。支援查看任務明細和安全管理，每 5 秒自動重新整理。",
+        "description": "後台任務佇列的實時負載，以及各獨立 worker 池的每實例併發設定。支援查看任務明細和安全管理，每 5 秒自動重新整理。",
         "refresh": "重新整理",
         "autoRefresh": "自動重新整理（每 5 秒）",
         "loading": "載入中...",
@@ -4284,7 +4288,7 @@ export default {
           "description": "查看各狀態任務及其安全管理動作。定時、重試任務按最近執行時間優先，其餘狀態按時間倒序。",
           "listTitle": "{state}任務",
           "openAria": "查看{queue}中 {count} 個{state}任務",
-          "unavailable": "目前部署不支援查看任務明細",
+          "unavailable": "當前部署不支援查看任務明細",
           "empty": "這個隊列目前沒有{state}任務",
           "loadError": "獲取任務明細失敗",
           "loadMore": "載入更多",
@@ -4703,7 +4707,7 @@ export default {
       "desktopNotStarted": "桌面尚未連接。連接後會接入本會話的沙箱環境。",
       "desktopStart": "連接桌面",
       "desktopStarting": "正在連接桌面…（首次約需 3–8 秒）",
-      "desktopUnsupported": "目前沙箱設定不支援桌面。需要在工作區沙箱設定的模板清單裡選中帶桌面的鏡像，且後端為 Cube 或 E2B。",
+      "desktopUnsupported": "當前沙箱設定不支援桌面。需要在工作區沙箱設定的模板清單裡選中帶桌面的映像，且後端為 Cube 或 E2B。",
       "desktopBusy": "本會話已有一個桌面連接。桌面同一時刻只允許一個連接，否則會出現兩個人搶同一套鍵鼠。",
       "desktopStartFailed": "桌面啟動失敗，可以重試。",
       "desktopRebuilt": "沙箱已因技能更新重建，原桌面及未保存的內容已丟失。重新連接會得到一個全新桌面。",
@@ -4720,7 +4724,7 @@ export default {
       "needsProvision": "本會話目前沒有運行中的沙箱環境。建立並啟動會新增一個沙箱，並按工作區設定計費。",
       "createAndStart": "建立並啟動",
       "noSandbox": "會話尚未建立沙箱，且目前智能體未設定沙箱後端，無法確定在哪個後端建立。請切換到設定了沙箱的智能體，或發送一條需要執行程式碼的訊息。",
-      "unsupported": "目前沙箱後端不支援交互終端",
+      "unsupported": "當前沙箱後端不支援交互終端",
       "disconnected": "連接已斷開",
       "retry": "重新連接",
       "sessionEnded": "終端會話已結束",
@@ -4868,13 +4872,13 @@ export default {
     "deleteSessionFailed": "刪除失敗，請稍後再試！",
     "imageTooMany": "最多上傳5張圖片",
     "imageTypeSizeError": "僅支援 JPG/PNG/GIF/WEBP 格式，單張不超過 10MB",
-    "imageUploadTooltip": "上傳圖片（支援貼上/拖拽）",
+    "imageUploadTooltip": "上傳圖片（支援貼上/拖曳）",
     "attachmentUploadTooltip": "上傳附件（文件、音頻等）",
     "attachmentWithCount": "已上傳 {count} 個附件",
     "attachmentTooMany": "最多上傳 {max} 個附件",
     "attachmentTotalTooMany": "圖片和附件合計最多 {max} 個",
     "attachmentTooLarge": "文件 {name} 超過 {max}MB 限制",
-    "attachmentTypeNotSupported": "不支援的文件類型：{name}",
+    "attachmentTypeNotSupported": "不支援的檔案類型：{name}",
     "attachmentUploading": "上傳中 {progress}%",
     "attachmentParsing": "正在解析",
     "attachmentReady": "解析完成",
@@ -4971,7 +4975,7 @@ export default {
     },
     "asr": {
       "title": "音頻語音識別",
-      "description": "設定語音識別（ASR），啟用後可上傳音頻文件並整段轉寫為文字（常見格式：mp3、wav、m4a、flac、ogg 等）。暫不支援影片上傳。",
+      "description": "設定語音辨識（ASR），啟用後可上傳音訊檔案並整段轉寫為文字（常見格式：mp3、wav、m4a、flac、ogg 等）。暫不支援影片上傳。",
       "label": "啟用音頻語音識別",
       "desc": "啟用後可上傳音頻到知識庫，系統自動將語音轉寫為文字並參與解析與檢索",
       "modelLabel": "ASR 模型",
@@ -4983,7 +4987,7 @@ export default {
     },
     "multimodal": {
       "title": "圖像處理設定",
-      "description": "設定圖像內容理解能力，啟用後支援圖片等非文字內容的解析和檢索"
+      "description": "設定影像內容理解能力，啟用後支援圖片等非文字內容的解析和檢索"
     },
     "chunking": {
       "title": "分塊設定",
@@ -5008,7 +5012,7 @@ export default {
       "overlapWarning": "重疊相對於分塊大小較大——分塊之間會共享大部分內容。",
       "advancedLabel": "高級選項",
       "tokenLimitLabel": "每塊 Token 上限",
-      "tokenLimitDescription": "每個分塊的硬性 Token 上限（0-8192）。0 = 關閉（僅按字元數）。當嵌入模型 Token 上限較小時啟用：MiniLM (256 tok) 用 200，BGE/Cohere (512 tok) 用 400。現代嵌入器（OpenAI、Voyage、Jina-v3）支援 >2000 tokens，保持 0 即可。",
+      "tokenLimitDescription": "每個切塊的硬性 Token 上限（0-8192）。0 = 關閉（僅按字符數）。當內嵌模型 Token 上限較小時啟用：MiniLM (256 tok) 用 200，BGE/Cohere (512 tok) 用 400。現代內嵌器（OpenAI、Voyage、Jina-v3）支援 >2000 tokens，保持 0 即可。",
       "languagesLabel": "語言提示",
       "languagesDescription": "限制啟發式模式只識別選定的語言（DE/EN/ZH）。留空 = 自動檢測。同質化語料庫可顯式設定以避免跨語言誤匹配。",
       "languagesPlaceholder": "自動檢測",
@@ -5104,7 +5108,7 @@ export default {
       "appendMode": "追加匯入",
       "replaceMode": "替換現有條目",
       "fileLabel": "選擇檔案",
-      "fileTip": "支援 JSON / CSV / Excel。CSV/Excel 表頭：標籤(必填)、問題(必填)、相似問題(選填-多個用##分隔)、反例問題(選填-多個用##分隔)、機器人回答(必填-多個用##分隔)、是否全部回復(選填-預設FALSE)、是否停用(選填-預設FALSE)、是否禁止被推薦(選填-預設False 可被推薦)。也支援舊表頭「分類」及舊格式：standard_question、answers、similar_questions、negative_questions",
+      "fileTip": "支援 JSON / CSV / Excel。CSV/Excel 表頭：標籤(必填)、問題(必填)、相似問題(選填-多個用##分隔)、反例問題(選填-多個用##分隔)、機器人回答(必填-多個用##分隔)、是否全部回覆(選填-預設FALSE)、是否停用(選填-預設FALSE)、是否禁止被推薦(選填-預設False 可被推薦)。也支援舊錶頭「分類」及舊格式：standard_question、answers、similar_questions、negative_questions",
       "clickToUpload": "點擊上傳檔案",
       "dragDropTip": "或拖拽文件到此處",
       "importButton": "匯入 FAQ",
@@ -5114,7 +5118,7 @@ export default {
       "importSuccess": "已匯入",
       "parseFailed": "解析文件失敗",
       "invalidJSON": "JSON 文件格式不正確",
-      "unsupportedFormat": "暫不支援該文件格式",
+      "unsupportedFormat": "暫不支援該檔案格式",
       "selectFile": "請先選擇需要匯入的文件",
       "downloadExample": "下載示例文件",
       "downloadExampleJSON": "下載 JSON 示例",
@@ -5123,7 +5127,7 @@ export default {
     },
     "faq": {
       "title": "問答",
-      "subtitle": "結構化問答管理，支援標準問、相似問和反例，精准匹配使用者查詢，提升問答準確率",
+      "subtitle": "結構化問答管理，支援標準問、相似問和反例，精準比對使用者查詢，提升問答準確率",
       "description": "設定 FAQ 知識庫的索引策略和問答組織方式",
       "indexModeLabel": "索引方式",
       "indexModeDescription": "僅索引問題可提升精度，索引問答可提高召回率",
@@ -5192,7 +5196,7 @@ export default {
     },
     "document": {
       "title": "文件",
-      "subtitle": "支援點擊或拖拽上傳，多格式文件自動解析並智能分塊，快速構建可檢索的知識庫"
+      "subtitle": "支援點擊或拖曳上傳，多格式文件自動解析並智慧切塊，快速建構可檢索的知識庫"
     },
     "messages": {
       "loadModelsFailed": "載入模型清單失敗",
@@ -5506,11 +5510,11 @@ export default {
       "title": "索引策略",
       "description": "設定文件上傳後的處理管道，可以獨立開啟或關閉每種索引方式",
       "searchTitle": "RAG 檢索",
-      "searchDesc": "對文件進行分塊、向量化和關鍵詞索引，支援混合檢索",
+      "searchDesc": "對文件進行切塊、向量化和關鍵字索引，支援混合檢索",
       "wikiTitle": "Wiki 知識庫",
       "wikiDesc": "自動生成互相關聯的 Wiki 知識頁面，構建結構化知識體系",
       "graphTitle": "知識圖譜",
-      "graphDesc": "提取實體和關係，構建知識圖譜支援圖譜檢索",
+      "graphDesc": "提取實體和關係，建構知識圖譜支援圖譜檢索",
       "atLeastOne": "至少需要開啟一種索引策略",
       "embeddingRequired": "RAG 檢索需要設定 Embedding 模型",
       "lockedTip": "知識庫已有內容，索引策略暫不支援調整。如需變更，請先清空知識庫。",
@@ -5549,7 +5553,7 @@ export default {
       "typeLabel": "知識庫類型",
       "typeDocument": "文件",
       "typeFAQ": "問答",
-      "typeDescription": "FAQ 類型適合結構化問答資料；文件型支援文件解析與分塊；Wiki 類型由 LLM 自動構建互鏈知識頁面。",
+      "typeDescription": "FAQ 類型適合結構化問答資料；文件型支援檔案解析與切塊；Wiki 類型由 LLM 自動建構互鏈知識頁面。",
       "nameLabel": "知識庫名稱",
       "namePlaceholder": "請輸入知識庫名稱",
       "descriptionLabel": "知識庫描述",
@@ -5767,7 +5771,7 @@ export default {
     "welcomeMessageDesc": "訪客打開嵌入聊天後、尚未發言時展示；留空則不顯示",
     "showSuggestedQuestions": "推薦問題",
     "showSuggestedQuestionsDesc": "訪客未發言前展示快捷提問，內容來自智能體設定與關聯知識庫",
-    "originsHint": "填寫允許嵌入的宿主網站來源（A），不是 WeKnora 地址（B）。每行一個完整 Origin，如 https://shop.example.com；至少一項，支援 *.example.com 子域通配",
+    "originsHint": "填寫允許內嵌的宿主網站來源（A），不是 WeKnora 地址（B）。每行一個完整 Origin，如 https://shop.example.com；至少一項，支援 *.example.com 子域通配",
     "originsRequired": "請至少填寫一個網域白名單",
     "originsInvalid": "網域格式無效：{origin}",
     "originsWildcardProd": "生產環境不允許使用通配符 *",
@@ -6849,10 +6853,10 @@ export default {
       "egressPrecedence": "判定順序：放行 → 拒絕 → 預設值。放行優先於拒絕。",
       "allowOut": "放行目標",
       "allowOutPlaceholder": "網域 / IP / CIDR，例如 *.example.com",
-      "allowOutHelp": "支援 IPv4、CIDR、網域和單層通配 *.example.com（通配不匹配主域）。",
+      "allowOutHelp": "支援 IPv4、CIDR、域名和單層通配 *.example.com（通配不比對主域）。",
       "denyOut": "拒絕目標",
       "denyOutPlaceholder": "僅支援 IP / CIDR，例如 169.254.169.254/32",
-      "denyOutHelp": "拒絕只按目的 IP 匹配，因此不支援網域。",
+      "denyOutHelp": "拒絕只按目的 IP 比對，因此不支援域名。",
       "domainAllowNeedsDenyAll": "放行目標里有網域時，必須同時選擇「預設拒絕」或在拒絕目標中加入 0.0.0.0/0，否則白名單不生效。",
       "cubeL7Rules": "HTTP 訪問規則（L7）",
       "cubeL7RulesHelp": "每條規則必須填 host 或 sni，網路層只從這兩個欄位提取放行目標。欄位之間是 AND，method 清單內部是 OR。僅 HTTP 80 / HTTPS 443 生效。規則從上到下先匹配先生效。",
@@ -7077,7 +7081,7 @@ export default {
       "cardSkillsNone": "尚未安裝技能",
       "cardSkillsMore": "+{count}",
       "skillInstallerModel": "安裝模型",
-      "skillInstallerModelHint": "安裝技能時由內建安裝智能體調用。請選擇支援工具調用的對話模型。",
+      "skillInstallerModelHint": "安裝技能時由內建安裝智慧代理呼叫。請選擇支援工具呼叫的對話模型。",
       "skillInstallerModelRequired": "請先選擇安裝模型",
       "skillInstallerModelSaveFailed": "保存安裝模型失敗",
       "skillRollout": "技能鏡像如何生效",
@@ -7348,7 +7352,7 @@ export default {
       "minioDockerNotDetected": "未檢測到 MinIO 環境變量（MINIO_ENDPOINT 等），請確認 Docker Compose 設定正確。",
       "minioRemoteHint": "連接到遠程 MinIO 服務，需要手動填寫連接資訊。",
       "cosTitle": "騰訊雲 COS",
-      "cosDesc": "騰訊雲對象儲存服務，適合公有雲部署，支援 CDN 加速。",
+      "cosDesc": "騰訊雲物件存儲服務，適合公有雲部署，支援 CDN 加速。",
       "cosSecretIdPlaceholder": "騰訊雲 API 密鑰 SecretId",
       "cosSecretKeyPlaceholder": "騰訊雲 API 密鑰 SecretKey",
       "cosAppIdPlaceholder": "騰訊雲帳號 AppID",
@@ -7435,7 +7439,7 @@ export default {
     "parser": {
       "title": "解析引擎",
       "description": "文件解析引擎狀態及設定。此處設定優先於伺服器端環境變量，留空則使用環境變量預設值。",
-      "supportedFileTypes": "支援文件類型",
+      "supportedFileTypes": "支援檔案類型",
       "statusSection": "狀態資訊",
       "configSection": "設定",
       "featuresLabel": "識別選項",
@@ -7554,7 +7558,7 @@ export default {
       "title": "權限不足",
       "desc": "你目前的角色無權訪問此設定項。請聯繫本空間的管理員獲取所需角色。"
     },
-    "capabilityUnavailable": "目前部署不支援此功能，已返回可用頁面。",
+    "capabilityUnavailable": "當前部署不支援此功能，已返回可用頁面。",
     "navGroups": {
       "account": "帳號",
       "workspace": "空間",
@@ -7634,7 +7638,7 @@ export default {
       "capabilityUnconfigured": "未設定"
     },
     "editor": {
-      "reasoningEffortUnsupported": "目前所選模型不支援思考，除「關閉」外的選項將被忽略。",
+      "reasoningEffortUnsupported": "當前所選模型不支援思考，除「關閉」外的選項將被忽略。",
       "reasoningEffortAlwaysOn": "目前所選模型始終開啟思考，無法關閉，只能調整思考強度。",
       "createTitle": "建立智能體",
       "editTitle": "編輯智能體",
@@ -8139,7 +8143,7 @@ export default {
     "tagLabel": "標籤",
     "tagPlaceholder": "請選擇標籤",
     "noTags": "暫無標籤",
-    "videosFilteredNoVLM": "已跳過 {count} 個影片文件（暫不支援影片上傳）",
+    "videosFilteredNoVLM": "已跳過 {count} 個影片檔案（暫不支援影片上傳）",
     "unsupportedTypesHint": "部分文件類型（{types}）暫無可用解析引擎，上傳後將無法解析",
     "goToParserSettings": "前往設定",
     "importURL": "匯入網頁",
@@ -8365,7 +8369,7 @@ export default {
     "noMatch": "未找到匹配的知識庫",
     "noKnowledge": "暫無可用知識庫",
     "loadingFailed": "載入知識庫失敗",
-    "operationNotSupportedForType": "目前知識庫類型不支援該操作",
+    "operationNotSupportedForType": "當前知識庫類型不支援該操作",
     "allFilesSkippedNoEngine": "所選文件類型暫無可用解析引擎，已全部跳過",
     "filesSkippedNoEngine": "{count} 個文件因無可用解析引擎被跳過",
     "deleteSuccess": "已刪除知識",
@@ -8505,7 +8509,7 @@ export default {
         },
         "intro": {
           "title": "知識庫還是空的",
-          "desc": "新增第一份資料後，才能基於它進行檢索與對話。支援拖拽上傳多種文件格式。"
+          "desc": "新增第一份資料後，才能基於它進行檢索與對話。支援拖曳上傳多種文件格式。"
         }
       }
     },
@@ -8605,7 +8609,7 @@ export default {
         },
         "embedding": {
           "title": "Embedding 模型",
-          "desc": "將文字轉為向量以支援語義檢索。與上方索引策略中的「向量/關鍵詞檢索」配合使用。"
+          "desc": "將文字轉為向量以支援語義檢索。與上方索引策略中的「向量/關鍵字檢索」配合使用。"
         },
         "llm": {
           "title": "對話 / 摘要模型",
@@ -9697,7 +9701,7 @@ export default {
     faqImprove: "哪些答案需要補充或更新？",
     documentSteps: "把這篇文件裡的做法整理成操作步驟",
     documentFaq: "這篇文件可以整理出哪些常見問答？",
-    wikiSources: "這篇 Wiki 的結論有哪些來源支持？",
+    wikiSources: "這篇 Wiki 的結論有哪些來源支援？",
     agentCreate: "怎樣建立一個能查知識庫的智慧代理？",
     agentChoose: "查知識庫時，該用這裡的哪個智慧代理？",
     automationIdeas: "哪些重複工作適合交給自動化？",
@@ -9768,7 +9772,7 @@ export default {
       },
       userprofile: {
         description: "我可以幫你檢視和修改帳號資料，並說明登入資訊改動後會發生什麼。",
-        q1: '我的帳號信息在哪裡改？',
+        q1: "我的帳號資訊在哪裡改？",
         q2: '怎樣修改頭像、暱稱或密碼？',
         q3: "改完帳號資訊後需要重新登入嗎？",
       },
@@ -9949,7 +9953,7 @@ export default {
       'integration-mcpserver': {
         description: "我可以說明怎樣把 WeKnora 作為 MCP 服務提供出去，以及會暴露哪些工具。",
         q1: "怎樣把 WeKnora 作為 MCP 服務提供出去？",
-        q2: "外部客戶端要怎樣連線？",
+        q2: "外部用戶端要怎樣連線？",
         q3: "這個服務會暴露哪些工具？",
       },
       'integration-cli': {
