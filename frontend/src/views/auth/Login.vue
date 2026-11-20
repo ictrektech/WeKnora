@@ -374,6 +374,7 @@ import {
   type InviteLookup,
 } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import { normalizeMainLocale, setI18nLanguage } from '@/i18n'
 import { useI18n } from 'vue-i18n'
 import { getApiBaseUrl } from '@/utils/api-base'
 import { saveAppLocale } from '@/i18n/vosLocale'
@@ -422,7 +423,7 @@ function detectVOSOnlyMode(): boolean {
 const modules = [Autoplay, EffectFade, Pagination]
 
 // Carousel slides data
-const slides = [
+const slides = computed(() => [
   {
     image: screenshot4,
     title: t('platform.carousel.agenticRagTitle'),
@@ -443,7 +444,7 @@ const slides = [
     title: t('platform.carousel.smartDocRetrievalTitle'),
     description: t('platform.carousel.smartDocRetrievalDesc')
   }
-]
+])
 
 // Form references
 const formRef = ref()
@@ -564,10 +565,20 @@ const toggleLanguageMenu = () => {
 }
 
 // Select language
-const selectLanguage = (lang: string) => {
-  locale.value = saveAppLocale(lang as 'zh-CN' | 'zh-TW' | 'en-US' | 'ru-RU' | 'ko-KR' | 'ja-JP')
+const selectLanguage = async (lang: string) => {
   showLanguageMenu.value = false
-  MessagePlugin.success(t('language.languageSaved'))
+  const requested = normalizeMainLocale(
+    saveAppLocale(lang as 'zh-CN' | 'zh-TW' | 'en-US' | 'ru-RU' | 'ko-KR' | 'ja-JP'),
+  )
+  try {
+    const applied = await setI18nLanguage(requested)
+    if (applied === requested) {
+      MessagePlugin.success(t('language.languageSaved'))
+    }
+  } catch (err) {
+    console.error('[WeKnora] Failed to switch language:', err)
+    MessagePlugin.error(t('common.failed'))
+  }
 }
 
 // Close language menu when clicking outside

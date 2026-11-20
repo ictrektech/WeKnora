@@ -146,6 +146,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
+import { setI18nLanguage } from '@/i18n'
 import { useSettingsStore } from '@/stores/settings'
 import { useAuthStore } from '@/stores/auth'
 import { followsAutomaticLocale, saveAppLocale } from '@/i18n/vosLocale'
@@ -177,13 +178,17 @@ const {
 } = useFont()
 
 // 本地状态
-const localLanguage = ref('zh-CN')
+const localLanguage = ref(locale.value || 'zh-CN')
 const localTheme = ref<ThemeMode>(currentTheme.value)
 const localSansFont = ref<FontKey>(currentSans.value)
 const localMonoFont = ref<MonoFontKey>(currentMono.value)
 const localFontSize = ref<FontSizeKey>(currentSize.value)
 
 // Keep the form in sync if preferences change externally (e.g. on user switch).
+watch(locale, (val) => {
+  if (followsAutomaticLocale()) localLanguage.value = 'auto'
+  else if (val && localLanguage.value !== 'auto') localLanguage.value = val
+})
 watch(currentTheme, (val) => { localTheme.value = val })
 watch(currentSans, (val) => { localSansFont.value = val })
 watch(currentMono, (val) => { localMonoFont.value = val })
@@ -227,23 +232,43 @@ const isAutoCheckUpdateEnabled = computed({
 })
 
 // 初始化加载
-onMounted(() => {
-  localLanguage.value = followsAutomaticLocale() ? 'auto' : locale.value
-})
-
-watch(locale, (value) => {
-  if (followsAutomaticLocale()) localLanguage.value = 'auto'
-  else localLanguage.value = value
+onMounted(async () => {
+  if (followsAutomaticLocale()) {
+    localLanguage.value = 'auto'
+    return
+  }
+  // 从 localStorage 加载语言设置
+  const savedLocale = localStorage.getItem('locale')
+  if (savedLocale) {
+    try {
+      localLanguage.value = await setI18nLanguage(savedLocale)
+    } catch {
+      localLanguage.value = locale.value
+    }
+  } else {
+    localLanguage.value = locale.value
+  }
 })
 
 // 处理语言变化
-const handleLanguageChange = () => {
+const handleLanguageChange = async () => {
   const deploymentDefault = resolveDefaultLocale(
     window.__RUNTIME_CONFIG__?.DEFAULT_LOCALE,
     import.meta.env.VITE_DEFAULT_LOCALE,
   )
-  locale.value = saveAppLocale(localLanguage.value as SupportedLocale | 'auto', deploymentDefault)
-  MessagePlugin.success(t('language.languageSaved'))
+  const wantsAuto = localLanguage.value === 'auto'
+  const requested = wantsAuto
+    ? saveAppLocale('auto', deploymentDefault)
+    : saveAppLocale(localLanguage.value as SupportedLocale, deploymentDefault)
+  try {
+    const applied = await setI18nLanguage(requested, { persist: !wantsAuto })
+    localLanguage.value = wantsAuto ? 'auto' : applied
+    MessagePlugin.success(t('language.languageSaved'))
+  } catch (err) {
+    localLanguage.value = followsAutomaticLocale() ? 'auto' : locale.value
+    console.error('[WeKnora] Failed to switch language:', err)
+    MessagePlugin.error(t('common.failed'))
+  }
 }
 
 // 处理主题变化

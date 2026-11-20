@@ -27,7 +27,8 @@ test('the agent editor marks rerank required only for the built-in knowledge sea
   assert.equal(required({ allowedTools: [], ragEnabled: true }), false)
   assert.equal(required({ allowedTools: ['wiki_search'], ragEnabled: true }), false)
   assert.equal(required({ allowedTools: null, ragEnabled: false }), true)
-  assert.equal(required({ allowedTools: [], ragEnabled: true, isAgent: false }), true)
+  // HybRAG keeps rerank optional outside smart-reasoning agent mode.
+  assert.equal(required({ allowedTools: [], ragEnabled: true, isAgent: false }), false)
 })
 
 test('editing an agent closes the editor after a successful save', () => {

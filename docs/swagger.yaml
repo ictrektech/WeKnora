@@ -797,8 +797,15 @@ definitions:
         x-agent: true
       env_vars:
         $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.MCPEnvVars'
+      external_id:
+        type: string
       headers:
         $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.MCPHeaders'
+      hub_available:
+        type: boolean
+        x-agent: true
+      hub_last_seen_at:
+        type: string
       id:
         type: string
         x-agent: mcp_service_id
@@ -807,6 +814,10 @@ definitions:
         x-agent: true
       name:
         type: string
+        x-agent: true
+      source:
+        allOf:
+        - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.MCPServiceSource'
         x-agent: true
       stdio_config:
         $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.MCPStdioConfig'
@@ -5649,12 +5660,14 @@ definitions:
     - api_key
     - bearer
     - oauth
+    - vos
     type: string
     x-enum-varnames:
     - MCPAuthNone
     - MCPAuthAPIKey
     - MCPAuthBearer
     - MCPAuthOAuth
+    - MCPAuthVOS
   github_com_Tencent_WeKnora_internal_types.MCPEnvVars:
     additionalProperties:
       type: string
@@ -5701,6 +5714,14 @@ definitions:
       uri:
         type: string
     type: object
+  github_com_Tencent_WeKnora_internal_types.MCPServiceSource:
+    enum:
+    - manual
+    - mcphub
+    type: string
+    x-enum-varnames:
+    - MCPServiceSourceManual
+    - MCPServiceSourceMCPHub
   github_com_Tencent_WeKnora_internal_types.MCPStdioConfig:
     properties:
       args:
@@ -8018,6 +8039,15 @@ definitions:
       end_at:
         description: End at
         type: integer
+      evidence_handles:
+        description: |-
+          EvidenceHandles records storage references that citation sources of this
+          result expose to the model even though merge scoping kept them out of
+          Content and ImageInfo. The message-scoped file proxy reads them as
+          retrieval evidence (#5069); prompts and UI do not consume them.
+        items:
+          type: string
+        type: array
       id:
         description: ID
         type: string
@@ -29449,9 +29479,15 @@ paths:
     get:
       description: |-
         Retrieve a paginated list of every user across tenants (SystemAdmin only).
-        Supports `offset` (default 0) and `limit` (default 50, max 200).
+        Supports `offset` (default 0), `limit` (default 50, max 200), and optional `q`.
+        `q` performs case-insensitive substring matching against username or email.
         Password/hashes are never serialised — only the redacted UserInfo shape.
       parameters:
+      - description: Filter by username or email
+        in: query
+        name: q
+        type: string
+        x-agent: true
       - default: 0
         description: Page offset
         in: query
@@ -29490,10 +29526,10 @@ paths:
         risk: read
         root: users
         system_admin: true
-      x-agent-hint: 'Lists platform users across workspaces, including account enabled
-        state and system administrator flag. Follow has_more using offset + limit.
-        tenant_id is the home workspace, not a list of memberships. No search or role
-        filter is supported: paginate before drawing conclusions.'
+      x-agent-hint: Lists platform users across workspaces, including account enabled
+        state and system administrator flag. q filters username or email (not role);
+        follow has_more using offset + limit. tenant_id is the home workspace, not
+        a list of memberships.
   /system/admin/users/create:
     post:
       consumes:

@@ -16,7 +16,11 @@ function normalize(value: unknown): SupportedLocale | null {
 }
 
 function manualLocale(): SupportedLocale | null {
-  return normalize(localStorage.getItem('locale'))
+  try {
+    return typeof localStorage !== 'undefined' ? normalize(localStorage.getItem('locale')) : null
+  } catch {
+    return null
+  }
 }
 
 export function isVosApp(): boolean {
@@ -72,19 +76,24 @@ export function initialAppLocale(deploymentDefault: SupportedLocale): SupportedL
   if (manual) return manual
   const vosLocale = followsVosLocale() ? readVosLocale() : null
   if (vosLocale) return vosLocale
-  return browserPreferredLocale() || deploymentDefault || BUILT_IN_DEFAULT
+  const browserLocale = typeof window !== 'undefined' ? browserPreferredLocale() : null
+  return browserLocale || deploymentDefault || BUILT_IN_DEFAULT
 }
 
 export function saveAppLocale(
   locale: SupportedLocale | 'auto',
   deploymentDefault: SupportedLocale = BUILT_IN_DEFAULT,
 ): SupportedLocale {
-  if (locale === 'auto') {
-    localStorage.removeItem('locale')
-    return initialAppLocale(deploymentDefault)
+  try {
+    if (locale === 'auto') {
+      localStorage.removeItem('locale')
+      return initialAppLocale(deploymentDefault)
+    }
+    localStorage.setItem('locale', locale)
+  } catch {
+    // localStorage may be unavailable in restricted/private contexts.
   }
-  localStorage.setItem('locale', locale)
-  return locale
+  return locale === 'auto' ? initialAppLocale(deploymentDefault) : locale
 }
 
 export function listenForVosLocaleChange(apply: (locale: SupportedLocale) => void): () => void {

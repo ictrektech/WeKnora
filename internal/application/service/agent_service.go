@@ -142,6 +142,10 @@ type agentService struct {
 
 	// secretHandles backs browser_fill_secret; nil without Redis.
 	secretHandles tools.SecretHandles
+
+	// mcpRevalidator re-lists saved MCP tool directories that may be out of
+	// date. It is shared by every agent engine so its cooldown spans turns.
+	mcpRevalidator *tools.MCPDirectoryRevalidator
 }
 
 // shellJobSource is the part of *ShellJobService the agent asks about
@@ -193,6 +197,7 @@ func NewAgentService(
 		userRepo:             userRepo,
 		graphRepo:            graphRepo,
 		cfg:                  cfg,
+		mcpRevalidator:       newMCPDirectoryRevalidator(cfg),
 		modelService:         modelService,
 		knowledgeBaseService: knowledgeBaseService,
 		knowledgeService:     knowledgeService,
@@ -522,7 +527,11 @@ func (s *agentService) registerMCPTools(
 		registered, err := tools.RegisterMCPTools(
 			ctx, toolRegistry, enabledServices, s.mcpManager, s.toolApprovalGate,
 			config.MCPAuthWaitTimeout, s.mcpServiceService.GetMCPServiceByID,
-			&tools.MCPMetadataIO{Get: metadataService.GetMCPMetadata, Put: metadataService.PersistMCPMetadata},
+			&tools.MCPMetadataIO{
+				Get:         metadataService.GetMCPMetadata,
+				Put:         metadataService.PersistMCPMetadata,
+				Revalidator: s.mcpRevalidator,
+			},
 		)
 		if err != nil {
 			logger.Warnf(ctx, "Failed to register MCP directory: %v", err)
@@ -530,6 +539,14 @@ func (s *agentService) registerMCPTools(
 			logger.Infof(ctx, "Registered %d MCP service(s) for on-demand discovery", registered)
 		}
 	}
+}
+
+func newMCPDirectoryRevalidator(cfg *config.Config) *tools.MCPDirectoryRevalidator {
+	var agent *config.AgentConfig
+	if cfg != nil {
+		agent = cfg.Agent
+	}
+	return tools.NewMCPDirectoryRevalidator(agent.MCPDirectoryMaxAge())
 }
 
 // resolveKBAndDocInfos loads knowledge base metadata and selected document info for prompt.

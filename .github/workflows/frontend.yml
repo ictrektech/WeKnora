@@ -6,6 +6,7 @@ on:
     paths:
       - "frontend/**"
       - "docs/api/**"
+      - "docs/swagger.json"
       - "scripts/build_frontend_dist.sh"
       - "scripts/test_embed_nginx.py"
       - ".github/workflows/frontend.yml"
@@ -13,6 +14,7 @@ on:
     paths:
       - "frontend/**"
       - "docs/api/**"
+      - "docs/swagger.json"
       - "scripts/build_frontend_dist.sh"
       - "scripts/test_embed_nginx.py"
       - ".github/workflows/frontend.yml"

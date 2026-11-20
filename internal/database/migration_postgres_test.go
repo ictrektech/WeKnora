@@ -56,7 +56,7 @@ func TestPostgresMigrationsServeAgentHistory(t *testing.T) {
 	require.NoError(t, db.QueryRow(
 		"SELECT count(*) FROM pg_class WHERE relname = 'idx_messages_session_created_id'").Scan(&indexes))
 	require.Zero(t, indexes, "the down migration drops the index")
-	require.NoError(t, m.Migrate(124))
+	require.NoError(t, RunMigrationsWithOptions(dsn, MigrationOptions{}))
 	requirePostgresIndexValid(t, db)
 
 	ctx := context.Background()
