@@ -210,6 +210,12 @@ missing = [name for name in names if name not in compose_profiles]
 if missing:
     raise SystemExit(f"docker-compose.yml has no service using profiles {missing!r}")
 
+for profile in expected:
+    service_name = f"hybrag-app-{profile}"
+    environment = services.get(service_name, {}).get("environment") or {}
+    if environment.get("HYBRAG_VNOTE_DOCUMENT_DIR") != "/data/vnote-document-imports":
+        raise SystemExit(f"{service_name} must set HYBRAG_VNOTE_DOCUMENT_DIR")
+
 bad_names = {"AMD_with_cuda", "ARM_with_cuda", "thor_spark", "SOPHON_bm1688"}
 if bad_names & set(names):
     raise SystemExit(f"manifest profiles must not use Feishu sheet names: {sorted(bad_names & set(names))!r}")
