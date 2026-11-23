@@ -67,7 +67,8 @@ type RouterParams struct {
 	CredentialVaultHandler       *handler.CredentialVaultHandler
 	EvaluationHandler            *handler.EvaluationHandler
 	AuthHandler                  *handler.AuthHandler
-	VNoteImportHandler           *handler.VNoteImportHandler `optional:"true"`
+	VNoteImportHandler           *handler.VNoteImportHandler   `optional:"true"`
+	VNoteDocumentHandler         *handler.VNoteDocumentHandler `optional:"true"`
 	InitializationHandler        *handler.InitializationHandler
 	SystemHandler                *handler.SystemHandler
 	MCPServiceHandler            *handler.MCPServiceHandler
@@ -219,6 +220,12 @@ func NewRouter(params RouterParams) *gin.Engine {
 		r.POST("/api/v1/vnote/import-note", middleware.PublicAuthRateLimit(), params.VNoteImportHandler.ImportNote)
 		r.POST("/api/v1/vnote/status", middleware.PublicAuthRateLimit(), params.VNoteImportHandler.Status)
 		r.POST("/api/v1/vnote/control", middleware.PublicAuthRateLimit(), params.VNoteImportHandler.Control)
+	}
+	if params.VNoteDocumentHandler != nil {
+		r.PUT("/api/v1/vnote/document-imports/:id", middleware.PublicAuthRateLimit(), params.VNoteDocumentHandler.Submit)
+		r.GET("/api/v1/vnote/document-imports/:id", params.VNoteDocumentHandler.Result)
+		r.GET("/api/v1/vnote/document-imports/:id/images/:image", params.VNoteDocumentHandler.Result)
+		r.DELETE("/api/v1/vnote/document-imports/:id", params.VNoteDocumentHandler.Result)
 	}
 	// 认证中间件
 	gatewayBinding := gin.WrapH(schedulergateway.Handler())
