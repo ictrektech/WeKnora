@@ -113,7 +113,7 @@ func (h *VNoteDocumentHandler) Submit(c *gin.Context) {
 		c.Status(http.StatusUnsupportedMediaType)
 		return
 	}
-	if err := os.MkdirAll(h.root, 0700); err != nil {
+	if err := os.MkdirAll(h.root, 0o700); err != nil {
 		c.Status(http.StatusServiceUnavailable)
 		return
 	}
@@ -122,8 +122,8 @@ func (h *VNoteDocumentHandler) Submit(c *gin.Context) {
 		c.Status(http.StatusServiceUnavailable)
 		return
 	}
-	defer os.RemoveAll(stage)
-	file, err := os.OpenFile(filepath.Join(stage, "source"), os.O_CREATE|os.O_WRONLY, 0600)
+	defer func() { _ = os.RemoveAll(stage) }()
+	file, err := os.OpenFile(filepath.Join(stage, "source"), os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		c.Status(http.StatusServiceUnavailable)
 		return
@@ -222,7 +222,7 @@ func (h *VNoteDocumentHandler) Result(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
 		c.Status(http.StatusServiceUnavailable)
@@ -305,7 +305,7 @@ func (h *VNoteDocumentHandler) processNext(ctx context.Context) {
 		result, err = h.parser.Parse(taskCtx, pending.TenantID, pending.UserID, pending.Name, data, progress)
 		if err == nil {
 			for index, image := range result.Images {
-				err = os.WriteFile(filepath.Join(pendingDir, "image-"+strconv.Itoa(index)), image.Data, 0600)
+				err = os.WriteFile(filepath.Join(pendingDir, "image-"+strconv.Itoa(index)), image.Data, 0o600)
 				if err != nil {
 					break
 				}
@@ -354,7 +354,7 @@ func writeVNoteDocumentJSON(dir, name string, value any) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(file.Name())
+	defer func() { _ = os.Remove(file.Name()) }()
 	err = json.NewEncoder(file).Encode(value)
 	closeErr := file.Close()
 	if err != nil {
