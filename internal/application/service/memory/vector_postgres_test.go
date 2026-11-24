@@ -49,7 +49,7 @@ func TestVectorSearchRanksInPostgres(t *testing.T) {
 
 	require.NoError(t, db.Exec("CREATE TABLE tenants (id BIGINT PRIMARY KEY)").Error)
 	require.NoError(t, db.Exec("CREATE TABLE messages (id VARCHAR(36) PRIMARY KEY)").Error)
-	execMemoryMigration(t, db, "../../../../migrations/versioned/000084_memory.up.sql")
+	execMemoryMigration(t, db, "../../../../migrations/versioned/000091_memory.up.sql")
 	execMemoryMigration(t, db, "../../../../migrations/versioned/000112_memory_consistency.up.sql")
 	// Whole-file exec: the migration is one DO block, so splitting it on
 	// semicolons the way execMemoryMigration does would cut it apart.

@@ -143,7 +143,7 @@ func testMemoryConsistencyMigration(t *testing.T, db *gorm.DB, dialect string) {
 	baseline := "sqlite/000004_memory"
 	migration := "sqlite/000015_memory_consistency"
 	if dialect == "postgres" {
-		baseline = "versioned/000084_memory"
+		baseline = "versioned/000091_memory"
 		migration = "versioned/000112_memory_consistency"
 	}
 	execMemoryMigration(t, db, "../../../../migrations/"+baseline+".up.sql")
