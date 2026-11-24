@@ -65,6 +65,7 @@ import {
   shouldRefreshWikiStatusAfterKnowledgePoll,
 } from './wikiStatusRefresh';
 import { stalledMinutes, STALLED_POLL_INTERVAL_MS } from '@/utils/knowledgeProcessingStall';
+import { openVOSApp } from '@/utils/vos-app-link';
 import { listMoveTargets, moveKnowledge, getKnowledgeMoveProgress } from '@/api/knowledge-base';
 import { resolveKnowledgeDownloadFileName } from './knowledgeDownloadFileName';
 import {
@@ -2667,7 +2668,12 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
           <p v-if="kbInfo?.description" class="document-subtitle">{{ kbInfo.description }}</p>
           <p v-if="isVNoteManaged" class="document-subtitle">
             {{ $t('knowledgeBase.vnoteSource') }}
-            <a href="/#/app/com.ictrek.v-note/v-note" target="_blank" rel="noopener noreferrer">{{ $t('knowledgeBase.vnoteSettings') }}</a>
+            <a
+              href="/app/app-drawer/com.ictrek.v-note/v-note"
+              target="_blank"
+              rel="noopener noreferrer"
+              @click.prevent="openVOSApp('com.ictrek.v-note', 'v-note', '/app/app-drawer/com.ictrek.v-note/v-note')"
+            >{{ $t('knowledgeBase.vnoteSettings') }}</a>
           </p>
           <p v-if="canEdit && unsupportedFileTypes.length" class="parser-hint" @click="goToParserSettings">
             <t-icon name="info-circle" class="parser-hint-icon" />

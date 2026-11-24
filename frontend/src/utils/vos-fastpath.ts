@@ -31,6 +31,9 @@ interface VOSPlatformOAuth2 {
 interface VOSPlatform {
   version?: string
   mode?: string
+  platform?: {
+    openTab?: (options: { app: { id: string; page: string } }) => Promise<void>
+  }
   getState?: () => Promise<{ locale?: unknown }>
   broadcast?: {
     on: (event: 'locale-change', handler: (data: { locale?: unknown }) => void) => void | (() => void)
