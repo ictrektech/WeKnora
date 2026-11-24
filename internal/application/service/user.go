@@ -31,6 +31,12 @@ import (
 	secutils "github.com/Tencent/WeKnora/internal/utils"
 )
 
+// BootstrapSystemAdminEmailEnv names the environment variable identifying the
+// initial system administrator email. When set and no system administrators
+// exist yet, a matching account is promoted at sign-up (or on startup if the
+// account was created before the variable was configured).
+const BootstrapSystemAdminEmailEnv = "WEKNORA_BOOTSTRAP_SYSTEM_ADMIN_EMAIL"
+
 var (
 	jwtSecretOnce sync.Once
 	jwtSecret     string
@@ -133,10 +139,12 @@ func (s *userService) complexPasswordEnabled(ctx context.Context) bool {
 
 // Register creates a new user account
 func (s *userService) Register(ctx context.Context, req *types.RegisterRequest) (*types.User, error) {
-	return s.registerWithPlatformIdentity(ctx, req, nil)
+	return s.registerUser(ctx, req, nil, true)
 }
 
-func (s *userService) registerWithPlatformIdentity(ctx context.Context, req *types.RegisterRequest, identity *types.PlatformIdentity) (*types.User, error) {
+func (s *userService) registerUser(
+	ctx context.Context, req *types.RegisterRequest, identity *types.PlatformIdentity, allowBootstrapAdmin bool,
+) (*types.User, error) {
 	logger.Info(ctx, "Start user registration")
 	var identityCreator platformIdentityUserCreator
 	if identity != nil {
@@ -210,6 +218,10 @@ func (s *userService) registerWithPlatformIdentity(ctx context.Context, req *typ
 		user.TenantID = createdTenant.ID
 	}
 
+	if allowBootstrapAdmin && shouldPromoteBootstrapSystemAdmin(ctx, s.userRepo, req.Email) {
+		user.IsSystemAdmin = true
+	}
+
 	if identity != nil {
 		err = identityCreator.CreateUserWithPlatformIdentity(ctx, user, identity.PlatformID, identity.Subject)
 	} else {
@@ -239,8 +251,44 @@ func (s *userService) registerWithPlatformIdentity(ctx context.Context, req *typ
 		}
 	}
 
+	if user.IsSystemAdmin {
+		logger.Infof(ctx,
+			"[bootstrap] promoted user %s (%s) to system admin via %s on registration",
+			user.ID, secutils.SanitizeForLog(user.Email), BootstrapSystemAdminEmailEnv,
+		)
+	}
+
 	logger.Info(ctx, "User registered successfully")
 	return user, nil
+}
+
+// shouldPromoteBootstrapSystemAdmin reports whether a newly registering email
+// matches BootstrapSystemAdminEmailEnv while no system admins exist yet.
+// Errors fail closed and only log a warning so registration itself is never
+// blocked by a best-effort bootstrap check.
+func shouldPromoteBootstrapSystemAdmin(
+	ctx context.Context, userRepo interfaces.UserRepository, email string,
+) bool {
+	bootstrapEmail := strings.TrimSpace(os.Getenv(BootstrapSystemAdminEmailEnv))
+	if bootstrapEmail == "" || !strings.EqualFold(strings.TrimSpace(email), bootstrapEmail) {
+		return false
+	}
+	_, total, err := userRepo.ListSystemAdmins(ctx, 0, 1)
+	if err != nil {
+		logger.Warnf(ctx,
+			"[bootstrap] %s=%s: cannot verify existing system admins, skipping promotion: %v",
+			BootstrapSystemAdminEmailEnv, secutils.SanitizeForLog(bootstrapEmail), err,
+		)
+		return false
+	}
+	if total > 0 {
+		logger.Infof(ctx,
+			"[bootstrap] %s=%s: %d system admin(s) already exist; not promoting on registration",
+			BootstrapSystemAdminEmailEnv, secutils.SanitizeForLog(bootstrapEmail), total,
+		)
+		return false
+	}
+	return true
 }
 
 // Login authenticates a user and returns tokens
@@ -737,12 +785,12 @@ func (s *userService) provisionTrustedIdentityUser(
 
 	username := baseUsername
 	for i := 0; i < 20; i++ {
-		user, err := s.registerWithPlatformIdentity(ctx, &types.RegisterRequest{
+		user, err := s.registerUser(ctx, &types.RegisterRequest{
 			Username:           username,
 			Email:              email,
 			Password:           randomPassword,
 			TenantProvisioning: provisioning,
-		}, identity)
+		}, identity, false)
 		if err == nil {
 			return user, nil
 		}

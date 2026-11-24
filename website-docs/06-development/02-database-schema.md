@@ -20,14 +20,14 @@ WeKnora 使用版本化迁移维护数据库结构，PostgreSQL 与 SQLite 分�
 
 ```text
 migrations/
-├── versioned/     # PostgreSQL/ParadeDB 版本化迁移：000000-000157
-├── sqlite/        # SQLite 迁移：000000_init（压平的全量 schema）+ 000001-000062 增量版本
+├── versioned/     # PostgreSQL/ParadeDB 版本化迁移：000000-000168
+├── sqlite/        # SQLite 迁移：000000_init（压平的全量 schema）+ 000001-000073 增量版本
 ├── paradedb/      # ParadeDB 附加脚本：00-init-db.sql、01-migrate-to-paradedb.sql（存量库切换）
 └── mysql/         # 00-init-db.sql，遗留的一次性 MySQL 建表脚本（未接入代码）
 ```
 
-- PostgreSQL 的 `versioned/` 从 `000000_init` 到 fork 迁移 `000157_tenant_default_settings`；上游迁移编号与 fork 的对应关系见下表。
-- `sqlite/` 以 `000000_init` 作为压平后的全量初始化（JSONB→TEXT、SERIAL→AUTOINCREMENT 等方言差异已适配），增量迁移到 fork 版本 `000062_tenant_default_settings`，同样由 golang-migrate 顺序执行。
+- PostgreSQL 的 `versioned/` 从 `000000_init` 到 fork 迁移 `000168_im_session_mode_indexes`；上游迁移编号与 fork 的对应关系见下表。
+- `sqlite/` 以 `000000_init` 作为压平后的全量初始化（JSONB→TEXT、SERIAL→AUTOINCREMENT 等方言差异已适配），增量迁移到 fork 版本 `000073_user_model_desensitizations`，同样由 golang-migrate 顺序执行。
 - `uuid-ossp`、`vector`、`pg_trgm`、`pg_search` 等扩展由 `versioned/` 迁移自行创建；BM25 索引使用中文 Lindera 分词器建在 `embeddings.content` 上。
 - `paradedb/00-init-db.sql` 含旧版建表语句，**没有被 compose 或代码引用**。不要把它挂成数据库 initdb 脚本：它先建出的旧表会让 `000000_init` 失败。
 
@@ -52,7 +52,7 @@ migrations/
 | 000078 | 分块编辑与自定义元数据 | `chunks` 增加 `source_content`/`content_revision`/`index_status`/`last_editor_id`/`context_header`，新增 `chunk_revisions` 表，`knowledges` 增加 `custom_metadata` |
 | 000079 | 上游合并修复 | Wiki 与租户 API key 兼容修复 |
 
-### Fork 迁移编号（000080–000157） {#_2-2-fork-迁移编号-000080–000132}
+### Fork 迁移编号（000080–000168） {#_2-2-fork-迁移编号-000080–000132}
 
 迁移编号以下表中的 fork 版本为准。上游最近增加的 PG 迁移经重编号后与 fork 的对应关系列在“上游 PG”列。
 
@@ -98,6 +98,10 @@ migrations/
 | 000151–000155 | 000129–000133 | 会话认证来源、共享沙箱、自动化执行时长、模型覆盖及助手执行 |
 | 000156 | — | `tenants.patent_workspace_config`，专利工作台入口及示例开关 |
 | 000157 | 000134 | `tenants.default_settings`（JSONB），空间默认模型；空值沿用部署默认回退 |
+| 000158 | 000135 | 将 `audit_logs.actor_user_id` 扩展为 64 字符 |
+| 000159 | 000136 | `credential_vault_items`，保存个人站点账号、适用域名和加密密码 |
+| 000160–000167 | — | 平台账号绑定、V-Note 私有知识库与同步、VOS MCP 服务发现 |
+| 000168 | 000137 | IM 用户会话唯一索引仅约束用户模式，允许多个线程映射 |
 
 SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 
@@ -133,8 +137,12 @@ SQLite 版本号独立演进，不能与 PostgreSQL 数字一一对应：
 | 000056–000060 | 会话认证来源、共享沙箱及自动化变更（PG 000151–000155） |
 | 000061 | `tenants.patent_workspace_config`，专利工作台配置（PG 000156） |
 | 000062 | `tenants.default_settings`（TEXT，存储 JSON；PG 000157，上游 SQLite 000051） |
+| 000063 | 个人凭据表（PG 000159，上游 SQLite 000052） |
+| 000064–000071 | 平台账号绑定、V-Note 私有知识库与同步、VOS MCP 服务发现（PG 000160–000167） |
+| 000072 | 用户模式与线程模式 IM 会话索引（PG 000168，上游 SQLite 000053） |
+| 000073 | 补建用户模型脱敏策略表（PG 000083） |
 
-PG `000117`、`000137`（pg_search 升级）及 `000140`（OAuth 时间戳类型）没有 SQLite 对应版本。SQLite `000044–000046` 从 fork 已发布的 `000043` 升级；上游原编号 `000034–000036` 已被本地 Smart Archive 迁移占用，不能复用或重编号已有迁移。
+PG `000117`、`000137`（pg_search 升级）、`000140`（OAuth 时间戳类型）及 `000158`（审计用户 ID 宽度）没有 SQLite 对应版本。SQLite `000044–000046` 从 fork 已发布的 `000043` 升级；上游原编号 `000034–000036` 已被本地 Smart Archive 迁移占用，不能复用或重编号已有迁移。
 
 基线 schema 与后续增量共同决定新建库和已有库的最终结果；不能只看新增迁移文件名判断 Lite 是否有某张表。
 
