@@ -29,6 +29,7 @@ var (
 	vnoteDocumentToken = regexp.MustCompile(`^[a-f0-9]{64}$`)
 )
 
+// VNoteDocumentHandler serves V-Note document conversion requests.
 type VNoteDocumentHandler struct {
 	identity *VNoteImportHandler
 	parser   *service.VNoteDocumentParser
@@ -44,10 +45,12 @@ type vnoteDocumentJob struct {
 	CreatedAt time.Time
 }
 
+// NewVNoteDocumentHandler creates the handler using the configured import directory.
 func NewVNoteDocumentHandler(identity *VNoteImportHandler, parser *service.VNoteDocumentParser) *VNoteDocumentHandler {
 	return &VNoteDocumentHandler{identity: identity, parser: parser, root: os.Getenv("HYBRAG_VNOTE_DOCUMENT_DIR")}
 }
 
+// Submit verifies the VOS identity and queues a document for conversion.
 func (h *VNoteDocumentHandler) Submit(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	if h.root == "" || !vosSSOEnabled() {
@@ -82,7 +85,8 @@ func (h *VNoteDocumentHandler) Submit(c *gin.Context) {
 		return
 	}
 	membership, err := h.identity.members.GetMembership(ctx, user.ID, user.TenantID)
-	if err != nil || membership == nil || membership.Status != types.TenantMemberStatusActive || membership.Role != types.TenantRoleOwner {
+	if err != nil || membership == nil ||
+		membership.Status != types.TenantMemberStatusActive || membership.Role != types.TenantRoleOwner {
 		c.Status(http.StatusForbidden)
 		return
 	}
@@ -136,13 +140,16 @@ func (h *VNoteDocumentHandler) Submit(c *gin.Context) {
 		}
 		return
 	}
-	job := vnoteDocumentJob{UserID: user.ID, TenantID: user.TenantID, TokenHash: hash, Name: name, CreatedAt: time.Now().UTC()}
+	job := vnoteDocumentJob{
+		UserID: user.ID, TenantID: user.TenantID, TokenHash: hash, Name: name, CreatedAt: time.Now().UTC(),
+	}
 	if err := writeVNoteDocumentJSON(stage, "job", job); err != nil {
 		c.Status(http.StatusServiceUnavailable)
 		return
 	}
 	if err := os.Rename(stage, dir); err != nil {
-		if found, readErr := readVNoteDocumentJob(dir); readErr != nil || found.TokenHash != hash || found.UserID != user.ID {
+		found, readErr := readVNoteDocumentJob(dir)
+		if readErr != nil || found.TokenHash != hash || found.UserID != user.ID {
 			c.Status(http.StatusConflict)
 			return
 		}
@@ -150,11 +157,13 @@ func (h *VNoteDocumentHandler) Submit(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
+// Result serves job progress, converted content, or images and handles job deletion.
 func (h *VNoteDocumentHandler) Result(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	id := c.Param("id")
 	auth := strings.Fields(c.GetHeader("Authorization"))
-	if h.root == "" || !vnoteDocumentID.MatchString(id) || len(auth) != 2 || auth[0] != "Document" || !vnoteDocumentToken.MatchString(auth[1]) {
+	if h.root == "" || !vnoteDocumentID.MatchString(id) ||
+		len(auth) != 2 || auth[0] != "Document" || !vnoteDocumentToken.MatchString(auth[1]) {
 		c.Status(http.StatusNotFound)
 		return
 	}
@@ -186,7 +195,8 @@ func (h *VNoteDocumentHandler) Result(c *gin.Context) {
 			Done  int `json:"done"`
 			Total int `json:"total"`
 		}
-		if raw, err := os.ReadFile(filepath.Join(dir, "progress")); err == nil && json.Unmarshal(raw, &progress) == nil {
+		raw, err := os.ReadFile(filepath.Join(dir, "progress"))
+		if err == nil && json.Unmarshal(raw, &progress) == nil {
 			c.JSON(http.StatusAccepted, gin.H{"processing": true, "done": progress.Done, "total": progress.Total})
 		} else {
 			c.JSON(http.StatusAccepted, gin.H{"processing": false})
@@ -221,6 +231,7 @@ func (h *VNoteDocumentHandler) Result(c *gin.Context) {
 	c.DataFromReader(http.StatusOK, info.Size(), contentType, file, nil)
 }
 
+// Start runs the background conversion worker and registers its shutdown.
 func (h *VNoteDocumentHandler) Start(cleaner interfaces.ResourceCleaner) {
 	if h.root == "" || !vosSSOEnabled() {
 		return
@@ -310,13 +321,16 @@ func (h *VNoteDocumentHandler) processNext(ctx context.Context) {
 	pending.Error = ""
 	if err != nil {
 		pending.Error = service.ErrVNoteDocumentParse.Error()
-		for _, code := range []error{service.ErrVNoteDocumentOCRConfig, service.ErrVNoteDocumentOCR, service.ErrVNoteDocumentEmpty} {
+		for _, code := range []error{
+			service.ErrVNoteDocumentOCRConfig, service.ErrVNoteDocumentOCR, service.ErrVNoteDocumentEmpty,
+		} {
 			if errors.Is(err, code) {
 				pending.Error = code.Error()
 			}
 		}
 	}
-	if writeVNoteDocumentJSON(pendingDir, "job", pending) == nil && writeVNoteDocumentJSON(pendingDir, "terminal", true) == nil {
+	if writeVNoteDocumentJSON(pendingDir, "job", pending) == nil &&
+		writeVNoteDocumentJSON(pendingDir, "terminal", true) == nil {
 		_ = os.Remove(filepath.Join(pendingDir, "source"))
 	}
 }

@@ -64,7 +64,8 @@ func TestVNoteDocumentOCRKeepsMixedPagesInOrder(t *testing.T) {
 		t.Fatalf("OCR progress %d/%d, images %d", done, total, len(result.Images))
 	}
 	for i := 1; i <= 10; i++ {
-		if pair := fmt.Sprintf("Text layer %02d.\n\nRecognized page %02d.", i, i); !strings.Contains(result.Markdown, pair) {
+		pair := fmt.Sprintf("Text layer %02d.\n\nRecognized page %02d.", i, i)
+		if !strings.Contains(result.Markdown, pair) {
 			t.Fatalf("text and OCR out of order on page %d", i)
 		}
 	}

@@ -17,12 +17,17 @@ import (
 )
 
 var (
-	ErrVNoteDocumentParse     = errors.New("document_parse_failed")
+	// ErrVNoteDocumentParse indicates that the document could not be parsed.
+	ErrVNoteDocumentParse = errors.New("document_parse_failed")
+	// ErrVNoteDocumentOCRConfig indicates that no vision model is available for OCR.
 	ErrVNoteDocumentOCRConfig = errors.New("document_ocr_unavailable")
-	ErrVNoteDocumentOCR       = errors.New("document_ocr_failed")
-	ErrVNoteDocumentEmpty     = errors.New("document_empty")
+	// ErrVNoteDocumentOCR indicates that scanned-page recognition failed.
+	ErrVNoteDocumentOCR = errors.New("document_ocr_failed")
+	// ErrVNoteDocumentEmpty indicates that conversion produced no editable text.
+	ErrVNoteDocumentEmpty = errors.New("document_empty")
 )
 
+// VNoteDocumentImage describes an image extracted during conversion.
 type VNoteDocumentImage struct {
 	Ref      string `json:"ref"`
 	Filename string `json:"filename"`
@@ -30,22 +35,30 @@ type VNoteDocumentImage struct {
 	Data     []byte `json:"-"`
 }
 
+// VNoteDocumentResult contains the editable Markdown and its images.
 type VNoteDocumentResult struct {
 	Markdown string               `json:"markdown"`
 	Images   []VNoteDocumentImage `json:"images"`
 }
 
+// VNoteDocumentParser converts V-Note imports using the tenant's parser and OCR settings.
 type VNoteDocumentParser struct {
 	reader  interfaces.DocumentReader
 	tenants interfaces.TenantService
 	models  interfaces.ModelService
 }
 
-func NewVNoteDocumentParser(reader interfaces.DocumentReader, tenants interfaces.TenantService, models interfaces.ModelService) *VNoteDocumentParser {
+// NewVNoteDocumentParser creates a parser for V-Note imports.
+func NewVNoteDocumentParser(
+	reader interfaces.DocumentReader, tenants interfaces.TenantService, models interfaces.ModelService,
+) *VNoteDocumentParser {
 	return &VNoteDocumentParser{reader: reader, tenants: tenants, models: models}
 }
 
-func (p *VNoteDocumentParser) Parse(ctx context.Context, tenantID uint64, userID, name string, data []byte, progress func(done, total int)) (*VNoteDocumentResult, error) {
+// Parse converts an uploaded document and reports scanned-page progress.
+func (p *VNoteDocumentParser) Parse(
+	ctx context.Context, tenantID uint64, userID, name string, data []byte, progress func(done, total int),
+) (*VNoteDocumentResult, error) {
 	ctx = types.WithCaller(ctx, types.Caller{UserID: userID, TenantID: tenantID, Role: types.TenantRoleOwner})
 	ctx = types.WithPrincipal(ctx, types.Principal{Type: types.PrincipalWebUser, ID: userID})
 	ctx = types.WithExecutionTenant(ctx, tenantID)
@@ -74,7 +87,9 @@ func (p *VNoteDocumentParser) Parse(ctx context.Context, tenantID uint64, userID
 	return p.prepareResult(ctx, raw, progress)
 }
 
-func (p *VNoteDocumentParser) prepareResult(ctx context.Context, raw *types.ReadResult, progress func(done, total int)) (*VNoteDocumentResult, error) {
+func (p *VNoteDocumentParser) prepareResult(
+	ctx context.Context, raw *types.ReadResult, progress func(done, total int),
+) (*VNoteDocumentResult, error) {
 	markdown := docparser.NormalizeHTMLTables(raw.MarkdownContent)
 	result := &VNoteDocumentResult{Images: make([]VNoteDocumentImage, 0, len(raw.ImageRefs))}
 	var sourceTypes map[string]string
@@ -134,7 +149,9 @@ func (p *VNoteDocumentParser) prepareResult(ctx context.Context, raw *types.Read
 			scannedPages++
 			progress(scannedPages, totalPages)
 		}
-		result.Images = append(result.Images, VNoteDocumentImage{Ref: ref, Filename: image.Filename, MimeType: mime, Data: image.ImageData})
+		result.Images = append(result.Images, VNoteDocumentImage{
+			Ref: ref, Filename: image.Filename, MimeType: mime, Data: image.ImageData,
+		})
 	}
 	// Some OCR engines return finished Markdown without scanned page image
 	// placeholders. The built-in PDF parser reports its scanned-page count.
@@ -149,7 +166,8 @@ func (p *VNoteDocumentParser) prepareResult(ctx context.Context, raw *types.Read
 }
 
 func (p *VNoteDocumentParser) defaultOCRModel(ctx context.Context) vlm.VLM {
-	if tenant, ok := types.TenantInfoFromContext(ctx); ok && tenant.DefaultSettings != nil && tenant.DefaultSettings.VLMModelID != "" {
+	tenant, ok := types.TenantInfoFromContext(ctx)
+	if ok && tenant.DefaultSettings != nil && tenant.DefaultSettings.VLMModelID != "" {
 		model, _ := p.models.GetVLMModel(ctx, tenant.DefaultSettings.VLMModelID)
 		return model
 	}

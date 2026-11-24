@@ -222,7 +222,8 @@ func NewRouter(params RouterParams) *gin.Engine {
 		r.POST("/api/v1/vnote/control", middleware.PublicAuthRateLimit(), params.VNoteImportHandler.Control)
 	}
 	if params.VNoteDocumentHandler != nil {
-		r.PUT("/api/v1/vnote/document-imports/:id", middleware.PublicAuthRateLimit(), params.VNoteDocumentHandler.Submit)
+		r.PUT("/api/v1/vnote/document-imports/:id",
+			middleware.PublicAuthRateLimit(), params.VNoteDocumentHandler.Submit)
 		r.GET("/api/v1/vnote/document-imports/:id", params.VNoteDocumentHandler.Result)
 		r.GET("/api/v1/vnote/document-imports/:id/images/:image", params.VNoteDocumentHandler.Result)
 		r.DELETE("/api/v1/vnote/document-imports/:id", params.VNoteDocumentHandler.Result)
