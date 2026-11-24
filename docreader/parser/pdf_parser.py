@@ -21,6 +21,7 @@ from collections import Counter, deque
 import io
 import json
 import logging
+from math import isfinite
 import os
 import re
 import statistics
@@ -794,9 +795,9 @@ def _page_chars(textpage, page, raw, *, return_filter_info: bool = False) -> tup
     Working at the glyph level (instead of pdfium rect segments) keeps mixed
     CJK + Latin/number lines in their true left-to-right order, which the
     rect-level ``get_text_bounded`` API scrambles. Each glyph keeps its tight
-    horizontal extent (for word-gap inference) but takes its vertical extent
-    from the loose box, which spans the font's ascent to descent, so every
-    glyph of a line shares one height and lines do not split by letter shape.
+    horizontal extent for layout and records the loose horizontal extent
+    separately for word-gap inference. The loose vertical extent spans the
+    font's ascent to descent so lines do not split by letter shape.
 
     When ``return_filter_info`` is true, a third value reports whether any
     source glyph was intentionally filtered as hidden or off-page. Callers
@@ -824,10 +825,14 @@ def _page_chars(textpage, page, raw, *, return_filter_info: bool = False) -> tup
     source_count = 0
     filtered_count = 0
     for i in range(n):
+        loose_x = None
         try:
             left, _, right, _ = textpage.get_charbox(i)
             try:
-                _, bottom, _, top = textpage.get_charbox(i, loose=True)
+                glyph_left, bottom, glyph_right, top = textpage.get_charbox(i, loose=True)
+                loose_left, loose_right = sorted((glyph_left, glyph_right))
+                if isfinite(loose_left) and isfinite(loose_right) and loose_left < loose_right:
+                    loose_x = (loose_left, loose_right)
             except TypeError:
                 # Keep compatibility with the small PDFium test doubles and
                 # older pypdfium2 releases that do not expose ``loose``.
@@ -848,7 +853,9 @@ def _page_chars(textpage, page, raw, *, return_filter_info: bool = False) -> tup
             if invisible and _point_in_boxes((x0 + x1) / 2, (y0 + y1) / 2, invisible):
                 filtered_count += 1
                 continue  # covered by an invisible text object
-        chars.append({"x0": x0, "y0": y0, "x1": x1, "y1": y1, "ch": ch, "i": i})
+        chars.append(
+            {"x0": x0, "y0": y0, "x1": x1, "y1": y1, "ch": ch, "i": i, "loose_x": loose_x}
+        )
     if return_filter_info:
         return chars, width, filtered_count > 0
     return chars, width
@@ -1144,7 +1151,12 @@ def _join_line_glyphs(ln_sorted: list) -> str:
         if gap > gap_threshold and not (
             numeric_pair and gap <= med_w * 1.25
         ):
-            parts.append(" ")
+            # Tight boxes follow the ink. A gap can still be inside a word
+            # when the full glyph bounds touch or overlap.
+            prev_loose = prev.get("loose_x")
+            cur_loose = cur.get("loose_x")
+            if prev_loose is None or cur_loose is None or cur_loose[0] - prev_loose[1] > 1e-3:
+                parts.append(" ")
         parts.append(ch)
     return "".join(parts).strip()
 

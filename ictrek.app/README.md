@@ -738,3 +738,9 @@ snapshot, hiding copies and retaining its private KB/name. Restoring that root
 revalidates scope and catches up under the plan. Pause/stop and unknown in-flight
 model retention boundaries still apply. No new migration is needed. Per-note/
 subtree pause, managed-KB deletion and physical reclamation remain outstanding.
+
+## V-Note document conversion · V-Note 文档转换
+
+The VOS package provides a private document conversion service for V-Note. Install compatible versions on the same device and associate the VOS account in HybRAG. Configure the tenant OCR parser or default vision model for scanned PDFs. See [Office/PDF conversion and private API · Office／PDF 转换与私有接口](docs/vnote-document-conversion.md).
+
+VOS 安装包为 V-Note 提供私有文档转换服务。请在同一设备安装兼容版本并在 HybRAG 关联 VOS 账号。扫描 PDF 使用租户配置的 OCR 解析器或默认视觉模型。接口、存储和升级说明见上方文档。

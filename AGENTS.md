@@ -1,5 +1,9 @@
 # WeKnora Local Agent Instructions
 
+## VOS Candidate Preflight
+
+- For requests to build a VOS candidate package or install a candidate build, use the shared [vos-preflight-package](../../.agents/skills/vos-preflight-package/SKILL.md) skill from the VAI workspace.
+
 This submodule is the primary workspace for ictrek-specific WeKnora changes.
 
 - Keep current ictrek-only VOS app packaging, installation, model, and operation notes under `ictrek.app/` instead of editing upstream-facing docs unless the change is meant to be contributed upstream.

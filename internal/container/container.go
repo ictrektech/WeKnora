@@ -734,6 +734,8 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewInitializationHandler))
 	must(container.Provide(handler.NewAuthHandler))
 	must(container.Provide(handler.NewVNoteImportHandler))
+	must(container.Provide(service.NewVNoteDocumentParser))
+	must(container.Provide(handler.NewVNoteDocumentHandler))
 	must(container.Provide(service.NewDocumentProgressService))
 	must(container.Provide(handler.NewSystemHandler))
 	// Dig resolves exact types; adapt the registered service to the handler's
@@ -859,6 +861,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	// persistence succeeded immediately before trigger enqueue failed). Re-arm
 	// them only after the matching handlers are ready.
 	must(container.Invoke(recoverPendingWikiTasks))
+	must(container.Invoke((*handler.VNoteDocumentHandler).Start))
 	must(container.Invoke(recoverPendingSmartArchiveImports))
 	must(container.Invoke(recoverPendingSmartArchiveMirrors))
 	must(container.Invoke(startSmartArchiveReminderRunner))

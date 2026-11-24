@@ -67,6 +67,7 @@ var versionedSQLiteTables = []string{
 	"session_sandbox_assignments",
 	"sandbox_user_machines",
 	"credential_vault_items",
+	"user_model_desensitizations",
 }
 
 // versionedSQLiteColumns maps each existing table to the columns that the
@@ -105,9 +106,12 @@ var versionedSQLiteColumns = map[string][]string{
 	"tenant_user_env_vars": {
 		"principal_type", "principal_id", "sandbox_config_id", "skill_id", "name", "value",
 	}, // 000038
+	"user_model_desensitizations": {
+		"user_id", "model_id", "enabled", "ner", "image", "base_url", "created_at", "updated_at",
+	}, // SQLite 000073
 }
 
-const expectedSQLiteMigrationVersion = 72
+const expectedSQLiteMigrationVersion = 73
 
 func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 	repoRoot := sqliteRepoRoot(t)
@@ -140,6 +144,7 @@ func TestSQLiteMigrationsCreateVersionedSchema(t *testing.T) {
 		"SQLite migrations must add the session/created_at index") // 000124
 	require.True(t, sqliteIndexExists(t, db, "idx_messages_live_attachments"),
 		"SQLite migrations must index live user message references")
+	require.True(t, sqliteIndexExists(t, db, "idx_user_model_desensitizations_model"))
 	assertSQLiteAgentHistoryQueriesUseTheIndex(t, db)
 
 	var catalogVersion int
