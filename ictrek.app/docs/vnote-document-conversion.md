@@ -4,6 +4,8 @@
 
 In V-Note on VOS, select a notebook and choose **Import Office / PDF**. Choose one DOCX, XLSX, PPTX, or PDF. Use **Import history** to follow conversion, retry a failure, or open the note. The result includes editable text and the original attachment. Conversion uses the same VOS account associated in HybRAG and uses the tenant's parser rules and OCR configuration. The built-in PDF reader uses the default vision model for scanned pages. Configured cloud engines may receive document data. The effective input limit is the lower of 100 MiB and HybRAG's deployment file limit.
 
+For text pages, DocReader keeps the text layer’s spaces and checks the full glyph bounds before inserting inferred spaces. This preserves words such as `First` in converted mixed PDFs.
+
 ## Internal HTTP contract
 
 The VOS package enables the route through `HYBRAG_VNOTE_DOCUMENT_DIR` on its persistent runtime volume. The default internal HybRAG address used by V-Note is `http://hybrag-app:8080`. These routes support the VOS integration.
@@ -20,6 +22,8 @@ Failed V-Note imports keep the original upload for seven days for retry. HybRAG 
 ## 使用与配置
 
 在 VOS 的 V-Note 网页端选择笔记本，点击 **导入 Office／PDF** 并选取一个 DOCX、XLSX、PPTX 或 PDF。可在 **导入记录** 查看进度、重试或打开生成的笔记。笔记保留可编辑正文和可下载的原件。转换使用 HybRAG 中关联的同一 VOS 账号，以及租户的解析器规则和 OCR 配置。内置 PDF 解析器的扫描页使用租户默认视觉模型。启用了云端引擎时，相关文档数据可能发往该服务。单个文件限制取 100 MiB 和 HybRAG 部署限额中的较小值。
+
+对于 PDF 文字页，DocReader 会保留文字层已有的空格，并在推断词间空格前检查完整字形范围，避免在 `First` 等单词内部插入空格。
 
 ## 内部 HTTP 契约
 

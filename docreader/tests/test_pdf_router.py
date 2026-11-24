@@ -404,6 +404,16 @@ class ReadingOrderTest(unittest.TestCase):
         chars = [_char("A", 100, 110, 700, 712), _char("B", 110, 120, 700, 712)]
         self.assertEqual(_join_line_glyphs(chars), "AB")
 
+    def test_join_line_glyphs_checks_full_bounds_before_inferring_space(self):
+        first = dict(_char("i", 1, 2, 0, 10), loose_x=(0, 3))
+        for relative_x, expected in ((2.9, "ir"), (3.0, "ir"), (5.0, "i r")):
+            with self.subTest(next_glyph_left=relative_x):
+                second = dict(_char("r", 6, 9, 0, 10), loose_x=(relative_x, 10))
+                self.assertEqual(_join_line_glyphs([first, second]), expected)
+        space = _char(" ", 3, 4, 0, 10)
+        second = dict(_char("r", 6, 9, 0, 10), loose_x=(2.9, 10))
+        self.assertEqual(_join_line_glyphs([first, space, second]), "i r")
+
     def test_join_line_glyphs_keeps_kerning_gaps_inside_numbers(self):
         # Right-aligned PDF table cells often add a small gap between digit
         # glyphs.  It is not a word boundary.
@@ -910,6 +920,14 @@ class MixedGlyphHeightLayoutTest(unittest.TestCase):
 
 
 class PDFRouterIntegrationTest(unittest.TestCase):
+    def test_short_native_text_does_not_gain_a_space_inside_a_word(self):
+        from docreader.tests.test_source_locator_pdf import pdf_fixture
+
+        text = "First text page."
+        content = pdf_fixture([{"lines": [(text, 75, 679)]}])
+        doc = PDFParser(file_name="short-text.pdf", file_type="pdf").parse_into_text(content)
+        self.assertEqual(doc.content.strip(), text)
+
     def test_well_formed_plain_text_does_not_restore_outside_cropbox_text(self):
         import pypdfium2 as pdfium
 
