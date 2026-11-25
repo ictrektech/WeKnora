@@ -94,7 +94,8 @@ async function setup(t: TestContext, initialRows: Row[] = [row('doc')]) {
     '@/composables/useAssistantPageContext': { useAssistantPageContext() {} },
     '@/utils/kbPermission': { permissionCanEditKB: () => true, permissionCanManageKB: () => true },
     '@/utils/knowledgeDeletion': {}, '@/utils/knowledgeTrace': {},
-    '@/utils/knowledgeProcessingStall': stall, '@/api/wiki': {}, '@/api/knowledge-base': {},
+    '@/utils/knowledgeProcessingStall': stall, '@/utils/vos-app-link': { openVOSApp: async () => {} },
+    '@/api/wiki': {}, '@/api/knowledge-base': {},
     '@/api/smart-archive': { getManagedArchiveKB: async () => ({}) },
     '@/api/knowledge-base/index': {
       batchQueryKnowledge, batchReparseKnowledge,

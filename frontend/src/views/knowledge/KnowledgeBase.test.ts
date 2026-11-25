@@ -41,7 +41,8 @@ async function setup(t: TestContext, translate = (key: string, _params?: unknown
     '@/composables/useAssistantPageContext': { useAssistantPageContext() {} },
     '@/utils/kbPermission': { permissionCanEditKB: () => true, permissionCanManageKB: () => true },
     '@/utils/knowledgeDeletion': { waitForKnowledgeDeletion }, '@/utils/knowledgeTrace': {},
-    '@/utils/knowledgeProcessingStall': stall, '@/api/wiki': {}, '@/api/knowledge-base': {},
+    '@/utils/knowledgeProcessingStall': stall, '@/utils/vos-app-link': { openVOSApp: async () => {} },
+    '@/api/wiki': {}, '@/api/knowledge-base': {},
     '@/api/knowledge-base/index': {
       listKnowledgeFolders, listKnowledgeTags: async () => ({ data: { data: [], total: 0 } }),
       batchReparseKnowledge: async () => ({ success: true }),
