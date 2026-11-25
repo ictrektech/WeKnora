@@ -340,6 +340,21 @@ curl -X POST $BASE/api/v1/embed/ec-1/sessions/s-1/stop \
   -H 'Content-Type: application/json' -d '{"message_id":"m-1"}'
 ```
 
+### DELETE /api/v1/embed/:channel_id/sessions/:session_id
+
+Purpose: Delete the visitor session identified by the current signed handle. Requires a valid channel credential and the `X-Embed-Session` returned when the session was created; a publish token or session ID alone is not enough to delete a session. Origin checks and rate limiting match the other Embed endpoints.
+
+```bash
+curl -X DELETE $BASE/api/v1/embed/ec-1/sessions/s-1 \
+  -H "Authorization: Embed $EMBED_TOKEN" \
+  -H "X-Embed-Session: $SIG" \
+  -H "Origin: https://your-allowed-host.example"
+```
+
+Returns `200 {"success":true,"message":"Session deleted successfully"}` on success. Returns 404 when the session is missing or already deleted, and 403 when the signature is invalid or the session belongs to another channel.
+
+This endpoint reuses the regular session **soft-delete** and cleanup flow; physical objects for generated files are retained under the existing policy and disk space reclamation is not guaranteed. Callers should clear cached session IDs and signatures locally; the endpoint does not clear `localStorage` in the iframe.
+
 ### GET|POST /api/v1/embed/:channel_id/sessions/:session_id/messages/:message_id/suggestions
 
 Purpose: Read / trigger generation of message suggestions (returns `suppressed` when suggestions are disabled for the channel). Requires `X-Embed-Session`.
