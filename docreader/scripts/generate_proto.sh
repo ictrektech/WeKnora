@@ -20,6 +20,15 @@ if command -v protoc-gen-go &> /dev/null; then
         --go-grpc_out=${GO_OUT} \
         --go-grpc_opt=paths=source_relative \
         ${PROTO_DIR}/docreader.proto
+    # The HybRAG gateway serves this extension. The Python reader continues to
+    # use docreader.proto and does not need the extension's generated stubs.
+    protoc -I${PROTO_DIR} --go_out=${GO_OUT} \
+        --go_opt=paths=source_relative \
+        --go_opt=Mdocreader.proto=github.com/Tencent/WeKnora/docreader/proto \
+        --go-grpc_out=${GO_OUT} \
+        --go-grpc_opt=paths=source_relative \
+        --go-grpc_opt=Mdocreader.proto=github.com/Tencent/WeKnora/docreader/proto \
+        ${PROTO_DIR}/document_compute.proto
 else
     echo "protoc-gen-go not found, skipping Go code generation"
 fi

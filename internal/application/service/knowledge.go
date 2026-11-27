@@ -440,10 +440,29 @@ func (s *knowledgeService) endPostprocessSubspan(ctx context.Context, span *Span
 func (s *knowledgeService) failPostprocessSubspan(
 	ctx context.Context, span *Span, code, msg string, err error,
 ) {
+	s.failPostprocessSubspanWithOutput(ctx, span, code, msg, err, nil)
+}
+
+func (s *knowledgeService) failPostprocessSubspanWithOutput(
+	ctx context.Context, span *Span, code, msg string, err error, output types.JSONMap,
+) {
 	if span == nil {
 		return
 	}
+	if len(output) > 0 {
+		if recorder, ok := s.tracker().(failSpanOutputRecorder); ok {
+			recorder.FailSpanWithOutput(ctx, span, code, msg, err, output)
+			return
+		}
+	}
 	s.tracker().FailSpan(ctx, span, code, msg, err)
+}
+
+func (s *knowledgeService) computeTextCaller() computeTextCaller {
+	if caller, ok := s.documentReader.(computeTextCaller); ok {
+		return caller
+	}
+	return nil
 }
 
 // getParserEngineOverridesFromContext returns parser engine overrides from tenant in context (e.g. MinerU endpoint, API key).

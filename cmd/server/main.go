@@ -37,6 +37,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/container"
 	"github.com/Tencent/WeKnora/internal/envfile"
 	"github.com/Tencent/WeKnora/internal/handler"
+	"github.com/Tencent/WeKnora/internal/infrastructure/docparser"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/runtime"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
@@ -82,6 +83,8 @@ func main() {
 		resourceCleaner interfaces.ResourceCleaner,
 		systemSettingSvc interfaces.SystemSettingService,
 		modelCatalogSvc *service.ModelCatalogService,
+		documentReader interfaces.DocumentReader,
+		modelSvc interfaces.ModelService,
 	) error {
 		// Create HTTP server
 		server := &http.Server{
@@ -92,6 +95,27 @@ func main() {
 		listener, err := listenWithRetry(addr, 10, 300*time.Millisecond)
 		if err != nil {
 			return fmt.Errorf("failed to start server: %v", err)
+		}
+		defer listener.Close()
+
+		if routing, ok := documentReader.(*docparser.ComputeRouter); ok && routing.Sharing != nil {
+			shareListener, err := listenWithRetry(":50052", 4, 300*time.Millisecond)
+			if err != nil {
+				logger.Errorf(context.Background(), "DocReader sharing listener is unavailable: %v", err)
+				routing.Sharing = nil
+			} else {
+				defer shareListener.Close()
+				gateway := routing.Sharing.NewComputeGateway(
+					service.SharedDocumentImageAnalyzer(modelSvc),
+					service.SharedTextInferenceExecutor(modelSvc),
+				)
+				defer gateway.Stop()
+				go func() {
+					if err := gateway.Serve(shareListener); err != nil {
+						logger.Errorf(context.Background(), "DocReader sharing listener stopped: %v", err)
+					}
+				}()
+			}
 		}
 
 		ctx, done := context.WithCancel(context.Background())

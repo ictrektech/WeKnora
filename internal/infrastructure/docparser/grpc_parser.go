@@ -54,7 +54,10 @@ func NewGRPCDocumentReader(addr string) (*GRPCDocumentReader, error) {
 }
 
 func (p *GRPCDocumentReader) connect(addr string) error {
-	authConfig := docclient.LoadAuthConfigFromEnv()
+	return p.connectWithAuth(addr, docclient.LoadAuthConfigFromEnv())
+}
+
+func (p *GRPCDocumentReader) connectWithAuth(addr string, authConfig *docclient.AuthConfig, extra ...grpc.DialOption) error {
 	opts, err := authConfig.BuildDialOptions(getMaxMessageSize())
 	if err != nil {
 		return fmt.Errorf("failed to build docreader dial options: %w", err)
@@ -70,7 +73,7 @@ func (p *GRPCDocumentReader) connect(addr string) error {
 	}
 
 	start := time.Now()
-	conn, err := grpc.Dial("dns:///"+addr, opts...)
+	conn, err := grpc.Dial("dns:///"+addr, append(opts, extra...)...)
 	if err != nil {
 		return fmt.Errorf("failed to connect to docreader: %w", err)
 	}
@@ -142,7 +145,25 @@ func (p *GRPCDocumentReader) Read(ctx context.Context, req *types.ReadRequest) (
 			"docreader file content size %d exceeds maximum %d", len(req.FileContent), maxFileSize)
 	}
 
-	protoReq := &proto.ReadRequest{
+	protoReq := documentReadProto(req)
+
+	// Use the streaming RPC so documents with many page images (large scanned
+	// PDFs) are not capped by the unary message-size limit. The meta frame
+	// arrives first, followed by one frame per image.
+	result, err := p.readStream(ctx, client, protoReq)
+	if err != nil {
+		// An older reader can still parse smaller documents via the unary RPC.
+		if status.Code(err) == codes.Unimplemented {
+			logger.Warnf(ctx, "docreader ReadStream unimplemented, falling back to unary Read: %v", err)
+			return p.readUnary(ctx, client, protoReq)
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
+func documentReadProto(req *types.ReadRequest) *proto.ReadRequest {
+	return &proto.ReadRequest{
 		FileContent: req.FileContent,
 		FileName:    req.FileName,
 		FileType:    req.FileType,
@@ -155,22 +176,6 @@ func (p *GRPCDocumentReader) Read(ctx context.Context, req *types.ReadRequest) (
 		},
 	}
 
-	// Use the streaming RPC so documents with many page images (large scanned
-	// PDFs) are not capped by the unary message-size limit. The meta frame
-	// arrives first, followed by one frame per image.
-	result, err := p.readStream(ctx, client, protoReq)
-	if err != nil {
-		// An older docreader build may not implement ReadStream. Fall back to
-		// the unary Read RPC so a version-skewed deployment still parses
-		// documents (small/medium docs only — the unary path remains capped by
-		// the gRPC message-size limit, which is exactly what streaming avoids).
-		if status.Code(err) == codes.Unimplemented {
-			logger.Warnf(ctx, "docreader ReadStream unimplemented, falling back to unary Read: %v", err)
-			return p.readUnary(ctx, client, protoReq)
-		}
-		return nil, err
-	}
-	return result, nil
 }
 
 // readStream consumes the server-streaming ReadStream RPC: one meta frame

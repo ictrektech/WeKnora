@@ -1478,12 +1478,93 @@ interface IdentityField {
   copyable: boolean
 }
 
+function resolveSpanComputeNode(node: any): string {
+  const direct = node?.output?.compute_node || node?.output?.docreader_node
+  if (typeof direct === 'string' && direct) return direct
+  const kids = Array.isArray(node?.children) ? node.children : []
+  if (node?.name === 'postprocess.question' && kids.length > 0) {
+    const childNodes = new Set<string>()
+    for (const child of kids) {
+      const cn = child?.output?.compute_node || child?.output?.docreader_node
+      if (typeof cn === 'string' && cn) childNodes.add(cn)
+    }
+    if (childNodes.size === 1) return [...childNodes][0]
+    if (childNodes.size > 1) return [...childNodes].join(', ')
+  }
+  return ''
+}
+
+function rowComputeNodeFull(row: FlatRow): string {
+  const raw = resolveSpanComputeNode(row.node)
+  if (!raw) return ''
+  if (raw === 'local') return t('system.docReaderRouting.localExecution')
+  return raw
+}
+
+function rowComputeNodeLabel(row: FlatRow): string {
+  if (row.isRoot) return ''
+  const raw = resolveSpanComputeNode(row.node)
+  if (!raw) return ''
+  if (raw === 'local') return t('system.docReaderRouting.localExecution')
+  return raw.replace(/^https?:\/\//, '')
+}
+
 function identityFields(row: FlatRow): IdentityField[] {
   const out: IdentityField[] = []
   const node = row.node as any
   out.push({ key: 'name', label: t('knowledgeStages.detail.name'), value: rowLabel(row), mono: false, copyable: false })
   out.push({ key: 'kind', label: t('knowledgeStages.detail.kind'), value: rowKindLabel(row), mono: true, copyable: false })
   out.push({ key: 'status', label: t('knowledgeStages.detail.status'), value: localizedStatus(row.node.status), mono: false, copyable: false })
+  const computeNode = resolveSpanComputeNode(node)
+  if (computeNode) {
+    out.push({
+      key: 'compute_node',
+      label: t('system.docReaderRouting.executionNode'),
+      value: computeNode === 'local' ? t('system.docReaderRouting.localExecution') : computeNode,
+      mono: computeNode !== 'local',
+      copyable: false,
+    })
+  }
+  const execMs = node.output?.executor_duration_ms ?? node.output?.remote_duration_ms
+  if (typeof execMs === 'number' && execMs >= 0) {
+    out.push({
+      key: 'executor_duration_ms',
+      label: t('system.docReaderRouting.executorDuration'),
+      value: formatDuration(execMs),
+      mono: true,
+      copyable: false,
+    })
+  }
+  if (typeof node.output?.busy_retries === 'number' && node.output.busy_retries > 0) {
+    out.push({
+      key: 'busy_retries',
+      label: t('system.docReaderRouting.busyRetries'),
+      value: String(node.output.busy_retries),
+      mono: true,
+      copyable: false,
+    })
+  }
+  if (typeof node.output?.failure_reason === 'string' && node.output.failure_reason) {
+    out.push({
+      key: 'failure_reason',
+      label: t('system.docReaderRouting.failureReason'),
+      value: node.output.failure_reason,
+      mono: true,
+      copyable: false,
+    })
+  }
+  if (Array.isArray(node.output?.fallback_from) && node.output.fallback_from.length > 0) {
+    const summary = node.output.fallback_from
+      .map((f: any) => `${f.node || '?'} (${f.reason || '?'})`)
+      .join(' → ')
+    out.push({
+      key: 'fallback_from',
+      label: t('system.docReaderRouting.fallbackFrom'),
+      value: summary,
+      mono: true,
+      copyable: false,
+    })
+  }
   if (row.isStage) {
     const idx = stages.value.findIndex((s) => s.name === row.node.name)
     if (idx >= 0) {
@@ -1813,6 +1894,7 @@ const processConfigLines = computed<string[]>(() => {
                       :class="{ 'kp-name-root': row.isRoot, 'kp-name-mono': !row.isRoot && !row.isStage }">{{
                         rowLabel(row) }}</span>
                     <span v-if="rowKindLabel(row)" class="kp-name-kind">{{ rowKindLabel(row) }}</span>
+                    <span v-if="rowComputeNodeLabel(row)" class="kp-name-node" :title="rowComputeNodeFull(row)">{{ rowComputeNodeLabel(row) }}</span>
                   </div>
                 </div>
 
@@ -2451,7 +2533,7 @@ const processConfigLines = computed<string[]>(() => {
 .kp-ruler {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(210px, 32%) 76px 1fr;
+  grid-template-columns: minmax(340px, 48%) 76px 1fr;
   height: 24px;
   align-items: end;
   padding: 10px 20px 6px;
@@ -2512,7 +2594,7 @@ const processConfigLines = computed<string[]>(() => {
 
 .kp-row {
   display: grid;
-  grid-template-columns: minmax(210px, 32%) 76px 1fr;
+  grid-template-columns: minmax(340px, 48%) 76px 1fr;
   align-items: center;
   height: 34px;
   cursor: pointer;
@@ -2567,6 +2649,8 @@ const processConfigLines = computed<string[]>(() => {
 /* Name cell */
 .kp-cell-name {
   min-width: 0;
+  overflow: hidden;
+  padding-right: 8px;
 }
 
 .kp-name-inner {
@@ -2659,6 +2743,22 @@ const processConfigLines = computed<string[]>(() => {
   letter-spacing: 0.04em;
   color: var(--td-text-color-secondary);
   background: var(--td-bg-color-component);
+}
+
+.kp-name-node {
+  flex: 0 1 auto;
+  min-width: 48px;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: var(--td-radius-small);
+  background: var(--td-bg-color-secondarycontainer);
+  color: var(--td-text-color-secondary);
+  font-family: var(--app-font-family-mono);
+  font-size: var(--app-text-2xs);
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Duration cell */

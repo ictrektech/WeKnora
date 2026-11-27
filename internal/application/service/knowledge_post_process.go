@@ -76,7 +76,7 @@ func (s *KnowledgePostProcessService) finishRunningMultimodalStage(
 		mm.Status != types.SpanStatusRunning {
 		return
 	}
-	s.tracker().EndSpan(ctx, mm, nil)
+	s.tracker().EndSpan(ctx, mm, types.JSONMap{"compute_node": "local"})
 }
 
 // Handle implements asynq handler for TypeKnowledgePostProcess.
@@ -401,16 +401,22 @@ func (s *KnowledgePostProcessService) Handle(ctx context.Context, task *asynq.Ta
 		// workers) have a parent to nest under. It's begun and ended right
 		// here as a structural container — the batches extend past it,
 		// which the timeline renders with the wrapping outline bar.
+		questionGroupOut := types.JSONMap{
+			"batch_count": questionBatchCount,
+			"chunk_count": len(questionChunks),
+		}
+		if eff.QuestionGenerationConfig.ComputeRoute.HasTargets() {
+			questionGroupOut["compute_node"] = eff.QuestionGenerationConfig.ComputeRoute.Targets[0].NodeOrigin
+		} else {
+			questionGroupOut["compute_node"] = "local"
+		}
 		if grp := s.tracker().BeginSubSpan(ctx, postSpan, postprocessQuestionGroupSpanName,
 			types.SpanKindSubSpan, types.JSONMap{
 				"batch_count": questionBatchCount,
 				"chunk_count": len(questionChunks),
 				"batch_size":  questionGenChunkBatchSize,
 			}); grp != nil {
-			s.tracker().EndSpan(ctx, grp, types.JSONMap{
-				"batch_count": questionBatchCount,
-				"chunk_count": len(questionChunks),
-			})
+			s.tracker().EndSpan(ctx, grp, questionGroupOut)
 		}
 		enqueuedQuestionCount = s.enqueueQuestionGenerationTasks(
 			ctx, payload, eff.QuestionGenerationConfig, attempt, questionChunks,

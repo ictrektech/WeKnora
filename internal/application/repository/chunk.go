@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var ErrChunkRevisionConflict = errors.New("chunk revision conflict")
@@ -242,6 +244,7 @@ func (r *chunkRepository) ListPagedChunksByKnowledgeID(
 	baseFilter := func(db *gorm.DB) *gorm.DB {
 		db = db.Where("tenant_id = ? AND knowledge_id = ? AND chunk_type IN (?) AND status in (?)",
 			tenantID, knowledgeID, chunkType, []int{int(types.ChunkStatusIndexed), int(types.ChunkStatusDefault)})
+		db = db.Where("index_status <> ?", types.ChunkIndexStatusStaged)
 		if len(tagIDs) > 0 {
 			db = db.Where("tag_id IN ?", tagIDs)
 		}
@@ -679,6 +682,60 @@ func (r *chunkRepository) DeleteChunksByKnowledgeID(ctx context.Context, tenantI
 	return r.db.WithContext(ctx).Where(
 		"tenant_id = ? AND knowledge_id = ?", tenantID, knowledgeID,
 	).Delete(&types.Chunk{}).Error
+}
+
+func (r *chunkRepository) PublishDocumentChunkReplacement(ctx context.Context, tenantID uint64, knowledgeID string,
+	previous, staged []string, imageInfo map[string]string,
+) error {
+	if len(staged) == 0 {
+		return errors.New("no document chunks staged for publication")
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var knowledge types.Knowledge
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id", "parse_status").Where("id = ? AND tenant_id = ?", knowledgeID, tenantID).
+			First(&knowledge).Error; err != nil {
+			return err
+		}
+		if knowledge.ParseStatus != types.ParseStatusProcessing {
+			return errors.New("document is no longer processing")
+		}
+		scope := func() *gorm.DB {
+			return tx.Model(&types.Chunk{}).Where("tenant_id = ? AND knowledge_id = ?", tenantID, knowledgeID)
+		}
+		var current []string
+		if err := scope().Where("index_status <> ?", types.ChunkIndexStatusStaged).Order("id ASC").Pluck("id", &current).Error; err != nil {
+			return err
+		}
+		if !slices.Equal(current, previous) {
+			return ErrChunkRevisionConflict
+		}
+		for id, info := range imageInfo {
+			result := scope().Where("id = ? AND index_status = ?", id, types.ChunkIndexStatusStaged).Update("image_info", info)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return ErrChunkRevisionConflict
+			}
+		}
+		for ids := range slices.Chunk(staged, updateChunksBatchSize) {
+			result := scope().Where("id IN ? AND index_status = ?", ids, types.ChunkIndexStatusStaged).
+				Updates(map[string]interface{}{"is_enabled": true, "index_status": "ready"})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != int64(len(ids)) {
+				return ErrChunkRevisionConflict
+			}
+		}
+		for ids := range slices.Chunk(previous, updateChunksBatchSize) {
+			if err := scope().Where("id IN ?", ids).Delete(&types.Chunk{}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // PurgeSupersededChunksByKnowledgeID permanently removes only soft-deleted

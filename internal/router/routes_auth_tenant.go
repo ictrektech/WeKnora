@@ -281,6 +281,7 @@ func RegisterSystemRoutes(
 	{
 		systemRoutes.With(apiKeyAny()).GET("/capabilities", g.Viewer(), handler.GetDeploymentCapabilities)
 		systemRoutes.GET("/info", g.Viewer(), handler.GetSystemInfo)
+		systemRoutes.GET("/compute-text-models", g.Viewer(), handler.ListComputeTextModels)
 		systemRoutes.GET("/parser-engines", g.Viewer(), handler.ListParserEngines)
 		systemRoutes.POST("/parser-engines/check", g.Admin(), handler.CheckParserEngines)
 		systemRoutes.POST("/docreader/reconnect", g.Admin(), handler.ReconnectDocReader)
@@ -335,6 +336,13 @@ func RegisterSystemAdminRoutes(
 		adminRoutes.DELETE("/api-keys/:key_id", handler.DeletePlatformAPIKey)
 
 		adminRoutes.GET("/settings-summary", handler.ListSystemSettingSummaries)
+		adminRoutes.GET("/docreader-routing", handler.GetDocReaderRouting)
+		adminRoutes.PUT("/docreader-routing", handler.SaveDocReaderRouting)
+		adminRoutes.POST("/docreader-routing/probe", handler.ProbeDocReaderNode)
+		adminRoutes.POST("/docreader-routing/pair", handler.PairDocReaderNode)
+		adminRoutes.GET("/docreader-sharing", handler.GetDocReaderSharing)
+		adminRoutes.PUT("/docreader-sharing", handler.UpdateDocReaderSharing)
+		adminRoutes.POST("/docreader-sharing/code", handler.IssueDocReaderPairingCode)
 
 		// P1: platform-wide system settings (DB-backed runtime tunables).
 		// Reads return raw model rows / arrays (no `gin.H{"data":...}`

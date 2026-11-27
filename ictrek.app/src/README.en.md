@@ -111,3 +111,7 @@ V-Scheduler uses the independent `http://v-scheduler:8080/v1` origin. Legacy mod
 Existing Model Hub / V-Router services remain supported through `HYBRAG_MODEL_BACKEND=model-hub`, but are not installation dependencies: an older installed legacy service must not block an upgrade using V-Scheduler. Verify those services are available before selecting legacy mode.
 
 On VOS with Traefik v3, opening the app root directly in a browser redirects to its VOS page. Embedded pages and API requests use their existing routes.
+
+## Cross-node compute nodes
+
+Install the full HybRAG app on both VOS nodes. On the provider, open **System settings → Compute nodes**, enable sharing, generate a one-time access code, and optionally enable **Document processing** (PDF parsing/OCR/image captioning) and **Text inference** (sharing local chat models for remote document summary and auto question generation). On the consumer, add the node or click **Check** to discover authorized capabilities and models, then select per-knowledge-base compute targets for summary and auto question generation. Processing Trace displays execution nodes, measured durations, and failure reasons.

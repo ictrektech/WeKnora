@@ -500,18 +500,132 @@ func (t *spanTracker) EndSpan(ctx context.Context, span *Span, output types.JSON
 	t.touchKnowledgeHeartbeat(ctx, span.KnowledgeID, span.Kind)
 }
 
+type timedSpanRecorder interface {
+	RecordCompletedSubSpan(ctx context.Context, parent *Span, name, kind string, input, output types.JSONMap, startedAt time.Time, durationMs int64) *Span
+	EndSpanWithTiming(ctx context.Context, span *Span, output types.JSONMap, startedAt time.Time, durationMs int64)
+}
+
+type failSpanOutputRecorder interface {
+	FailSpanWithOutput(ctx context.Context, span *Span, errorCode, errorMessage string, errorDetail error, output types.JSONMap)
+}
+
+func (t *spanTracker) RecordCompletedSubSpan(
+	ctx context.Context,
+	parent *Span,
+	name, kind string,
+	input, output types.JSONMap,
+	startedAt time.Time,
+	durationMs int64,
+) *Span {
+	if parent == nil || name == "" {
+		return nil
+	}
+	name = fitSpanName(name)
+	if kind != types.SpanKindGeneration && kind != types.SpanKindSubSpan {
+		kind = types.SpanKindSubSpan
+	}
+	if durationMs < 0 {
+		durationMs = 0
+	}
+	if startedAt.IsZero() {
+		startedAt = time.Now().Add(-time.Duration(durationMs) * time.Millisecond)
+	}
+	finishedAt := startedAt.Add(time.Duration(durationMs) * time.Millisecond)
+	if _, err := t.repo.CancelOpenSpansByName(ctx, parent.KnowledgeID, parent.Attempt, name,
+		"TASK_SUPERSEDED", "superseded by a new run of the same subtask"); err != nil {
+		logger.Warnf(ctx, "[SpanTracker] supersede %s before RecordCompletedSubSpan failed: %v", name, err)
+	}
+	id := newSpanID()
+	row := &types.KnowledgeProcessingSpan{
+		KnowledgeID:  parent.KnowledgeID,
+		Attempt:      parent.Attempt,
+		SpanID:       id,
+		ParentSpanID: parent.SpanID,
+		Name:         name,
+		Kind:         kind,
+		Status:       types.SpanStatusDone,
+		Input:        input,
+		Output:       output,
+		StartedAt:    &startedAt,
+		FinishedAt:   &finishedAt,
+		DurationMs:   durationMs,
+	}
+	if err := t.repo.Upsert(ctx, row); err != nil {
+		logger.Warnf(ctx, "[SpanTracker] RecordCompletedSubSpan failed parent=%s name=%s: %v",
+			parent.SpanID, name, err)
+		return nil
+	}
+	t.touchKnowledgeHeartbeat(ctx, parent.KnowledgeID, kind)
+	return &Span{
+		KnowledgeID:  parent.KnowledgeID,
+		Attempt:      parent.Attempt,
+		SpanID:       id,
+		ParentSpanID: parent.SpanID,
+		Name:         name,
+		Kind:         kind,
+		Status:       types.SpanStatusDone,
+		StartedAt:    startedAt,
+	}
+}
+
+func (t *spanTracker) EndSpanWithTiming(
+	ctx context.Context,
+	span *Span,
+	output types.JSONMap,
+	startedAt time.Time,
+	durationMs int64,
+) {
+	if span == nil {
+		return
+	}
+	_, _ = t.takeStart(span.SpanID)
+	if durationMs < 0 {
+		durationMs = 0
+	}
+	if startedAt.IsZero() {
+		startedAt = span.StartedAt
+	}
+	if startedAt.IsZero() {
+		startedAt = time.Now().Add(-time.Duration(durationMs) * time.Millisecond)
+	}
+	finishedAt := startedAt.Add(time.Duration(durationMs) * time.Millisecond)
+	row := &types.KnowledgeProcessingSpan{
+		KnowledgeID:  span.KnowledgeID,
+		Attempt:      span.Attempt,
+		SpanID:       span.SpanID,
+		ParentSpanID: span.ParentSpanID,
+		Name:         span.Name,
+		Kind:         span.Kind,
+		Status:       types.SpanStatusDone,
+		Output:       output,
+		StartedAt:    &startedAt,
+		FinishedAt:   &finishedAt,
+		DurationMs:   durationMs,
+	}
+	if err := t.repo.Upsert(ctx, row); err != nil {
+		logger.Warnf(ctx, "[SpanTracker] EndSpanWithTiming failed span=%s: %v", span.SpanID, err)
+	}
+	t.touchKnowledgeHeartbeat(ctx, span.KnowledgeID, span.Kind)
+}
+
 func (t *spanTracker) FailSpan(ctx context.Context, span *Span, errorCode, errorMessage string, errorDetail error) {
-	t.failSpan(ctx, span, errorCode, errorMessage, errorDetail, false)
+	t.failSpan(ctx, span, errorCode, errorMessage, errorDetail, false, nil)
+}
+
+func (t *spanTracker) FailSpanWithOutput(
+	ctx context.Context, span *Span, errorCode, errorMessage string, errorDetail error, output types.JSONMap,
+) {
+	t.failSpan(ctx, span, errorCode, errorMessage, errorDetail, false, output)
 }
 
 func (t *spanTracker) FailSpanRetryable(
 	ctx context.Context, span *Span, errorCode, errorMessage string, errorDetail error,
 ) {
-	t.failSpan(ctx, span, errorCode, errorMessage, errorDetail, attemptStillHasRetry(ctx))
+	t.failSpan(ctx, span, errorCode, errorMessage, errorDetail, attemptStillHasRetry(ctx), nil)
 }
 
 func (t *spanTracker) failSpan(
-	ctx context.Context, span *Span, errorCode, errorMessage string, errorDetail error, willRetry bool,
+	ctx context.Context, span *Span, errorCode, errorMessage string, errorDetail error, willRetry bool, output types.JSONMap,
 ) {
 	if span == nil {
 		return
@@ -536,6 +650,7 @@ func (t *spanTracker) failSpan(
 		Name:         span.Name,
 		Kind:         span.Kind,
 		Status:       types.SpanStatusFailed,
+		Output:       output,
 		ErrorCode:    strings.TrimSpace(errorCode),
 		ErrorMessage: errorMessage,
 		ErrorDetail:  detail,

@@ -20,8 +20,7 @@ PACKAGE_ROOT="${DIST_DIR}/package-root"
 VERSION_FILE="${ROOT_DIR}/VERSION"
 LOCK_DIR="${DIST_DIR}/.package.lock"
 
-# HybRAG itself no longer starts Ollama. Model Hub owns the runtime profile
-# details, so this app only needs one AMD64 and one ARM64 profile.
+# Image lookup is per architecture. Both installation modes reuse these images.
 PROFILES=(
   "amd|AMD_with_cuda"
   "arm|ARM_with_cuda"
@@ -575,7 +574,14 @@ verify_package() {
     tar xOf "$app_tarball" manifest.yml | grep -q 'kind: docker-archive' \
       || die "manifest.yml missing docker-archive assets"
   else
-    ! grep -q "^assets/" "$package_file_list"
+    "${PYTHON_BIN}" - "$package_path" <<'PYPACKAGE' || die "pull package must contain only app.tar.gz"
+import sys
+import tarfile
+
+with tarfile.open(sys.argv[1]) as archive:
+    if archive.getnames() != ["app.tar.gz"]:
+        raise SystemExit(1)
+PYPACKAGE
   fi
   rm -f "$app_file_list" "$package_file_list"
   package_text="$(tar tzf "$app_tarball" | while IFS= read -r file; do [[ "$file" == */ ]] && continue; tar xOf "$app_tarball" "$file"; printf '\n'; done)"
@@ -815,12 +821,12 @@ if [[ "$IMAGE_SOURCE" == "local" ]]; then
 fi
 TAR_FILES=(.env manifest.yml docker-compose.yml configs.yml routers.yml icon.png README.zh-CN.md README.en.md)
 [[ -f "${STAGE_DIR}/traefik.yml" ]] && TAR_FILES+=(traefik.yml)
-tar czf "$APP_TARBALL" -C "$STAGE_DIR" "${TAR_FILES[@]}"
+COPYFILE_DISABLE=1 tar czf "$APP_TARBALL" -C "$STAGE_DIR" "${TAR_FILES[@]}"
 cp "$APP_TARBALL" "${PACKAGE_ROOT}/app.tar.gz"
 if [[ "$IMAGE_SOURCE" == "local" ]]; then
-  tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz assets
+  COPYFILE_DISABLE=1 tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz assets
 else
-  tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz
+  COPYFILE_DISABLE=1 tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz
 fi
 verify_package "$PACKAGE_PATH" "$APP_TARBALL"
 

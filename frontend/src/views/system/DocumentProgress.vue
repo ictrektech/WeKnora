@@ -246,6 +246,10 @@
             <li v-for="stage in detail.document.stages" :key="stage.name" class="dp-stage-row">
               <div class="dp-stage-main">
                 <span class="dp-stage-name">{{ stageLabel(stage.name) }}</span>
+                <span v-if="stage.docreader_node" class="dp-muted">
+                  {{ stage.docreader_node === 'local' ? t('system.docReaderRouting.local') : stage.docreader_node }}
+                  · {{ t(stage.docreader_strategy === 'weight' ? 'system.docReaderRouting.weighted' : 'system.docReaderRouting.order') }}
+                </span>
                 <span v-if="stage.error_code" class="dp-stage-code">{{ stage.error_code }}</span>
               </div>
               <div class="dp-stage-right">

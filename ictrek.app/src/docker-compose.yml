@@ -80,6 +80,8 @@ x-hybrag-app-env: &id001
   REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
   DOCREADER_ADDR: hybrag-docreader:50051
   DOCREADER_TRANSPORT: grpc
+  HYBRAG_DOCREADER_ROUTING_PATH: /data/docreader-routing.json
+  HYBRAG_DOCREADER_SHARE_GATEWAY: ${VOS_HOST_GW_IP:-172.17.0.1}:${VOS_API_GW_PORT_EXTERNAL:-1180}
   OLLAMA_BASE_URL: ${HYBRAG_V_ROUTER_URL:-http://v-scheduler:8080}
   SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-v-scheduler,v-scheduler-gateway,v-router,model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
   CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
@@ -142,6 +144,15 @@ x-hybrag-app-base:
     vos_default:
       aliases:
       - hybrag-app
+  labels: &docreader-share-labels
+  - traefik.enable=true
+  - traefik.docker.network=vos_default
+  - traefik.http.routers.hybrag-docreader.rule=PathPrefix(`/docreader.DocReader/`) || PathPrefix(`/docreader.DocumentCompute/`)
+  - traefik.http.routers.hybrag-docreader.entrypoints=web
+  - traefik.http.routers.hybrag-docreader.tls=true
+  - traefik.http.routers.hybrag-docreader.service=hybrag-docreader
+  - traefik.http.services.hybrag-docreader.loadbalancer.server.port=50052
+  - traefik.http.services.hybrag-docreader.loadbalancer.server.scheme=h2c
   ports: &id021
   - ${HYBRAG_API_PORT:-29081}:8080
   environment: *id001
@@ -254,6 +265,7 @@ services:
     restart: unless-stopped
     networks: *id012
     ports: *id021
+    labels: *docreader-share-labels
     environment:
       GIN_MODE: ${GIN_MODE:-release}
       TZ: ${TZ:-Asia/Shanghai}
@@ -274,6 +286,8 @@ services:
       REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
       DOCREADER_ADDR: hybrag-docreader:50051
       DOCREADER_TRANSPORT: grpc
+      HYBRAG_DOCREADER_ROUTING_PATH: /data/docreader-routing.json
+      HYBRAG_DOCREADER_SHARE_GATEWAY: ${VOS_HOST_GW_IP:-172.17.0.1}:${VOS_API_GW_PORT_EXTERNAL:-1180}
       OLLAMA_BASE_URL: ${HYBRAG_V_ROUTER_URL:-http://v-scheduler:8080}
       SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-v-scheduler,v-scheduler-gateway,v-router,model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
       CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}
@@ -373,6 +387,7 @@ services:
     restart: unless-stopped
     networks: *id012
     ports: *id021
+    labels: *docreader-share-labels
     environment:
       GIN_MODE: ${GIN_MODE:-release}
       TZ: ${TZ:-Asia/Shanghai}
@@ -393,6 +408,8 @@ services:
       REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
       DOCREADER_ADDR: hybrag-docreader:50051
       DOCREADER_TRANSPORT: grpc
+      HYBRAG_DOCREADER_ROUTING_PATH: /data/docreader-routing.json
+      HYBRAG_DOCREADER_SHARE_GATEWAY: ${VOS_HOST_GW_IP:-172.17.0.1}:${VOS_API_GW_PORT_EXTERNAL:-1180}
       OLLAMA_BASE_URL: ${HYBRAG_V_ROUTER_URL:-http://v-scheduler:8080}
       SSRF_WHITELIST_EXTRA: ${SSRF_WHITELIST_EXTRA:-v-scheduler,v-scheduler-gateway,v-router,model-hub-ollama-qa,model-hub-ollama-embedding,model-hub-ollama-rerank,desensitize-backend,hybrag-neo4j,neo4j,shared-pgv,ictrek-pgv}
       CONCURRENCY_POOL_SIZE: ${CONCURRENCY_POOL_SIZE:-2}

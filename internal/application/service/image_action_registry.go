@@ -601,7 +601,9 @@ func runCaptionAction(ctx context.Context, r *runContext) error {
 			return
 		}
 		r.tracker.EndSpan(ctx, captionSpan, types.JSONMap{
-			"status": r.out[keyCaptionResult], "chars": r.out[keyCaptionChars],
+			"compute_node": "local",
+			"status":       r.out[keyCaptionResult],
+			"chars":        r.out[keyCaptionChars],
 		})
 	}
 	raw, err := r.predictCaption(ctx, buildVLMCaptionPrompt(ctx, r.vlmCfg), "image_caption")
@@ -648,7 +650,7 @@ func runObservationCaptionAction(ctx context.Context, r *runContext) error {
 			r.tracker.FailSpan(ctx, obsSpan, "OBSERVATION_FAILED", message, nil)
 			return
 		}
-		r.tracker.EndSpan(ctx, obsSpan, types.JSONMap{"status": "succeeded"})
+		r.tracker.EndSpan(ctx, obsSpan, types.JSONMap{"compute_node": "local", "status": "succeeded"})
 	}
 	raw, err := r.predictCaption(ctx,
 		buildImageAttrsPrompt(ctx, r.vlmCfg, types.PreprocessObservesGeometry(r.preprocessMode())),
@@ -857,7 +859,9 @@ func runOCRAction(ctx context.Context, r *runContext) error {
 			return
 		}
 		r.tracker.EndSpan(ctx, ocrSpan, types.JSONMap{
-			"status": r.out[keyOCRResult], "chars": r.out[keyOCRChars],
+			"compute_node": "local",
+			"status":       r.out[keyOCRResult],
+			"chars":        r.out[keyOCRChars],
 		})
 	}
 	// A failed extraction must never leave text from a previous attempt behind.

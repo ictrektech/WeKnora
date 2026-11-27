@@ -40,6 +40,19 @@
             />
           </div>
         </div>
+        <div
+          v-if="(computeTextNodes && computeTextNodes.length > 0) || (localQuestionGeneration.computeRoute?.targets && localQuestionGeneration.computeRoute.targets.length > 0)"
+          class="setting-row setting-row-vertical"
+        >
+          <ComputeTextRouteSelector
+            :model-value="localQuestionGeneration.computeRoute || null"
+            :compute-nodes="computeTextNodes"
+            :label="$t('system.docReaderRouting.questionComputeLabel')"
+            :description="$t('system.docReaderRouting.questionComputeDescription')"
+            :placeholder="$t('system.docReaderRouting.computeModelPlaceholder')"
+            @update:model-value="(value: ComputeTextRouteConfig | null) => { localQuestionGeneration.computeRoute = value; handleQuestionGenerationChange() }"
+          />
+        </div>
         <div class="setting-row">
           <div class="setting-info">
             <label>{{ $t('knowledgeEditor.advanced.questionGeneration.countLabel') }}</label>
@@ -197,12 +210,15 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import ModelSelector from '@/components/ModelSelector.vue'
+import ComputeTextRouteSelector from '@/components/ComputeTextRouteSelector.vue'
+import type { ComputeTextNodeModels, ComputeTextRouteConfig } from '@/api/system/computeText'
 
 interface QuestionGenerationConfig {
   modelId?: string
   enabled: boolean
   questionCount: number
   customInstructions?: string
+  computeRoute?: ComputeTextRouteConfig | null
 }
 
 interface AutoTagConfig {
@@ -224,6 +240,7 @@ interface Props {
   profileConfig?: ProfileConfig
   ragEnabled?: boolean
   allModels?: any[]
+  computeTextNodes?: ComputeTextNodeModels[]
   embedded?: boolean
   tableMetadataInstructions?: string
 }

@@ -316,6 +316,9 @@ func (s *ImageMultimodalService) processImage(
 			return
 		}
 		if handleErr == nil {
+			if _, exists := out["compute_node"]; !exists {
+				out["compute_node"] = "local"
+			}
 			tracker.EndSpan(ctx, imgSpan, out)
 		} else {
 			// Any genuinely failed attempt must close its span red, not

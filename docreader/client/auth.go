@@ -6,10 +6,12 @@ package client
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"os"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -25,6 +27,8 @@ type AuthConfig struct {
 	// ServerName overrides the SNI / certificate-host check on the client.
 	// When empty, the address passed to Dial is used by Go's TLS stack.
 	ServerName string
+	// CertificatePin is the SHA-256 fingerprint of an independently verified leaf certificate.
+	CertificatePin []byte
 
 	AuthToken string
 }
@@ -84,6 +88,26 @@ func (c *AuthConfig) buildTLSCredentials() (credentials.TransportCredentials, er
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		ServerName: c.ServerName,
+	}
+	if len(c.CertificatePin) != 0 {
+		if len(c.CertificatePin) != sha256.Size {
+			return nil, fmt.Errorf("invalid SHA-256 certificate fingerprint")
+		}
+		pin := [sha256.Size]byte(c.CertificatePin)
+		// VOS can use a self-signed certificate without a hostname SAN.
+		// Verify the exact enrolled certificate and validity period before sending credentials.
+		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.VerifyConnection = func(state tls.ConnectionState) error {
+			if len(state.PeerCertificates) == 0 {
+				return fmt.Errorf("no node certificate")
+			}
+			cert := state.PeerCertificates[0]
+			now := time.Now()
+			if sha256.Sum256(cert.Raw) != pin || now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
+				return fmt.Errorf("node certificate fingerprint or validity check failed")
+			}
+			return nil
+		}
 	}
 
 	if c.CAFile != "" {

@@ -57,6 +57,12 @@ type DocumentChunkMetadata struct {
 	GeneratedQuestions []GeneratedQuestion `json:"generated_questions,omitempty"`
 	// GeneratedQuestionsRevision ties the questions to Chunk.ContentRevision.
 	GeneratedQuestionsRevision int `json:"generated_questions_revision,omitempty"`
+	// GeneratedQuestionsAttempt records which parse attempt wrote and indexed
+	// GeneratedQuestions so retries/redeliveries of the same batch never write twice.
+	GeneratedQuestionsAttempt int `json:"generated_questions_attempt,omitempty"`
+	// GeneratedQuestionsIndexed marks that GeneratedQuestions were written to
+	// the retrieval index for GeneratedQuestionsAttempt / GeneratedQuestionsRevision.
+	GeneratedQuestionsIndexed bool `json:"generated_questions_indexed,omitempty"`
 }
 
 // IsQuestionCurrent reports whether a generated question was authored for the

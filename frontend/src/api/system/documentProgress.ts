@@ -6,6 +6,8 @@ export interface DocumentStageProgress {
   status: string
   error_code?: string
   finished_at?: string
+  docreader_node?: string
+  docreader_strategy?: 'order' | 'weight'
 }
 export interface DocumentProgress {
   id: string

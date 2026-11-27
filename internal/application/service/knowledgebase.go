@@ -15,6 +15,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/application/service/retriever"
 	"github.com/Tencent/WeKnora/internal/datasource"
 	apperrors "github.com/Tencent/WeKnora/internal/errors"
+	"github.com/Tencent/WeKnora/internal/infrastructure/docparser"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/storageallowlist"
 	"github.com/Tencent/WeKnora/internal/tracing/langfuse"
@@ -76,6 +77,20 @@ type knowledgeBaseService struct {
 	audit           interfaces.AuditLogService
 	resourceCatalog interfaces.ResourceCatalog
 	wikiRepo        interfaces.WikiPageRepository
+	documentReader  interfaces.DocumentReader
+}
+
+// SetDocumentReader wires the optional compute router for validating cross-node
+// text inference bindings without altering the service constructor signature.
+func (s *knowledgeBaseService) SetDocumentReader(reader interfaces.DocumentReader) {
+	s.documentReader = reader
+}
+
+func (s *knowledgeBaseService) computeTextCatalog() computeTextCatalog {
+	if router, ok := s.documentReader.(*docparser.ComputeRouter); ok {
+		return router
+	}
+	return nil
 }
 
 // NewKnowledgeBaseService creates a new knowledge base service
@@ -196,12 +211,27 @@ func (s *knowledgeBaseService) CreateKnowledgeBase(ctx context.Context,
 		return nil, err
 	}
 
+	if kb.SummaryComputeConfig != nil {
+		validated, err := ValidateComputeTextRoute(ctx, s.computeTextCatalog(), s.modelService, kb.SummaryComputeConfig, nil)
+		if err != nil {
+			return nil, err
+		}
+		kb.SummaryComputeConfig = validated
+	}
+
 	if kb.QuestionGenerationConfig != nil {
 		id, err := ValidateQuestionGenerationModel(ctx, s.modelService, kb.QuestionGenerationConfig.ModelID)
 		if err != nil {
 			return nil, err
 		}
 		kb.QuestionGenerationConfig.ModelID = id
+		if kb.QuestionGenerationConfig.ComputeRoute != nil {
+			route, err := ValidateComputeTextRoute(ctx, s.computeTextCatalog(), s.modelService, kb.QuestionGenerationConfig.ComputeRoute, nil)
+			if err != nil {
+				return nil, err
+			}
+			kb.QuestionGenerationConfig.ComputeRoute = route
+		}
 	}
 
 	logger.Infof(ctx, "Creating knowledge base, ID: %s, tenant ID: %d, name: %s", kb.ID, kb.TenantID, kb.Name)
@@ -722,6 +752,16 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 			}
 			kb.SummaryModelID = next
 		}
+		if config.SummaryComputeConfig != nil {
+			validated, err := ValidateComputeTextRoute(
+				ctx, s.computeTextCatalog(), s.modelService, config.SummaryComputeConfig, kb.SummaryComputeConfig,
+			)
+			if err != nil {
+				return nil, err
+			}
+			kb.SummaryComputeConfig = validated
+			changedFields = append(changedFields, "summary_compute_config")
+		}
 		if config.StorageBackendID != nil {
 			changed, err := s.updateStorageBackend(ctx, kb, *config.StorageBackendID)
 			if err != nil {
@@ -746,6 +786,18 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 			next.ModelID, err = ValidateQuestionGenerationModel(ctx, s.modelService, next.ModelID)
 			if err != nil {
 				return nil, err
+			}
+			var prevRoute *types.ComputeTextRouteConfig
+			if kb.QuestionGenerationConfig != nil {
+				prevRoute = kb.QuestionGenerationConfig.ComputeRoute
+			}
+			if next.ComputeRoute != nil {
+				next.ComputeRoute, err = ValidateComputeTextRoute(
+					ctx, s.computeTextCatalog(), s.modelService, next.ComputeRoute, prevRoute,
+				)
+				if err != nil {
+					return nil, err
+				}
 			}
 			kb.QuestionGenerationConfig = &next
 			changedFields = append(changedFields, "question_generation_config")
@@ -1805,6 +1857,7 @@ func (s *knowledgeBaseService) CopyKnowledgeBase(ctx context.Context,
 			ImageProcessingConfig: sourceKB.ImageProcessingConfig,
 			EmbeddingModelID:      sourceKB.EmbeddingModelID,
 			SummaryModelID:        sourceKB.SummaryModelID,
+			SummaryComputeConfig:  sourceKB.SummaryComputeConfig.Clone(),
 			VLMConfig:             sourceKB.VLMConfig,
 			StorageProviderConfig: sourceKB.StorageProviderConfig,
 			StorageBackendID:      sourceKB.StorageBackendID,

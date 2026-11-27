@@ -41,6 +41,7 @@ func ResolveProcessConfig(kb *types.KnowledgeBase, overrides *types.KnowledgePro
 	imageCfg := kb.ImageProcessingConfig
 	eff := types.EffectiveProcessConfig{
 		SummaryEnabled:           true,
+		SummaryComputeConfig:     kb.SummaryComputeConfig.Clone(),
 		ChunkingConfig:           kb.ChunkingConfig,
 		EnableMultimodel:         kb.IsMultimodalEnabled(),
 		VLMConfig:                kb.VLMConfig,
@@ -90,6 +91,9 @@ func ResolveProcessConfig(kb *types.KnowledgeBase, overrides *types.KnowledgePro
 			eff.QuestionGenerationConfig.ModelID = base.ModelID
 		} else {
 			eff.QuestionGenerationConfig.ModelID = strings.TrimSpace(eff.QuestionGenerationConfig.ModelID)
+		}
+		if eff.QuestionGenerationConfig.ComputeRoute == nil {
+			eff.QuestionGenerationConfig.ComputeRoute = base.ComputeRoute.Clone()
 		}
 		if eff.QuestionGenerationConfig.CustomInstructions == "" {
 			eff.QuestionGenerationConfig.CustomInstructions = base.CustomInstructions

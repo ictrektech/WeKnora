@@ -42,10 +42,12 @@ func (f DocumentProgressFilter) Valid() bool {
 
 // DocumentStageProgress contains metadata only; span prompts and outputs stay private.
 type DocumentStageProgress struct {
-	Name       string     `json:"name"`
-	Status     string     `json:"status"`
-	ErrorCode  string     `json:"error_code,omitempty"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	Name              string     `json:"name"`
+	Status            string     `json:"status"`
+	ErrorCode         string     `json:"error_code,omitempty"`
+	FinishedAt        *time.Time `json:"finished_at,omitempty"`
+	DocReaderNode     string     `json:"docreader_node,omitempty"`
+	DocReaderStrategy string     `json:"docreader_strategy,omitempty"`
 }
 
 // DocumentProgress separates document ingestion, Wiki work, and historical failures.
@@ -280,8 +282,16 @@ func (s *DocumentProgressService) list(
 	latest := s.db.Model(&types.KnowledgeProcessingSpan{}).Select("MAX(id)").
 		Where("knowledge_id IN ? AND (kind=? OR name=?)", ids, types.SpanKindStage, "postprocess.wiki").
 		Group("knowledge_id,attempt,name")
+	nodeExpr := "COALESCE(s.output ->> 'compute_node', s.output ->> 'docreader_node')"
+	strategyExpr := "s.output ->> 'docreader_strategy'"
+	if s.db.Name() == "sqlite" {
+		nodeExpr = "COALESCE(json_extract(s.output,'$.compute_node'), json_extract(s.output,'$.docreader_node'))"
+		strategyExpr = "json_extract(s.output,'$.docreader_strategy')"
+	}
 	if err := s.db.WithContext(ctx).Table("knowledge_processing_spans s").
-		Select("s.knowledge_id,s.name,s.status,s.error_code,s.finished_at").Where("s.id IN (?)", latest).
+		Select(`s.knowledge_id,s.name,s.status,s.error_code,s.finished_at,
+ CASE WHEN s.name IN ('docreader', 'multimodal') THEN `+nodeExpr+` END AS doc_reader_node,
+ CASE WHEN s.name IN ('docreader', 'multimodal') THEN `+strategyExpr+` END AS doc_reader_strategy`).Where("s.id IN (?)", latest).
 		Where(`s.attempt=(SELECT MAX(a.attempt) FROM knowledge_processing_spans a
  WHERE a.knowledge_id=s.knowledge_id)`).
 		Order("s.id ASC").Scan(&stages).Error; err != nil {

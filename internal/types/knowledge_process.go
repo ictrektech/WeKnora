@@ -44,6 +44,7 @@ type KnowledgeProcessOverrides struct {
 // EffectiveProcessConfig is the merged view used by the parse pipeline.
 type EffectiveProcessConfig struct {
 	SummaryEnabled           bool
+	SummaryComputeConfig     *ComputeTextRouteConfig
 	ChunkingConfig           ChunkingConfig
 	EnableMultimodel         bool
 	VLMConfig                VLMConfig

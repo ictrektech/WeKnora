@@ -25,6 +25,21 @@
         </div>
       </div>
 
+      <!-- 摘要算力节点模型（仅文档库且存在已发现文本推理节点或已保存配置时显示） -->
+      <div
+        v-if="!isFaq && ((computeTextNodes && computeTextNodes.length > 0) || (config.summaryComputeConfig?.targets && config.summaryComputeConfig.targets.length > 0))"
+        class="setting-row setting-row-vertical"
+      >
+        <ComputeTextRouteSelector
+          :model-value="config.summaryComputeConfig || null"
+          :compute-nodes="computeTextNodes"
+          :label="$t('system.docReaderRouting.summaryComputeLabel')"
+          :description="$t('system.docReaderRouting.summaryComputeDescription')"
+          :placeholder="$t('system.docReaderRouting.computeModelPlaceholder')"
+          @update:model-value="handleSummaryComputeChange"
+        />
+      </div>
+
       <!-- Embedding 嵌入模型: RAG 检索启用时必填; 纯 Wiki 时可选(用于目录归类相似度) -->
       <div v-if="ragEnabled !== false || wikiEnabled" class="setting-row" data-guide="kb-create-embedding">
         <div class="setting-info">
@@ -85,6 +100,8 @@
 import { ref } from 'vue'
 import { useUIStore } from '@/stores/ui'
 import ModelSelector from '@/components/ModelSelector.vue'
+import ComputeTextRouteSelector from '@/components/ComputeTextRouteSelector.vue'
+import type { ComputeTextNodeModels, ComputeTextRouteConfig } from '@/api/system/computeText'
 import { useI18n } from 'vue-i18n'
 
 interface ModelConfig {
@@ -92,14 +109,17 @@ interface ModelConfig {
   embeddingModelId?: string
   vllmModelId?: string
   wikiSynthesisModelId?: string
+  summaryComputeConfig?: ComputeTextRouteConfig | null
 }
 
 interface Props {
   config: ModelConfig
   hasFiles: boolean
+  isFaq?: boolean
   wikiEnabled?: boolean
   ragEnabled?: boolean
   allModels?: any[]
+  computeTextNodes?: ComputeTextNodeModels[]
 }
 
 const props = defineProps<Props>()
@@ -118,6 +138,13 @@ const handleLLMChange = (modelId: string) => {
   emit('update:config', {
     ...props.config,
     llmModelId: modelId
+  })
+}
+
+const handleSummaryComputeChange = (route: ComputeTextRouteConfig | null) => {
+  emit('update:config', {
+    ...props.config,
+    summaryComputeConfig: route
   })
 }
 
@@ -179,6 +206,11 @@ const handleAddModel = (subSection: string) => {
   &:last-child {
     border-bottom: none;
   }
+}
+
+.setting-row-vertical {
+  flex-direction: column;
+  gap: 8px;
 }
 
 .setting-info {

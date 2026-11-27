@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package docreader;
+
+option go_package = "github.com/Tencent/WeKnora/docreader/proto";
+
+import "docreader.proto";
+
+// Implemented by the HybRAG sharing gateway. The local DocReader continues to
+// serve the existing parser protocol.
+service DocumentCompute {
+  rpc Process(DocumentComputeRequest) returns (stream DocumentComputeFrame) {}
+  rpc ListTextModels(ListTextModelsRequest) returns (ListTextModelsResponse) {}
+  rpc GenerateText(TextInferenceRequest) returns (TextInferenceResponse) {}
+}
+
+message DocumentComputeRequest {
+  ReadRequest document = 1;
+  bool recognize_images = 2;
+  string description_language = 3;
+}
+
+message DocumentComputeFrame {
+  oneof content {
+    ReadStreamMeta meta = 1;
+    DocumentComputeImage image = 2;
+  }
+}
+
+message DocumentComputeImage {
+  ImageRef image = 1;
+  // The consumer still owns storage bindings, indexing and knowledge state.
+  string ocr_text = 2;
+  string description = 3;
+  bool ocr_performed = 4;
+  bool description_performed = 5;
+  int64 ocr_duration_ms = 6;
+  int64 description_duration_ms = 7;
+}
+
+message ListTextModelsRequest {}
+
+message TextModelInfo {
+  string id = 1;
+  string name = 2;
+  string display_name = 3;
+  int32 context_window = 4;
+}
+
+message ListTextModelsResponse {
+  repeated TextModelInfo models = 1;
+}
+
+message TextChatMessage {
+  string role = 1;
+  string content = 2;
+}
+
+message TextInferenceRequest {
+  string model_id = 1;
+  repeated TextChatMessage messages = 2;
+  double temperature = 3;
+  int32 max_tokens = 4;
+  bool disable_thinking = 5;
+  string purpose = 6;
+  string request_id = 7;
+}
+
+message TextInferenceResponse {
+  string content = 1;
+  string finish_reason = 2;
+  int32 prompt_tokens = 3;
+  int32 completion_tokens = 4;
+  int32 total_tokens = 5;
+  int64 duration_ms = 6;
+  string model_name = 7;
+}

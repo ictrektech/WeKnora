@@ -107,6 +107,7 @@ type StoredImage struct {
 	OriginalRef string // reference in the original markdown
 	ServingURL  string // provider:// URL (e.g. local://images/xxx.png, minio://bucket/key)
 	MimeType    string
+	Analysis    *types.DocumentImageAnalysis
 	// Inline marks Base64 images stored from inline document content, so only
 	// resources created by this resolver are eligible for partial-save cleanup.
 	Inline bool
@@ -279,7 +280,7 @@ func (r *ImageResolver) saveReferencedImage(
 		return StoredImage{}, false
 	}
 
-	if !ref.IsOriginal && isIconImage(ref.ImageData) {
+	if !ref.IsOriginal && ref.Analysis == nil && isIconImage(ref.ImageData) {
 		return StoredImage{}, false
 	}
 
@@ -293,6 +294,7 @@ func (r *ImageResolver) saveReferencedImage(
 				OriginalRef: refPath,
 				ServingURL:  cached.ServingURL,
 				MimeType:    cached.MimeType,
+				Analysis:    ref.Analysis,
 			}
 			savedRefs[refPath] = stored
 			return stored, true
@@ -318,6 +320,7 @@ func (r *ImageResolver) saveReferencedImage(
 		OriginalRef: refPath,
 		ServingURL:  servingURL,
 		MimeType:    ref.MimeType,
+		Analysis:    ref.Analysis,
 		NewlyStored: true,
 	}
 	savedRefs[refPath] = stored

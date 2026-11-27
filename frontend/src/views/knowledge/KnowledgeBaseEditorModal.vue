@@ -259,9 +259,11 @@
           v-if="formData"
           :config="formData.modelConfig"
           :has-files="hasFiles"
+          :is-faq="isFAQ"
           :wiki-enabled="formData.indexingStrategy?.wikiEnabled"
           :rag-enabled="formData.indexingStrategy?.vectorEnabled || formData.indexingStrategy?.keywordEnabled"
           :all-models="allModels"
+          :compute-text-nodes="computeTextNodes"
           @update:config="handleModelConfigUpdate"
         />
       </div>
@@ -558,6 +560,7 @@
                     :profile-config="formData.profileConfig"
           :rag-enabled="formData.indexingStrategy?.vectorEnabled || formData.indexingStrategy?.keywordEnabled"
           :all-models="allModels"
+          :compute-text-nodes="computeTextNodes"
           :table-metadata-instructions="formData.chunkingConfig.tableMetadataInstructions"
           @update:question-generation="handleQuestionGenerationUpdate"
           @update:auto-tag="(value) => { if (formData) formData.autoTagConfig = value }"
@@ -643,6 +646,7 @@ import {
   IMAGE_PIPELINE_SMARTOCR,
 } from '@/utils/imageProcessingConfig'
 import { imageAttrDisplay, imageAttrConditionDisplay } from '@/utils/imageAttrDisplay'
+import { listComputeTextModels, type ComputeTextNodeModels } from '@/api/system/computeText'
 
 // The image-attribute registry, fetched from the backend (single source of
 // truth). Falls back to the static registry until the endpoint answers.
@@ -966,6 +970,7 @@ const initFormData = (type: 'document' | 'faq' = 'document') => {
       llmModelId: '',
       embeddingModelId: '',
       wikiSynthesisModelId: '',
+      summaryComputeConfig: null as any,
     },
     chunkingConfig: {
       chunkSize: 512,
@@ -1030,7 +1035,8 @@ const initFormData = (type: 'document' | 'faq' = 'document') => {
       modelId: '',
       enabled: true,
       questionCount: 3,
-      customInstructions: ''
+      customInstructions: '',
+      computeRoute: null as any,
     },
     autoTagConfig: {
       enabled: false,
@@ -1071,10 +1077,15 @@ const initFormData = (type: 'document' | 'faq' = 'document') => {
 }
 
 // 加载所有模型
+const computeTextNodes = ref<ComputeTextNodeModels[]>([])
 const loadAllModels = async (force = false) => {
   try {
-    await chatResources.ensureModels(force)
+    const [, computeRes] = await Promise.all([
+      chatResources.ensureModels(force),
+      listComputeTextModels(),
+    ])
     allModels.value = chatResources.allModels || []
+    computeTextNodes.value = computeRes.nodes || []
   } catch (error) {
     console.error('Failed to load model list:', error)
     MessagePlugin.error(t('knowledgeEditor.messages.loadModelsFailed'))
@@ -1130,7 +1141,8 @@ const loadKBData = async (
       modelConfig: {
         llmModelId: kb.summary_model_id || '',
         embeddingModelId: kb.embedding_model_id || '',
-        wikiSynthesisModelId: kb.wiki_config?.synthesis_model_id || ''
+        wikiSynthesisModelId: kb.wiki_config?.synthesis_model_id || '',
+        summaryComputeConfig: (kb as any).summary_compute_config || null,
       },
       chunkingConfig: {
         chunkSize: kb.chunking_config?.chunk_size || 512,
@@ -1199,7 +1211,8 @@ const loadKBData = async (
         modelId: kb.question_generation_config?.model_id || '',
         enabled: kb.question_generation_config?.enabled || false,
         questionCount: kb.question_generation_config?.question_count || 3,
-        customInstructions: kb.question_generation_config?.custom_instructions || ''
+        customInstructions: kb.question_generation_config?.custom_instructions || '',
+        computeRoute: (kb.question_generation_config as any)?.compute_route || null,
       },
       autoTagConfig: {
         enabled: kb.auto_tag_config?.enabled || false,
@@ -1574,7 +1587,8 @@ const buildSubmitData = () => {
         : {})
     },
     embedding_model_id: formData.value.modelConfig.embeddingModelId,
-    summary_model_id: formData.value.modelConfig.llmModelId
+    summary_model_id: formData.value.modelConfig.llmModelId,
+    summary_compute_config: formData.value.modelConfig.summaryComputeConfig || { targets: [], fallback_to_local: false },
   }
 
   // Vector-store binding. Only attach the field when the user actively
@@ -1642,19 +1656,22 @@ const buildSubmitData = () => {
   // extract_config is sent below along with indexing_strategy
 
   // 添加问题生成配置
+  const qComputeRoute = formData.value.questionGenerationConfig?.computeRoute || { targets: [], fallback_to_local: false }
   if (formData.value.questionGenerationConfig?.enabled) {
     data.question_generation_config = {
       model_id: formData.value.questionGenerationConfig?.modelId || '',
       enabled: true,
       question_count: formData.value.questionGenerationConfig.questionCount || 3,
-      custom_instructions: formData.value.questionGenerationConfig.customInstructions || ''
+      custom_instructions: formData.value.questionGenerationConfig.customInstructions || '',
+      compute_route: qComputeRoute,
     }
   } else {
     data.question_generation_config = {
       model_id: formData.value.questionGenerationConfig?.modelId || '',
       enabled: false,
       question_count: 3,
-      custom_instructions: formData.value.questionGenerationConfig?.customInstructions || ''
+      custom_instructions: formData.value.questionGenerationConfig?.customInstructions || '',
+      compute_route: qComputeRoute,
     }
   }
 
@@ -1799,6 +1816,8 @@ const doSubmit = async () => {
       if (formData.value.type !== 'faq') {
         updateConfig.auto_tag_config = data.auto_tag_config
         updateConfig.profile_config = data.profile_config
+        updateConfig.summary_compute_config = data.summary_compute_config
+        updateConfig.question_generation_config = data.question_generation_config
         updateConfig.indexing_strategy = {
           vector_enabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
           keyword_enabled: formData.value.indexingStrategy?.keywordEnabled ?? true,

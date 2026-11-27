@@ -86,6 +86,9 @@ type KnowledgeBase struct {
 	// Summary model ID. model.list returns the ids. Used for summaries, and as
 	// the default for auto-tagging and the AI description.
 	SummaryModelID string `yaml:"summary_model_id"        json:"summary_model_id" extensions:"x-agent=summary_model_id"`
+	// SummaryComputeConfig optionally routes document summary inference to paired
+	// compute node model(s) while preserving SummaryModelID for local/fallback use.
+	SummaryComputeConfig *ComputeTextRouteConfig `yaml:"summary_compute_config,omitempty" json:"summary_compute_config,omitempty" gorm:"column:summary_compute_config;type:json"`
 	// VLM config
 	VLMConfig VLMConfig `yaml:"vlm_config"              json:"vlm_config"              gorm:"type:json" extensions:"x-agent,x-agent-detail"`
 	// ASR config (Automatic Speech Recognition)
@@ -188,6 +191,9 @@ type KnowledgeBaseConfig struct {
 	EmbeddingModelID *string `json:"embedding_model_id,omitempty"`
 	// SummaryModelID changes the summary model. nil means no change.
 	SummaryModelID *string `json:"summary_model_id,omitempty"`
+	// SummaryComputeConfig updates compute-node text inference routing for
+	// document summaries. nil means no change; an empty route clears remote routing.
+	SummaryComputeConfig *ComputeTextRouteConfig `json:"summary_compute_config,omitempty"`
 	// StorageBackendID rebinds file storage. nil means no change.
 	StorageBackendID *string `json:"storage_backend_id,omitempty"`
 	// ASRConfig replaces speech-recognition settings when set. nil means no change.
@@ -747,6 +753,65 @@ func (c VLMConfig) IsEnabled() bool {
 // QuestionGenerationConfig represents the question generation configuration for document knowledge bases
 // When enabled, the system will use LLM to generate questions for each chunk during document parsing
 // These generated questions will be indexed separately to improve recall
+// ComputeTextTarget selects one model on a paired compute node (or "local").
+type ComputeTextTarget struct {
+	NodeOrigin string `yaml:"node_origin" json:"node_origin"`
+	ModelID    string `yaml:"model_id"    json:"model_id"`
+	ModelName  string `yaml:"model_name,omitempty" json:"model_name,omitempty"`
+}
+
+// ComputeTextRouteConfig configures cross-node text inference for a per-KB
+// ingestion task (question generation or summary). When Targets is empty,
+// standard local model settings apply. FallbackToLocal defaults to false so a
+// remote failure never silently switches to local inference unless configured.
+type ComputeTextRouteConfig struct {
+	Targets         []ComputeTextTarget `yaml:"targets,omitempty" json:"targets,omitempty"`
+	FallbackToLocal bool                `yaml:"fallback_to_local,omitempty" json:"fallback_to_local,omitempty"`
+}
+
+// HasTargets reports whether at least one compute-node target is configured.
+func (c *ComputeTextRouteConfig) HasTargets() bool {
+	return c != nil && len(c.Targets) > 0
+}
+
+// Clone returns a deep copy of the compute text route config.
+func (c *ComputeTextRouteConfig) Clone() *ComputeTextRouteConfig {
+	if c == nil {
+		return nil
+	}
+	out := &ComputeTextRouteConfig{FallbackToLocal: c.FallbackToLocal}
+	if len(c.Targets) > 0 {
+		out.Targets = make([]ComputeTextTarget, len(c.Targets))
+		copy(out.Targets, c.Targets)
+	}
+	return out
+}
+
+// Value serializes ComputeTextRouteConfig for database storage.
+func (c ComputeTextRouteConfig) Value() (driver.Value, error) {
+	return json.Marshal(c)
+}
+
+// Scan deserializes ComputeTextRouteConfig from a database value.
+func (c *ComputeTextRouteConfig) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	var b []byte
+	switch v := value.(type) {
+	case []byte:
+		b = v
+	case string:
+		b = []byte(v)
+	default:
+		return nil
+	}
+	if len(strings.TrimSpace(string(b))) == 0 {
+		return nil
+	}
+	return json.Unmarshal(b, c)
+}
+
 type QuestionGenerationConfig struct {
 	// ModelID selects a chat model for questions. Empty inherits the summary model.
 	ModelID string `yaml:"model_id,omitempty" json:"model_id,omitempty" extensions:"x-agent=question_model_id"`
@@ -756,6 +821,8 @@ type QuestionGenerationConfig struct {
 	QuestionCount int `yaml:"question_count" json:"question_count" minimum:"1" maximum:"10" extensions:"x-agent=question_count"`
 	// CustomInstructions describes who the questions are for. The question format stays fixed.
 	CustomInstructions string `yaml:"custom_instructions,omitempty" json:"custom_instructions,omitempty" extensions:"x-agent=question_instructions,x-agent-detail,x-agent-max-bytes=4000"`
+	// ComputeRoute optionally routes question generation to paired compute node model(s).
+	ComputeRoute *ComputeTextRouteConfig `yaml:"compute_route,omitempty" json:"compute_route,omitempty"`
 }
 
 // Value implements the driver.Valuer interface

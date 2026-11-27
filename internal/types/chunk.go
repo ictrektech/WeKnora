@@ -51,6 +51,10 @@ func IsImageChildChunkType(t ChunkType) bool {
 	return t == ChunkTypeImageOCR || t == ChunkTypeImageCaption || t == ChunkTypeImageVector
 }
 
+// ChunkIndexStatusStaged keeps document-compute replacements out of retrieval
+// until their complete set of index writes has succeeded.
+const ChunkIndexStatusStaged = "staged"
+
 // ChunkStatus 定义了不同状态的 Chunk
 type ChunkStatus int
 

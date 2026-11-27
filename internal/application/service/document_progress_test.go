@@ -133,6 +133,11 @@ func TestDocumentProgressSeparatesCurrentAttemptAndFailureHistory(t *testing.T) 
 	}
 	require.NoError(t, db.Create(&dead).Error)
 	addProgressSpan(t, db, "doc", 2, types.StageDocReader, types.SpanStatusDone)
+	require.NoError(t, db.Model(&types.KnowledgeProcessingSpan{}).
+		Where("knowledge_id = ? AND attempt = ? AND name = ?", "doc", 2, types.StageDocReader).
+		Update("output", types.JSONMap{
+			"docreader_node": "https://vos.example:1180", "docreader_strategy": "weight", "body": "PRIVATE_BODY",
+		}).Error)
 	addProgressSpan(t, db, "doc", 2, "postprocess.wiki", types.SpanStatusRunning)
 	row := addProgressPending(t, db, "doc", 2)
 	fresh := time.Now()
@@ -148,6 +153,10 @@ func TestDocumentProgressSeparatesCurrentAttemptAndFailureHistory(t *testing.T) 
 	require.EqualValues(t, 1, doc.FailureCount)
 	for _, stage := range doc.Stages {
 		require.NotEqual(t, types.SpanStatusFailed, stage.Status)
+		if stage.Name == types.StageDocReader {
+			require.Equal(t, "https://vos.example:1180", stage.DocReaderNode)
+			require.Equal(t, "weight", stage.DocReaderStrategy)
+		}
 	}
 	encoded, err := json.Marshal(page)
 	require.NoError(t, err)

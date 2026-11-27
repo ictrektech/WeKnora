@@ -847,6 +847,11 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	// local:// images that live under a tenant's configured storage PathPrefix
 	// (which is not encoded in the local:// URL).
 	must(container.Invoke(registerChatLocalImageResolver))
+	must(container.Invoke(func(kbSvc interfaces.KnowledgeBaseService, reader interfaces.DocumentReader) {
+		if setter, ok := kbSvc.(interface{ SetDocumentReader(interfaces.DocumentReader) }); ok {
+			setter.SetDocumentReader(reader)
+		}
+	}))
 
 	// Router configuration
 	logger.Debugf(ctx, "[Container] Registering router and starting task server...")
@@ -2025,7 +2030,24 @@ func initDocReaderClient(cfg *config.Config) (interfaces.DocumentReader, error) 
 		}
 		return docparser.NewHTTPDocumentReader(addr)
 	default:
-		return docparser.NewGRPCDocumentReader(addr)
+		reader, err := docparser.NewGRPCDocumentReader(addr)
+		if err != nil {
+			return nil, err
+		}
+		if path := strings.TrimSpace(os.Getenv("HYBRAG_DOCREADER_ROUTING_PATH")); path != "" {
+			routing, err := docparser.NewComputeRouter(reader, path)
+			if err != nil {
+				return nil, err
+			}
+			if gateway := strings.TrimSpace(os.Getenv("HYBRAG_DOCREADER_SHARE_GATEWAY")); gateway != "" {
+				routing.Sharing, err = docparser.NewComputeSharing(filepath.Join(filepath.Dir(path), "docreader-sharing.json"), gateway, reader)
+				if err != nil {
+					logger.Errorf(context.Background(), "DocReader sharing is unavailable: %v", err)
+				}
+			}
+			return routing, nil
+		}
+		return reader, nil
 	}
 }
 

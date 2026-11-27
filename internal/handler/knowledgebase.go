@@ -827,8 +827,9 @@ type UpdateKnowledgeBaseRequest struct {
 	// VLMConfig updates the knowledge base's multimodal (vision) config.
 	// Optional: nil means "no change", mirroring how CreateKnowledgeBase
 	// accepts a top-level vlm_config.
-	VLMConfig             *types.VLMConfig `json:"vlm_config"`
-	questionModelProvided bool
+	VLMConfig               *types.VLMConfig `json:"vlm_config"`
+	questionModelProvided   bool
+	questionComputeProvided bool
 }
 
 // UnmarshalJSON retains whether an older client supplied the question-model binding.
@@ -846,6 +847,7 @@ func (r *UpdateKnowledgeBaseRequest) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	_, r.questionModelProvided = payload.Config.Questions["model_id"]
+	_, r.questionComputeProvided = payload.Config.Questions["compute_route"]
 	return nil
 }
 
@@ -888,9 +890,14 @@ func (h *KnowledgeBaseHandler) UpdateKnowledgeBase(c *gin.Context) {
 		c.Error(apperrors.NewBadRequestError("Invalid request parameters").WithDetails(err.Error()))
 		return
 	}
-	if !req.questionModelProvided && req.Config != nil && req.Config.QuestionGenerationConfig != nil &&
+	if req.Config != nil && req.Config.QuestionGenerationConfig != nil &&
 		currentKB.QuestionGenerationConfig != nil {
-		req.Config.QuestionGenerationConfig.ModelID = currentKB.QuestionGenerationConfig.ModelID
+		if !req.questionModelProvided {
+			req.Config.QuestionGenerationConfig.ModelID = currentKB.QuestionGenerationConfig.ModelID
+		}
+		if !req.questionComputeProvided {
+			req.Config.QuestionGenerationConfig.ComputeRoute = currentKB.QuestionGenerationConfig.ComputeRoute.Clone()
+		}
 	}
 	if err := validateKnowledgeBaseSettingsUpdate(c, currentKB, req.Config, req.VLMConfig); err != nil {
 		_ = c.Error(err)
@@ -941,7 +948,7 @@ func validateKnowledgeBaseSettingsUpdate(
 	c *gin.Context, kb *types.KnowledgeBase, cfg *types.KnowledgeBaseConfig, vlm *types.VLMConfig,
 ) error {
 	settings := vlm != nil || cfg != nil && (cfg.EmbeddingModelID != nil || cfg.SummaryModelID != nil ||
-		cfg.StorageBackendID != nil || cfg.ASRConfig != nil ||
+		cfg.SummaryComputeConfig != nil || cfg.StorageBackendID != nil || cfg.ASRConfig != nil ||
 		questionModelBindingChanged(kb, cfg.QuestionGenerationConfig))
 	if !settings {
 		return nil
@@ -962,10 +969,17 @@ func questionModelBindingChanged(kb *types.KnowledgeBase, next *types.QuestionGe
 		return false
 	}
 	previous := ""
+	var prevRoute *types.ComputeTextRouteConfig
 	if kb.QuestionGenerationConfig != nil {
 		previous = kb.QuestionGenerationConfig.ModelID
+		prevRoute = kb.QuestionGenerationConfig.ComputeRoute
 	}
-	return strings.TrimSpace(next.ModelID) != strings.TrimSpace(previous)
+	if strings.TrimSpace(next.ModelID) != strings.TrimSpace(previous) {
+		return true
+	}
+	prevJSON, _ := json.Marshal(prevRoute)
+	nextJSON, _ := json.Marshal(next.ComputeRoute)
+	return string(prevJSON) != string(nextJSON)
 }
 
 // PatchKnowledgeBaseRequest changes the settings it carries. A field left
@@ -979,6 +993,8 @@ type PatchKnowledgeBaseRequest struct {
 	EmbeddingModelID *string `json:"embedding_model_id" extensions:"x-agent=embedding_model_id"`
 	// Summary model. model.list returns the ids.
 	SummaryModelID *string `json:"summary_model_id" extensions:"x-agent=summary_model_id"`
+	// Compute-node text inference routing for document summaries.
+	SummaryComputeConfig *types.ComputeTextRouteConfig `json:"summary_compute_config,omitempty"`
 	// Storage instance to bind. Omit to keep the current one.
 	StorageBackendID *string `json:"storage_backend_id" extensions:"x-agent=storage_backend_id"`
 	// File extensions whose parser routing should change, e.g. ["pdf", "docx"]. Other file types keep their rules.
@@ -1194,6 +1210,19 @@ func applyKnowledgeBasePatch(
 	}
 	if _, ok := sections["vlm_config"]; ok && string(sections["vlm_config"]) != "null" {
 		out.VLM = &vlm
+	}
+
+	if raw, ok := sections["summary_compute_config"]; ok {
+		if string(raw) == "null" {
+			cfg.SummaryComputeConfig = &types.ComputeTextRouteConfig{}
+			used = true
+		} else {
+			summaryCompute := types.ComputeTextRouteConfig{}
+			if err := merge("summary_compute_config", &summaryCompute); err != nil {
+				return out, err
+			}
+			cfg.SummaryComputeConfig = &summaryCompute
+		}
 	}
 
 	if patch.EmbeddingModelID != nil {

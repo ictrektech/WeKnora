@@ -120,6 +120,12 @@ tc207 resource behavior remain unverified.
 
 Open HybRAG → the account menu at the bottom left → **All Settings → Publish & Integrations → API Documentation**. Search the full API reference, VOS external integration guide, and validation checklist. **API Integration → Open documentation** opens the same collection in a drawer. Chinese interfaces show Chinese documentation; English and other non-Chinese interfaces show English. Automatic language mode follows VOS.
 
+## 跨节点算力节点
+
+两台 VOS 均完整安装 HybRAG。提供方管理员在「系统设置 → 算力节点」开启本机共享并生成一次性接入码，使用方粘贴后点击「添加节点」。首个节点添加成功即启用路由，调整顺序或权重时点击「保存路由」。共享默认关闭，两个节点均沿用 PGV 安装依赖。 [使用与 API](docs/api/docreader-routing.md) · [路由设计](docs/cross-node-docreader-routing.md)
+
+提供方可在同页选视觉模型并开放「文档处理」，或勾选本机对话模型开放「文本推理」。已有配对的使用方点击「检查」即可发现新增能力与已授权模型（无需重配或手填地址凭据）：启用「使用文档处理」后，符合条件的 PDF 由该节点完成解析、OCR 与图片描述并回传实测耗时；在具体知识库设置中可分别为「文档摘要」和「自动问题生成」选择算力节点模型，支持 `429 WAIT_COMPUTE_RESOURCE` 限次退避重试、显式配置兜底与重试去重，Trace 显示各步骤执行节点与耗时。 [适用条件与操作](docs/api/docreader-routing.md)
+
 ## 文档结构
 
 | 路径 | 状态 | 用途 |
@@ -127,6 +133,7 @@ Open HybRAG → the account menu at the bottom left → **All Settings → Publi
 | `README.md` | 当前维护 | VOS app 打包、发布、依赖、模型、安装和排错主入口。 |
 | `src/README.zh-CN.md` / `src/README.en.md` | 当前维护 | 打进 VOS 安装包的简版说明。 |
 | `docs/USERGUIDE.md` | 当前维护 | 面向使用者的知识库、文档解析、问答、模型配置和界面操作说明。 |
+| [跨节点部署现状](docs/cross-node-deployment.md) | 当前维护 | 各组件的远端接入方式、改造难度和验证状态。 |
 | `docs/legal-workspace.md` | 当前维护 | 法律工作台的工作区开关、侧栏入口、数据保留和删除边界。 |
 | `docs/patent-workspace.md` | 当前维护 | 专利检索与写作指导、独立会话、工作区开关及数据清理边界。 |
 | `docs/legal-assistant.md` | 当前维护 | 法务对话助手的使用范围、会话归属、权限和验证边界。 |
