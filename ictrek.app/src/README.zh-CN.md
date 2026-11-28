@@ -1,5 +1,7 @@
 # HybRAG
 
+升级时保留应用存储，为旧 `amd` 和 `arm` 分别选择 `amd-cpu` 和 `arm-cpu`。通过 VOS API 升级时显式传入新 `profiles`。回退时选择旧版本对应选项。应用 API 保持一致。
+
 HybRAG 是企业知识库、RAG 问答、Wiki 知识图谱和智能体平台。本 VOS 包使用 pull 模式安装 HybRAG 运行组件，默认复用 Model Hub 已预热并常驻的 QA、图片理解和 embedding 后端。为避免额外构建和飞书列迁移，镜像仓库名仍沿用已发布的 `weknora*` 镜像；VOS 应用名、app id、路由和容器服务名使用 HybRAG。
 
 ## 组件

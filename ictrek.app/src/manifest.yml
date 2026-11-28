@@ -43,7 +43,7 @@ oauth2:
     access_token_ttl: 3600
     refresh_token_ttl: 1209600
 profiles:
-- name: amd
+- name: amd-cpu
   title:
     zh-CN: AMD64
     en: AMD64
@@ -53,8 +53,8 @@ profiles:
   caps:
     arch: amd64
   conflicts:
-  - arm
-- name: arm
+  - arm-cpu
+- name: arm-cpu
   title:
     zh-CN: ARM64
     en: ARM64
@@ -64,7 +64,7 @@ profiles:
   caps:
     arch: arm64
   conflicts:
-  - amd
+  - amd-cpu
 require-profiles: true
 
 storage:

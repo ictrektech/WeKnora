@@ -1,5 +1,7 @@
 # HybRAG
 
+During upgrades, keep app storage and select `amd-cpu` for `amd` or `arm-cpu` for `arm`. Supply the new `profiles` explicitly when using the VOS API. Select the matching old Profile on rollback. Application APIs stay the same.
+
 This document covers the same deployment instructions as `README.zh-CN.md`. The VOS package reuses Model Hub's two prewarmed Ollama runtimes, which stay running, instead of starting HybRAG's own Ollama containers.
 
 ## Components

@@ -248,7 +248,7 @@ PYCONFIG
 
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     local profile
-    for profile in amd arm; do
+    for profile in amd-cpu arm-cpu; do
       docker compose --env-file "${STAGE_DIR}/.env" -f "${STAGE_DIR}/docker-compose.yml" --profile "$profile" config >/dev/null \
         || die "docker compose config failed for profile ${profile}"
     done

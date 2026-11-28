@@ -214,7 +214,7 @@ services:
     networks: *id003
     restart: unless-stopped
     profiles:
-    - amd
+    - amd-cpu
     image: ${REDIS_AMD_IMAGE}
     pull_policy: always
   hybrag-neo4j-amd:
@@ -225,7 +225,7 @@ services:
     restart: unless-stopped
     healthcheck: *id008
     profiles:
-    - amd
+    - amd-cpu
     image: ${NEO4J_AMD_IMAGE}
     pull_policy: always
   hybrag-redis-arm:
@@ -234,7 +234,7 @@ services:
     networks: *id003
     restart: unless-stopped
     profiles:
-    - arm
+    - arm-cpu
     image: ${REDIS_ARM_IMAGE}
     pull_policy: always
   hybrag-neo4j-arm:
@@ -245,7 +245,7 @@ services:
     restart: unless-stopped
     healthcheck: *id008
     profiles:
-    - arm
+    - arm-cpu
     image: ${NEO4J_ARM_IMAGE}
     pull_policy: always
   hybrag-frontend-amd:
@@ -255,7 +255,7 @@ services:
     ports: *id020
     labels: *id011
     profiles:
-    - amd
+    - amd-cpu
     image: ${WEKNORA_UI_AMD_IMAGE}
     pull_policy: always
     depends_on:
@@ -349,7 +349,7 @@ services:
     volumes: *id013
     healthcheck: *id014
     profiles:
-    - amd
+    - amd-cpu
     image: ${WEKNORA_APP_AMD_IMAGE}
     pull_policy: always
     depends_on:
@@ -367,7 +367,7 @@ services:
     volumes: *id018
     healthcheck: *id019
     profiles:
-    - amd
+    - amd-cpu
     image: ${WEKNORA_DOCREADER_AMD_IMAGE}
     pull_policy: always
   hybrag-frontend-arm:
@@ -377,7 +377,7 @@ services:
     ports: *id020
     labels: *id011
     profiles:
-    - arm
+    - arm-cpu
     image: ${WEKNORA_UI_ARM_IMAGE}
     pull_policy: always
     depends_on:
@@ -471,7 +471,7 @@ services:
     volumes: *id013
     healthcheck: *id014
     profiles:
-    - arm
+    - arm-cpu
     image: ${WEKNORA_APP_ARM_IMAGE}
     pull_policy: always
     depends_on:
@@ -489,7 +489,7 @@ services:
     volumes: *id018
     healthcheck: *id019
     profiles:
-    - arm
+    - arm-cpu
     image: ${WEKNORA_DOCREADER_ARM_IMAGE}
     pull_policy: always
 networks:
