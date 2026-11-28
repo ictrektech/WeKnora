@@ -161,7 +161,7 @@ validate_staged_files() {
   local profile_spec profile sheet_title
   for profile_spec in "${PROFILES[@]}"; do
     IFS='|' read -r profile sheet_title <<< "$profile_spec"
-    expected_profiles+=("$profile")
+    expected_profiles+=("${profile}-cpu")
   done
   "${PYTHON_BIN}" - "${STAGE_DIR}/manifest.yml" "${STAGE_DIR}/docker-compose.yml" "${expected_profiles[@]}" <<'PYPROFILE' \
     || die "manifest/docker-compose profile contract validation failed"
@@ -210,7 +210,7 @@ if missing:
     raise SystemExit(f"docker-compose.yml has no service using profiles {missing!r}")
 
 for profile in expected:
-    service_name = f"hybrag-app-{profile}"
+    service_name = f"hybrag-app-{profile.removesuffix('-cpu')}"
     environment = services.get(service_name, {}).get("environment") or {}
     if environment.get("HYBRAG_VNOTE_DOCUMENT_DIR") != "/data/vnote-document-imports":
         raise SystemExit(f"{service_name} must set HYBRAG_VNOTE_DOCUMENT_DIR")
